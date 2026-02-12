@@ -82,7 +82,7 @@ output/run_YYYYMMDD_HHMMSS/         % 默认（case_name 为空时）
 | `alpha_0` | `pi/2` | 初始姿态角 [rad]：XZ 平面内长轴与 +X 的夹角 |
 | `N_body` | 1000 | 胞体表面力作用点数 |
 | `seg_per_um` | 150 | 纤毛每微米离散段数 |
-| `T_obs` | 10.0 | 观测时间 [s] |
+| `T_obs` | 180.0 | 观测时间 [s] |
 | `animation_skip` | 1 | 动画帧跳跃间隔 |
 
 ---
