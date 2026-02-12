@@ -41,7 +41,9 @@ CPN = NBody - SPN;                                  % Points on cylinder
 %% Generate sphere cap points (spiral distribution)
 SLoc = zeros(SPN, 3);
 for ii = 1:SPN
-    phi   = acos(-1.0 + (2.0 * ii - 1.0) / SPN);
+    cos_phi = -1.0 + (2.0 * ii - 1.0) / SPN;
+    cos_phi = max(-1, min(1, cos_phi));
+    phi   = acos(cos_phi);
     theta = sqrt(SPN * pi) * phi;
     SLoc(ii, 3) = minor_axis * cos(theta) * sin(phi);
     SLoc(ii, 2) = minor_axis * sin(theta) * sin(phi);

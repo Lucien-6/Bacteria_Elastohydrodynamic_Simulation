@@ -223,7 +223,8 @@ if M_pili > 0
         seg_lens_k  = sqrt(sum(tangents_k.^2, 2));
         tangents_k  = tangents_k ./ seg_lens_k;
 
-        theta0 = acos(tangents_k(:, 3));
+        cos_theta0 = max(-1, min(1, tangents_k(:, 3)));
+        theta0 = acos(cos_theta0);
         phi0   = atan2(tangents_k(:, 2), tangents_k(:, 1));
         psi0   = zeros(N_segments(k), 1);
 

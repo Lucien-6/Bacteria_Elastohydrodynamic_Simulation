@@ -22,7 +22,8 @@ function [theta, phi, psi] = pili_euler_angles(d1, d2, d3)
 %  Created: 2026-02-06
 %  Updated: 2026-02-11 — Standardised formatting
 
-theta = acos(d3(:, 3));
+cos_theta = max(-1, min(1, d3(:, 3)));
+theta = acos(cos_theta);
 phi   = atan2(d3(:, 2), d3(:, 1));
 psi   = atan2(d1(:, 3), d2(:, 3));
 

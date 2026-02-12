@@ -73,7 +73,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 1.6\n');
+logf('  Version 1.7\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -305,8 +305,20 @@ while T_achieved < T_obs_dimless
 
     % Check if event was triggered
     if ~isempty(sol.xe)
-        logf('[ODE]   Event triggered at t* = %.4e (singularity or timeout)\n', ...
-            sol.xe(end));
+        event_ids = unique(sol.ie(:)');
+        event_labels = cell(1, numel(event_ids));
+        for ei = 1:numel(event_ids)
+            switch event_ids(ei)
+                case 1
+                    event_labels{ei} = 'timeout';
+                case 2
+                    event_labels{ei} = 'euler-singularity-margin';
+                otherwise
+                    event_labels{ei} = sprintf('unknown-event-%d', event_ids(ei));
+            end
+        end
+        logf('[ODE]   Event triggered at t* = %.4e | reason = %s\n', ...
+            sol.xe(end), strjoin(event_labels, ','));
     end
 
     % Update state
@@ -1009,7 +1021,11 @@ function [value, isterminal, direction] = singularity_event(~, Z, params, tstart
     end
 
     singularity_val = min_margin - delta/2;
-    value      = min(timeout_val, singularity_val);
-    isterminal = 1;
-    direction  = -1;
+
+    % Return separate event channels so solver reports exact trigger reason:
+    %   value(1) -> timeout
+    %   value(2) -> Euler-angle singularity margin
+    value      = [timeout_val; singularity_val];
+    isterminal = [1; 1];
+    direction  = [-1; -1];
 end
