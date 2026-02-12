@@ -42,7 +42,7 @@ tic_sim_start = tic;        % Global wall clock for the entire run
 %% =====================================================================
 %  CASE IDENTIFICATION (must precede output directory setup)
 %  =====================================================================
-case_name = '';                    % User-defined case name (string)
+case_name = 'Test-1';                    % User-defined case name (string)
                                    %   Non-empty : output saved to output/<case_name>/
                                    %   Empty ''  : output saved to output/run_YYYYMMDD_HHMMSS/
 
@@ -73,7 +73,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 1.2\n');
+logf('  Version 1.6\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -110,7 +110,7 @@ Pili_Matrix = [1;                  % Type: linear (straight)
                0;                  % Deflection from Z: 0
                0;                  % Deflection from X: 0
                NaN; NaN; NaN;     % Shape parameters (unused)
-               5];                 % Attachment: Pole 1
+               3];                 % Attachment: Pole 1
 
 seg_per_um       = 150;            % [seg/um] Pili discretisation density
 pili_lengths_um  = Pili_Matrix(2, :);
@@ -130,7 +130,7 @@ rho_bac   = 1180.0;               % [kg/m^3] Bacteria density
 rho_fluid = 998.232;              % [kg/m^3] Fluid density
 
 % -------- Simulation Time --------
-T_obs = 300.0;                     % [s]      Total observation time
+T_obs = 30.0;                     % [s]      Total observation time
 
 % -------- Numerical Settings --------
 AbsTol = 1e-4;                    % ODE absolute tolerance
@@ -561,7 +561,7 @@ plot(t_s, X_um(1,:), '-', 'Color', [0.85 0.33 0.10], 'LineWidth', 1.8); hold on;
 plot(t_s, X_um(2,:), '-', 'Color', [0.47 0.67 0.19], 'LineWidth', 1.8);
 plot(t_s, X_um(3,:), '-', 'Color', [0.20 0.40 0.80], 'LineWidth', 1.8);
 xlabel('Time (s)',                 'FontName', 'Arial', 'FontSize', 12);
-ylabel('Position ({\mu}m)',        'FontName', 'Arial', 'FontSize', 12);
+ylabel('Position (μm)',        'FontName', 'Arial', 'FontSize', 12);
 title('Body Centre of Mass',      'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
 lg = legend('X', 'Y', 'Z', 'Location', 'best');
 set(lg, 'FontName', 'Arial', 'FontSize', 10, 'Box', 'off');
@@ -571,7 +571,7 @@ grid on; box on;
 subplot(2, 3, 2);
 plot(t_s, results.V_sink, 'k-', 'LineWidth', 1.8);
 xlabel('Time (s)',                        'FontName', 'Arial', 'FontSize', 12);
-ylabel('{\itV}_{sink} ({\mu}m/s)',        'FontName', 'Arial', 'FontSize', 12);
+ylabel('{\itV}_{sink} (μm/s)',        'FontName', 'Arial', 'FontSize', 12);
 title('Sinking Velocity',                 'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
 grid on; box on;
 
@@ -584,10 +584,16 @@ ylabel('|{\bfq}| \minus 1',               'FontName', 'Arial', 'FontSize', 12);
 title('Quaternion Norm Deviation',         'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
 grid on; box on;
 
-% --- Subplot 4-6: 3D trajectory snapshots ---
-ax_snap = subplot(2, 3, [4, 5, 6]);
-hold on; grid on; box on;
-view(45, 30);
+% --- Subplot 4-6: 3D/XZ/YZ snapshot views ---
+ax_snap_3d = subplot(2, 3, 4);
+ax_snap_xz = subplot(2, 3, 5);
+ax_snap_yz = subplot(2, 3, 6);
+snap_axes  = [ax_snap_3d, ax_snap_xz, ax_snap_yz];
+for ai = 1:numel(snap_axes)
+    hold(snap_axes(ai), 'on');
+    grid(snap_axes(ai), 'on');
+    box(snap_axes(ai),  'on');
+end
 
 n_snapshots  = min(10, NT);
 snap_indices = round(linspace(1, NT, n_snapshots));
@@ -609,9 +615,40 @@ for k = 1:M_pili
                      linspace(light_c(3), dark_c(3), n_snapshots)'];
 end
 
-% Draw CM trajectory in light red
-plot3(ax_snap, X_um(1,:), X_um(2,:), X_um(3,:), ...
-      '-', 'Color', traj_color, 'LineWidth', 1.5);
+% Fixed axis limits across all static snapshot views
+all_x = [];
+all_y = [];
+all_z = [];
+for si = 1:n_snapshots
+    ti = snap_indices(si);
+    if ti <= size(results.X_cm, 2)
+        R_snap = quat_to_rotmat(results.q(:, ti));
+        cm_um  = results.X_cm_um(:, ti);
+        pts_snap = R_snap * capsule_flat + cm_um;    % [3 x N_mesh]
+        all_x = [all_x; pts_snap(1,:)']; %#ok<AGROW>
+        all_y = [all_y; pts_snap(2,:)']; %#ok<AGROW>
+        all_z = [all_z; pts_snap(3,:)']; %#ok<AGROW>
+        for k = 1:M_pili
+            X_p = results.X_pili_um{k}(:,:,ti);
+            all_x = [all_x; X_p(:,1)]; %#ok<AGROW>
+            all_y = [all_y; X_p(:,2)]; %#ok<AGROW>
+            all_z = [all_z; X_p(:,3)]; %#ok<AGROW>
+        end
+    end
+end
+x_span = max(all_x) - min(all_x);
+y_span = max(all_y) - min(all_y);
+z_span = max(all_z) - min(all_z);
+max_span = max([x_span, y_span, z_span]);
+margin   = 0.08 * max_span;
+if margin < 1e-6; margin = 1; end
+half_box = max_span / 2 + margin;
+x_mid = (max(all_x) + min(all_x)) / 2;
+y_mid = (max(all_y) + min(all_y)) / 2;
+z_mid = (max(all_z) + min(all_z)) / 2;
+ax_lim_x = [x_mid - half_box, x_mid + half_box];
+ax_lim_y = [y_mid - half_box, y_mid + half_box];
+ax_lim_z = [z_mid - half_box, z_mid + half_box];
 
 for si = 1:n_snapshots
     ti = snap_indices(si);
@@ -625,46 +662,57 @@ for si = 1:n_snapshots
         Ys = reshape(pts_snap(2,:), mesh_size);
         Zs = reshape(pts_snap(3,:), mesh_size);
         snap_alpha = 0.15 + 0.30 * (si / n_snapshots);
-        surf(ax_snap, Xs, Ys, Zs, ...
-             'FaceColor', body_cmap(si,:), 'FaceAlpha', snap_alpha, ...
-             'EdgeColor', 'none');
+        for ai = 1:numel(snap_axes)
+            surf(snap_axes(ai), Xs, Ys, Zs, ...
+                 'FaceColor', body_cmap(si,:), 'FaceAlpha', snap_alpha, ...
+                 'EdgeColor', 'none');
+        end
 
         % Pili polylines (per-pili gradient colours) with root markers
         for k = 1:M_pili
             X_p = results.X_pili_um{k}(:,:,ti);
             pk_c = pili_cmaps{k}(si,:);
-            plot3(X_p(:,1), X_p(:,2), X_p(:,3), ...
-                  '-', 'Color', pk_c, 'LineWidth', 1.8);
-            plot3(X_p(1,1), X_p(1,2), X_p(1,3), ...
-                  'o', 'Color', pk_c, 'MarkerSize', 4, ...
-                  'MarkerFaceColor', pk_c);
+            for ai = 1:numel(snap_axes)
+                plot3(snap_axes(ai), X_p(:,1), X_p(:,2), X_p(:,3), ...
+                      '-', 'Color', pk_c, 'LineWidth', 1.8);
+                plot3(snap_axes(ai), X_p(1,1), X_p(1,2), X_p(1,3), ...
+                      'o', 'Color', pk_c, 'MarkerSize', 4, ...
+                      'MarkerFaceColor', pk_c);
+            end
         end
     end
 end
 
-% Lighting for Gouraud shading
-camlight(ax_snap, 'headlight');
-lighting(ax_snap, 'gouraud');
-material(ax_snap, 'dull');
+% Common formatting for all three snapshot views
+for ai = 1:numel(snap_axes)
+    axi = snap_axes(ai);
+    xlim(axi, ax_lim_x);
+    ylim(axi, ax_lim_y);
+    zlim(axi, ax_lim_z);
+    set(axi, 'DataAspectRatio', [1 1 1], 'TickDir', 'out');
+    camlight(axi, 'headlight');
+    lighting(axi, 'gouraud');
+    material(axi, 'dull');
+    xlabel(axi, 'X (μm)', 'FontName', 'Arial', 'FontSize', 12);
+    ylabel(axi, 'Y (μm)', 'FontName', 'Arial', 'FontSize', 12);
+    zlabel(axi, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 12);
 
-xlabel(ax_snap, 'X ({\mu}m)', 'FontName', 'Arial', 'FontSize', 12);
-ylabel(ax_snap, 'Y ({\mu}m)', 'FontName', 'Arial', 'FontSize', 12);
-zlabel(ax_snap, 'Z ({\mu}m)', 'FontName', 'Arial', 'FontSize', 12);
-title(ax_snap, '3D Trajectory Snapshots', ...
+end
+
+view(ax_snap_3d, 45, 30);
+view(ax_snap_xz, [0 1 0]);   % Looking along +Y -> XZ plane projection
+view(ax_snap_yz, [1 0 0]);   % Looking along +X -> YZ plane projection
+title(ax_snap_3d, '3D Body-Pili Snapshots', ...
       'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
-axis equal;
+title(ax_snap_xz, 'XZ View Snapshots', ...
+      'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
+title(ax_snap_yz, 'YZ View Snapshots', ...
+      'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
 
-% --- Gravity direction indicator ---
-zL = ax_snap.ZLim;  xL = ax_snap.XLim;  yL = ax_snap.YLim;
-g_arrow_len = 0.15 * (zL(2) - zL(1));
-g_x0 = xL(1) + 0.08 * (xL(2) - xL(1));
-g_y0 = yL(2) - 0.08 * (yL(2) - yL(1));
-g_z0 = zL(2) - 0.06 * (zL(2) - zL(1));
-quiver3(ax_snap, g_x0, g_y0, g_z0, 0, 0, -g_arrow_len, 0, ...
-        'Color', [0.25 0.25 0.25], 'LineWidth', 2.5, 'MaxHeadSize', 0.5);
-text(ax_snap, g_x0, g_y0, g_z0 - g_arrow_len - 0.04*(zL(2)-zL(1)), ...
-     '{\itg}', 'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold', ...
-     'HorizontalAlignment', 'center', 'Color', [0.25 0.25 0.25]);
+% Gravity indicators fixed outside bottom-right of each axis frame
+for ai = 1:numel(snap_axes)
+    add_gravity_indicator_outside(fig_summary, snap_axes(ai), 12, 2.2);
+end
 
 sgtitle(sprintf('Coupled Body-Pili Simulation  [%s]', run_id), ...
     'FontName', 'Arial', 'FontSize', 14, 'FontWeight', 'bold');
@@ -745,6 +793,8 @@ if generate_animation
                   'DefaultAxesFontSize',  11, ...
                   'DefaultAxesLineWidth', 0.8);
     ax_anim = axes(fig_anim);
+    drawnow;  % Ensure axis position is established before annotation placement
+    add_gravity_indicator_outside(fig_anim, ax_anim, 13, 2.5);
 
     for fi = 1:n_frames
         ti = frame_indices(fi);
@@ -755,7 +805,7 @@ if generate_animation
         if fi > 1
             plot3(ax_anim, cm_traj_um(1,1:fi), cm_traj_um(2,1:fi), ...
                   cm_traj_um(3,1:fi), '-', 'Color', traj_color, ...
-                  'LineWidth', 1.8);
+                  'LineWidth', 0.8);
         end
 
         % --- Draw body: smooth capsule surface with transparency ---
@@ -786,17 +836,6 @@ if generate_animation
         plot3(ax_anim, cm_um(1), cm_um(2), cm_um(3), ...
               'r+', 'MarkerSize', 10, 'LineWidth', 2);
 
-        % --- Gravity direction indicator (fixed corner position) ---
-        g_arrow_len = 0.13 * (ax_lim_z(2) - ax_lim_z(1));
-        g_ax = ax_lim_x(1) + 0.08 * (ax_lim_x(2) - ax_lim_x(1));
-        g_ay = ax_lim_y(2) - 0.08 * (ax_lim_y(2) - ax_lim_y(1));
-        g_az = ax_lim_z(2) - 0.06 * (ax_lim_z(2) - ax_lim_z(1));
-        quiver3(ax_anim, g_ax, g_ay, g_az, 0, 0, -g_arrow_len, 0, ...
-                'Color', [0.25 0.25 0.25], 'LineWidth', 2.5, 'MaxHeadSize', 0.5);
-        text(ax_anim, g_ax, g_ay, g_az - g_arrow_len - 0.03*(ax_lim_z(2)-ax_lim_z(1)), ...
-             '{\itg}', 'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold', ...
-             'HorizontalAlignment', 'center', 'Color', [0.25 0.25 0.25]);
-
         % --- Lighting ---
         camlight(ax_anim, 'headlight');
         camlight(ax_anim, 'left');
@@ -812,10 +851,10 @@ if generate_animation
         box(ax_anim,  'on');
         set(ax_anim, 'TickDir', 'out');
         view(ax_anim, 45, 25);
-        xlabel(ax_anim, 'X ({\mu}m)', 'FontName', 'Arial', 'FontSize', 12);
-        ylabel(ax_anim, 'Y ({\mu}m)', 'FontName', 'Arial', 'FontSize', 12);
-        zlabel(ax_anim, 'Z ({\mu}m)', 'FontName', 'Arial', 'FontSize', 12);
-        title(ax_anim, sprintf('Bacteria Sinking  |  {\\itt} = %.4f s  (frame %d/%d)', ...
+        xlabel(ax_anim, 'X (μm)', 'FontName', 'Arial', 'FontSize', 12);
+        ylabel(ax_anim, 'Y (μm)', 'FontName', 'Arial', 'FontSize', 12);
+        zlabel(ax_anim, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 12);
+        title(ax_anim, sprintf('Time = %.4f s  (frame %d/%d)', ...
             results.t(ti), fi, n_frames), ...
             'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
 
@@ -917,6 +956,37 @@ function str = format_duration(seconds)
     else
         str = sprintf('%.1f s', s);
     end
+end
+
+function add_gravity_indicator_outside(fig_handle, ax_handle, font_size, line_width)
+%ADD_GRAVITY_INDICATOR_OUTSIDE  Draw gravity arrow outside axis right-middle.
+%  Uses figure-normalized annotation coordinates so marker location is
+%  stable across views and axis limits.
+
+    ax_pos = get(ax_handle, 'Position');   % [left bottom width height], normalized
+
+    % Anchor near right-middle outside the axis frame
+    x_arrow = ax_pos(1) + ax_pos(3) + 0.022;
+    y_mid   = ax_pos(2) + 0.50 * ax_pos(4);
+    y_top   = y_mid + 0.035;
+    y_bot   = y_mid - 0.035;
+
+    % Keep annotation within figure bounds
+    x_arrow = min(max(x_arrow, 0.02), 0.98);
+    y_top   = min(max(y_top,   0.05), 0.98);
+    y_bot   = min(max(y_bot,   0.02), 0.95);
+    if y_top <= y_bot
+        y_top = min(0.98, y_bot + 0.06);
+    end
+
+    annotation(fig_handle, 'arrow', [x_arrow, x_arrow], [y_top, y_bot], ...
+        'Color', [0.25 0.25 0.25], 'LineWidth', line_width, 'HeadLength', 8, ...
+        'HeadWidth', 8);
+    annotation(fig_handle, 'textbox', [x_arrow-0.010, y_bot-0.030, 0.030, 0.030], ...
+        'String', '\itg', 'Interpreter', 'tex', 'FontName', 'Arial', ...
+        'FontSize', font_size, 'FontWeight', 'bold', 'EdgeColor', 'none', ...
+        'Color', [0.25 0.25 0.25], 'HorizontalAlignment', 'center', ...
+        'VerticalAlignment', 'middle');
 end
 
 function [value, isterminal, direction] = singularity_event(~, Z, params, tstart, tlim)
