@@ -196,13 +196,17 @@ graph TD
 
 胶囊（spherocylinder）精确体积：
 
-$$V_{\text{capsule}} = \pi b^2 \left(\frac{4}{3}b + 2(a - b)\right)$$
+$$
+V_{\text{capsule}} = \pi b^2 \left(\frac{4}{3}b + 2(a - b)\right)
+$$
 
 其中 $b$ 为半短轴（球冠半径），$a$ 为半长轴，$2(a-b)$ 为中间圆柱段长度。
 
 ### 5.3 无量纲坐标
 
-$$\mathbf{x}^* = \frac{\mathbf{x}}{L_0}, \quad t^* = \frac{t}{T_0}, \quad \mathbf{v}^* = \frac{\mathbf{v}}{U_0}, \quad \mathbf{f}^* = \frac{\mathbf{f}}{F_\ell}$$
+$$
+\mathbf{x}^* = \frac{\mathbf{x}}{L_0}, \quad t^* = \frac{t}{T_0}, \quad \mathbf{v}^* = \frac{\mathbf{v}}{U_0}, \quad \mathbf{f}^* = \frac{\mathbf{f}}{F_\ell}
+$$
 
 以下省略星号 ${}^*$，所有方程均在无量纲坐标下表述。
 
@@ -224,7 +228,9 @@ $$\mathbf{x}^* = \frac{\mathbf{x}}{L_0}, \quad t^* = \frac{t}{T_0}, \quad \mathb
 
 ### 6.1 全局状态向量
 
-$$\mathbf{Z} = \begin{pmatrix} \mathbf{X}_{\text{cm}} \\ \mathbf{q} \\ \boldsymbol{\theta}_1 \\ \boldsymbol{\phi}_1 \\ \boldsymbol{\psi}_1 \\ \vdots \\ \boldsymbol{\theta}_M \\ \boldsymbol{\phi}_M \\ \boldsymbol{\psi}_M \end{pmatrix} \in \mathbb{R}^{n_{\text{state}}}$$
+$$
+\mathbf{Z} = \begin{pmatrix} \mathbf{X}_{\text{cm}} \\ \mathbf{q} \\ \boldsymbol{\theta}_1 \\ \boldsymbol{\phi}_1 \\ \boldsymbol{\psi}_1 \\ \vdots \\ \boldsymbol{\theta}_M \\ \boldsymbol{\phi}_M \\ \boldsymbol{\psi}_M \end{pmatrix} \in \mathbb{R}^{n_{\text{state}}}
+$$
 
 - $\mathbf{X}_{\text{cm}} \in \mathbb{R}^3$：胞体质心位置
 - $\mathbf{q} = (q_0, q_1, q_2, q_3)^T \in \mathbb{R}^4$：胞体姿态四元数（$|\mathbf{q}| = 1$）
@@ -236,21 +242,29 @@ $$\mathbf{Z} = \begin{pmatrix} \mathbf{X}_{\text{cm}} \\ \mathbf{q} \\ \boldsymb
 
 线性系统的核心未知量（速度/角速度空间，而非 $\dot{\mathbf{Z}}$）：
 
-$$\dot{\mathbf{z}} = \begin{pmatrix} \mathbf{V} \\ \boldsymbol{\Omega} \\ \dot{\boldsymbol{\theta}}_1 \\ \dot{\boldsymbol{\phi}}_1 \\ \dot{\boldsymbol{\psi}}_1 \\ \vdots \end{pmatrix} \in \mathbb{R}^{n_{\text{dof}}}$$
+$$
+\dot{\mathbf{z}} = \begin{pmatrix} \mathbf{V} \\ \boldsymbol{\Omega} \\ \dot{\boldsymbol{\theta}}_1 \\ \dot{\boldsymbol{\phi}}_1 \\ \dot{\boldsymbol{\psi}}_1 \\ \vdots \end{pmatrix} \in \mathbb{R}^{n_{\text{dof}}}
+$$
 
 自由度总数（不含四元数冗余维度）：$n_{\text{dof}} = 6 + 3\sum_{k=1}^{M} N_k$
 
 ### 6.3 四元数运动学
 
-$$\dot{\mathbf{q}} = \frac{1}{2} \begin{pmatrix} 0 \\ \boldsymbol{\Omega} \end{pmatrix} \otimes \mathbf{q}$$
+$$
+\dot{\mathbf{q}} = \frac{1}{2} \begin{pmatrix} 0 \\ \boldsymbol{\Omega} \end{pmatrix} \otimes \mathbf{q}
+$$
 
 左乘约定，$\boldsymbol{\Omega}$ 在实验室坐标系中。投影归一化维持 $|\mathbf{q}| = 1$：
 
-$$\dot{\mathbf{q}} \leftarrow \dot{\mathbf{q}} - (\dot{\mathbf{q}} \cdot \mathbf{q})\,\mathbf{q}$$
+$$
+\dot{\mathbf{q}} \leftarrow \dot{\mathbf{q}} - (\dot{\mathbf{q}} \cdot \mathbf{q})\,\mathbf{q}
+$$
 
 四元数到旋转矩阵的转换（$R$：体坐标系 → 实验室坐标系）：
 
-$$R(\mathbf{q}) = \begin{pmatrix} 1-2(q_2^2+q_3^2) & 2(q_1 q_2 - q_0 q_3) & 2(q_1 q_3 + q_0 q_2) \\ 2(q_1 q_2 + q_0 q_3) & 1-2(q_1^2+q_3^2) & 2(q_2 q_3 - q_0 q_1) \\ 2(q_1 q_3 - q_0 q_2) & 2(q_2 q_3 + q_0 q_1) & 1-2(q_1^2+q_2^2) \end{pmatrix}$$
+$$
+R(\mathbf{q}) = \begin{pmatrix} 1-2(q_2^2+q_3^2) & 2(q_1 q_2 - q_0 q_3) & 2(q_1 q_3 + q_0 q_2) \\ 2(q_1 q_2 + q_0 q_3) & 1-2(q_1^2+q_3^2) & 2(q_2 q_3 - q_0 q_1) \\ 2(q_1 q_3 - q_0 q_2) & 2(q_2 q_3 + q_0 q_1) & 1-2(q_1^2+q_2^2) \end{pmatrix}
+$$
 
 ### 6.4 初始姿态参数 `alpha_0`
 
@@ -258,7 +272,9 @@ $$R(\mathbf{q}) = \begin{pmatrix} 1-2(q_2^2+q_3^2) & 2(q_1 q_2 - q_0 q_3) & 2(q_
 
 胞体长轴在体坐标系中沿 Z 轴。为使其在实验室坐标系中指向 $(\cos\alpha_0, 0, \sin\alpha_0)$，需绕 Y 轴旋转 $\theta_Y = \pi/2 - \alpha_0$，对应初始四元数：
 
-$$\mathbf{q}_0 = \left(\cos\frac{\theta_Y}{2}, \; 0, \; \sin\frac{\theta_Y}{2}, \; 0\right)^T$$
+$$
+\mathbf{q}_0 = \left(\cos\frac{\theta_Y}{2}, \; 0, \; \sin\frac{\theta_Y}{2}, \; 0\right)^T
+$$
 
 | `alpha_0` | 含义 | 初始四元数 |
 |-----------|------|------------|
@@ -276,7 +292,9 @@ $$\mathbf{q}_0 = \left(\cos\frac{\theta_Y}{2}, \; 0, \; \sin\frac{\theta_Y}{2}, 
 
 ### 7.1 胞体表面点
 
-$$\mathbf{x}_i^{\text{lab}} = R(\mathbf{q})\,\mathbf{x}_i^{\text{local}} + \mathbf{X}_{\text{cm}}$$
+$$
+\mathbf{x}_i^{\text{lab}} = R(\mathbf{q})\,\mathbf{x}_i^{\text{local}} + \mathbf{X}_{\text{cm}}
+$$
 
 ### 7.2 纤毛节点坐标
 
@@ -284,9 +302,13 @@ $$\mathbf{x}_i^{\text{lab}} = R(\mathbf{q})\,\mathbf{x}_i^{\text{local}} + \math
 
 **欧拉角到指向向量 directors**（自适应基底 $R_k$ 中的 ZYZ 约定）：
 
-$$\mathbf{d}_3^{(j)} = \begin{pmatrix} \sin\theta_j \cos\phi_j \\ \sin\theta_j \sin\phi_j \\ \cos\theta_j \end{pmatrix}, \quad \mathbf{d}_1^{(j)} = \begin{pmatrix} -\sin\phi_j\cos\psi_j - \cos\theta_j\cos\phi_j\sin\psi_j \\ \cos\phi_j\cos\psi_j - \cos\theta_j\sin\phi_j\sin\psi_j \\ \sin\theta_j\sin\psi_j \end{pmatrix}$$
+$$
+\mathbf{d}_3^{(j)} = \begin{pmatrix} \sin\theta_j \cos\phi_j \\ \sin\theta_j \sin\phi_j \\ \cos\theta_j \end{pmatrix}, \quad \mathbf{d}_1^{(j)} = \begin{pmatrix} -\sin\phi_j\cos\psi_j - \cos\theta_j\cos\phi_j\sin\psi_j \\ \cos\phi_j\cos\psi_j - \cos\theta_j\sin\phi_j\sin\psi_j \\ \sin\theta_j\sin\psi_j \end{pmatrix}
+$$
 
-$$\mathbf{d}_2^{(j)} = \begin{pmatrix} \sin\phi_j\sin\psi_j - \cos\theta_j\cos\phi_j\cos\psi_j \\ -\cos\phi_j\sin\psi_j - \cos\theta_j\sin\phi_j\cos\psi_j \\ \sin\theta_j\cos\psi_j \end{pmatrix}$$
+$$
+\mathbf{d}_2^{(j)} = \begin{pmatrix} \sin\phi_j\sin\psi_j - \cos\theta_j\cos\phi_j\cos\psi_j \\ -\cos\phi_j\sin\psi_j - \cos\theta_j\sin\phi_j\cos\psi_j \\ \sin\theta_j\cos\psi_j \end{pmatrix}
+$$
 
 **节点坐标**（实验室坐标系）：$\mathbf{x}_{j+1}^{(k)} = \mathbf{x}_j^{(k)} + \frac{\ell_k}{N_k}\, R_k^T \,\mathbf{d}_3^{(j)}$
 
@@ -296,13 +318,17 @@ $$\mathbf{d}_2^{(j)} = \begin{pmatrix} \sin\phi_j\sin\psi_j - \cos\theta_j\cos\p
 
 ### 8.1 RSM 核函数（Cortez et al. 2005）
 
-$$S_{ij}^{\epsilon} = \frac{(|\mathbf{r}|^2 + 2\epsilon_{ij}^2)\,\mathbf{I} + \mathbf{r}\mathbf{r}^T}{(|\mathbf{r}|^2 + \epsilon_{ij}^2)^{3/2}}$$
+$$
+S_{ij}^{\epsilon} = \frac{(|\mathbf{r}|^2 + 2\epsilon_{ij}^2)\,\mathbf{I} + \mathbf{r}\mathbf{r}^T}{(|\mathbf{r}|^2 + \epsilon_{ij}^2)^{3/2}}
+$$
 
 其中 $\mathbf{r} = \mathbf{x}_i - \mathbf{x}_j$，$\epsilon_{ij}$ 为自适应逐对正则化参数。
 
 ### 8.2 加权迁移率矩阵
 
-$$M_{\text{weighted}} = S^{\epsilon} \cdot \text{diag}(\mathbf{w}), \quad w_j = \begin{cases} 1 & \text{胞体点（点力）} \\ \Delta s_k = \ell_k / N_k & \text{纤毛 } k \text{ 节点（力线密度）} \end{cases}$$
+$$
+M_{\text{weighted}} = S^{\epsilon} \cdot \text{diag}(\mathbf{w}), \quad w_j = \begin{cases} 1 & \text{胞体点（点力）} \\ \Delta s_k = \ell_k / N_k & \text{纤毛 } k \text{ 节点（力线密度）} \end{cases}
+$$
 
 ### 8.3 平动阻力矩阵
 
@@ -312,7 +338,9 @@ $\mathbf{A}_{\text{trans}} = M_{\text{weighted}}^{-1}$ — 实际计算通过 LU
 
 纤毛的扭转使用阻力力理论，对每根纤毛 $k$：
 
-$$\tilde{A}_k = \frac{\ell_k\,\varepsilon_k^2}{2}\,\hat{A}_k, \quad [\hat{A}_k]_{3(j-1)+1:3j, \, j} = \mathbf{d}_3^{(j)}$$
+$$
+\tilde{A}_k = \frac{\ell_k\,\varepsilon_k^2}{2}\,\hat{A}_k, \quad [\hat{A}_k]_{3(j-1)+1:3j, \, j} = \mathbf{d}_3^{(j)}
+$$
 
 其中 $\varepsilon_k = \varepsilon / \ell_k = r_{\text{pili}} / L_{\text{pili},k}$ 为第 $k$ 根纤毛的局部细长比（纤毛物理半径与其自身长度之比）。$\hat{A}_k$ 将标量扭转速率映射为 3D 转矩密度向量，$\mathbf{d}_3^{(j)}$ 使用**实验室坐标系**中的切线方向。
 
@@ -322,7 +350,9 @@ $$\tilde{A}_k = \frac{\ell_k\,\varepsilon_k^2}{2}\,\hat{A}_k, \quad [\hat{A}_k]_
 
 > **RSM 力点重合原则**：在正则化 Stokeslet 方法中，力的施加点与速度的评估点天然重合（force point ≡ evaluation point），因此几何生成模块仅输出一组表面/节点坐标，无需独立的力点数据。
 
-$$\epsilon_j = \begin{cases} h_{\text{body}}^\text{min} / 2 & \text{胞体表面点} \\ r_{\text{pili}} / L_0 & \text{纤毛节点} \end{cases}, \quad \epsilon_{ij} = \epsilon_j \text{（力点决定规则）}$$
+$$
+\epsilon_j = \begin{cases} h_{\text{body}}^\text{min} / 2 & \text{胞体表面点} \\ r_{\text{pili}} / L_0 & \text{纤毛节点} \end{cases}, \quad \epsilon_{ij} = \epsilon_j \text{（力点决定规则）}
+$$
 
 纤毛根部间距：$d_{\text{gap}} = 1.1 \times (\epsilon_{\text{body}} \cdot L_0 + r_{\text{pili}})$
 
@@ -332,13 +362,17 @@ $$\epsilon_j = \begin{cases} h_{\text{body}}^\text{min} / 2 & \text{胞体表面
 
 $\mathbf{Q}_{\text{global}}$ 将广义速率 $\dot{\mathbf{z}}$ 映射为所有节点的速度（平动 + 扭转）：
 
-$$\mathbf{v}_{\text{all}} = \mathbf{Q}_{\text{global}}\,\dot{\mathbf{z}}, \quad \mathbf{Q}_{\text{global}} \in \mathbb{R}^{n_{\text{vel}} \times n_{\text{dof}}}$$
+$$
+\mathbf{v}_{\text{all}} = \mathbf{Q}_{\text{global}}\,\dot{\mathbf{z}}, \quad \mathbf{Q}_{\text{global}} \in \mathbb{R}^{n_{\text{vel}} \times n_{\text{dof}}}
+$$
 
 其中 $n_{\text{vel}} = 3 N_{\text{total}} + \sum_k N_k$。
 
 ### 9.1 胞体点速度
 
-$$\mathbf{v}_i = \mathbf{V} - [\mathbf{r}_i]_\times\,\boldsymbol{\Omega}$$
+$$
+\mathbf{v}_i = \mathbf{V} - [\mathbf{r}_i]_\times\,\boldsymbol{\Omega}
+$$
 
 其中 $\mathbf{r}_i = \mathbf{x}_i - \mathbf{X}_{\text{cm}}$，$[\cdot]_\times$ 为反对称矩阵。
 
@@ -366,7 +400,9 @@ $\mathbf{B}_{\text{global}} \in \mathbb{R}^{n_{\text{dof}} \times n_{\text{force
 
 ### 10.2 全局力矩平衡（第 4–6 行）
 
-$$\sum_{\text{all}} w_i (\mathbf{x}_i - \mathbf{X}_{\text{cm}}) \times \mathbf{f}_i = \mathbf{0}$$
+$$
+\sum_{\text{all}} w_i (\mathbf{x}_i - \mathbf{X}_{\text{cm}}) \times \mathbf{f}_i = \mathbf{0}
+$$
 
 ### 10.3 纤毛弯矩平衡（第 7 行起）
 
@@ -382,11 +418,17 @@ $$\sum_{\text{all}} w_i (\mathbf{x}_i - \mathbf{X}_{\text{cm}}) \times \mathbf{f
 
 三分量曲率偏差（相对于固有形状）：
 
-$$\kappa_1^{(j)} = \mathbf{d}_3^{NC}(j,:) \cdot \frac{d\mathbf{d}_2^{NC}}{ds}\bigg|_j - \kappa_{1,0}^{(j)}$$
+$$
+\kappa_1^{(j)} = \mathbf{d}_3^{NC}(j,:) \cdot \frac{d\mathbf{d}_2^{NC}}{ds}\bigg|_j - \kappa_{1,0}^{(j)}
+$$
 
-$$\kappa_2^{(j)} = \mathbf{d}_1^{NC}(j,:) \cdot \frac{d\mathbf{d}_3^{NC}}{ds}\bigg|_j - \kappa_{2,0}^{(j)}$$
+$$
+\kappa_2^{(j)} = \mathbf{d}_1^{NC}(j,:) \cdot \frac{d\mathbf{d}_3^{NC}}{ds}\bigg|_j - \kappa_{2,0}^{(j)}
+$$
 
-$$\kappa_3^{(j)} = \frac{1}{1+\sigma}\left(\mathbf{d}_2^{NC}(j,:) \cdot \frac{d\mathbf{d}_1^{NC}}{ds}\bigg|_j - \kappa_{3,0}^{(j)}\right)$$
+$$
+\kappa_3^{(j)} = \frac{1}{1+\sigma}\left(\mathbf{d}_2^{NC}(j,:) \cdot \frac{d\mathbf{d}_1^{NC}}{ds}\bigg|_j - \kappa_{3,0}^{(j)}\right)
+$$
 
 $\kappa_3$ 的 $1/(1+\sigma)$ 因子反映了扭转刚度 $GJ = EI/(1+\sigma)$ 的差异。导数中乘以 $N_k$ 因子对应归一化坐标下的有限差分（$\Delta s = 1/N_k$）。
 
@@ -396,7 +438,9 @@ $\kappa_3$ 的 $1/(1+\sigma)$ 因子反映了扭转刚度 $GJ = EI/(1+\sigma)$ �
 
 ### 12.1 线性系统
 
-$$\mathbf{L}\,\dot{\mathbf{z}} = \mathbf{R}, \quad \mathbf{L} = -\mathbf{B}_{\text{global}} \cdot \mathbf{A}_{\text{ext}} \cdot \mathbf{Q}_{\text{global}}$$
+$$
+\mathbf{L}\,\dot{\mathbf{z}} = \mathbf{R}, \quad \mathbf{L} = -\mathbf{B}_{\text{global}} \cdot \mathbf{A}_{\text{ext}} \cdot \mathbf{Q}_{\text{global}}
+$$
 
 实际计算采用分块直接求解策略（不显式构造 $\mathbf{A}_{\text{ext}}$）：
 
@@ -411,7 +455,9 @@ lin_sys  = -B_global * AQ;
 
 ### 12.2 右端向量
 
-$$\mathbf{R} = \begin{pmatrix} -Eg\,\hat{\mathbf{g}} \\ \mathbf{0}_{3\times 1} \\ \kappa_1^{(1)},\, \kappa_2^{(1)},\, \kappa_3^{(1)},\, \ldots \end{pmatrix}$$
+$$
+\mathbf{R} = \begin{pmatrix} -Eg\,\hat{\mathbf{g}} \\ \mathbf{0}_{3\times 1} \\ \kappa_1^{(1)},\, \kappa_2^{(1)},\, \kappa_3^{(1)},\, \ldots \end{pmatrix}
+$$
 
 | 行 | 方程 | RHS |
 |----|------|-----|
@@ -429,15 +475,23 @@ $$\mathbf{R} = \begin{pmatrix} -Eg\,\hat{\mathbf{g}} \\ \mathbf{0}_{3\times 1} \
 
 将胞体角速度变换到纤毛基底：$\boldsymbol{\omega}_{\text{basis}} = R_k \boldsymbol{\Omega}_{\text{lab}}$
 
-$$\dot{\theta}_1 = -\omega_x \sin\phi_1 + \omega_y \cos\phi_1$$
+$$
+\dot{\theta}_1 = -\omega_x \sin\phi_1 + \omega_y \cos\phi_1
+$$
 
-$$\dot{\phi}_1 = \omega_z - \frac{\cos\theta_1}{\sin\theta_1}(\omega_x \cos\phi_1 + \omega_y \sin\phi_1)$$
+$$
+\dot{\phi}_1 = \omega_z - \frac{\cos\theta_1}{\sin\theta_1}(\omega_x \cos\phi_1 + \omega_y \sin\phi_1)
+$$
 
-$$\dot{\psi}_1 = \frac{\omega_x \cos\phi_1 + \omega_y \sin\phi_1}{\sin\theta_1}$$
+$$
+\dot{\psi}_1 = \frac{\omega_x \cos\phi_1 + \omega_y \sin\phi_1}{\sin\theta_1}
+$$
 
 Jacobian：$\mathbf{J}_{\text{euler}} = \mathbf{J}_{\text{basis}} \cdot R_k$，其中
 
-$$\mathbf{J}_{\text{basis}} = \begin{pmatrix} -\sin\phi_1 & \cos\phi_1 & 0 \\ -\frac{\cos\theta_1\cos\phi_1}{\sin\theta_1} & -\frac{\cos\theta_1\sin\phi_1}{\sin\theta_1} & 1 \\ \frac{\cos\phi_1}{\sin\theta_1} & \frac{\sin\phi_1}{\sin\theta_1} & 0 \end{pmatrix}$$
+$$
+\mathbf{J}_{\text{basis}} = \begin{pmatrix} -\sin\phi_1 & \cos\phi_1 & 0 \\ -\frac{\cos\theta_1\cos\phi_1}{\sin\theta_1} & -\frac{\cos\theta_1\sin\phi_1}{\sin\theta_1} & 1 \\ \frac{\cos\phi_1}{\sin\theta_1} & \frac{\sin\phi_1}{\sin\theta_1} & 0 \end{pmatrix}
+$$
 
 在线性系统中替换对应行，设置约束 $\dot{\theta}_1 - \mathbf{J}_{\text{euler}}(1,:) \cdot \boldsymbol{\Omega} = 0$，RHS = 0。
 
@@ -587,8 +641,8 @@ output/run_YYYYMMDD_HHMMSS/         % case_name = ''（默认）
 |------|--------|-----|----------|
 | 初始化 | `t_init_elapsed` | — | `[INIT] Initialisation completed in 2.3 s` |
 | ODE 段内 | `odetpbar` OutputFcn | ✓ 线性外推 | `[ODE]   [==========..........] 50.0%  Elapsed: 23 s  ETA: 23 s` |
-| ODE 全局 | `tic_total`，逐段 `seg_wall` | ✓ 线性外推 | `[ODE]   Progress: 35.2% \| Elapsed: 1 min 23.5 s \| ETA: 2 min 34.8 s` |
-| 动画渲染 | `t_anim_start` | ✓ 线性外推 | `[ANIM] Frame 40/201 (20%) \| Elapsed: 8.2 s \| ETA: 32.8 s` |
+| ODE 全局 | `tic_total`，逐段 `seg_wall` | ✓ 线性外推 | `[ODE]   Progress: 35.2% ǀ Elapsed: 1 min 23.5 s ǀ ETA: 2 min 34.8 s` |
+| 动画渲染 | `t_anim_start` | ✓ 线性外推 | `[ANIM] Frame 40/201 (20%) ǀ Elapsed: 8.2 s ǀ ETA: 32.8 s` |
 | 全局 | `tic_sim_start` | — | 最终摘要中的 `Total wall time` |
 
 **ODE 段内进度条**（`odetpbar.m`）：自包含的专业进度条，作为 `ode15s` 的 `OutputFcn` 运行。使用 `=` / `.` 字符绘制 30 格宽度进度条，实时显示百分比、已用时间和 ETA。输出节流（≥ 0.25 s 间隔更新）避免过多 I/O。采用 `\b` 退格机制原地刷新，仅输出至控制台（不写入日志文件），段结束后打印最终 100% 行并换行。
@@ -661,15 +715,21 @@ Coupled_Body_Pili/
 
 ### 18.1 Stokeslet 坐标缩放性质
 
-$$\hat{S}^{\ell_k \hat{\epsilon}_W}(\ell_k \hat{\mathbf{r}}) = \frac{1}{\ell_k} \hat{S}^{\hat{\epsilon}_W}(\hat{\mathbf{r}})$$
+$$
+\hat{S}^{\ell_k \hat{\epsilon}_W}(\ell_k \hat{\mathbf{r}}) = \frac{1}{\ell_k} \hat{S}^{\hat{\epsilon}_W}(\hat{\mathbf{r}})
+$$
 
 ### 18.2 A 矩阵等价
 
 本项目的加权迁移率（纤毛 $k$ 部分）：
 
-$$M_{\text{pili}} = \hat{S}_{L_0} \cdot \Delta s_k = \frac{1}{\ell_k} \hat{S}_W \cdot \frac{\ell_k}{N_k} = \frac{\hat{S}_W}{N_k}$$
+$$
+M_{\text{pili}} = \hat{S}_{L_0} \cdot \Delta s_k = \frac{1}{\ell_k} \hat{S}_W \cdot \frac{\ell_k}{N_k} = \frac{\hat{S}_W}{N_k}
+$$
 
-$$A_{\text{pili}} = M_{\text{pili}}^{-1} = N_k \hat{S}_W^{-1} = A_W \quad ✓$$
+$$
+A_{\text{pili}} = M_{\text{pili}}^{-1} = N_k \hat{S}_W^{-1} = A_W \quad \checkmark
+$$
 
 ### 18.3 $EH = \ell_k^4$ 等价性
 
@@ -677,7 +737,9 @@ Walker 的弹性流体动力学数：$EH = 8\pi\mu L_{\text{pili}}^4 / (EI \cdot
 
 以本项目的时间尺度 $T_0 = 8\pi\mu L_0^4 / EI$ 代入：
 
-$$EH_k = \frac{L_{\text{pili},k}^4}{L_0^4} = \ell_k^4$$
+$$
+EH_k = \frac{L_{\text{pili},k}^4}{L_0^4} = \ell_k^4
+$$
 
 ### 18.4 B·A·Q 乘积缩放验证（平动部分）
 
@@ -689,7 +751,9 @@ $$EH_k = \frac{L_{\text{pili},k}^4}{L_0^4} = \ell_k^4$$
 
 乘积：
 
-$$\mathbf{B}_{k,\text{trans}} \cdot \mathbf{A}_{\text{trans}} \cdot \mathbf{Q}_{\text{trans}} = \ell_k^3 B_W \cdot A_W \cdot \ell_k Q_W = \ell_k^4 \cdot B_W A_W Q_W = EH_k \cdot B_W A_W Q_W \quad ✓$$
+$$
+\mathbf{B}_{k,\text{trans}} \cdot \mathbf{A}_{\text{trans}} \cdot \mathbf{Q}_{\text{trans}} = \ell_k^3 B_W \cdot A_W \cdot \ell_k Q_W = \ell_k^4 \cdot B_W A_W Q_W = EH_k \cdot B_W A_W Q_W \quad \checkmark
+$$
 
 ### 18.5 B·A·Q 乘积缩放验证（扭转部分）
 
@@ -703,15 +767,21 @@ $$\mathbf{B}_{k,\text{trans}} \cdot \mathbf{A}_{\text{trans}} \cdot \mathbf{Q}_{
 
 乘积（单项 $j$）：
 
-$$\mathbf{B}_{k,\text{twist}} \cdot \tilde{A}_k \cdot \mathbf{Q}_{\text{twist}} = \ell_k^3 \cdot \frac{d_\alpha}{N_k} \cdot \frac{\ell_k\varepsilon_k^2}{2}\hat{\omega}_j d_3^j = \frac{\varepsilon_k^2 \ell_k^4}{2N_k}(d_\alpha \cdot d_3)\hat{\omega}_j$$
+$$
+\mathbf{B}_{k,\text{twist}} \cdot \tilde{A}_k \cdot \mathbf{Q}_{\text{twist}} = \ell_k^3 \cdot \frac{d_\alpha}{N_k} \cdot \frac{\ell_k\varepsilon_k^2}{2}\hat{\omega}_j d_3^j = \frac{\varepsilon_k^2 \ell_k^4}{2N_k}(d_\alpha \cdot d_3)\hat{\omega}_j
+$$
 
 **有量纲验证**：扭转力矩密度 $\tau_j = 4\pi\mu r_{\text{pili}}^2\omega_j d_3^j$，Walker Eq. (19) 的贡献：
 
-$$d_\alpha \cdot \Delta s_k\,\tau_j = \frac{\ell_k L_0}{N_k}\cdot\frac{4\pi\mu(\varepsilon_k\ell_k L_0)^2}{T_0}\hat{\omega}_j(d_\alpha\cdot d_3) = \frac{\varepsilon_k^2\ell_k^3 EI}{2N_k L_0}\hat{\omega}_j(d_\alpha\cdot d_3)$$
+$$
+d_\alpha \cdot \Delta s_k\,\tau_j = \frac{\ell_k L_0}{N_k}\cdot\frac{4\pi\mu(\varepsilon_k\ell_k L_0)^2}{T_0}\hat{\omega}_j(d_\alpha\cdot d_3) = \frac{\varepsilon_k^2\ell_k^3 EI}{2N_k L_0}\hat{\omega}_j(d_\alpha\cdot d_3)
+$$
 
 除以弯矩平衡方程的尺度 $EI/(\ell_k L_0)$：
 
-$$\frac{\varepsilon_k^2\ell_k^3 EI/(2N_k L_0)}{EI/(\ell_k L_0)} = \frac{\varepsilon_k^2\ell_k^4}{2N_k} \quad ✓$$
+$$
+\frac{\varepsilon_k^2\ell_k^3 EI/(2N_k L_0)}{EI/(\ell_k L_0)} = \frac{\varepsilon_k^2\ell_k^4}{2N_k} \quad \checkmark
+$$
 
 与上述乘积**完全一致**。
 
@@ -817,7 +887,9 @@ Walker 在单位长度纤毛（$L=1$）下使用 $1/N$ 作为段长。在本项�
 
 归一化后 $\mathbf{B}_k = \mathbf{B}_W$，而 $\mathbf{A}_{\text{our}} = \mathbf{A}_W$，$\mathbf{Q}_{\text{our}} = \ell_k \cdot \mathbf{Q}_W$。乘积：
 
-$$\ell_k^3 \cdot \mathbf{B}_W \cdot \mathbf{A}_W \cdot (\ell_k \cdot \mathbf{Q}_W) = \ell_k^4 \cdot \mathbf{B}_W \cdot \mathbf{A}_W \cdot \mathbf{Q}_W$$
+$$
+\ell_k^3 \cdot \mathbf{B}_W \cdot \mathbf{A}_W \cdot (\ell_k \cdot \mathbf{Q}_W) = \ell_k^4 \cdot \mathbf{B}_W \cdot \mathbf{A}_W \cdot \mathbf{Q}_W
+$$
 
 其中 $\ell_k^4 = EH_k$（Walker 的弹性流体动力学数）。
 
@@ -845,17 +917,23 @@ $$\ell_k^3 \cdot \mathbf{B}_W \cdot \mathbf{A}_W \cdot (\ell_k \cdot \mathbf{Q}_
 
 有量纲扭转力矩贡献（一项）：
 
-$$d_\alpha \cdot \Delta s_k \tau_j = \frac{\ell_k L_0}{N_k}\cdot\frac{4\pi\mu(\varepsilon_k\ell_k L_0)^2}{T_0}\hat{\omega}_j(d_\alpha\cdot d_3) = \frac{\varepsilon_k^2\ell_k^3 EI}{2N_k L_0}\hat{\omega}_j(d_\alpha\cdot d_3)$$
+$$
+d_\alpha \cdot \Delta s_k \tau_j = \frac{\ell_k L_0}{N_k}\cdot\frac{4\pi\mu(\varepsilon_k\ell_k L_0)^2}{T_0}\hat{\omega}_j(d_\alpha\cdot d_3) = \frac{\varepsilon_k^2\ell_k^3 EI}{2N_k L_0}\hat{\omega}_j(d_\alpha\cdot d_3)
+$$
 
 弯矩平衡方程的尺度为 $EI/(\ell_k L_0)$，因此正确的无量纲扭转项为：
 
-$$\frac{\varepsilon_k^2\ell_k^3 EI/(2N_k L_0)}{EI/(\ell_k L_0)} = \frac{\varepsilon_k^2\ell_k^4}{2N_k}$$
+$$
+\frac{\varepsilon_k^2\ell_k^3 EI/(2N_k L_0)}{EI/(\ell_k L_0)} = \frac{\varepsilon_k^2\ell_k^4}{2N_k}
+$$
 
 而原代码给出 $\varepsilon_k^2\ell_k^3/(2N_k)$，**差一个 $\ell_k$**。
 
 **修复**：将缺失的 $\ell_k$ 补入 $\tilde{A}_k$（保持 $\mathbf{B}_k$ 的统一 $\ell_k^3$ 缩放不变）：
 
-$$\tilde{A}_k = \frac{\varepsilon_k^2}{2}\hat{A}_k \quad\longrightarrow\quad \tilde{A}_k = \frac{\ell_k\,\varepsilon_k^2}{2}\hat{A}_k$$
+$$
+\tilde{A}_k = \frac{\varepsilon_k^2}{2}\hat{A}_k \quad\longrightarrow\quad \tilde{A}_k = \frac{\ell_k\,\varepsilon_k^2}{2}\hat{A}_k
+$$
 
 验证：$\ell_k^3 \cdot (\ell_k\varepsilon_k^2/2) \cdot 1 / N_k = \varepsilon_k^2\ell_k^4/(2N_k)$ ✓
 
