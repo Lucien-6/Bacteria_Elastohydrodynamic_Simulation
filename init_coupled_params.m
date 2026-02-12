@@ -38,7 +38,8 @@ function params = init_coupled_params(varargin)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-11 — Standardised naming and formatting
+%  Updated: 2026-02-12 — Standardised naming and formatting;
+%                         added attachment site conflict detection
 
 %% Parse inputs
 p = inputParser;
@@ -146,6 +147,21 @@ M_pili      = size(Pili_Matrix, 2);
 params.M_pili = M_pili;
 
 if M_pili > 0
+    % Validate: check for duplicate attachment sites
+    attach_sites = Pili_Matrix(8, :);
+    [unique_sites, ~, ic] = unique(attach_sites);
+    if length(unique_sites) < M_pili
+        counts = accumarray(ic, 1);
+        dup_mask = counts > 1;
+        dup_sites = unique_sites(dup_mask);
+        for ds = 1:length(dup_sites)
+            dup_idx = find(attach_sites == dup_sites(ds));
+            warning('init_coupled_params:DuplicateAttachSite', ...
+                'Pili [%s] share the same attachment site %d. This may be physically unrealistic.', ...
+                num2str(dup_idx), dup_sites(ds));
+        end
+    end
+
     % Generate initial pili geometry (to be resampled below)
     Pili_struct = pili_building(Pili_Matrix, p.Results.seg_per_um, ...
         p.Results.major_axis, p.Results.minor_axis, dis, ...

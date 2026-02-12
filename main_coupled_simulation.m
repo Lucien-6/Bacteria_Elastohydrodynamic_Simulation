@@ -27,10 +27,12 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-11 — Logging, data export, 3D animation;
+%  Updated: 2026-02-12 — Logging, data export, 3D animation;
 %                         removed fault-tolerance retry; code formatting;
 %                         added progress timer with ETA estimation;
-%                         added in-segment ODE progress bar (ode_progress)
+%                         added in-segment ODE progress bar (ode_progress);
+%                         per-pili distinguishable colours for multi-pili;
+%                         fixed redundant reconstruct_geometry calls
 
 close all force;
 clear; clc;
@@ -108,7 +110,7 @@ Pili_Matrix = [1;                  % Type: linear (straight)
                0;                  % Deflection from Z: 0
                0;                  % Deflection from X: 0
                NaN; NaN; NaN;     % Shape parameters (unused)
-               3];                 % Attachment: Pole 1
+               5];                 % Attachment: Pole 1
 
 seg_per_um       = 150;            % [seg/um] Pili discretisation density
 pili_lengths_um  = Pili_Matrix(2, :);
@@ -128,7 +130,7 @@ rho_bac   = 1180.0;               % [kg/m^3] Bacteria density
 rho_fluid = 998.232;              % [kg/m^3] Fluid density
 
 % -------- Simulation Time --------
-T_obs = 180.0;                     % [s]      Total observation time
+T_obs = 300.0;                     % [s]      Total observation time
 
 % -------- Numerical Settings --------
 AbsTol = 1e-4;                    % ODE absolute tolerance
@@ -246,9 +248,9 @@ results.X_cm(:, 1)   = X_cm0;
 results.q(:, 1)      = q0;
 
 results.X_pili = cell(M_pili, 1);
+geom0 = reconstruct_geometry(Z0, params);
 for k = 1:M_pili
     results.X_pili{k} = zeros(N_segs(k)+1, 3, NT);
-    geom0 = reconstruct_geometry(Z0, params);
     results.X_pili{k}(:, :, 1) = geom0.X_pili{k};
 end
 
@@ -521,8 +523,20 @@ logf('[PLOT] Capsule mesh: %d x %d = %d vertices\n', ...
 % --- Colour palette (journal style) ---
 body_color    = [0.20 0.65 0.33];    % Forest green
 body_alpha    = 0.35;                 % Body transparency
-pili_color    = [0.20 0.40 0.80];    % Medium blue (uniform for all pili)
 traj_color    = [1.00 0.55 0.55];    % Light red for CM trajectory
+
+% Per-pili distinguishable colours (up to 10; cycles if M_pili > 10)
+pili_palette = [0.20 0.40 0.80;      % Medium blue
+                0.85 0.33 0.10;      % Burnt orange
+                0.47 0.67 0.19;      % Olive green
+                0.64 0.08 0.18;      % Crimson
+                0.49 0.18 0.56;      % Purple
+                0.93 0.69 0.13;      % Goldenrod
+                0.30 0.75 0.93;      % Sky blue
+                0.60 0.60 0.60;      % Grey
+                0.00 0.45 0.74;      % Dark blue
+                0.85 0.47 0.66];     % Rose pink
+pili_colors = pili_palette(mod((1:M_pili)-1, size(pili_palette,1)) + 1, :);
 
 %% =====================================================================
 %  STATIC VISUALISATION (saved to PNG)
@@ -582,9 +596,18 @@ snap_indices = round(linspace(1, NT, n_snapshots));
 body_cmap = [linspace(0.75, 0.10, n_snapshots)', ...   % R
              linspace(0.92, 0.55, n_snapshots)', ...   % G
              linspace(0.78, 0.25, n_snapshots)'];      % B  (light→dark green)
-pili_cmap = [linspace(0.65, 0.10, n_snapshots)', ...   % R
-             linspace(0.80, 0.30, n_snapshots)', ...   % G
-             linspace(0.95, 0.70, n_snapshots)'];      % B  (light→dark blue)
+
+% Per-pili time-gradient colormaps: light (early) → dark (late)
+pili_cmaps = cell(M_pili, 1);
+for k = 1:M_pili
+    base_c = pili_colors(k, :);
+    % Blend from light (0.7*white + 0.3*base) to dark (base * 0.65)
+    light_c = 0.70 + 0.30 * base_c;
+    dark_c  = base_c * 0.65;
+    pili_cmaps{k} = [linspace(light_c(1), dark_c(1), n_snapshots)', ...
+                     linspace(light_c(2), dark_c(2), n_snapshots)', ...
+                     linspace(light_c(3), dark_c(3), n_snapshots)'];
+end
 
 % Draw CM trajectory in light red
 plot3(ax_snap, X_um(1,:), X_um(2,:), X_um(3,:), ...
@@ -606,14 +629,15 @@ for si = 1:n_snapshots
              'FaceColor', body_cmap(si,:), 'FaceAlpha', snap_alpha, ...
              'EdgeColor', 'none');
 
-        % Pili polylines (gradient blue) with root markers
+        % Pili polylines (per-pili gradient colours) with root markers
         for k = 1:M_pili
             X_p = results.X_pili_um{k}(:,:,ti);
+            pk_c = pili_cmaps{k}(si,:);
             plot3(X_p(:,1), X_p(:,2), X_p(:,3), ...
-                  '-', 'Color', pili_cmap(si,:), 'LineWidth', 1.8);
+                  '-', 'Color', pk_c, 'LineWidth', 1.8);
             plot3(X_p(1,1), X_p(1,2), X_p(1,3), ...
-                  'o', 'Color', pili_cmap(si,:), 'MarkerSize', 4, ...
-                  'MarkerFaceColor', pili_cmap(si,:));
+                  'o', 'Color', pk_c, 'MarkerSize', 4, ...
+                  'MarkerFaceColor', pk_c);
         end
     end
 end
@@ -746,15 +770,16 @@ if generate_animation
              'FaceColor', body_color, 'FaceAlpha', body_alpha, ...
              'EdgeColor', 'none', 'FaceLighting', 'gouraud');
 
-        % --- Draw pili: blue polylines with root markers ---
+        % --- Draw pili: per-pili coloured polylines with root markers ---
         for k = 1:M_pili
             Xp = results.X_pili_um{k}(:,:,ti);
+            pk_c = pili_colors(k, :);
             plot3(ax_anim, Xp(:,1), Xp(:,2), Xp(:,3), ...
-                  '-', 'Color', pili_color, 'LineWidth', 2.5);
+                  '-', 'Color', pk_c, 'LineWidth', 2.5);
             % Highlight root node (attachment point on body)
             plot3(ax_anim, Xp(1,1), Xp(1,2), Xp(1,3), ...
-                  'o', 'Color', pili_color, 'MarkerSize', 5, ...
-                  'MarkerFaceColor', pili_color);
+                  'o', 'Color', pk_c, 'MarkerSize', 5, ...
+                  'MarkerFaceColor', pk_c);
         end
 
         % --- Mark body centre of mass ---
