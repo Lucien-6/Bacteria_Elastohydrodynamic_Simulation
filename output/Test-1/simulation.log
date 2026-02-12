@@ -1,0 +1,45 @@
+
+================================================================
+  Coupled Body-Pili Elastohydrodynamic Simulation
+  Version 1.7
+================================================================
+  Run ID    : Test-1
+  Timestamp : 20260212_214712
+  Output dir: E:\Bacteria Sinking\Simulation\STOKES\Stokes Brown Flexible\Coupled_Body_Pili\output\Test-1
+  Platform  : MATLAB 25.1.0.2973910 (R2025a) Update 1 on PCWIN64
+================================================================
+
+[PARAMS] Loading simulation parameters...
+[PARAMS] Body: a = 1.25 um, b = 0.40 um, N_body = 1000, alpha_0 = -1.5708 rad (-90.0 deg)
+[PARAMS] Pili: M = 1, seg_per_um = 150
+[PARAMS]   Pili 1: type=1, L=3.0 um, site=3, N_seg=450
+[PARAMS] Material: E = 3.67e+08 Pa, r_pili = 3.0 nm, sigma = 0.2
+[PARAMS] Fluid: mu = 1.00e-03 Pa*s, rho_bac = 1180.0 kg/m^3, rho_fluid = 998.232 kg/m^3
+[PARAMS] Simulation: T_obs = 30.0 s, dt = 1.00e-01 s, NT = 301, AbsTol = 1e-04, RelTol = 1e-04
+[PARAMS] Numerics: delta = pi/20 rad, timeout = 120 s
+[PARAMS] Preview: true
+[PARAMS] Animation: fps = 30, skip = 1
+[PARAMS] Case name: Test-1
+
+[INIT] Initialising simulation parameters...
+[INIT] Building initial state vector...
+[INIT] Characteristic scales:
+[INIT]   L_0 = 1.2500e-06 m  (length)
+[INIT]   T_0 = 2.6281e+00 s  (time)
+[INIT]   U_0 = 4.7563e-07 m/s  (velocity)
+[INIT]   F_0 = 1.4942e-14 N  (force)
+[INIT]   EI  = 2.3348e-26 N*m^2  (bending stiffness)
+[INIT] Dimensionless parameters:
+[INIT]   Eg      = 0.133964  (elastogravitational number)
+[INIT]   epsilon = 2.4000e-03  (slenderness r_pili / L_0)
+[INIT]   Pili 1: ell = 2.4000 L_0, N_seg = 450, ds = 0.0053 L_0
+[INIT]   alpha_0 = -1.5708 rad (-90.0 deg) — initial body tilt
+[INIT] State vector : 1357 DOFs
+[INIT] Total points : 1453 (body + pili)
+[INIT] Initialisation completed in 0.02 s
+
+[PREVIEW] Generating initial pose scatter plot...
+[PREVIEW] Initial pose figure displayed.
+[PREVIEW] Body: 1002 points (green)  |  Pili: 1 root(s)
+[PREVIEW] Waiting for user confirmation...
+[PREVIEW] User aborted simulation.

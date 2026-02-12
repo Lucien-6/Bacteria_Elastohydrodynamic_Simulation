@@ -30,17 +30,22 @@ X_cm_0 = [0; 0; 0];
 
 % Compute initial quaternion from tilt angle alpha_0
 %   alpha_0 : angle between body long axis and +X axis in XZ plane
-%   Body long axis is Z in body frame.
-%   To map Z -> (cos(alpha_0), 0, sin(alpha_0)) in lab frame,
-%   rotate about Y by theta_Y = pi/2 - alpha_0.
+%   Body long axis is X in body frame (capsule_body_building convention).
+%   To map body-X -> (cos(alpha_0), 0, sin(alpha_0)) in lab frame,
+%   rotate about Y by theta_Y = -alpha_0.
+%
+%   Proof:  R_Y(theta_Y) * [1;0;0] = [cos(theta_Y); 0; -sin(theta_Y)]
+%           Setting this equal to [cos(alpha_0); 0; sin(alpha_0)] gives
+%           theta_Y = -alpha_0.
+%
 %   Quaternion: q = [cos(theta_Y/2); 0; sin(theta_Y/2); 0]
 %
 %   Special cases:
-%     alpha_0 =  pi/2  -> theta_Y = 0   -> q = [1;0;0;0] (vertical, +Z)
-%     alpha_0 =  0     -> theta_Y = pi/2 -> horizontal (+X)
-%     alpha_0 = -pi/2  -> theta_Y = pi   -> inverted (-Z)
+%     alpha_0 =  pi/2  -> theta_Y = -pi/2 -> vertical (+Z)
+%     alpha_0 =  0     -> theta_Y = 0      -> horizontal (+X)
+%     alpha_0 = -pi/2  -> theta_Y = pi/2   -> inverted (-Z)
 alpha_0   = params.alpha_0;
-theta_Y   = pi/2 - alpha_0;
+theta_Y   = -alpha_0;
 q_0       = [cos(theta_Y/2); 0; sin(theta_Y/2); 0];
 q_0       = q_0 / norm(q_0);              % Ensure unit quaternion
 

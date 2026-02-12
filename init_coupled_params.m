@@ -25,9 +25,9 @@ function params = init_coupled_params(varargin)
 %    'seg_per_um'  Segments per micron                 (default: 100)
 %    'delta'       Euler-angle singularity threshold   (default: pi/20)
 %    'alpha_0'     Initial body tilt angle [rad]       (default: pi/2)
-%                  Angle of body long axis from +X in XZ plane
-%                  pi/2 = vertical (+Z), 0 = horizontal (+X)
-%                  Range: [-pi/2, pi/2]
+%                  Angle of body long axis (body X) from +X in XZ plane
+%                  pi/2 = vertical (+Z), 0 = horizontal (+X),
+%                  -pi/2 = inverted (-Z).  Range: [-pi/2, pi/2]
 %
 %  Outputs:
 %    params - Structure with all simulation parameters

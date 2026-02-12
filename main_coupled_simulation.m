@@ -91,7 +91,7 @@ logf('[PARAMS] Loading simulation parameters...\n');
 minor_axis = 0.4e-6;              % [m]   Semi-minor axis (body radius)
 major_axis = 1.25e-6;             % [m]   Semi-major axis (half body length)
 N_body     = 1000;                % [-]   Number of body surface points
-alpha_0    = pi/2;                % [rad] Initial tilt angle in XZ plane
+alpha_0    = -pi/2;                % [rad] Initial tilt angle in XZ plane
                                   %       Angle between body long axis and +X
                                   %       pi/2 = vertical (+Z), 0 = horizontal (+X)
                                   %       -pi/2 = inverted (-Z)
@@ -110,7 +110,7 @@ Pili_Matrix = [1;                  % Type: linear (straight)
                0;                  % Deflection from Z: 0
                0;                  % Deflection from X: 0
                NaN; NaN; NaN;     % Shape parameters (unused)
-               3];                 % Attachment: Pole 1
+               3];                 % Attachment site
 
 seg_per_um       = 150;            % [seg/um] Pili discretisation density
 pili_lengths_um  = Pili_Matrix(2, :);
@@ -140,7 +140,8 @@ tlim   = 120;                     % [s]      ODE timeout limit
 dt     = 1e-1;                    % [s]      Output time step
 NT     = round(T_obs / dt) + 1;  % [-]      Number of output time points (derived)
 
-% -------- Animation Settings --------
+% -------- Preview & Animation Settings --------
+preview_initial    = true;         % Show initial pose scatter plot before ODE
 generate_animation = true;
 animation_fps      = 30;           % Frames per second for MP4
 animation_skip     = 1;            % Frame skip interval (every Nth output point)
@@ -162,6 +163,7 @@ logf('[PARAMS] Fluid: mu = %.2e Pa*s, rho_bac = %.1f kg/m^3, rho_fluid = %.3f kg
 logf('[PARAMS] Simulation: T_obs = %.1f s, dt = %.2e s, NT = %d, AbsTol = %.0e, RelTol = %.0e\n', ...
     T_obs, dt, NT, AbsTol, RelTol);
 logf('[PARAMS] Numerics: delta = pi/%.0f rad, timeout = %d s\n', pi/delta, tlim);
+logf('[PARAMS] Preview: %s\n', mat2str(preview_initial));
 logf('[PARAMS] Animation: fps = %d, skip = %d\n', animation_fps, animation_skip);
 if isempty(strtrim(case_name))
     logf('[PARAMS] Case name: (auto — timestamp)\n');
@@ -218,6 +220,145 @@ logf('[INIT] State vector : %d DOFs\n', length(Z0));
 logf('[INIT] Total points : %d (body + pili)\n', ...
     params.N_body + sum(params.N_segments + 1));
 logf('[INIT] Initialisation completed in %.2f s\n\n', t_init_elapsed);
+
+%% =====================================================================
+%  INITIAL POSE PREVIEW (optional, interactive)
+%  =====================================================================
+
+if preview_initial
+    logf('[PREVIEW] Generating initial pose scatter plot...\n');
+
+    % Reconstruct initial geometry and convert to um
+    geom_preview = reconstruct_geometry(Z0, params);
+    L_to_um_prev = params.scales.L_0 * 1e6;
+
+    X_body_prev  = geom_preview.X_body * L_to_um_prev;     % [N_body x 3]
+    X_pili_prev  = cell(params.M_pili, 1);
+    for kp = 1:params.M_pili
+        X_pili_prev{kp} = geom_preview.X_pili{kp} * L_to_um_prev;
+    end
+
+    % Per-pili distinguishable colours (same palette as animation section)
+    prev_pili_palette = [0.20 0.40 0.80;   % Medium blue
+                         0.85 0.33 0.10;   % Burnt orange
+                         0.47 0.67 0.19;   % Olive green
+                         0.64 0.08 0.18;   % Crimson
+                         0.49 0.18 0.56;   % Purple
+                         0.93 0.69 0.13;   % Goldenrod
+                         0.30 0.75 0.93;   % Sky blue
+                         0.60 0.60 0.60;   % Grey
+                         0.00 0.45 0.74;   % Dark blue
+                         0.85 0.47 0.66];  % Rose pink
+    prev_pili_colors = prev_pili_palette( ...
+        mod((1:params.M_pili)-1, size(prev_pili_palette,1)) + 1, :);
+
+    body_preview_color = [0.20 0.65 0.33];   % Forest green
+
+    % Compute equal-aspect bounding box
+    all_pts = X_body_prev;
+    for kp = 1:params.M_pili
+        all_pts = [all_pts; X_pili_prev{kp}]; %#ok<AGROW>
+    end
+    span_xyz  = max(all_pts) - min(all_pts);
+    max_span  = max(span_xyz);
+    margin_pv = 0.12 * max_span;
+    if margin_pv < 1e-6; margin_pv = 0.5; end
+    half_pv   = max_span / 2 + margin_pv;
+    mid_pv    = (max(all_pts) + min(all_pts)) / 2;
+
+    % Create figure with 3 views
+    fig_preview = figure('Name', 'Initial Pose Preview', ...
+                         'NumberTitle', 'off', ...
+                         'Position', [80, 80, 1500, 500], ...
+                         'Color', 'w', 'Visible', 'on');
+    set(fig_preview, 'DefaultAxesFontName',  'Arial', ...
+                     'DefaultAxesFontSize',  11, ...
+                     'DefaultAxesLineWidth', 0.8);
+
+    view_configs = {45, 30, '3D View'; ...
+                     0,  0, 'XZ View (side)'; ...
+                    90,  0, 'YZ View (front)'};
+
+    for vi = 1:3
+        ax_pv = subplot(1, 3, vi);
+        hold(ax_pv, 'on');
+
+        % Body scatter
+        scatter3(ax_pv, X_body_prev(:,1), X_body_prev(:,2), X_body_prev(:,3), ...
+                 6, body_preview_color, 'filled', 'MarkerFaceAlpha', 0.5);
+
+        % Pili scatter (per-pili colour)
+        legend_entries = {'Body'};
+        for kp = 1:params.M_pili
+            Xp = X_pili_prev{kp};
+            scatter3(ax_pv, Xp(:,1), Xp(:,2), Xp(:,3), ...
+                     12, prev_pili_colors(kp,:), 'filled');
+            legend_entries{end+1} = sprintf('Pili %d (site %d)', ...
+                kp, Pili_Matrix(8, kp)); %#ok<AGROW>
+        end
+
+        % Formatting
+        xlim(ax_pv, [mid_pv(1)-half_pv, mid_pv(1)+half_pv]);
+        ylim(ax_pv, [mid_pv(2)-half_pv, mid_pv(2)+half_pv]);
+        zlim(ax_pv, [mid_pv(3)-half_pv, mid_pv(3)+half_pv]);
+        set(ax_pv, 'DataAspectRatio', [1 1 1], 'TickDir', 'out');
+        grid(ax_pv, 'on');
+        box(ax_pv,  'on');
+        xlabel(ax_pv, 'X (\mum)', 'FontName', 'Arial', 'FontSize', 12);
+        ylabel(ax_pv, 'Y (\mum)', 'FontName', 'Arial', 'FontSize', 12);
+        zlabel(ax_pv, 'Z (\mum)', 'FontName', 'Arial', 'FontSize', 12);
+        view(ax_pv, view_configs{vi, 1}, view_configs{vi, 2});
+        title(ax_pv, view_configs{vi, 3}, ...
+              'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
+
+        if vi == 1
+            lg_pv = legend(ax_pv, legend_entries, ...
+                           'Location', 'best', 'FontSize', 9, 'Box', 'off');
+            set(lg_pv, 'FontName', 'Arial');
+        end
+
+        hold(ax_pv, 'off');
+    end
+
+    sgtitle(sprintf('Initial Pose Preview  [\\alpha_0 = %.1f°,  %s]', ...
+        rad2deg(alpha_0), run_id), ...
+        'FontName', 'Arial', 'FontSize', 14, 'FontWeight', 'bold');
+
+    drawnow;
+
+    % Add gravity indicators
+    for vi = 1:3
+        ax_pv_i = subplot(1, 3, vi);
+        add_gravity_indicator_outside(fig_preview, ax_pv_i, 11, 1.8);
+    end
+
+    logf('[PREVIEW] Initial pose figure displayed.\n');
+    logf('[PREVIEW] Body: %d points (green)  |  Pili: %d root(s)\n', ...
+        params.N_body, params.M_pili);
+    logf('[PREVIEW] Waiting for user confirmation...\n');
+
+    % Interactive confirmation dialog
+    user_choice = questdlg( ...
+        sprintf(['Initial pose preview is shown.\n\n' ...
+                 'alpha_0 = %.4f rad (%.1f deg)\n' ...
+                 'Body points: %d\n' ...
+                 'Pili: %d root(s)\n\n' ...
+                 'Proceed with simulation?'], ...
+                 alpha_0, rad2deg(alpha_0), params.N_body, params.M_pili), ...
+        'Initial Pose Confirmation', ...
+        'Proceed', 'Abort', 'Proceed');
+
+    if strcmp(user_choice, 'Abort') || isempty(user_choice)
+        logf('[PREVIEW] User aborted simulation.\n');
+        close(fig_preview);
+        fclose(log_fid);
+        fprintf('Simulation aborted by user at initial pose preview.\n');
+        return;
+    end
+
+    logf('[PREVIEW] User confirmed. Closing preview and continuing...\n\n');
+    close(fig_preview);
+end
 
 %% =====================================================================
 %  MAIN SIMULATION LOOP (with adaptive basis rotation)
@@ -977,11 +1118,11 @@ function add_gravity_indicator_outside(fig_handle, ax_handle, font_size, line_wi
 
     ax_pos = get(ax_handle, 'Position');   % [left bottom width height], normalized
 
-    % Anchor near right-middle outside the axis frame
-    x_arrow = ax_pos(1) + ax_pos(3) + 0.022;
+    % Anchor near right-middle, close to the axis frame edge
+    x_arrow = ax_pos(1) + ax_pos(3) + 0.012;
     y_mid   = ax_pos(2) + 0.50 * ax_pos(4);
-    y_top   = y_mid + 0.035;
-    y_bot   = y_mid - 0.035;
+    y_top   = y_mid + 0.055;
+    y_bot   = y_mid - 0.055;
 
     % Keep annotation within figure bounds
     x_arrow = min(max(x_arrow, 0.02), 0.98);
@@ -992,9 +1133,9 @@ function add_gravity_indicator_outside(fig_handle, ax_handle, font_size, line_wi
     end
 
     annotation(fig_handle, 'arrow', [x_arrow, x_arrow], [y_top, y_bot], ...
-        'Color', [0.25 0.25 0.25], 'LineWidth', line_width, 'HeadLength', 8, ...
-        'HeadWidth', 8);
-    annotation(fig_handle, 'textbox', [x_arrow-0.010, y_bot-0.030, 0.030, 0.030], ...
+        'Color', [0.25 0.25 0.25], 'LineWidth', line_width, 'HeadLength', 12, ...
+        'HeadWidth', 10);
+    annotation(fig_handle, 'textbox', [x_arrow-0.012, y_bot-0.038, 0.035, 0.035], ...
         'String', '\itg', 'Interpreter', 'tex', 'FontName', 'Arial', ...
         'FontSize', font_size, 'FontWeight', 'bold', 'EdgeColor', 'none', ...
         'Color', [0.25 0.25 0.25], 'HorizontalAlignment', 'center', ...
