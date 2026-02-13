@@ -27,7 +27,8 @@ function [Z_new, params_new, rotated_flags] = adaptive_basis_check(Z, params)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-11 — Standardised formatting
+%  Updated: 2026-02-13 -- Added degenerate v_opt averaging guard;
+%                         added post-rotation safety check
 
 %% Initialise
 delta  = params.delta;
@@ -79,7 +80,15 @@ for k = 1:M
 
         % Average with z-axis and normalise (Walker's smoothing)
         v_opt = mean([v_opt; 0, 0, 1]);
-        v_opt = v_opt / norm(v_opt);
+        v_opt_norm = norm(v_opt);
+        if v_opt_norm < 1e-12
+            % Degenerate case: v_opt was nearly anti-parallel to z-axis.
+            % Fall back to x-axis as rotation axis (guaranteed safe since
+            % the singularity axis is z).
+            v_opt = [1, 0, 0];
+        else
+            v_opt = v_opt / v_opt_norm;
+        end
 
         % Householder-like rotation
         K = [0, -v_opt(3), v_opt(2); ...
@@ -97,12 +106,26 @@ for k = 1:M
 
         [theta_new, phi_new, psi_new] = pili_euler_angles(d1_new, d2_new, d3_new);
 
+        % Post-rotation safety check: verify new thetas are away from
+        % singularity.  If not, issue a warning (the next ODE segment
+        % will re-trigger the event and retry).
+        new_margin = min([theta_new; pi - theta_new]);
+        if new_margin < delta / 2
+            warning('adaptive_basis_check:InsufficientRotation', ...
+                ['Pili %d: basis rotation was insufficient. ' ...
+                 'Post-rotation min(theta, pi-theta) = %.4f < delta/2 = %.4f. ' ...
+                 'ODE event will re-trigger.'], k, new_margin, delta/2);
+        end
+
         % Update state vector
         Z_new(idx        : idx+N_k-1)   = theta_new;
         Z_new(idx+N_k    : idx+2*N_k-1) = phi_new;
         Z_new(idx+2*N_k  : idx+3*N_k-1) = psi_new;
 
-        % Update rotation matrix
+        % Update rotation matrix (re-orthogonalise to prevent accumulated
+        % floating-point drift from repeated matrix multiplications).
+        [U_rot, ~, V_rot] = svd(rot_k_new);
+        rot_k_new = U_rot * V_rot';
         params_new.rot{k} = rot_k_new;
 
         % Intrinsic curvature is basis-invariant (dot products preserved)

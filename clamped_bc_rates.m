@@ -22,7 +22,7 @@ function [dtheta1, dphi1, dpsi1] = clamped_bc_rates(Omega_lab, rot_k, theta_1, p
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-11 — Standardised formatting
+%  Updated: 2026-02-13 -- Added sin(theta) singularity guard
 
 %% Transform angular velocity to pili basis
 Omega_basis = rot_k * Omega_lab(:);
@@ -33,6 +33,13 @@ oz = Omega_basis(3);
 %% Trigonometric values
 sT = sin(theta_1);  cT = cos(theta_1);
 sP = sin(phi_1);    cP = cos(phi_1);
+
+%% Guard against singularity (defensive -- should be prevented by adaptive basis)
+if abs(sT) < 1e-12
+    warning('clamped_bc_rates:SingularTheta', ...
+        'sin(theta_1) = %.2e is near zero -- Euler angle singularity. Check adaptive_basis_check.', sT);
+    sT = sign(sT + 1e-20) * 1e-12;    % Prevent division by zero
+end
 
 %% Euler angle rates (inverted ZYZ kinematics)
 ox_cp_oy_sp = ox * cP + oy * sP;

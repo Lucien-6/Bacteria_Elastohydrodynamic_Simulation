@@ -42,7 +42,7 @@ tic_sim_start = tic;        % Global wall clock for the entire run
 %% =====================================================================
 %  CASE IDENTIFICATION (must precede output directory setup)
 %  =====================================================================
-case_name = 'Test-1';                    % User-defined case name (string)
+case_name = 'Test';                    % User-defined case name (string)
                                    %   Non-empty : output saved to output/<case_name>/
                                    %   Empty ''  : output saved to output/run_YYYYMMDD_HHMMSS/
 
@@ -91,7 +91,7 @@ logf('[PARAMS] Loading simulation parameters...\n');
 minor_axis = 0.4e-6;              % [m]   Semi-minor axis (body radius)
 major_axis = 1.25e-6;             % [m]   Semi-major axis (half body length)
 N_body     = 1000;                % [-]   Number of body surface points
-alpha_0    = -pi/2;                % [rad] Initial tilt angle in XZ plane
+alpha_0    = 0;                % [rad] Initial tilt angle in XZ plane
                                   %       Angle between body long axis and +X
                                   %       pi/2 = vertical (+Z), 0 = horizontal (+X)
                                   %       -pi/2 = inverted (-Z)
@@ -106,11 +106,11 @@ alpha_0    = -pi/2;                % [rad] Initial tilt angle in XZ plane
 %    Row 5-7: Shape parameters (NaN if unused)
 %    Row 8 : Attachment site (1-14)
 Pili_Matrix = [1;                  % Type: linear (straight)
-               3;                  % Length: 3 um
-               0;                  % Deflection from Z: 0
-               0;                  % Deflection from X: 0
-               NaN; NaN; NaN;     % Shape parameters (unused)
-               3];                 % Attachment site
+               3;                  % Length
+               0;                  % Deflection from axis-Z
+               0;                  % Deflection from axis-X
+               NaN; NaN; NaN;     % Shape parameters
+               1];                 % Attachment site
 
 seg_per_um       = 150;            % [seg/um] Pili discretisation density
 pili_lengths_um  = Pili_Matrix(2, :);
@@ -130,7 +130,7 @@ rho_bac   = 1180.0;               % [kg/m^3] Bacteria density
 rho_fluid = 998.232;              % [kg/m^3] Fluid density
 
 % -------- Simulation Time --------
-T_obs = 30.0;                     % [s]      Total observation time
+T_obs = 360.0;                     % [s]      Total observation time
 
 % -------- Numerical Settings --------
 AbsTol = 1e-4;                    % ODE absolute tolerance
@@ -254,17 +254,15 @@ if preview_initial
 
     body_preview_color = [0.20 0.65 0.33];   % Forest green
 
-    % Compute equal-aspect bounding box
+    % Compute per-axis bounding box
     all_pts = X_body_prev;
     for kp = 1:params.M_pili
         all_pts = [all_pts; X_pili_prev{kp}]; %#ok<AGROW>
     end
-    span_xyz  = max(all_pts) - min(all_pts);
-    max_span  = max(span_xyz);
-    margin_pv = 0.12 * max_span;
-    if margin_pv < 1e-6; margin_pv = 0.5; end
-    half_pv   = max_span / 2 + margin_pv;
-    mid_pv    = (max(all_pts) + min(all_pts)) / 2;
+    pv_min = min(all_pts);
+    pv_max = max(all_pts);
+    pv_span = pv_max - pv_min;
+    pv_margin = max(0.10 * pv_span, 0.15);   % [1x3] per-axis margin
 
     % Create figure with 3 views
     fig_preview = figure('Name', 'Initial Pose Preview', ...
@@ -298,9 +296,9 @@ if preview_initial
         end
 
         % Formatting
-        xlim(ax_pv, [mid_pv(1)-half_pv, mid_pv(1)+half_pv]);
-        ylim(ax_pv, [mid_pv(2)-half_pv, mid_pv(2)+half_pv]);
-        zlim(ax_pv, [mid_pv(3)-half_pv, mid_pv(3)+half_pv]);
+        xlim(ax_pv, [pv_min(1)-pv_margin(1), pv_max(1)+pv_margin(1)]);
+        ylim(ax_pv, [pv_min(2)-pv_margin(2), pv_max(2)+pv_margin(2)]);
+        zlim(ax_pv, [pv_min(3)-pv_margin(3), pv_max(3)+pv_margin(3)]);
         set(ax_pv, 'DataAspectRatio', [1 1 1], 'TickDir', 'out');
         grid(ax_pv, 'on');
         box(ax_pv,  'on');
@@ -733,7 +731,7 @@ subplot(2, 3, 3);
 q_norms = sqrt(sum(results.q.^2, 1));
 plot(t_s, q_norms - 1, 'k-', 'LineWidth', 1.8);
 xlabel('Time (s)',                         'FontName', 'Arial', 'FontSize', 12);
-ylabel('|{\bfq}| \minus 1',               'FontName', 'Arial', 'FontSize', 12);
+ylabel('|{\bfq}| - 1',                    'FontName', 'Arial', 'FontSize', 12);
 title('Quaternion Norm Deviation',         'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
 grid on; box on;
 
@@ -792,16 +790,12 @@ end
 x_span = max(all_x) - min(all_x);
 y_span = max(all_y) - min(all_y);
 z_span = max(all_z) - min(all_z);
-max_span = max([x_span, y_span, z_span]);
-margin   = 0.08 * max_span;
-if margin < 1e-6; margin = 1; end
-half_box = max_span / 2 + margin;
-x_mid = (max(all_x) + min(all_x)) / 2;
-y_mid = (max(all_y) + min(all_y)) / 2;
-z_mid = (max(all_z) + min(all_z)) / 2;
-ax_lim_x = [x_mid - half_box, x_mid + half_box];
-ax_lim_y = [y_mid - half_box, y_mid + half_box];
-ax_lim_z = [z_mid - half_box, z_mid + half_box];
+margin_x = max(0.10 * x_span, 0.15);
+margin_y = max(0.10 * y_span, 0.15);
+margin_z = max(0.10 * z_span, 0.15);
+ax_lim_x = [min(all_x) - margin_x, max(all_x) + margin_x];
+ax_lim_y = [min(all_y) - margin_y, max(all_y) + margin_y];
+ax_lim_z = [min(all_z) - margin_z, max(all_z) + margin_z];
 
 for si = 1:n_snapshots
     ti = snap_indices(si);
@@ -821,16 +815,13 @@ for si = 1:n_snapshots
                  'EdgeColor', 'none');
         end
 
-        % Pili polylines (per-pili gradient colours) with root markers
+        % Pili polylines (per-pili gradient colours)
         for k = 1:M_pili
             X_p = results.X_pili_um{k}(:,:,ti);
             pk_c = pili_cmaps{k}(si,:);
             for ai = 1:numel(snap_axes)
                 plot3(snap_axes(ai), X_p(:,1), X_p(:,2), X_p(:,3), ...
                       '-', 'Color', pk_c, 'LineWidth', 1.8);
-                plot3(snap_axes(ai), X_p(1,1), X_p(1,2), X_p(1,3), ...
-                      'o', 'Color', pk_c, 'MarkerSize', 4, ...
-                      'MarkerFaceColor', pk_c);
             end
         end
     end
@@ -853,8 +844,8 @@ for ai = 1:numel(snap_axes)
 end
 
 view(ax_snap_3d, 45, 30);
-view(ax_snap_xz, [0 1 0]);   % Looking along +Y -> XZ plane projection
-view(ax_snap_yz, [1 0 0]);   % Looking along +X -> YZ plane projection
+view(ax_snap_xz, 0, 0);      % XZ plane: azimuth=0, elevation=0 -> X right, Z up
+view(ax_snap_yz, 90, 0);     % YZ plane: azimuth=90, elevation=0 -> Y right, Z up
 title(ax_snap_3d, '3D Body-Pili Snapshots', ...
       'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
 title(ax_snap_xz, 'XZ View Snapshots', ...
@@ -914,22 +905,18 @@ if generate_animation
         end
     end
 
-    % Build equal-aspect-ratio fixed axis limits (cubic bounding box)
+    % Build per-axis fixed limits with independent margins
     x_span = max(all_x) - min(all_x);
     y_span = max(all_y) - min(all_y);
     z_span = max(all_z) - min(all_z);
-    max_span = max([x_span, y_span, z_span]);
-    margin   = 0.08 * max_span;
-    if margin < 1e-6;  margin = 1;  end
-    half_box = max_span / 2 + margin;
-    x_mid = (max(all_x) + min(all_x)) / 2;
-    y_mid = (max(all_y) + min(all_y)) / 2;
-    z_mid = (max(all_z) + min(all_z)) / 2;
-    ax_lim_x = [x_mid - half_box, x_mid + half_box];
-    ax_lim_y = [y_mid - half_box, y_mid + half_box];
-    ax_lim_z = [z_mid - half_box, z_mid + half_box];
+    margin_x = max(0.10 * x_span, 0.15);
+    margin_y = max(0.10 * y_span, 0.15);
+    margin_z = max(0.10 * z_span, 0.15);
+    ax_lim_x = [min(all_x) - margin_x, max(all_x) + margin_x];
+    ax_lim_y = [min(all_y) - margin_y, max(all_y) + margin_y];
+    ax_lim_z = [min(all_z) - margin_z, max(all_z) + margin_z];
 
-    logf('[ANIM] Global axis limits (equal-aspect): X=[%.2f, %.2f], Y=[%.2f, %.2f], Z=[%.2f, %.2f] um\n', ...
+    logf('[ANIM] Global axis limits (per-axis): X=[%.2f, %.2f], Y=[%.2f, %.2f], Z=[%.2f, %.2f] um\n', ...
         ax_lim_x(1), ax_lim_x(2), ax_lim_y(1), ax_lim_y(2), ax_lim_z(1), ax_lim_z(2));
 
     % Setup video writer
@@ -973,16 +960,12 @@ if generate_animation
              'FaceColor', body_color, 'FaceAlpha', body_alpha, ...
              'EdgeColor', 'none', 'FaceLighting', 'gouraud');
 
-        % --- Draw pili: per-pili coloured polylines with root markers ---
+        % --- Draw pili: per-pili coloured polylines ---
         for k = 1:M_pili
             Xp = results.X_pili_um{k}(:,:,ti);
             pk_c = pili_colors(k, :);
             plot3(ax_anim, Xp(:,1), Xp(:,2), Xp(:,3), ...
                   '-', 'Color', pk_c, 'LineWidth', 2.5);
-            % Highlight root node (attachment point on body)
-            plot3(ax_anim, Xp(1,1), Xp(1,2), Xp(1,3), ...
-                  'o', 'Color', pk_c, 'MarkerSize', 5, ...
-                  'MarkerFaceColor', pk_c);
         end
 
         % --- Mark body centre of mass ---
@@ -1135,11 +1118,15 @@ function add_gravity_indicator_outside(fig_handle, ax_handle, font_size, line_wi
     annotation(fig_handle, 'arrow', [x_arrow, x_arrow], [y_top, y_bot], ...
         'Color', [0.25 0.25 0.25], 'LineWidth', line_width, 'HeadLength', 12, ...
         'HeadWidth', 10);
-    annotation(fig_handle, 'textbox', [x_arrow-0.012, y_bot-0.038, 0.035, 0.035], ...
-        'String', '\itg', 'Interpreter', 'tex', 'FontName', 'Arial', ...
+    % "G" label centred directly below the arrow shaft
+    lbl_w = 0.030;
+    lbl_h = 0.030;
+    annotation(fig_handle, 'textbox', ...
+        [x_arrow - lbl_w/2, y_bot - lbl_h - 0.004, lbl_w, lbl_h], ...
+        'String', '{\itG}', 'Interpreter', 'tex', 'FontName', 'Arial', ...
         'FontSize', font_size, 'FontWeight', 'bold', 'EdgeColor', 'none', ...
         'Color', [0.25 0.25 0.25], 'HorizontalAlignment', 'center', ...
-        'VerticalAlignment', 'middle');
+        'VerticalAlignment', 'top');
 end
 
 function [value, isterminal, direction] = singularity_event(~, Z, params, tstart, tlim)

@@ -29,7 +29,7 @@ function dZ = ode_coupled_rhs(t, Z, params)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-11 — Standardised formatting
+%  Updated: 2026-02-13 -- Added sin(theta) singularity guard in clamped BC
 
 %% Extract frequently used parameters
 N_body = params.N_body;
@@ -382,6 +382,14 @@ for k = 1:M
 
     sT = sin(theta1);  cT = cos(theta1);
     sP = sin(phi1);    cP = cos(phi1);
+
+    % Guard against singularity (defensive -- should be prevented by
+    % adaptive basis rotation)
+    if abs(sT) < 1e-12
+        warning('ode_coupled_rhs:SingularTheta', ...
+            'sin(theta_1) = %.2e for pili %d -- Euler angle singularity. Check adaptive_basis_check.', sT, k);
+        sT = sign(sT + 1e-20) * 1e-12;
+    end
 
     r1 = row_offset + 1;
     r2 = row_offset + 2;

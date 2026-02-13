@@ -23,7 +23,9 @@ function Z0 = init_coupled_state(params)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-12 — Added alpha_0 initial tilt angle support
+%  Updated: 2026-02-13 -- Added enforce_clamped_geometry on Z0 to fix
+%                         initial psi mismatch when alpha_0 != 0;
+%                         added director consistency verification
 
 %% Body initial state
 X_cm_0 = [0; 0; 0];
@@ -89,6 +91,14 @@ for k = 1:M
     idx = idx + 3*N_k;
 end
 
+%% Enforce clamped geometry: correct first-segment Euler angles
+%  The first-segment directors must satisfy D_lab = R_body * D_local{k}.
+%  Setting psi = 0 above uses the ZYZ convention default, which does NOT
+%  account for the body rotation when alpha_0 != 0.  The enforce step
+%  overwrites the first-segment (theta, phi, psi) to be exactly consistent
+%  with the clamped boundary condition at the position level.
+Z0 = enforce_clamped_geometry(Z0, params);
+
 %% Verify reconstruction consistency
 geom = reconstruct_geometry(Z0, params);
 
@@ -100,6 +110,24 @@ for k = 1:M
     if max_err > 1e-6
         warning('init_coupled_state:GeometryMismatch', ...
             'Pili %d reconstruction error: %.2e (should be < 1e-6)', k, max_err);
+    end
+end
+
+% Verify director consistency with clamped BC
+for k = 1:M
+    rot_k = params.rot{k};
+    D_lab_expected = R_body * params.D_local{k};
+    D_basis_expected = rot_k * D_lab_expected;
+
+    d1b = geom.d1_basis{k}(1,:)';
+    d2b = geom.d2_basis{k}(1,:)';
+    d3b = geom.d3_basis{k}(1,:)';
+    D_basis_actual = [d1b, d2b, d3b];
+
+    dir_err = max(abs(D_basis_expected - D_basis_actual), [], 'all');
+    if dir_err > 1e-10
+        warning('init_coupled_state:DirectorMismatch', ...
+            'Pili %d first-segment director error: %.2e (should be < 1e-10)', k, dir_err);
     end
 end
 
