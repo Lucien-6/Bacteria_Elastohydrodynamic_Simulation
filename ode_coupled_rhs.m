@@ -5,11 +5,12 @@ function dZ = ode_coupled_rhs(t, Z, params)
 %    Computes dZ/dt for the coupled bacterial body + elastic pili system.
 %    Evaluation steps:
 %      1. Reconstruct geometry from state vector Z
-%      2. Build global RSM resistance (translational + torsional)
+%      2. Build global mobility (RSM/RSS) + torsional resistance + rotlet
 %      3. Build Q matrix (state rates -> velocities)
 %      4. Build B matrix (forces -> balance equations)
 %      5. Compute elastic restoring moments for each pilus
 %      6. Assemble and solve the coupled linear system  L * z_dot = R
+%         (with rotlet coupling: Q_trans_corr = Q_trans - M_rotlet*AQ_twist)
 %      7. Apply clamped boundary conditions
 %      8. Pack state rates into dZ
 %
@@ -29,7 +30,8 @@ function dZ = ode_coupled_rhs(t, Z, params)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-13 -- Added sin(theta) singularity guard in clamped BC
+%  Updated: 2026-02-14 -- RSS rotlet segment coupling + vectorised assembly
+%           2026-02-14 -- BUG FIX: added rot_k in Q base-velocity mapping
 
 %% Extract frequently used parameters
 N_body = params.N_body;
@@ -46,7 +48,7 @@ X_cm    = geom.X_cm;
 N_total = size(X_all, 1);
 
 %% Step 2: Build global mobility / resistance matrices
-[M_weighted, A_twist_cells] = build_global_resistance(X_all, params, geom);
+[M_weighted, A_twist_cells, M_rotlet] = build_global_resistance(X_all, params, geom);
 
 %% Step 3-4: Build B, Q matrices
 n_state = 6 + 3 * sum(N_segs);
@@ -123,10 +125,24 @@ for k = 1:M
     Q_k_lab       = R_block_full * Q_k_ext;
 
     % === Map base velocity to body DOFs (V, Omega) ===
+    %  J_base gives the root velocity in LAB frame:
+    %    v_root_lab = V + Omega x r_root = [I, -skew(r)] * [V; Omega]
+    %
+    %  Q_k_lab(:,1:3) was built from Q_k_spatial (pili basis) then
+    %  transformed by rot_k' per node.  Its columns 1:3 expect the base
+    %  velocity in the PILI BASIS, not the lab frame.
+    %
+    %  Correct mapping:  v_base_basis = rot_k * v_base_lab
+    %    => Q_k_body = Q_k_lab(:,1:3) * rot_k * J_base
+    %
+    %  BUG FIX 2026-02-14: Previously rot_k was missing, which is benign
+    %  when rot_k == I (no adaptive basis rotation yet) but introduces a
+    %  spurious O(V_sink) velocity error once rot_k != I, causing the body
+    %  to rotate away from its equilibrium orientation.
     J_base = zeros(3, 6);
     J_base(1:3, 1:3) = eye(3);
     J_base(1:3, 4:6) = -skew_matrix(r_root);
-    Q_k_body = Q_k_lab(:, 1:3) * J_base;
+    Q_k_body = Q_k_lab(:, 1:3) * rot_k * J_base;
 
     % Place into Q_global
     trans_rows = 3*pt_offset + (1 : 3*(N_k+1));
@@ -358,13 +374,24 @@ end
 %% Step 6: Assemble and solve  L * z_dot = R
 n_trans  = 3 * N_total;
 Q_trans  = Q_global(1:n_trans, :);
-AQ_trans = M_weighted \ Q_trans;
 
 if ~isempty(A_twist_total)
     Q_twist  = Q_global(n_trans+1:end, :);
     AQ_twist = A_twist_total * Q_twist;
+
+    % Rotlet coupling: torque density generates translational velocity.
+    % Correct Q_trans before solving the Stokeslet system.
+    %   v_trans = M_stokeslet * f + M_rotlet * tau
+    %   => f = M_stokeslet \ (Q_trans - M_rotlet * AQ_twist) * z_dot
+    if ~isempty(M_rotlet)
+        Q_trans_corr = Q_trans - M_rotlet * AQ_twist;
+    else
+        Q_trans_corr = Q_trans;
+    end
+    AQ_trans = M_weighted \ Q_trans_corr;
     AQ       = [AQ_trans; AQ_twist];
 else
+    AQ_trans = M_weighted \ Q_trans;
     AQ = AQ_trans;
 end
 

@@ -7,7 +7,9 @@
 %    pili are inextensible elastic rods parameterised by Euler angles.
 %
 %    Hydrodynamic interactions (body-body, body-pili, pili-pili) are fully
-%    coupled through the Regularised Stokeslet Method (RSM).
+%    coupled: body uses RSM point forces (Cortez 2005), pili use RSS exact
+%    segment integrals + Rotlet segments (Cortez 2018).  RSS decouples the
+%    regularisation parameter from segment length for significant speedup.
 %
 %    Time integration uses MATLAB's ode15s (implicit stiff solver) with
 %    adaptive Euler angle basis rotation to avoid singularities.
@@ -24,15 +26,12 @@
 %  References:
 %    [1] Walker et al. (2020), Physical Review E.
 %    [2] Cortez et al. (2005), Physics of Fluids, 17, 031504.
+%    [3] Cortez (2018), J. Comput. Phys. 375, 783-796.
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-12 — Logging, data export, 3D animation;
-%                         removed fault-tolerance retry; code formatting;
-%                         added progress timer with ETA estimation;
-%                         added in-segment ODE progress bar (ode_progress);
-%                         per-pili distinguishable colours for multi-pili;
-%                         fixed redundant reconstruct_geometry calls
+%  Updated: 2026-02-15 — Halved pili line width and CM marker size in
+%                         static plots and animation; bumped to v2.0
 
 close all force;
 clear; clc;
@@ -73,7 +72,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 1.7\n');
+logf('  Version 2.0\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -112,7 +111,8 @@ Pili_Matrix = [1;                  % Type: linear (straight)
                NaN; NaN; NaN;     % Shape parameters
                1];                 % Attachment site
 
-seg_per_um       = 150;            % [seg/um] Pili discretisation density
+% -------- Pili Discretisation (RSS, Cortez 2018) --------
+seg_per_um = 15;                  % [seg/um] RSS exact segment integrals
 pili_lengths_um  = Pili_Matrix(2, :);
 N_segments       = round(pili_lengths_um * seg_per_um);
 N_segments       = max(N_segments, 10);
@@ -149,7 +149,7 @@ animation_skip     = 1;            % Frame skip interval (every Nth output point
 % --- Log all parameters ---
 logf('[PARAMS] Body: a = %.2f um, b = %.2f um, N_body = %d, alpha_0 = %.4f rad (%.1f deg)\n', ...
     major_axis*1e6, minor_axis*1e6, N_body, alpha_0, rad2deg(alpha_0));
-logf('[PARAMS] Pili: M = %d, seg_per_um = %d\n', ...
+logf('[PARAMS] Pili: M = %d, seg_per_um = %d, method = RSS+Rotlet\n', ...
     size(Pili_Matrix, 2), seg_per_um);
 for kk = 1:size(Pili_Matrix, 2)
     logf('[PARAMS]   Pili %d: type=%d, L=%.1f um, site=%d, N_seg=%d\n', ...
@@ -821,7 +821,7 @@ for si = 1:n_snapshots
             pk_c = pili_cmaps{k}(si,:);
             for ai = 1:numel(snap_axes)
                 plot3(snap_axes(ai), X_p(:,1), X_p(:,2), X_p(:,3), ...
-                      '-', 'Color', pk_c, 'LineWidth', 1.8);
+                      '-', 'Color', pk_c, 'LineWidth', 0.9);
             end
         end
     end
@@ -945,7 +945,7 @@ if generate_animation
         if fi > 1
             plot3(ax_anim, cm_traj_um(1,1:fi), cm_traj_um(2,1:fi), ...
                   cm_traj_um(3,1:fi), '-', 'Color', traj_color, ...
-                  'LineWidth', 0.8);
+                  'LineWidth', 1.0);
         end
 
         % --- Draw body: smooth capsule surface with transparency ---
@@ -965,12 +965,12 @@ if generate_animation
             Xp = results.X_pili_um{k}(:,:,ti);
             pk_c = pili_colors(k, :);
             plot3(ax_anim, Xp(:,1), Xp(:,2), Xp(:,3), ...
-                  '-', 'Color', pk_c, 'LineWidth', 2.5);
+                  '-', 'Color', pk_c, 'LineWidth', 1.25);
         end
 
         % --- Mark body centre of mass ---
         plot3(ax_anim, cm_um(1), cm_um(2), cm_um(3), ...
-              'r+', 'MarkerSize', 10, 'LineWidth', 2);
+              'r+', 'MarkerSize', 5, 'LineWidth', 1);
 
         % --- Lighting ---
         camlight(ax_anim, 'headlight');

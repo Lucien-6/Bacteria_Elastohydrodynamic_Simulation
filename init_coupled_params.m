@@ -22,7 +22,7 @@ function params = init_coupled_params(varargin)
 %    'rho_fluid'   Fluid density [kg/m^3]              (default: 998.232)
 %    'N_segments'  Segment counts [M x 1]              (default: 300)
 %    'Pili_Matrix' Pili parameter matrix [8 x M]       (default: single pole)
-%    'seg_per_um'  Segments per micron                 (default: 100)
+%    'seg_per_um'  Segments per micron                 (default: 15)
 %    'delta'       Euler-angle singularity threshold   (default: pi/20)
 %    'alpha_0'     Initial body tilt angle [rad]       (default: pi/2)
 %                  Angle of body long axis (body X) from +X in XZ plane
@@ -36,10 +36,13 @@ function params = init_coupled_params(varargin)
 %    'dis' (gap between body and pili root) is computed automatically
 %    as dis = 1.1 * (eps_body + eps_pili) to ensure proper separation.
 %
+%    Pili use the RSS (Regularized Stokeslet Segments) method
+%    (Cortez 2018) with exact segment integrals + rotlet coupling.
+%    Body uses RSM (Cortez 2005) point forces on surface nodes.
+%
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-12 — Standardised naming and formatting;
-%                         added attachment site conflict detection
+%  Updated: 2026-02-14 — Pure RSS mode (removed RSM fallback)
 
 %% Parse inputs
 p = inputParser;
@@ -54,7 +57,7 @@ addParameter(p, 'rho_bac',     1180.0, @isnumeric);
 addParameter(p, 'rho_fluid',   998.232, @isnumeric);
 addParameter(p, 'N_segments',  300,    @isnumeric);
 addParameter(p, 'Pili_Matrix', [1; 3; 0; 0; NaN; NaN; NaN; 1], @isnumeric);
-addParameter(p, 'seg_per_um',  100,    @isnumeric);
+addParameter(p, 'seg_per_um',  15,     @isnumeric);
 addParameter(p, 'delta',       pi/20,  @isnumeric);
 addParameter(p, 'alpha_0',    pi/2,   @isnumeric);
 parse(p, varargin{:});
@@ -287,7 +290,8 @@ fprintf('  F_sink = %.2e N, F_0 = %.2e N\n', F_sink, F_0);
 fprintf('  V_capsule = %.4e m^3\n', V_capsule);
 fprintf('  State vector size : %d DOFs\n', 7 + 3*sum(params.N_segments));
 fprintf('-------------------------------------------------------------\n');
-fprintf('  RSM Regularisation Parameters\n');
+fprintf('  Mobility Method : RSM (body) + RSS (pili) + Rotlet  [Cortez 2018]\n');
+fprintf('  Regularisation Parameters\n');
 fprintf('  Body spacing : h_min = %.4f L0, h_mean = %.4f L0\n', ...
     params.body_h_min, params.body_h_mean);
 fprintf('  Body  : eps_body = %.4f L0 = %.1f nm (= h_min/2)\n', ...
