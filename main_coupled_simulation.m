@@ -30,8 +30,10 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-15 — Halved pili line width and CM marker size in
-%                         static plots and animation; bumped to v2.0
+%  Updated: 2026-02-15 — Halved pili line width and CM marker size;
+%                         axis range minimum bound (4*major_axis);
+%                         full-resolution CM trajectory in animation;
+%                         gravity indicator flush to axis frame
 
 close all force;
 clear; clc;
@@ -72,7 +74,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 2.0\n');
+logf('  Version 2.1\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -130,7 +132,7 @@ rho_bac   = 1180.0;               % [kg/m^3] Bacteria density
 rho_fluid = 998.232;              % [kg/m^3] Fluid density
 
 % -------- Simulation Time --------
-T_obs = 360.0;                     % [s]      Total observation time
+T_obs = 300.0;                     % [s]      Total observation time
 
 % -------- Numerical Settings --------
 AbsTol = 1e-4;                    % ODE absolute tolerance
@@ -797,6 +799,18 @@ ax_lim_x = [min(all_x) - margin_x, max(all_x) + margin_x];
 ax_lim_y = [min(all_y) - margin_y, max(all_y) + margin_y];
 ax_lim_z = [min(all_z) - margin_z, max(all_z) + margin_z];
 
+% Enforce minimum axis range: 4 * major_axis [um]
+min_ax_range = 4 * a_um;
+if diff(ax_lim_x) < min_ax_range
+    cx = mean(ax_lim_x); ax_lim_x = cx + [-1, 1] * min_ax_range / 2;
+end
+if diff(ax_lim_y) < min_ax_range
+    cy = mean(ax_lim_y); ax_lim_y = cy + [-1, 1] * min_ax_range / 2;
+end
+if diff(ax_lim_z) < min_ax_range
+    cz = mean(ax_lim_z); ax_lim_z = cz + [-1, 1] * min_ax_range / 2;
+end
+
 for si = 1:n_snapshots
     ti = snap_indices(si);
     if ti <= size(results.X_cm, 2)
@@ -886,6 +900,9 @@ if generate_animation
     % Pre-extract CM trajectory for all animation frames [3 x n_frames]
     cm_traj_um = results.X_cm_um(:, frame_indices);
 
+    % Full-resolution CM trajectory for smooth rendering (all NT points)
+    cm_traj_full_um = results.X_cm_um;
+
     % Compute global axis limits from ALL frames (capsule + pili + CM)
     all_x = cm_traj_um(1,:)';
     all_y = cm_traj_um(2,:)';
@@ -916,6 +933,18 @@ if generate_animation
     ax_lim_y = [min(all_y) - margin_y, max(all_y) + margin_y];
     ax_lim_z = [min(all_z) - margin_z, max(all_z) + margin_z];
 
+    % Enforce minimum axis range: 4 * major_axis [um]
+    min_ax_range = 4 * a_um;
+    if diff(ax_lim_x) < min_ax_range
+        cx = mean(ax_lim_x); ax_lim_x = cx + [-1, 1] * min_ax_range / 2;
+    end
+    if diff(ax_lim_y) < min_ax_range
+        cy = mean(ax_lim_y); ax_lim_y = cy + [-1, 1] * min_ax_range / 2;
+    end
+    if diff(ax_lim_z) < min_ax_range
+        cz = mean(ax_lim_z); ax_lim_z = cz + [-1, 1] * min_ax_range / 2;
+    end
+
     logf('[ANIM] Global axis limits (per-axis): X=[%.2f, %.2f], Y=[%.2f, %.2f], Z=[%.2f, %.2f] um\n', ...
         ax_lim_x(1), ax_lim_x(2), ax_lim_y(1), ax_lim_y(2), ax_lim_z(1), ax_lim_z(2));
 
@@ -941,10 +970,10 @@ if generate_animation
         cla(ax_anim);
         hold(ax_anim, 'on');
 
-        % --- Draw CM trajectory: light red line from start to current ---
+        % --- Draw CM trajectory: full-resolution light red line up to current ---
         if fi > 1
-            plot3(ax_anim, cm_traj_um(1,1:fi), cm_traj_um(2,1:fi), ...
-                  cm_traj_um(3,1:fi), '-', 'Color', traj_color, ...
+            plot3(ax_anim, cm_traj_full_um(1,1:ti), cm_traj_full_um(2,1:ti), ...
+                  cm_traj_full_um(3,1:ti), '-', 'Color', traj_color, ...
                   'LineWidth', 1.0);
         end
 
@@ -1095,14 +1124,15 @@ function str = format_duration(seconds)
 end
 
 function add_gravity_indicator_outside(fig_handle, ax_handle, font_size, line_width)
-%ADD_GRAVITY_INDICATOR_OUTSIDE  Draw gravity arrow outside axis right-middle.
+%ADD_GRAVITY_INDICATOR_OUTSIDE  Draw gravity arrow flush outside axis right edge.
 %  Uses figure-normalized annotation coordinates so marker location is
 %  stable across views and axis limits.
 
+    drawnow;   % Flush pending layout so ax Position is up-to-date
     ax_pos = get(ax_handle, 'Position');   % [left bottom width height], normalized
 
-    % Anchor near right-middle, close to the axis frame edge
-    x_arrow = ax_pos(1) + ax_pos(3) + 0.012;
+    % Anchor flush to right edge of axis frame (minimal gap)
+    x_arrow = ax_pos(1) + ax_pos(3) + 0.01;
     y_mid   = ax_pos(2) + 0.50 * ax_pos(4);
     y_top   = y_mid + 0.055;
     y_bot   = y_mid - 0.055;

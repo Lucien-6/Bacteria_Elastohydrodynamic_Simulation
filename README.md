@@ -2,8 +2,8 @@
 
 > **Author**: Lucien (lucien-6@qq.com)  
 > **Created**: 2026-02-06  
-> **Updated**: 2026-02-14  
-> **Version**: 2.0
+> **Updated**: 2026-02-15  
+> **Version**: 2.1
 
 ---
 
@@ -616,6 +616,10 @@ Each column of `Pili_Matrix` defines one pilus. The system supports $M \geq 1$ p
 | 12 | `acos` NaN from floating-point domain errors | 2026-02-12 | Clamped to $[-1, 1]$ |
 | 13 | Quaternion init assumed body Z as long axis | 2026-02-12 | Fixed to body X axis |
 | 14 | Removed pure RSM pili mode (v2.0) | 2026-02-14 | Unified to RSS + Rotlet; deleted `use_rss` flag |
+| 15 | Halved pili line width & CM marker size (v2.1) | 2026-02-15 | Static plots & animation visual refinement |
+| 16 | Axis range minimum bound `4*major_axis` (v2.1) | 2026-02-15 | Prevents over-zoom when data span is small |
+| 17 | Full-resolution CM trajectory in animation (v2.1) | 2026-02-15 | Fixed intermittent trajectory caused by sparse frame-sampled data |
+| 18 | Gravity indicator flush to axis frame (v2.1) | 2026-02-15 | Reduced gap; added `drawnow` for accurate position |
 
 ### 20.3 Feature History
 
@@ -632,6 +636,10 @@ Each column of `Pili_Matrix` defines one pilus. The system supports $M \geq 1$ p
 | 9 | Vectorised RSS assembly (segment-loop elimination) | 2026-02-14 |
 | 10 | Rotlet segment mobility $M_{\text{rotlet}}$ | 2026-02-14 |
 | 11 | Pure RSS mode — removed RSM pili fallback (v2.0) | 2026-02-14 |
+| 12 | Halved pili line width & CM marker size (v2.1) | 2026-02-15 |
+| 13 | Axis range minimum bound `4*major_axis` (v2.1) | 2026-02-15 |
+| 14 | Full-resolution CM trajectory in animation (v2.1) | 2026-02-15 |
+| 15 | Gravity indicator flush to axis frame (v2.1) | 2026-02-15 |
 
 ### 20.4 Quality Assessment
 
