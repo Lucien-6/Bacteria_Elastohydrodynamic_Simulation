@@ -1,122 +1,122 @@
-# Coupled Body-Pili Elastohydrodynamic Simulation
+# 细菌胞体-纤毛耦合弹性流体动力学仿真
 
-> **Author**: Lucien (lucien-6@qq.com)  
-> **Created**: 2026-02-06  
-> **Updated**: 2026-02-15  
-> **Version**: 2.1
-
----
-
-## Table of Contents
-
-1. [Project Overview](#1-project-overview)
-2. [Quick Start](#2-quick-start)
-3. [Architecture & Data Flow](#3-architecture--data-flow)
-4. [Physical Problem & Modelling](#4-physical-problem--modelling)
-5. [Nondimensionalisation](#5-nondimensionalisation)
-6. [State Vector Design](#6-state-vector-design)
-7. [Geometry Reconstruction](#7-geometry-reconstruction)
-8. [Hydrodynamics: Regularized Stokeslet Segments (RSS)](#8-hydrodynamics-regularized-stokeslet-segments-rss)
-9. [Kinematics Matrix Q](#9-kinematics-matrix-q)
-10. [Force / Moment Balance Matrix B](#10-force--moment-balance-matrix-b)
-11. [Elastic Restoring Moments (Kirchhoff Rod)](#11-elastic-restoring-moments-kirchhoff-rod)
-12. [Coupled Linear System Assembly & Solution](#12-coupled-linear-system-assembly--solution)
-13. [Clamped Boundary Conditions](#13-clamped-boundary-conditions)
-14. [Adaptive Basis Rotation (Euler Angle Singularity)](#14-adaptive-basis-rotation-euler-angle-singularity)
-15. [Time Integration](#15-time-integration)
-16. [Output System: Logging, Data Export & Animation](#16-output-system-logging-data-export--animation)
-17. [File Structure](#17-file-structure)
-18. [Scaling Consistency with Walker (2020)](#18-scaling-consistency-with-walker-2020)
-19. [Multi-Pili Support](#19-multi-pili-support)
-20. [Verification & Quality Summary](#20-verification--quality-summary)
-21. [References](#21-references)
-22. [Appendix A: Key Scaling Derivations](#appendix-a-key-scaling-derivations)
-23. [License](#license)
+> **作者**: Lucien (lucien-6@qq.com)  
+> **创建日期**: 2026-02-06  
+> **更新日期**: 2026-02-15  
+> **版本**: 2.1
 
 ---
 
-## 1. Project Overview
+## 目录
 
-This project simulates a capsule-shaped bacterium with elastic pili (modelled as Kirchhoff rods) sinking under gravity in Stokes flow.  The bacterial body is treated as a rigid capsule; each pilus is an inextensible elastic rod parameterised by Euler angles.
-
-**Hydrodynamic method:**
-
-| Component | Method | Reference |
-|-----------|--------|-----------|
-| Body surface (N_body points) | RSM point forces | Cortez et al. (2005) |
-| Pili filaments (N_k segments each) | RSS exact segment integrals + Rotlet segments | Cortez (2018) |
-
-The RSS (Regularized Stokeslet Segments) method integrates the regularized Stokeslet kernel exactly along each straight segment, decoupling the regularisation parameter $\varepsilon$ from the segment length $h$.  This allows pili to use as few as ~15 segments per micron while maintaining high accuracy, greatly reducing computational cost compared to point-wise methods.
-
-**Key features:**
-
-- **Rigid body**: capsule geometry (hemispherical caps + cylindrical mid-section), quaternion-parameterised orientation (no gimbal lock)
-- **Elastic pili**: Kirchhoff inextensible rod + Euler angle parameterisation (Walker 2020)
-- **Hydrodynamics**: body RSM point forces + pili RSS Stokeslet segments + Rotlet segment coupling (torsion–translation)
-- **Time integration**: MATLAB `ode15s` (implicit stiff solver)
-- **Adaptive basis**: per-pili Euler angle basis rotation to avoid singularities
-- **Clamped BC**: dual enforcement (kinematic rate constraint + geometric projection)
-- **Output**: dual-channel logging, `.mat` data, PNG figures, 3D MP4 animation
-- **Visualisation**: parametric smooth-surface body (semi-transparent, Gouraud shading) + per-pili coloured polylines with temporal gradient
-- **Initial pose**: user-configurable `alpha_0` (body tilt angle in XZ plane)
+1. [项目概述](#1-项目概述)
+2. [快速开始](#2-快速开始)
+3. [架构与数据流](#3-架构与数据流)
+4. [物理问题与建模](#4-物理问题与建模)
+5. [无量纲化](#5-无量纲化)
+6. [状态向量设计](#6-状态向量设计)
+7. [几何重构](#7-几何重构)
+8. [流体力学：正则化 Stokeslet 线段法 (RSS)](#8-流体力学正则化-stokeslet-线段法-rss)
+9. [运动学矩阵 Q](#9-运动学矩阵-q)
+10. [力/力矩平衡矩阵 B](#10-力力矩平衡矩阵-b)
+11. [弹性恢复力矩（Kirchhoff 弹性杆）](#11-弹性恢复力矩kirchhoff-弹性杆)
+12. [耦合线性系统组装与求解](#12-耦合线性系统组装与求解)
+13. [固支边界条件](#13-固支边界条件)
+14. [自适应基底旋转（Euler 角奇异性规避）](#14-自适应基底旋转euler-角奇异性规避)
+15. [时间积分](#15-时间积分)
+16. [输出系统：日志、数据导出与动画](#16-输出系统日志数据导出与动画)
+17. [文件结构](#17-文件结构)
+18. [与 Walker (2020) 的标度一致性](#18-与-walker-2020-的标度一致性)
+19. [多纤毛支持](#19-多纤毛支持)
+20. [验证与质量总结](#20-验证与质量总结)
+21. [参考文献](#21-参考文献)
+22. [附录 A：关键标度推导](#附录-a关键标度推导)
+23. [许可证](#许可证)
 
 ---
 
-## 2. Quick Start
+## 1. 项目概述
+
+本项目模拟一个具有弹性纤毛（以 Kirchhoff 弹性杆建模）的胶囊形细菌在 Stokes 流中重力沉降的过程。细菌胞体被视为刚性胶囊体；每根纤毛为不可伸长的弹性杆，采用 Euler 角参数化。
+
+**流体力学方法：**
+
+| 组件 | 方法 | 参考文献 |
+|------|------|----------|
+| 胞体表面（$N_{\text{body}}$ 个力点） | RSM 点力法 | Cortez et al. (2005) |
+| 纤毛丝（每根 $N_k$ 段） | RSS 精确线段积分 + Rotlet 线段 | Cortez (2018) |
+
+RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则化 Stokeslet 核函数沿每段直线段进行精确积分，将正则化参数 $\varepsilon$ 与线段长度 $h$ 解耦。这使得纤毛仅需约 15 段/微米即可保持高精度，与逐点方法相比大幅降低了计算成本。
+
+**核心特性：**
+
+- **刚体胞体**：胶囊几何体（半球端盖 + 圆柱中段），四元数参数化姿态（无万向锁）
+- **弹性纤毛**：Kirchhoff 不可伸长弹性杆 + Euler 角参数化（Walker 2020）
+- **流体力学**：胞体 RSM 点力 + 纤毛 RSS Stokeslet 线段 + Rotlet 线段耦合（扭转—平移）
+- **时间积分**：MATLAB `ode15s`（隐式刚性求解器）
+- **自适应基底**：逐纤毛 Euler 角基底旋转以规避奇异性
+- **固支边界条件**：双重施加（运动学速率约束 + 几何投影）
+- **输出**：双通道日志、`.mat` 数据、PNG 图像、3D MP4 动画
+- **可视化**：参数化光滑胞体表面（半透明，Gouraud 着色）+ 逐纤毛着色折线，含时间梯度
+- **初始姿态**：用户可配置 `alpha_0`（胞体在 XZ 平面内的倾斜角）
+
+---
+
+## 2. 快速开始
 
 ```matlab
-% 1. Open main_coupled_simulation.m in MATLAB
-% 2. Adjust parameters in the PARAMETER SETTINGS section:
+% 1. 在 MATLAB 中打开 main_coupled_simulation.m
+% 2. 在 PARAMETER SETTINGS 区域调整参数：
 
-case_name  = 'MyCase';        % Output folder name
-alpha_0    = pi/4;            % Initial body tilt [rad]
-N_body     = 1000;            % Body surface point count
-seg_per_um = 15;              % Pili segments per micron (RSS)
+case_name  = 'MyCase';        % 输出文件夹名称
+alpha_0    = pi/4;            % 初始胞体倾斜角 [rad]
+N_body     = 1000;            % 胞体表面力点数
+seg_per_um = 15;              % 纤毛每微米段数 (RSS)
 
-% 3. Define pili configuration (each column = one pilus):
+% 3. 定义纤毛配置（每列 = 一根纤毛）：
 Pili_Matrix = [1;  3;  0;  0;  NaN; NaN; NaN;  1];
 %              type length deflZ deflX shape(3)  site
 
-% 4. Run:
+% 4. 运行：
 main_coupled_simulation
 ```
 
-**Output** (saved to `output/<case_name>/`):
+**输出**（保存至 `output/<case_name>/`）：
 
 ```
 output/MyCase/
-├── simulation_results.mat    % Full results + params
-├── summary_plot.png          % Static overview figure
-├── bacteria_3d_motion.mp4   % 3D motion animation
-└── simulation.log            % Complete run log
+├── simulation_results.mat    % 完整结果 + 参数
+├── summary_plot.png          % 静态总览图
+├── bacteria_3d_motion.mp4   % 3D 运动动画
+└── simulation.log            % 完整运行日志
 ```
 
-**User-configurable parameters** (in `main_coupled_simulation.m`):
+**用户可配置参数**（位于 `main_coupled_simulation.m`）：
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `case_name` | `'Test'` | Case name (used as output folder name; empty → timestamped) |
-| `alpha_0` | `0` | Initial body tilt angle [rad] in XZ plane |
-| `N_body` | `1000` | Body surface point count |
-| `seg_per_um` | `15` | Pili segments per micron (RSS exact integrals) |
-| `Pili_Matrix` | single linear | Pili configuration matrix [8 × M] |
-| `E` | `3.67e8` | Young's modulus [Pa] |
-| `r_pili` | `3e-9` | Pili radius [m] |
-| `sigma_p` | `0.2` | Poisson's ratio |
-| `mu` | `1e-3` | Fluid dynamic viscosity [Pa·s] |
-| `rho_bac` | `1180.0` | Bacteria density [kg/m³] |
-| `rho_fluid` | `998.232` | Fluid density [kg/m³] |
-| `T_obs` | `360.0` | Total observation time [s] |
-| `AbsTol` / `RelTol` | `1e-4` | ODE solver tolerances |
-| `delta` | `pi/20` | Euler angle singularity threshold [rad] |
-| `preview_initial` | `true` | Show initial pose preview before integration |
-| `generate_animation` | `true` | Generate MP4 animation |
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `case_name` | `'Test'` | 案例名称（作为输出文件夹名；为空则使用时间戳） |
+| `alpha_0` | `0` | XZ 平面内初始胞体倾斜角 [rad] |
+| `N_body` | `1000` | 胞体表面力点数 |
+| `seg_per_um` | `15` | 纤毛每微米段数（RSS 精确积分） |
+| `Pili_Matrix` | 单根直线 | 纤毛配置矩阵 [8 × M] |
+| `E` | `3.67e8` | 杨氏模量 [Pa] |
+| `r_pili` | `3e-9` | 纤毛半径 [m] |
+| `sigma_p` | `0.2` | 泊松比 |
+| `mu` | `1e-3` | 流体动力粘度 [Pa·s] |
+| `rho_bac` | `1180.0` | 细菌密度 [kg/m³] |
+| `rho_fluid` | `998.232` | 流体密度 [kg/m³] |
+| `T_obs` | `360.0` | 总观测时间 [s] |
+| `AbsTol` / `RelTol` | `1e-4` | ODE 求解器容差 |
+| `delta` | `pi/20` | Euler 角奇异性阈值 [rad] |
+| `preview_initial` | `true` | 积分前显示初始姿态预览 |
+| `generate_animation` | `true` | 生成 MP4 动画 |
 
 ---
 
-## 3. Architecture & Data Flow
+## 3. 架构与数据流
 
-### 3.1 Module Hierarchy
+### 3.1 模块层级
 
 ```mermaid
 graph TD
@@ -150,129 +150,129 @@ graph TD
     E --> S
 ```
 
-### 3.2 Functional Layers
+### 3.2 功能分层
 
-| Layer | Files | Responsibility |
-|-------|-------|----------------|
-| Main script | `main_coupled_simulation.m` | Parameter setup, integration loop, post-processing, output |
-| Initialisation | `init_coupled_params.m`, `init_coupled_state.m` | Characteristic scales, geometry construction, initial state |
-| Core computation | `ode_coupled_rhs.m` | Q, A, B matrix assembly, linear system solve |
-| Geometry tools | `reconstruct_geometry.m`, `pili_*.m`, `quat_*.m` | State ↔ spatial coordinate conversion |
-| Hydrodynamics | `build_global_resistance.m` | RSS mobility + Rotlet segment mobility + torsional RFT |
-| Elasticity | `compute_pili_elastic_moments.m` | Kirchhoff rod curvature |
-| Boundary conditions | `enforce_clamped_geometry.m` | Clamped kinematic constraint + geometric projection |
-| Numerical stability | `adaptive_basis_check.m` | Euler angle singularity avoidance |
-| Geometry generation | `capsule_body_building.m`, `pili_building.m`, `pili_type_building.m`, `compute_curvature_binormal.m` | Body / pili discretisation |
-| Progress display | `odetpbar.m` | ODE in-segment progress bar (ode15s OutputFcn) |
-| Utilities | `skew_matrix.m`, `pack_state_rates.m`, `unpack_state.m` | Linear algebra helpers, state packing |
-
----
-
-## 4. Physical Problem & Modelling
-
-### 4.1 Problem Description
-
-Simulation of a bacterium with elastic pili sinking under gravity in Stokes flow:
-
-- **Body**: rigid capsule (two hemispherical caps + cylindrical mid-section), discretised to $N_{\text{body}}$ surface force points (default 1000)
-- **Pili**: $M$ inextensible Kirchhoff elastic rods, each with $N_k$ segments ($N_k + 1$ nodes)
-- **Fluid**: Stokes flow (zero Reynolds number); all hydrodynamic interactions through RSS (pili) + RSM (body)
-
-### 4.2 Method Origins
-
-| Component | Source | Method |
-|-----------|--------|--------|
-| Body shape, surface points, attachment sites | Parent project `Stokes Brown Flexible` | `capsule_body_building`, `pili_building` |
-| Pili elastic rod model | Walker (2020) | Kirchhoff rod + Euler angle parameterisation |
-| Hydrodynamics (translation) | Cortez (2005, 2018) | Body: RSM point forces; Pili: RSS exact segment integrals + Rotlet segments |
-| Hydrodynamics (torsion) | Walker (2020) | Resistive Force Theory (RFT) |
-| Body orientation | This project | Quaternion parameterisation (avoids gimbal lock) |
-| Time integration | Walker (2020) | MATLAB `ode15s` implicit solver |
-
-### 4.3 Core Coupling Mechanisms
-
-1. **Kinematic coupling**: pili roots are clamped to the body surface; root node velocity = body rigid-body velocity
-2. **Hydrodynamic coupling**: global mobility matrix (body RSM + pili RSS + Rotlet) captures all body–body, body–pili, and pili–pili interactions
-3. **Elastic coupling**: pili elastic restoring moments feed back through hydrodynamic reaction forces to affect body motion
+| 层级 | 文件 | 职责 |
+|------|------|------|
+| 主脚本 | `main_coupled_simulation.m` | 参数设置、积分循环、后处理、输出 |
+| 初始化 | `init_coupled_params.m`, `init_coupled_state.m` | 特征尺度、几何构建、初始状态 |
+| 核心计算 | `ode_coupled_rhs.m` | Q、A、B 矩阵组装，线性系统求解 |
+| 几何工具 | `reconstruct_geometry.m`, `pili_*.m`, `quat_*.m` | 状态 ↔ 空间坐标转换 |
+| 流体力学 | `build_global_resistance.m` | RSS 迁移率 + Rotlet 线段迁移率 + 扭转 RFT |
+| 弹性力学 | `compute_pili_elastic_moments.m` | Kirchhoff 弹性杆曲率 |
+| 边界条件 | `enforce_clamped_geometry.m` | 固支运动学约束 + 几何投影 |
+| 数值稳定性 | `adaptive_basis_check.m` | Euler 角奇异性规避 |
+| 几何生成 | `capsule_body_building.m`, `pili_building.m`, `pili_type_building.m`, `compute_curvature_binormal.m` | 胞体/纤毛离散化 |
+| 进度显示 | `odetpbar.m` | ODE 段内进度条（ode15s OutputFcn） |
+| 工具函数 | `skew_matrix.m`, `pack_state_rates.m`, `unpack_state.m` | 线性代数辅助、状态打包 |
 
 ---
 
-## 5. Nondimensionalisation
+## 4. 物理问题与建模
 
-### 5.1 Characteristic Scales
+### 4.1 问题描述
 
-All quantities nondimensionalised by the body semi-major axis $a$ (`major_axis`):
+模拟具有弹性纤毛的细菌在 Stokes 流中重力沉降：
 
-| Scale | Symbol | Definition |
-|-------|--------|------------|
-| Length | $L_0$ | $a$ |
-| Bending stiffness | $EI$ | $E \cdot \pi r_{\text{pili}}^4 / 4$ |
-| Time | $T_0$ | $8\pi\mu L_0^4 / EI$ |
-| Velocity | $U_0$ | $L_0 / T_0$ |
-| Force | $F_0$ | $EI / L_0^2$ |
+- **胞体**：刚性胶囊体（两个半球端盖 + 圆柱中段），离散为 $N_{\text{body}}$ 个表面力点（默认 1000）
+- **纤毛**：$M$ 根不可伸长的 Kirchhoff 弹性杆，每根含 $N_k$ 段（$N_k + 1$ 个节点）
+- **流体**：Stokes 流（零雷诺数）；所有流体力学相互作用通过 RSS（纤毛）+ RSM（胞体）实现
 
-### 5.2 Key Dimensionless Parameters
+### 4.2 方法来源
 
-| Parameter | Symbol | Definition |
-|-----------|--------|------------|
-| Elastogravitational number | $Eg$ | $F_{\text{sink}} L_0^2 / EI$ |
-| Slenderness ratio | $\varepsilon$ | $r_{\text{pili}} / L_0$ |
-| Poisson's ratio | $\sigma$ | user-specified |
+| 组件 | 来源 | 方法 |
+|------|------|------|
+| 胞体形状、表面点、附着位点 | 母项目 `Stokes Brown Flexible` | `capsule_body_building`, `pili_building` |
+| 纤毛弹性杆模型 | Walker (2020) | Kirchhoff 弹性杆 + Euler 角参数化 |
+| 流体力学（平移） | Cortez (2005, 2018) | 胞体：RSM 点力；纤毛：RSS 精确线段积分 + Rotlet 线段 |
+| 流体力学（扭转） | Walker (2020) | 阻力力理论 (RFT) |
+| 胞体姿态 | 本项目 | 四元数参数化（规避万向锁） |
+| 时间积分 | Walker (2020) | MATLAB `ode15s` 隐式求解器 |
+
+### 4.3 核心耦合机制
+
+1. **运动学耦合**：纤毛根部固支于胞体表面；根节点速度 = 胞体刚体运动速度
+2. **流体力学耦合**：全局迁移率矩阵（胞体 RSM + 纤毛 RSS + Rotlet）捕获所有胞体—胞体、胞体—纤毛和纤毛—纤毛相互作用
+3. **弹性耦合**：纤毛弹性恢复力矩通过流体力学反力反馈影响胞体运动
 
 ---
 
-## 6. State Vector Design
+## 5. 无量纲化
 
-### 6.1 Layout
+### 5.1 特征尺度
+
+所有量均以胞体半长轴 $a$（`major_axis`）进行无量纲化：
+
+| 尺度 | 符号 | 定义 |
+|------|------|------|
+| 长度 | $L_0$ | $a$ |
+| 弯曲刚度 | $EI$ | $E \cdot \pi r_{\text{pili}}^4 / 4$ |
+| 时间 | $T_0$ | $8\pi\mu L_0^4 / EI$ |
+| 速度 | $U_0$ | $L_0 / T_0$ |
+| 力 | $F_0$ | $EI / L_0^2$ |
+
+### 5.2 关键无量纲参数
+
+| 参数 | 符号 | 定义 |
+|------|------|------|
+| 弹性-重力数 | $Eg$ | $F_{\text{sink}} L_0^2 / EI$ |
+| 细长比 | $\varepsilon$ | $r_{\text{pili}} / L_0$ |
+| 泊松比 | $\sigma$ | 用户指定 |
+
+---
+
+## 6. 状态向量设计
+
+### 6.1 布局
 
 $$
 \mathbf{Z} = \underbrace{[\mathbf{X}_{\text{cm}}(3), \; \mathbf{q}(4)]}_{7} \; \underbrace{[\boldsymbol{\theta}_1, \boldsymbol{\phi}_1, \boldsymbol{\psi}_1]}_{3N_1} \; \cdots \; \underbrace{[\boldsymbol{\theta}_M, \boldsymbol{\phi}_M, \boldsymbol{\psi}_M]}_{3N_M}
 $$
 
-Total DOFs: $n = 7 + 3\sum_{k=1}^M N_k$
+总自由度数：$n = 7 + 3\sum_{k=1}^M N_k$
 
-### 6.2 Rate Vector (Reduced)
+### 6.2 速率向量（约化）
 
 $$
 \dot{\mathbf{z}} = [\mathbf{V}(3), \; \boldsymbol{\Omega}(3), \; \dot{\boldsymbol{\theta}}_1, \dot{\boldsymbol{\phi}}_1, \dot{\boldsymbol{\psi}}_1, \; \ldots]
 $$
 
-DOFs: $n_{\text{dof}} = 6 + 3\sum_k N_k$
+自由度数：$n_{\text{dof}} = 6 + 3\sum_k N_k$
 
-### 6.3 Initial Pose Parameter `alpha_0`
+### 6.3 初始姿态参数 `alpha_0`
 
-The angle `alpha_0` defines the initial tilt of the body long axis (body X-axis) from +X in the XZ plane:
-- `pi/2` → vertical (+Z, standard sinking orientation)
-- `0` → horizontal (+X)
-- `-pi/2` → inverted (-Z)
-
----
-
-## 7. Geometry Reconstruction
-
-`reconstruct_geometry.m` converts the state vector $\mathbf{Z}$ into lab-frame positions:
-
-1. **Body**: $\mathbf{X}_{\text{cm}}$ + quaternion $\mathbf{q}$ → rotation matrix $R$ → body surface points $\mathbf{X}_i = \mathbf{X}_{\text{cm}} + R \cdot \mathbf{x}_i^{\text{local}}$
-2. **Pili**: root position from body surface + Euler angles → `pili_spatial_coords` → lab-frame node positions
-3. **Directors**: `pili_directors` → material frame $(\mathbf{d}_1, \mathbf{d}_2, \mathbf{d}_3)$, where $\mathbf{d}_3$ is the tangent
-
-Output: `geom` structure containing `X_all`, `X_cm`, `X_body`, `X_pili`, directors, angles, etc.
+角度 `alpha_0` 定义胞体长轴（体坐标系 X 轴）在 XZ 平面内相对于 +X 方向的初始倾斜角：
+- `pi/2` → 竖直（+Z 方向，标准沉降姿态）
+- `0` → 水平（+X 方向）
+- `-pi/2` → 倒置（-Z 方向）
 
 ---
 
-## 8. Hydrodynamics: Regularized Stokeslet Segments (RSS)
+## 7. 几何重构
 
-### 8.1 RSM Kernel (Cortez 2005) — Body Surface
+`reconstruct_geometry.m` 将状态向量 $\mathbf{Z}$ 转换为实验室坐标系中的位置：
+
+1. **胞体**：$\mathbf{X}_{\text{cm}}$ + 四元数 $\mathbf{q}$ → 旋转矩阵 $R$ → 胞体表面点 $\mathbf{X}_i = \mathbf{X}_{\text{cm}} + R \cdot \mathbf{x}_i^{\text{local}}$
+2. **纤毛**：由胞体表面获取根部位置 + Euler 角 → `pili_spatial_coords` → 实验室坐标系节点位置
+3. **标架**：`pili_directors` → 材料标架 $(\mathbf{d}_1, \mathbf{d}_2, \mathbf{d}_3)$，其中 $\mathbf{d}_3$ 为切线方向
+
+输出：`geom` 结构体，包含 `X_all`、`X_cm`、`X_body`、`X_pili`、标架、角度等。
+
+---
+
+## 8. 流体力学：正则化 Stokeslet 线段法 (RSS)
+
+### 8.1 RSM 核函数 (Cortez 2005) — 胞体表面
 
 $$
 S_{ij}^{\varepsilon} = \frac{(|\mathbf{r}|^2 + 2\varepsilon_{ij}^2)\,\mathbf{I} + \mathbf{r}\mathbf{r}^T}{(|\mathbf{r}|^2 + \varepsilon_{ij}^2)^{3/2}}
 $$
 
-Applied only to the body surface columns of the mobility matrix.
+仅应用于迁移率矩阵中胞体表面对应的列。
 
-### 8.2 RSS Segment Kernel (Cortez 2018)
+### 8.2 RSS 线段核函数 (Cortez 2018)
 
-For a segment $\mathbf{y}(\alpha) = \mathbf{y}_0 - \alpha\mathbf{v}$ ($\mathbf{v} = \mathbf{y}_0 - \mathbf{y}_1$, $L = |\mathbf{v}|$), with force density linearly varying from $\mathbf{f}_0$ to $\mathbf{f}_1$:
+对于线段 $\mathbf{y}(\alpha) = \mathbf{y}_0 - \alpha\mathbf{v}$（$\mathbf{v} = \mathbf{y}_0 - \mathbf{y}_1$，$L = |\mathbf{v}|$），力密度从 $\mathbf{f}_0$ 到 $\mathbf{f}_1$ 线性变化：
 
 $$
 \mathbf{u}(\hat{\mathbf{x}}) = \mathbf{M}_1\,\mathbf{f}_0 + \mathbf{M}_2\,\mathbf{f}_1
@@ -286,66 +286,66 @@ $$
 \mathbf{M}_1 = L\left[(T_{0,-1} + \varepsilon^2 T_{0,-3})\mathbf{I} + \cdots\right] - \mathbf{M}_2
 $$
 
-The $T_{n,q}$ values are computed via recursion (Cortez 2018, Eq. 7) starting from:
-- $T_{0,-1} = \frac{1}{L}\ln\frac{H_1}{H_0}$, where $H = LR + \mathbf{x}_0 \cdot \mathbf{v}$
+$T_{n,q}$ 值通过递推关系计算（Cortez 2018, Eq. 7），起始于：
+- $T_{0,-1} = \frac{1}{L}\ln\frac{H_1}{H_0}$，其中 $H = LR + \mathbf{x}_0 \cdot \mathbf{v}$
 - $T_{0,-3} = \frac{1}{R_0 H_0} - \frac{1}{R_1 H_1}$
 
-**Key advantage**: $\mathbf{M}_1$, $\mathbf{M}_2$ already contain the segment-length integration weight — no additional $\Delta s$ column weight is needed.
+**核心优势**：$\mathbf{M}_1$、$\mathbf{M}_2$ 已包含线段长度积分权重——无需额外的 $\Delta s$ 列权重。
 
-### 8.3 Global Mobility Matrix
+### 8.3 全局迁移率矩阵
 
 $$
 M_{\text{weighted}} = \begin{pmatrix} M_{BB} & M_{BP} \\ M_{PB} & M_{PP} \end{pmatrix}
 $$
 
-| Block | Eval. points | Force source | Method | $\varepsilon$ |
-|-------|-------------|-------------|--------|----------------|
-| $M_{BB}$ | Body | Body | RSM point | $h_{\min}/2$ |
-| $M_{PB}$ | Pili | Body | RSM point | $h_{\min}/2$ |
-| $M_{BP}$ | Body | Pili | RSS segment | $r_{\text{pili}}/L_0$ |
-| $M_{PP}$ | Pili | Pili | RSS segment | $r_{\text{pili}}/L_0$ |
+| 分块 | 评估点 | 力源 | 方法 | $\varepsilon$ |
+|------|--------|------|------|----------------|
+| $M_{BB}$ | 胞体 | 胞体 | RSM 点力 | $h_{\min}/2$ |
+| $M_{PB}$ | 纤毛 | 胞体 | RSM 点力 | $h_{\min}/2$ |
+| $M_{BP}$ | 胞体 | 纤毛 | RSS 线段 | $r_{\text{pili}}/L_0$ |
+| $M_{PP}$ | 纤毛 | 纤毛 | RSS 线段 | $r_{\text{pili}}/L_0$ |
 
-**Pair rule**: $\varepsilon_{ij} = \varepsilon_j$ (determined by the force source point).
+**配对规则**：$\varepsilon_{ij} = \varepsilon_j$（由力源点决定）。
 
-**Vectorised assembly**: all $T_{n,q}$ values and $\mathbf{M}_1$/$\mathbf{M}_2$ components are computed as $[N_{\text{total}} \times N_{\text{seg,all}}]$ matrices, then scattered into the global mobility matrix.
+**向量化组装**：所有 $T_{n,q}$ 值和 $\mathbf{M}_1$/$\mathbf{M}_2$ 分量以 $[N_{\text{total}} \times N_{\text{seg,all}}]$ 矩阵形式计算，然后散射至全局迁移率矩阵中。
 
-### 8.4 Rotlet Segment Mobility
+### 8.4 Rotlet 线段迁移率
 
-Captures the hydrodynamic coupling from torque densities along pili to translational velocities at all evaluation points (Cortez 2018, Sec. 2.5):
+捕获纤毛上扭矩密度到所有评估点平移速度的流体力学耦合（Cortez 2018, Sec. 2.5）：
 
 $$
 \mathbf{u}(\hat{\mathbf{x}}) = -L\left[c_a\,[\mathbf{x}_0]_\times + c_b\,[\mathbf{v}]_\times\right]\boldsymbol{\tau}
 $$
 
-where $c_a = 2T_{0,-3} + 3\varepsilon^2 T_{0,-5}$, $c_b = 2T_{1,-3} + 3\varepsilon^2 T_{1,-5}$.
+其中 $c_a = 2T_{0,-3} + 3\varepsilon^2 T_{0,-5}$，$c_b = 2T_{1,-3} + 3\varepsilon^2 T_{1,-5}$。
 
-$T_{n,-5}$ are computed via additional recursion requiring $d^2 = |\mathbf{x}_0 \times \mathbf{v}|^2 + L^2\varepsilon^2$.
+$T_{n,-5}$ 通过额外的递推关系计算，需要 $d^2 = |\mathbf{x}_0 \times \mathbf{v}|^2 + L^2\varepsilon^2$。
 
-$M_{\text{rotlet}} \in \mathbb{R}^{3N_{\text{total}} \times 3N_{\text{seg}}}$ maps each segment's 3D torque density to translational velocities at all points.
+$M_{\text{rotlet}} \in \mathbb{R}^{3N_{\text{total}} \times 3N_{\text{seg}}}$ 将每段的三维扭矩密度映射到所有点的平移速度。
 
-**Integration into the linear system**:
+**线性系统中的集成**：
 
 $$
 \mathbf{f} = M_{\text{stokeslet}}^{-1}\left(\mathbf{Q}_{\text{trans}} - M_{\text{rotlet}} \cdot \tilde{A}_{\text{twist}} \cdot \mathbf{Q}_{\text{twist}}\right) \dot{\mathbf{z}}
 $$
 
-**Physical impact**: for typical bacterial pili ($\varepsilon \sim 10^{-3}$), the Rotlet coupling is $O(\varepsilon^4) \sim 10^{-12}$, negligible in practice but ensures theoretical completeness.
+**物理影响**：对于典型的细菌纤毛（$\varepsilon \sim 10^{-3}$），Rotlet 耦合量级为 $O(\varepsilon^4) \sim 10^{-12}$，实际上可忽略，但确保了理论的完备性。
 
-### 8.5 Regularisation Parameters
+### 8.5 正则化参数
 
 $$
-\varepsilon_j = \begin{cases} h_{\text{body}}^{\min} / 2 & \text{body surface point} \\ r_{\text{pili}} / L_0 & \text{pili node} \end{cases}
+\varepsilon_j = \begin{cases} h_{\text{body}}^{\min} / 2 & \text{胞体表面点} \\ r_{\text{pili}} / L_0 & \text{纤毛节点} \end{cases}
 $$
 
-Gap between pili root and body surface: $d_{\text{gap}} = 1.1 \times (\varepsilon_{\text{body}} \cdot L_0 + r_{\text{pili}})$.
+纤毛根部与胞体表面的间隙：$d_{\text{gap}} = 1.1 \times (\varepsilon_{\text{body}} \cdot L_0 + r_{\text{pili}})$。
 
-### 8.6 Translational Resistance
+### 8.6 平移阻力
 
-$\mathbf{A}_{\text{trans}} = M_{\text{weighted}}^{-1}$ — computed via LU decomposition: `M_weighted \ Q_trans` (avoids explicit $O(N^3)$ inversion).
+$\mathbf{A}_{\text{trans}} = M_{\text{weighted}}^{-1}$ — 通过 LU 分解计算：`M_weighted \ Q_trans`（避免显式 $O(N^3)$ 矩阵求逆）。
 
-### 8.7 Torsional Resistance (RFT)
+### 8.7 扭转阻力 (RFT)
 
-Per-pili torsional resistance (Resistive Force Theory):
+逐纤毛扭转阻力（阻力力理论）：
 
 $$
 \tilde{A}_k = \frac{\ell_k\,\varepsilon_k^2}{2}\,\hat{A}_k, \quad [\hat{A}_k]_{3(j-1)+1:3j, \, j} = \mathbf{d}_3^{(j)}
@@ -353,36 +353,36 @@ $$
 
 ---
 
-## 9. Kinematics Matrix Q
+## 9. 运动学矩阵 Q
 
-$\mathbf{Q}_{\text{global}} \in \mathbb{R}^{n_{\text{vel}} \times n_{\text{dof}}}$ maps rate vector $\dot{\mathbf{z}}$ to physical velocities:
+$\mathbf{Q}_{\text{global}} \in \mathbb{R}^{n_{\text{vel}} \times n_{\text{dof}}}$ 将速率向量 $\dot{\mathbf{z}}$ 映射为物理速度：
 
-- **Body points**: $\mathbf{v}_i = \mathbf{V} + \boldsymbol{\Omega} \times (\mathbf{x}_i - \mathbf{X}_{\text{cm}})$
-- **Pili nodes**: built from Walker's spatial Q-matrix, transformed from pili basis to lab frame via adaptive rotation $R_k$
-- **Twist rates**: psi-rates coupled to theta-rates via $\cos\theta$ (Euler angle kinematics)
+- **胞体点**：$\mathbf{v}_i = \mathbf{V} + \boldsymbol{\Omega} \times (\mathbf{x}_i - \mathbf{X}_{\text{cm}})$
+- **纤毛节点**：由 Walker 的空间 Q 矩阵构建，通过自适应旋转 $R_k$ 从纤毛基底变换至实验室坐标系
+- **扭转速率**：$\psi$ 速率通过 $\cos\theta$ 与 $\theta$ 速率耦合（Euler 角运动学）
 
-Translational sub-block: $\mathbf{Q}_{\text{trans}} = \mathbf{Q}[1:3N_{\text{total}}, :]$
-Torsional sub-block: $\mathbf{Q}_{\text{twist}} = \mathbf{Q}[3N_{\text{total}}+1:\text{end}, :]$
-
----
-
-## 10. Force / Moment Balance Matrix B
-
-$\mathbf{B}_{\text{global}} \in \mathbb{R}^{n_{\text{dof}} \times n_{\text{force}}}$ maps distributed forces/torques to the rate-vector equations:
-
-| Rows | Equation | RHS |
-|------|----------|-----|
-| 1–3 | Force balance | $-Eg\,\hat{\mathbf{g}}$ |
-| 4–6 | Torque balance | 0 (no external torque) |
-| 7+ | Pili moment balance (per $N_k$ segments × 3 components) | Elastic curvature $\kappa$ |
-
-Body and pili force contributions use trapezoidal quadrature weights. Pili moment balance follows the Walker (2020) formulation with $\ell_k^3$ scaling.
+平移子块：$\mathbf{Q}_{\text{trans}} = \mathbf{Q}[1:3N_{\text{total}}, :]$
+扭转子块：$\mathbf{Q}_{\text{twist}} = \mathbf{Q}[3N_{\text{total}}+1:\text{end}, :]$
 
 ---
 
-## 11. Elastic Restoring Moments (Kirchhoff Rod)
+## 10. 力/力矩平衡矩阵 B
 
-`compute_pili_elastic_moments.m` computes the discrete curvature deviation from intrinsic curvature:
+$\mathbf{B}_{\text{global}} \in \mathbb{R}^{n_{\text{dof}} \times n_{\text{force}}}$ 将分布力/力矩映射至速率向量方程：
+
+| 行 | 方程 | 右端项 |
+|----|------|--------|
+| 1–3 | 力平衡 | $-Eg\,\hat{\mathbf{g}}$ |
+| 4–6 | 力矩平衡 | 0（无外力矩） |
+| 7+ | 纤毛力矩平衡（每根 $N_k$ 段 × 3 个分量） | 弹性曲率 $\kappa$ |
+
+胞体和纤毛的力贡献使用梯形求积权重。纤毛力矩平衡遵循 Walker (2020) 的公式，采用 $\ell_k^3$ 标度。
+
+---
+
+## 11. 弹性恢复力矩（Kirchhoff 弹性杆）
+
+`compute_pili_elastic_moments.m` 计算离散曲率与固有曲率的偏差：
 
 $$
 \kappa_\alpha^{(j)} = \mathbf{d}_\alpha^{(j)} \cdot \mathbf{d}_3'^{(j)} - \kappa_{\alpha,0}^{(j)}, \quad \alpha = 1, 2
@@ -394,180 +394,180 @@ $$
 
 ---
 
-## 12. Coupled Linear System Assembly & Solution
+## 12. 耦合线性系统组装与求解
 
-The core equation at each ODE time step:
+每个 ODE 时间步的核心方程：
 
 $$
 \mathbf{L}\,\dot{\mathbf{z}} = \mathbf{R}
 $$
 
-where:
+其中：
 - $\mathbf{L} = -\mathbf{B} \cdot \mathbf{AQ}$
 - $\mathbf{AQ} = \begin{bmatrix} M_{\text{weighted}}^{-1} \cdot \mathbf{Q}_{\text{trans,corr}} \\ \tilde{A}_{\text{twist}} \cdot \mathbf{Q}_{\text{twist}} \end{bmatrix}$
 - $\mathbf{Q}_{\text{trans,corr}} = \mathbf{Q}_{\text{trans}} - M_{\text{rotlet}} \cdot \tilde{A}_{\text{twist}} \cdot \mathbf{Q}_{\text{twist}}$
 - $\mathbf{R} = [-Eg\,\hat{\mathbf{g}}; \; \mathbf{0}; \; \boldsymbol{\kappa}_1; \ldots; \boldsymbol{\kappa}_M]$
 
-Solved by LU decomposition: `lin_sys \ R_global`.
+通过 LU 分解求解：`lin_sys \ R_global`。
 
 ---
 
-## 13. Clamped Boundary Conditions
+## 13. 固支边界条件
 
-Pili roots are clamped to the body surface. Dual enforcement:
+纤毛根部固支于胞体表面。双重施加：
 
-1. **Rate-level** (in `ode_coupled_rhs.m` Step 7): the first 3 rows of each pili's moment balance block are replaced by:
+1. **速率层面**（在 `ode_coupled_rhs.m` 步骤 7 中）：将每根纤毛力矩平衡块的前 3 行替换为：
 
 $$
 \dot{\theta}_1 = J_e \cdot \boldsymbol{\Omega}, \quad \dot{\phi}_1 = J_e \cdot \boldsymbol{\Omega}, \quad \dot{\psi}_1 = J_e \cdot \boldsymbol{\Omega}
 $$
 
-where $J_e$ is the Euler-angle-to-angular-velocity Jacobian in the adaptive basis.
+其中 $J_e$ 为自适应基底下 Euler 角到角速度的雅可比矩阵。
 
-2. **Position-level** (in `enforce_clamped_geometry.m`): after each ODE step, geometric projection corrects any constraint drift at the pili–body junction.
-
----
-
-## 14. Adaptive Basis Rotation (Euler Angle Singularity)
-
-`adaptive_basis_check.m` monitors $|\theta_1^{(k)}|$ for each pilus. When $\theta_1$ approaches 0 or $\pi$ (within threshold $\delta$), the rotation basis $R_k$ is updated to move the working point away from the singularity. All Euler angles are recomputed in the new basis.
+2. **位置层面**（在 `enforce_clamped_geometry.m` 中）：每个 ODE 步后，几何投影修正纤毛—胞体连接处的约束漂移。
 
 ---
 
-## 15. Time Integration
+## 14. 自适应基底旋转（Euler 角奇异性规避）
+
+`adaptive_basis_check.m` 监控每根纤毛的 $|\theta_1^{(k)}|$。当 $\theta_1$ 趋近 0 或 $\pi$（在阈值 $\delta$ 范围内）时，更新旋转基底 $R_k$ 以将工作点移离奇异性。所有 Euler 角在新基底下重新计算。
+
+---
+
+## 15. 时间积分
 
 ```
-Algorithm:
-  for each time segment [t_n, t_{n+1}]:
-      1. Unpack Z → X_cm, q, {θ,φ,ψ}_k
-      2. Reconstruct geometry → X_all, directors
-      3. Build mobility M_weighted (body RSM + pili RSS), M_rotlet, A_twist
-      4. Build Q_global (kinematics)
-      5. Solve AQ = [M_weighted\Q_trans_corr; A_twist*Q_twist]
-      6. Build B_global (force/moment balance)
-      7. Compute elastic moments κ (per pili)
-      8. Assemble linear system L = -B·AQ, R = [-Eg·ĝ; 0; κ]
-      9. Apply clamped BC (replace first-segment rows)
-     10. Solve L·ż = R
-     11. Extract V, Ω → compute dq/dt = ½[0;Ω]⊗q
-     12. Pack dZ = [V; dq/dt; dθ; dφ; dψ; ...]
+算法：
+  对每个时间段 [t_n, t_{n+1}]：
+      1. 解包 Z → X_cm, q, {θ,φ,ψ}_k
+      2. 重构几何 → X_all, 标架
+      3. 构建迁移率 M_weighted（胞体 RSM + 纤毛 RSS）、M_rotlet、A_twist
+      4. 构建 Q_global（运动学）
+      5. 求解 AQ = [M_weighted\Q_trans_corr; A_twist*Q_twist]
+      6. 构建 B_global（力/力矩平衡）
+      7. 计算弹性力矩 κ（逐纤毛）
+      8. 组装线性系统 L = -B·AQ, R = [-Eg·ĝ; 0; κ]
+      9. 施加固支边界条件（替换首段行）
+     10. 求解 L·ż = R
+     11. 提取 V, Ω → 计算 dq/dt = ½[0;Ω]⊗q
+     12. 打包 dZ = [V; dq/dt; dθ; dφ; dψ; ...]
 ```
 
-Solver: `ode15s` with event-driven segment splitting (timeout and singularity events).
+求解器：`ode15s`，配合事件驱动的分段分裂（超时事件和奇异性事件）。
 
 ---
 
-## 16. Output System: Logging, Data Export & Animation
+## 16. 输出系统：日志、数据导出与动画
 
-### 16.1 Output Directory
+### 16.1 输出目录
 
-- Non-empty `case_name` → `output/<case_name>/`
-- Empty → `output/run_YYYYMMDD_HHMMSS/`
+- 非空 `case_name` → `output/<case_name>/`
+- 为空 → `output/run_YYYYMMDD_HHMMSS/`
 
-### 16.2 Outputs
+### 16.2 输出文件
 
-| File | Content |
-|------|---------|
-| `simulation_results.mat` | `results` struct (trajectories, velocities, timing) + `params` |
-| `summary_plot.png` | Static overview: sinking speed, tilt angle, pili shape |
-| `bacteria_3d_motion.mp4` | 3D animation with smooth body surface + coloured pili |
-| `simulation.log` | Full timestamped log of all operations |
+| 文件 | 内容 |
+|------|------|
+| `simulation_results.mat` | `results` 结构体（轨迹、速度、计时）+ `params` |
+| `summary_plot.png` | 静态总览：沉降速度、倾斜角、纤毛形态 |
+| `bacteria_3d_motion.mp4` | 3D 动画，含光滑胞体表面 + 着色纤毛 |
+| `simulation.log` | 带时间戳的完整运行日志 |
 
-### 16.3 Unit Convention
+### 16.3 单位约定
 
-| Quantity | Output Unit |
-|----------|-------------|
-| Time | seconds [s] |
-| Length | micrometres [μm] |
-| Force | piconewtons [pN] |
-| Angle | radians [rad] |
+| 物理量 | 输出单位 |
+|--------|----------|
+| 时间 | 秒 [s] |
+| 长度 | 微米 [μm] |
+| 力 | 皮牛 [pN] |
+| 角度 | 弧度 [rad] |
 
 ---
 
-## 17. File Structure
+## 17. 文件结构
 
 ```
 Coupled_Body_Pili/
 │
-├── main_coupled_simulation.m           % Entry point: parameter setup, ODE loop, output
+├── main_coupled_simulation.m           % 入口：参数设置、ODE 循环、输出
 │
-├── init_coupled_params.m               % Parameter initialisation (nondimensionalisation, geometry)
-├── init_coupled_state.m                % Initial state vector Z0
+├── init_coupled_params.m               % 参数初始化（无量纲化、几何）
+├── init_coupled_state.m                % 初始状态向量 Z0
 │
-├── ode_coupled_rhs.m                   % Core ODE RHS (Q/A/B assembly + linear solve + Rotlet coupling)
-├── reconstruct_geometry.m              % State vector → lab-frame coordinates
-├── build_global_resistance.m           % RSS mobility + Rotlet segments + torsional RFT
-├── compute_pili_elastic_moments.m      % Kirchhoff rod elastic curvature deviation
+├── ode_coupled_rhs.m                   % 核心 ODE 右端项（Q/A/B 组装 + 线性求解 + Rotlet 耦合）
+├── reconstruct_geometry.m              % 状态向量 → 实验室坐标系坐标
+├── build_global_resistance.m           % RSS 迁移率 + Rotlet 线段 + 扭转 RFT
+├── compute_pili_elastic_moments.m      % Kirchhoff 弹性杆弹性曲率偏差
 │
-├── enforce_clamped_geometry.m          % Clamped geometric projection (constraint drift correction)
-├── adaptive_basis_check.m              % Per-pili adaptive Euler angle basis rotation
+├── enforce_clamped_geometry.m          % 固支几何投影（约束漂移修正）
+├── adaptive_basis_check.m              % 逐纤毛自适应 Euler 角基底旋转
 │
-├── capsule_body_building.m             % Capsule body surface mesh generation
-├── pili_building.m                     % Pili structure initialisation (stiffness, curvature)
-├── pili_type_building.m                % Pili morphology generation (5 types)
-├── compute_curvature_binormal.m        % Discrete elastic rod curvature binormal (Bergou 2008)
+├── capsule_body_building.m             % 胶囊体表面网格生成
+├── pili_building.m                     % 纤毛结构初始化（刚度、曲率）
+├── pili_type_building.m                % 纤毛形态生成（5 种类型）
+├── compute_curvature_binormal.m        % 离散弹性杆曲率副法线 (Bergou 2008)
 │
-├── quat_to_rotmat.m                    % Quaternion → rotation matrix
-├── quat_multiply.m                     % Hamilton quaternion product
+├── quat_to_rotmat.m                    % 四元数 → 旋转矩阵
+├── quat_multiply.m                     % Hamilton 四元数乘法
 ├── quat_kinematics.m                   % dq/dt = ½[0;Ω]⊗q
-├── skew_matrix.m                       % 3×3 skew-symmetric cross-product matrix
+├── skew_matrix.m                       % 3×3 反对称叉积矩阵
 │
-├── pili_directors.m                    % Euler angles → directors (d1, d2, d3)
-├── pili_euler_angles.m                 % Directors → Euler angles (inverse)
-├── pili_spatial_coords.m               % Root + Euler angles → node positions
-├── unpack_state.m                      % Z → components extraction
-├── pack_state_rates.m                  % Components → dZ packing
+├── pili_directors.m                    % Euler 角 → 标架 (d1, d2, d3)
+├── pili_euler_angles.m                 % 标架 → Euler 角（逆运算）
+├── pili_spatial_coords.m               % 根部 + Euler 角 → 节点位置
+├── unpack_state.m                      % Z → 分量提取
+├── pack_state_rates.m                  % 分量 → dZ 打包
 │
-├── odetpbar.m                          % ODE in-segment progress bar (ode15s OutputFcn)
+├── odetpbar.m                          % ODE 段内进度条（ode15s OutputFcn）
 │
-├── README.md                           % This file
-├── coupled_scheme_documentation.md     % Theoretical scheme document
+├── README.md                           % 本文件
+├── coupled_scheme_documentation.md     % 理论方案文档
 └── Cortez - 2018 - Regularized stokeslet segments.pdf
 ```
 
-Total: **23 MATLAB source files** (no dead code, no unused functions).
+总计：**23 个 MATLAB 源文件**（无冗余代码，无未使用函数）。
 
 ---
 
-## 18. Scaling Consistency with Walker (2020)
+## 18. 与 Walker (2020) 的标度一致性
 
-The nondimensionalisation is designed to exactly reproduce Walker's framework when reduced to a single filament without a body. Key equivalences:
+无量纲化体系经设计可在简化为无胞体的单根纤毛时精确复现 Walker 的框架。关键等价关系：
 
-- $Q$ matrix: identical structure (base-velocity + Euler angle rates)
-- $B$ matrix: force balance uses trapezoidal weights; moment balance uses $\ell^3$ scaling
-- $\tilde{A}_{\text{twist}}$: includes the additional $\ell_k$ factor for dimensional consistency
-- Elastic moments: curvature deviation formula matches Walker's discrete operators
+- $Q$ 矩阵：结构相同（基底速度 + Euler 角速率）
+- $B$ 矩阵：力平衡使用梯形求积权重；力矩平衡使用 $\ell^3$ 标度
+- $\tilde{A}_{\text{twist}}$：包含额外的 $\ell_k$ 因子以确保量纲一致性
+- 弹性力矩：曲率偏差公式与 Walker 的离散算子一致
 
 ---
 
-## 19. Multi-Pili Support
+## 19. 多纤毛支持
 
-### 19.1 Configuration
+### 19.1 配置
 
-Each column of `Pili_Matrix` defines one pilus. The system supports $M \geq 1$ pili with independent:
-- Length, shape type, attachment site
-- Euler angle states and adaptive bases
-- Elastic properties (shared material parameters, independent intrinsic curvatures)
+`Pili_Matrix` 的每一列定义一根纤毛。系统支持 $M \geq 1$ 根纤毛，各自独立设定：
+- 长度、形状类型、附着位点
+- Euler 角状态和自适应基底
+- 弹性属性（共享材料参数，独立的固有曲率）
 
-### 19.2 Coupling
+### 19.2 耦合
 
-| Mechanism | Implementation |
-|-----------|----------------|
-| Pili–pili hydrodynamic | Full cross-coupling in the global mobility matrix ($M_{PP}$ block) |
-| Body–pili hydrodynamic | Cross-coupling in $M_{BP}$ and $M_{PB}$ blocks |
-| Elastic moments | Independently computed per pili (Kirchhoff curvature) |
-| Clamped BC | Independent constraint per pili (different attachment sites) |
-| Torsional resistance | Block-diagonal $\tilde{A} = \text{blkdiag}(\tilde{A}_1, \ldots, \tilde{A}_M)$ (local RFT, physically correct) |
-| Adaptive basis | Independent per-pili detection and rotation |
+| 机制 | 实现方式 |
+|------|----------|
+| 纤毛—纤毛流体力学 | 全局迁移率矩阵中的完全交叉耦合（$M_{PP}$ 块） |
+| 胞体—纤毛流体力学 | $M_{BP}$ 和 $M_{PB}$ 块中的交叉耦合 |
+| 弹性力矩 | 逐纤毛独立计算（Kirchhoff 曲率） |
+| 固支边界条件 | 逐纤毛独立约束（不同附着位点） |
+| 扭转阻力 | 块对角 $\tilde{A} = \text{blkdiag}(\tilde{A}_1, \ldots, \tilde{A}_M)$（局部 RFT，物理正确） |
+| 自适应基底 | 逐纤毛独立检测与旋转 |
 
-### 19.3 Attachment Site Validation
+### 19.3 附着位点验证
 
-`init_coupled_params.m` checks for duplicate attachment sites in `Pili_Matrix(8,:)` and issues a warning if detected.
+`init_coupled_params.m` 检查 `Pili_Matrix(8,:)` 中是否存在重复附着位点，若检测到则发出警告。
 
-### 19.4 Dimension Summary
+### 19.4 矩阵维度汇总
 
-| Matrix | Dimension |
-|--------|-----------|
+| 矩阵 | 维度 |
+|------|------|
 | $\mathbf{Z}$ | $7 + 3\sum_k N_k$ |
 | $\dot{\mathbf{z}}$ | $6 + 3\sum_k N_k$ |
 | $M_{\text{weighted}}$ | $3N_{\text{total}} \times 3N_{\text{total}}$ |
@@ -577,88 +577,88 @@ Each column of `Pili_Matrix` defines one pilus. The system supports $M \geq 1$ p
 
 ---
 
-## 20. Verification & Quality Summary
+## 20. 验证与质量总结
 
-### 20.1 Verified Items (30+)
+### 20.1 已验证项目 (30+)
 
-| Category | Details |
-|----------|---------|
-| RSM body kernel | $1/(8\pi\mu)$ absorption, self-consistent characteristic scales, capsule volume |
-| Quaternion algebra | Left-multiplication convention, kinematics $\dot{q} = \frac{1}{2}[0;\Omega]\otimes q$, normalisation |
-| Q matrix | Scaling, frame transformation, root coupling, interleaved ordering |
-| B matrix | Force trapezoidal weights, moment balance, $\ell^3$ scaling |
-| RSS T_{n,q} recursion | All 6 terms ($T_{0,-1}$ through $T_{3,-3}$) verified against Cortez 2018 Eq. 7 |
-| RSS M1/M2 blocks | Eq. 12–13, symmetry check (machine epsilon), self-interaction safety |
-| RSS T_{n,-5} recursion | Rotlet recursion, $d^2$ safeguard, Sec. 2.4 formulas |
-| Rotlet skew-symmetric block | Anti-symmetry verified ($\|R+R^T\|/\|R\| = 0$), convergence rate 2.0 |
-| Vectorised assembly | All $[N_{\text{total}} \times N_{\text{seg,all}}]$ arrays match scalar kernel outputs |
-| Torsional resistance | $\ell_k \varepsilon_k^2 / 2$ scaling with dimensional consistency |
-| Clamped BC | Jacobian derivation, rate-level + position-level dual enforcement |
-| Adaptive basis | Per-pili detection and rotation, Euler angle recomputation |
-| Multi-pili | State vector, geometry, Q/B matrices, BC all verified for $M \geq 1$ |
-| Linear system | $L\dot{z}=R$ every row dimensionally traced |
+| 类别 | 详情 |
+|------|------|
+| RSM 胞体核函数 | $1/(8\pi\mu)$ 吸收、特征尺度自洽性、胶囊体积 |
+| 四元数代数 | 左乘约定、运动学 $\dot{q} = \frac{1}{2}[0;\Omega]\otimes q$、归一化 |
+| Q 矩阵 | 标度、坐标变换、根部耦合、交错排序 |
+| B 矩阵 | 力的梯形权重、力矩平衡、$\ell^3$ 标度 |
+| RSS $T_{n,q}$ 递推 | 全部 6 项（$T_{0,-1}$ 至 $T_{3,-3}$）已对照 Cortez 2018 Eq. 7 验证 |
+| RSS $M_1$/$M_2$ 块 | Eq. 12–13，对称性检查（机器精度），自相互作用安全 |
+| RSS $T_{n,-5}$ 递推 | Rotlet 递推、$d^2$ 安全措施、Sec. 2.4 公式 |
+| Rotlet 反对称块 | 反对称性已验证（$\|R+R^T\|/\|R\| = 0$），收敛率 2.0 |
+| 向量化组装 | 所有 $[N_{\text{total}} \times N_{\text{seg,all}}]$ 数组与标量核函数输出一致 |
+| 扭转阻力 | $\ell_k \varepsilon_k^2 / 2$ 标度，量纲一致 |
+| 固支边界条件 | 雅可比矩阵推导、速率层面 + 位置层面双重施加 |
+| 自适应基底 | 逐纤毛检测与旋转、Euler 角重新计算 |
+| 多纤毛 | 状态向量、几何、Q/B 矩阵、边界条件均已验证（$M \geq 1$） |
+| 线性系统 | $L\dot{z}=R$ 每行逐一量纲追踪 |
 
-### 20.2 Bug Fix History (all resolved)
+### 20.2 缺陷修复历史（均已解决）
 
-| # | Issue | Date | Fix |
-|---|-------|------|-----|
-| 1 | Pili endpoint column weights inconsistent | 2026-02-07 | Uniform $\Delta s$ (Walker consistency) |
-| 2 | `inv()` numerical stability | 2026-02-07 | Replaced with `\` operator |
-| 3 | Full-matrix inverse performance | 2026-02-10 | Return $M_{\text{weighted}}$, use LU solve |
-| 4 | $\tilde{A}_{\text{twist}}$ coordinate frame mismatch | 2026-02-10 | Use `d3` in lab frame |
-| 5 | PascalCase file naming | 2026-02-11 | Renamed to `snake_case` |
-| 6 | Unused force-point data in geometry builders | 2026-02-11 | Removed dead code |
-| 7 | Body rendered as scatter points | 2026-02-11 | Parametric `surf` with Gouraud shading |
-| 8 | Torsional resistance missing $\ell_k$ factor | 2026-02-12 | `eps_k^2/2` → `ell_k*eps_k^2/2` |
-| 9 | Redundant `reconstruct_geometry` calls | 2026-02-12 | Moved outside loop |
-| 10 | Multi-pili uniform colouring | 2026-02-12 | 10-colour distinguishable palette |
-| 11 | No attachment site conflict detection | 2026-02-12 | Added duplicate-site warning |
-| 12 | `acos` NaN from floating-point domain errors | 2026-02-12 | Clamped to $[-1, 1]$ |
-| 13 | Quaternion init assumed body Z as long axis | 2026-02-12 | Fixed to body X axis |
-| 14 | Removed pure RSM pili mode (v2.0) | 2026-02-14 | Unified to RSS + Rotlet; deleted `use_rss` flag |
-| 15 | Halved pili line width & CM marker size (v2.1) | 2026-02-15 | Static plots & animation visual refinement |
-| 16 | Axis range minimum bound `4*major_axis` (v2.1) | 2026-02-15 | Prevents over-zoom when data span is small |
-| 17 | Full-resolution CM trajectory in animation (v2.1) | 2026-02-15 | Fixed intermittent trajectory caused by sparse frame-sampled data |
-| 18 | Gravity indicator flush to axis frame (v2.1) | 2026-02-15 | Reduced gap; added `drawnow` for accurate position |
+| # | 问题 | 日期 | 修复 |
+|---|------|------|------|
+| 1 | 纤毛端点列权重不一致 | 2026-02-07 | 统一 $\Delta s$（Walker 一致性） |
+| 2 | `inv()` 数值稳定性 | 2026-02-07 | 替换为 `\` 运算符 |
+| 3 | 全矩阵求逆性能 | 2026-02-10 | 返回 $M_{\text{weighted}}$，使用 LU 求解 |
+| 4 | $\tilde{A}_{\text{twist}}$ 坐标系不匹配 | 2026-02-10 | 使用实验室坐标系 `d3` |
+| 5 | PascalCase 文件命名 | 2026-02-11 | 重命名为 `snake_case` |
+| 6 | 几何构建器中未使用的力点数据 | 2026-02-11 | 移除冗余代码 |
+| 7 | 胞体以散点渲染 | 2026-02-11 | 参数化 `surf` + Gouraud 着色 |
+| 8 | 扭转阻力缺少 $\ell_k$ 因子 | 2026-02-12 | `eps_k^2/2` → `ell_k*eps_k^2/2` |
+| 9 | `reconstruct_geometry` 冗余调用 | 2026-02-12 | 移至循环外 |
+| 10 | 多纤毛统一着色 | 2026-02-12 | 10 色可区分调色板 |
+| 11 | 无附着位点冲突检测 | 2026-02-12 | 添加重复位点警告 |
+| 12 | `acos` 因浮点域错误产生 NaN | 2026-02-12 | 钳位至 $[-1, 1]$ |
+| 13 | 四元数初始化假设胞体 Z 为长轴 | 2026-02-12 | 修正为胞体 X 轴 |
+| 14 | 移除纯 RSM 纤毛模式 (v2.0) | 2026-02-14 | 统一为 RSS + Rotlet；删除 `use_rss` 标志 |
+| 15 | 纤毛线宽与质心标记过大 (v2.1) | 2026-02-15 | 静态图与动画中减半 |
+| 16 | 坐标轴范围无最小下限 (v2.1) | 2026-02-15 | 增加 `4*major_axis` 最小范围约束 |
+| 17 | 动画中 CM 轨迹断续 (v2.1) | 2026-02-15 | 使用全分辨率轨迹数据替代帧采样稀疏数据 |
+| 18 | 重力标识偏离坐标轴框 (v2.1) | 2026-02-15 | 缩小间距；添加 `drawnow` 确保位置准确 |
 
-### 20.3 Feature History
+### 20.3 功能历史
 
-| # | Feature | Date |
-|---|---------|------|
-| 1 | Initial pose parameterisation `alpha_0` | 2026-02-12 |
-| 2 | Case naming `case_name` | 2026-02-12 |
-| 3 | Professional progress bar `odetpbar.m` | 2026-02-12 |
-| 4 | Multi-pili distinguishable colouring | 2026-02-12 |
-| 5 | Attachment site conflict detection | 2026-02-12 |
-| 6 | ODE event trigger logging | 2026-02-12 |
-| 7 | Initial pose interactive preview | 2026-02-12 |
-| 8 | RSS hydrodynamics for pili (Cortez 2018) | 2026-02-14 |
-| 9 | Vectorised RSS assembly (segment-loop elimination) | 2026-02-14 |
-| 10 | Rotlet segment mobility $M_{\text{rotlet}}$ | 2026-02-14 |
-| 11 | Pure RSS mode — removed RSM pili fallback (v2.0) | 2026-02-14 |
-| 12 | Halved pili line width & CM marker size (v2.1) | 2026-02-15 |
-| 13 | Axis range minimum bound `4*major_axis` (v2.1) | 2026-02-15 |
-| 14 | Full-resolution CM trajectory in animation (v2.1) | 2026-02-15 |
-| 15 | Gravity indicator flush to axis frame (v2.1) | 2026-02-15 |
+| # | 功能 | 日期 |
+|---|------|------|
+| 1 | 初始姿态参数化 `alpha_0` | 2026-02-12 |
+| 2 | 案例命名 `case_name` | 2026-02-12 |
+| 3 | 专业进度条 `odetpbar.m` | 2026-02-12 |
+| 4 | 多纤毛可区分着色 | 2026-02-12 |
+| 5 | 附着位点冲突检测 | 2026-02-12 |
+| 6 | ODE 事件触发日志 | 2026-02-12 |
+| 7 | 初始姿态交互式预览 | 2026-02-12 |
+| 8 | 纤毛 RSS 流体力学 (Cortez 2018) | 2026-02-14 |
+| 9 | 向量化 RSS 组装（消除线段循环） | 2026-02-14 |
+| 10 | Rotlet 线段迁移率 $M_{\text{rotlet}}$ | 2026-02-14 |
+| 11 | 纯 RSS 模式——移除 RSM 纤毛回退 (v2.0) | 2026-02-14 |
+| 12 | 纤毛线宽与质心标记减半 (v2.1) | 2026-02-15 |
+| 13 | 坐标轴范围最小下限 `4*major_axis` (v2.1) | 2026-02-15 |
+| 14 | 动画中全分辨率 CM 轨迹 (v2.1) | 2026-02-15 |
+| 15 | 重力标识紧贴坐标轴框 (v2.1) | 2026-02-15 |
 
-### 20.4 Quality Assessment
+### 20.4 质量评估
 
-| Dimension | Rating | Notes |
-|-----------|--------|-------|
-| Theoretical correctness | ★★★★★ | Core theory verified; all bugs fixed |
-| Implementation correctness | ★★★★★ | All source files reviewed line-by-line against Walker |
-| Nondimensionalisation | ★★★★★ | Self-consistent scales, explicit dimensional output |
-| Body–pili coupling | ★★★★★ | Q root coupling, B force/moment balance, dual-enforced clamped BC |
-| Multi-pili support | ★★★★★ | Full module-level dimensional consistency verified |
-| Numerical stability | ★★★★★ | LU solve, quaternion normalisation, geometric projection, adaptive basis |
-| Code quality | ★★★★★ | Consistent `snake_case`, complete headers, no dead code |
-| Output system | ★★★★★ | Dual-channel logging, `.mat` data, PNG, MP4, progress bar, timing/ETA |
-| Visualisation | ★★★★★ | Journal-quality layout, smooth body surface, per-pili colour, temporal gradient |
-| Performance | ★★★★★ | Vectorised RSS assembly; ~15 seg/μm sufficient (vs ~150 for point-wise RSM) |
+| 维度 | 评级 | 备注 |
+|------|------|------|
+| 理论正确性 | ★★★★★ | 核心理论已验证；所有缺陷已修复 |
+| 实现正确性 | ★★★★★ | 所有源文件逐行对照 Walker 审查 |
+| 无量纲化 | ★★★★★ | 自洽尺度，显式量纲输出 |
+| 胞体—纤毛耦合 | ★★★★★ | Q 根部耦合、B 力/力矩平衡、双重固支边界条件 |
+| 多纤毛支持 | ★★★★★ | 模块级量纲一致性完整验证 |
+| 数值稳定性 | ★★★★★ | LU 求解、四元数归一化、几何投影、自适应基底 |
+| 代码质量 | ★★★★★ | 统一 `snake_case`、完整文件头、无冗余代码 |
+| 输出系统 | ★★★★★ | 双通道日志、`.mat` 数据、PNG、MP4、进度条、计时/ETA |
+| 可视化 | ★★★★★ | 期刊级排版、光滑胞体表面、逐纤毛着色、时间梯度 |
+| 性能 | ★★★★★ | 向量化 RSS 组装；约 15 段/μm 即可满足精度（逐点 RSM 需约 150） |
 
 ---
 
-## 21. References
+## 21. 参考文献
 
 1. **Walker, B.J. et al. (2020)**. "Filament mechanics in a half-space via regularised Stokeslet segments." *Physical Review E*, 102(2), 023101.
 2. **Cortez, R. et al. (2005)**. "The method of regularized Stokeslets in three dimensions: analysis, validation, and application to helical swimming." *Physics of Fluids*, 17(3), 031504.
@@ -667,40 +667,40 @@ Each column of `Pili_Matrix` defines one pilus. The system supports $M \geq 1$ p
 
 ---
 
-## Appendix A: Key Scaling Derivations
+## 附录 A：关键标度推导
 
-### A.1 Time Scale
+### A.1 时间尺度
 
 $$
 T_0 = \frac{8\pi\mu L_0^4}{EI} = \frac{8\pi\mu a^4}{E \cdot \pi r^4/4} = \frac{32\mu a^4}{E r^4}
 $$
 
-### A.2 Elastogravitational Number
+### A.2 弹性-重力数
 
 $$
 Eg = \frac{F_{\text{sink}} L_0^2}{EI} = \frac{\Delta\rho \cdot V_{\text{capsule}} \cdot g \cdot a^2}{EI}
 $$
 
-### A.3 Torsional Resistance $\ell_k$ Factor
+### A.3 扭转阻力 $\ell_k$ 因子
 
-The torsional resistance per pili segment in dimensional form is $\tilde{c}_t = 4\pi\mu$. After nondimensionalisation:
+纤毛每段的有量纲扭转阻力为 $\tilde{c}_t = 4\pi\mu$。无量纲化后：
 
 $$
 \tilde{A}_k = \frac{\ell_k \varepsilon_k^2}{2} \hat{A}_k
 $$
 
-The extra $\ell_k$ factor ensures dimensional consistency in the linear system.
+额外的 $\ell_k$ 因子确保线性系统中的量纲一致性。
 
-### A.4 Linear System $L\dot{z}=R$ Row-by-Row Dimensional Check
+### A.4 线性系统 $L\dot{z}=R$ 逐行量纲检查
 
-All rows verified to be dimensionally consistent:
-- Rows 1–3 (force): $[F_0]$ on both sides
-- Rows 4–6 (torque): $[F_0 \cdot L_0]$ on both sides
-- Pili moment rows: $[EI/L_0]$ on both sides
+所有行均已验证量纲一致：
+- 第 1–3 行（力）：两侧均为 $[F_0]$
+- 第 4–6 行（力矩）：两侧均为 $[F_0 \cdot L_0]$
+- 纤毛力矩行：两侧均为 $[EI/L_0]$
 
 ---
 
-## License
+## 许可证
 
 MIT License
 

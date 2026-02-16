@@ -30,7 +30,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-15 — Halved pili line width and CM marker size;
+%  Updated: 2026-02-16 — Halved pili line width and CM marker size;
 %                         axis range minimum bound (4*major_axis);
 %                         full-resolution CM trajectory in animation;
 %                         gravity indicator flush to axis frame
