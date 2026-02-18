@@ -21,6 +21,10 @@ function Z0 = init_coupled_state(params)
 %           Z0(4:7)   = q     (body quaternion)
 %           Z0(8:end)         = pili Euler angles
 %
+%  References:
+%    [1] Walker et al. (2020), Physical Review E.
+%         (Quaternion-based body orientation; pili initial configuration)
+%
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
 %  Updated: 2026-02-13 -- Added enforce_clamped_geometry on Z0 to fix

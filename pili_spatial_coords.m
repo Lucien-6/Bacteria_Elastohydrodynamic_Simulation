@@ -20,6 +20,10 @@ function X = pili_spatial_coords(x_root, theta, phi, rot_k, ell_k, N_k)
 %  Outputs:
 %    X - [(N_k+1) x 3] Node positions in lab frame
 %
+%  References:
+%    [1] Walker et al. (2020), Physical Review E.
+%         (spatial_coords.m; cumulative Euler-angle-to-position integration)
+%
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
 %  Updated: 2026-02-11 — Standardised formatting

@@ -28,6 +28,10 @@ function [Capsule_str, NBody] = capsule_body_building(NBody, minor_axis, major_a
 %    Capsule = two hemispheres (radius = minor_axis) + cylinder
 %              (radius = minor_axis, length = 2*(major_axis - minor_axis)).
 %
+%  References:
+%    [1] Cortez et al. (2005), Phys. Fluids 17, 031504.
+%         (RSM: force and evaluation points collocated on surface)
+%
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2024-10-24
 %  Updated: 2026-02-11 — Removed legacy force-point (shift) code for RSM

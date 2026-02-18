@@ -1,6 +1,16 @@
 function dqdt = quat_kinematics(q, Omega)
 %QUAT_KINEMATICS  Quaternion time derivative from angular velocity
 %
+%  Description:
+%    Computes dq/dt for a rigid body rotating with angular velocity Omega
+%    using the quaternion kinematic equation:
+%
+%        dq/dt = 0.5 * [0; Omega] (x) q
+%
+%    where (x) denotes the Hamilton left-product (scalar-first convention).
+%    The angular velocity Omega is expressed in the lab frame.
+%    The result is used directly by ode15s to advance the body orientation.
+%
 %  Syntax:
 %    dqdt = quat_kinematics(q, Omega)
 %

@@ -1,6 +1,17 @@
 function r = quat_multiply(p, q)
 %QUAT_MULTIPLY  Hamilton product of two quaternions
 %
+%  Description:
+%    Computes the Hamilton (left) product r = p (x) q using the
+%    scalar-first convention q = [q0; qx; qy; qz].
+%
+%    Formula:
+%        r0 = p0*q0 - pv . qv
+%        rv = p0*qv + q0*pv + pv x qv
+%
+%    Rotation composition convention: p (x) q represents the rotation
+%    obtained by first applying q, then p (right-to-left composition).
+%
 %  Syntax:
 %    r = quat_multiply(p, q)
 %

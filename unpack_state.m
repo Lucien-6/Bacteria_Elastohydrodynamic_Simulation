@@ -1,6 +1,16 @@
 function [X_cm, q, pili_angles] = unpack_state(Z, N_segments)
 %UNPACK_STATE  Extract body state and pili Euler angles from state vector
 %
+%  Description:
+%    Extracts the body centre-of-mass position, orientation quaternion,
+%    and per-pili Euler angle arrays from the flat global state vector Z.
+%    Inverse operation of pack_state_rates.
+%
+%    Expected Z layout:
+%      Z(1:3)   = X_cm  (body position, dimensionless)
+%      Z(4:7)   = q     (body quaternion)
+%      Z(8:end) = per-pili Euler angles [theta_k; phi_k; psi_k], each Nk
+%
 %  Syntax:
 %    [X_cm, q, pili_angles] = unpack_state(Z, N_segments)
 %

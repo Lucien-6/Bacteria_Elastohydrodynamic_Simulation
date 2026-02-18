@@ -24,6 +24,10 @@ function Z = enforce_clamped_geometry(Z, params)
 %  Outputs:
 %    Z - [n x 1] State vector with corrected first-segment angles
 %
+%  References:
+%    [1] Walker et al. (2020), Physical Review E.
+%         (Clamped-end boundary condition; geometric projection step)
+%
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-07
 %  Updated: 2026-02-11 — Standardised formatting

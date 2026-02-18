@@ -7,6 +7,21 @@ function status = odetpbar(t, y, flag)
 %    remaining (ETA).  Updates are throttled to avoid excessive console
 %    output.  Self-contained — no external dependencies.
 %
+%  Syntax:
+%    status = odetpbar(t, y, flag)
+%
+%  Inputs:
+%    t    - Scalar or vector of current time values (provided by ode15s)
+%    y    - Current state vector (not used; required by OutputFcn interface)
+%    flag - Integration stage string:
+%             ''      normal step (update display)
+%             'init'  called at start of integration (initialise state)
+%             'done'  called at end of integration (print final newline)
+%
+%  Outputs:
+%    status - 0  continue integration
+%             1  halt (not used here; always returns 0)
+%
 %  Usage:
 %    opts = odeset('OutputFcn', @odetpbar);
 %    sol  = ode15s(odefun, tspan, y0, opts);

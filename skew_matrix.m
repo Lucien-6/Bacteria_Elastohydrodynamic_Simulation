@@ -1,6 +1,16 @@
 function S = skew_matrix(v)
 %SKEW_MATRIX  3x3 skew-symmetric (cross-product) matrix from a 3-vector
 %
+%  Description:
+%    Constructs the 3x3 skew-symmetric matrix S(v) such that S(v)*u = v x u
+%    for any vector u.  Used to express the cross-product and angular-velocity
+%    operator in matrix form throughout the Q and B matrix assemblies.
+%
+%    Explicit form:
+%        S(v) = [  0   -v3   v2 ]
+%               [  v3   0   -v1 ]
+%               [ -v2   v1   0  ]
+%
 %  Syntax:
 %    S = skew_matrix(v)
 %

@@ -18,6 +18,10 @@ function [theta, phi, psi] = pili_euler_angles(d1, d2, d3)
 %    phi   - [N x 1] Azimuthal angles (-pi to pi)
 %    psi   - [N x 1] Twist angles    (-pi to pi)
 %
+%  References:
+%    [1] Walker et al. (2020), Physical Review E.
+%         (Euler angle parametrisation; directors.m inverse)
+%
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
 %  Updated: 2026-02-11 — Standardised formatting

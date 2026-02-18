@@ -1,6 +1,14 @@
 function dZ = pack_state_rates(V, dqdt, pili_rates, N_segments)
 %PACK_STATE_RATES  Assemble global state rate vector
 %
+%  Description:
+%    Packs the individual velocity components (body translation, quaternion
+%    rate, and per-pili Euler angle rates) into the single flat state rate
+%    vector dZ required by ode15s.  Inverse operation of unpack_state.
+%
+%    Layout:   dZ = [V(3); dqdt(4); dtheta_1(N1); dphi_1(N1); dpsi_1(N1);
+%                    ...; dtheta_M(NM); dphi_M(NM); dpsi_M(NM)]
+%
 %  Syntax:
 %    dZ = pack_state_rates(V, dqdt, pili_rates, N_segments)
 %
