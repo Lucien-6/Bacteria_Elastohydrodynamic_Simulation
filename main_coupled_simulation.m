@@ -42,11 +42,9 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-18 — Save initial_pose.png before preview closes;
-%                         add results.tilt_angle (body elevation angle);
-%                         add results.V_cm_um (full 3-component velocity);
-%                         export timeseries.csv for external tools;
-%                         replace quaternion-norm subplot with tilt angle
+%  Updated: 2026-02-18 — Fix gravity indicator position: move calls to after
+%                         sgtitle so subplot Positions are fully settled;
+%                         use TightInset(3) for accurate right-edge estimate
 
 close all force;
 clear; clc;
@@ -618,7 +616,11 @@ V_sink_all      = gradient(results.X_cm_um(3,:), results.t);
 results.V_sink  = V_sink_all;
 
 % --- Full translational velocity [um/s]: all 3 components ---
-results.V_cm_um = gradient(results.X_cm_um, results.t, 2);   % [3 x NT]
+%  Row-by-row gradient avoids any dimension-convention ambiguity of the
+%  multi-argument gradient(F, h1, h2) call on a 2-D matrix.
+results.V_cm_um = [ gradient(results.X_cm_um(1,:), results.t); ...
+                    gradient(results.X_cm_um(2,:), results.t); ...
+                    gradient(results.X_cm_um(3,:), results.t) ];  % [3 x NT]
 
 % --- Body tilt angle [rad] ---
 %  Elevation angle of the body long axis (body-local X) from horizontal,
@@ -920,13 +922,16 @@ title(ax_snap_xz, 'XZ View Snapshots', ...
 title(ax_snap_yz, 'YZ View Snapshots', ...
       'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
 
-% Gravity indicators fixed outside bottom-right of each axis frame
+sgtitle(sprintf('Coupled Body-Pili Simulation  [%s]', run_id), ...
+    'FontName', 'Arial', 'FontSize', 14, 'FontWeight', 'bold');
+drawnow;   % Flush sgtitle layout BEFORE measuring axis positions
+
+% Gravity indicators: must be added AFTER sgtitle so that sgtitle's
+% layout adjustment (which shifts all subplot Positions inward) has
+% already been applied when we read ax.Position.
 for ai = 1:numel(snap_axes)
     add_gravity_indicator_outside(fig_summary, snap_axes(ai), 12, 2.2);
 end
-
-sgtitle(sprintf('Coupled Body-Pili Simulation  [%s]', run_id), ...
-    'FontName', 'Arial', 'FontSize', 14, 'FontWeight', 'bold');
 
 % Save figure
 png_file = fullfile(output_dir, 'summary_plot.png');
@@ -1188,12 +1193,24 @@ function add_gravity_indicator_outside(fig_handle, ax_handle, font_size, line_wi
 %ADD_GRAVITY_INDICATOR_OUTSIDE  Draw gravity arrow flush outside axis right edge.
 %  Uses figure-normalized annotation coordinates so marker location is
 %  stable across views and axis limits.
+%
+%  IMPORTANT: Must be called AFTER any sgtitle() on the parent figure.
+%  sgtitle shifts all subplot Positions inward; calling this function
+%  before sgtitle produces stale coordinates that leave a large gap.
 
     drawnow;   % Flush pending layout so ax Position is up-to-date
-    ax_pos = get(ax_handle, 'Position');   % [left bottom width height], normalized
 
-    % Anchor flush to right edge of axis frame (minimal gap)
-    x_arrow = ax_pos(1) + ax_pos(3) + 0.01;
+    ax_pos   = get(ax_handle, 'Position');    % [left bottom width height], normalised
+    ax_tight = get(ax_handle, 'TightInset'); % [left bottom right top] label margins
+
+    % Right boundary of ALL visible content (axis frame + any tick/axis
+    % labels that protrude to the right of the Position rectangle):
+    %   x_right = Position_right + TightInset_right
+    % For 2-D-like views (el = 0)  TightInset(3) captures the Y/Z label width.
+    % For full 3-D views (el > 0)  TightInset(3) is typically small but
+    % still the best estimate available without a full camera projection.
+    x_right = ax_pos(1) + ax_pos(3) + ax_tight(3);
+    x_arrow = x_right + 0.010;            % small gap just beyond all content
     y_mid   = ax_pos(2) + 0.50 * ax_pos(4);
     y_top   = y_mid + 0.055;
     y_bot   = y_mid - 0.055;
