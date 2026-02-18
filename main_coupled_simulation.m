@@ -14,14 +14,26 @@
 %    Time integration uses MATLAB's ode15s (implicit stiff solver) with
 %    adaptive Euler angle basis rotation to avoid singularities.
 %
-%  Outputs (saved to output/run_YYYYMMDD_HHMMSS/):
-%    simulation_results.mat  results + params structures
-%    summary_plot.png        static overview figure
-%    bacteria_3d_motion.mp4  3D animation
-%    simulation.log          full run log
+%  Outputs (saved to output/<case_name>/ or output/run_YYYYMMDD_HHMMSS/):
+%    simulation_results.mat  results + params structures (v7.3 / HDF5)
+%      results fields (physical units):
+%        .t            [s]      time vector              [1 x NT]
+%        .X_cm_um      [um]     body CM position         [3 x NT]
+%        .V_cm_um      [um/s]   body CM velocity, 3-component [3 x NT]
+%        .V_sink       [um/s]   sinking velocity (Z)     [1 x NT]
+%        .tilt_angle   [rad]    body long-axis elevation [1 x NT]
+%        .q            [-]      orientation quaternion   [4 x NT]
+%        .X_pili_um    [um]     pili node coords (cell)  {M x 1}
+%        .F_sink_pN    [pN]     net sinking force (scalar)
+%        .units              unit metadata struct
+%    timeseries.csv          scalar time series (10 columns, plain text)
+%    summary_plot.png        static overview figure (300 dpi)
+%    initial_pose.png        initial pose preview (200 dpi, if previewed)
+%    bacteria_3d_motion.mp4  3D animation (MPEG-4, if enabled)
+%    simulation.log          full run log (dual-channel: console + file)
 %
 %  Output unit convention:
-%    Time [s] | Length [um] | Force [pN] | Angle [rad]
+%    Time [s] | Length [um] | Velocity [um/s] | Force [pN] | Angle [rad]
 %
 %  References:
 %    [1] Walker et al. (2020), Physical Review E.
@@ -30,10 +42,11 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-16 — Halved pili line width and CM marker size;
-%                         axis range minimum bound (4*major_axis);
-%                         full-resolution CM trajectory in animation;
-%                         gravity indicator flush to axis frame
+%  Updated: 2026-02-18 — Save initial_pose.png before preview closes;
+%                         add results.tilt_angle (body elevation angle);
+%                         add results.V_cm_um (full 3-component velocity);
+%                         export timeseries.csv for external tools;
+%                         replace quaternion-norm subplot with tilt angle
 
 close all force;
 clear; clc;
@@ -74,7 +87,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 2.1\n');
+logf('  Version 2.2\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -356,6 +369,10 @@ if preview_initial
         return;
     end
 
+    % Save preview figure to disk before closing
+    preview_png = fullfile(output_dir, 'initial_pose.png');
+    exportgraphics(fig_preview, preview_png, 'Resolution', 200);
+    logf('[PREVIEW] Initial pose saved : %s\n', preview_png);
     logf('[PREVIEW] User confirmed. Closing preview and continuing...\n\n');
     close(fig_preview);
 end
@@ -596,9 +613,26 @@ results.units.T_0_s    = T_0;
 results.units.U_0_m_s  = U_0;
 results.units.F_0_N    = F_0;
 
-% --- Sinking velocity [um/s] ---
+% --- Sinking velocity [um/s] (Z-component via numerical gradient) ---
 V_sink_all      = gradient(results.X_cm_um(3,:), results.t);
 results.V_sink  = V_sink_all;
+
+% --- Full translational velocity [um/s]: all 3 components ---
+results.V_cm_um = gradient(results.X_cm_um, results.t, 2);   % [3 x NT]
+
+% --- Body tilt angle [rad] ---
+%  Elevation angle of the body long axis (body-local X) from horizontal,
+%  consistent with the alpha_0 convention in init_coupled_params:
+%    = +pi/2  body points +Z (vertical up)
+%    =  0     body is horizontal
+%    = -pi/2  body points -Z (vertical down)
+tilt_angle_vec = zeros(1, NT);
+for ti_pp = 1:NT
+    R_ti = quat_to_rotmat(results.q(:, ti_pp));
+    body_long_axis_z       = R_ti(3, 1);            % Z-component of body X-axis
+    tilt_angle_vec(ti_pp)  = asin(max(-1, min(1, body_long_axis_z)));
+end
+results.tilt_angle = tilt_angle_vec;                % [rad], [1 x NT]
 
 logf('[POST] Physical unit conversion complete.\n');
 logf('[POST] Sinking force     : %.4f pN\n',   results.F_sink_pN);
@@ -606,6 +640,10 @@ logf('[POST] Final Z position  : %.4e um\n',    results.X_cm_um(3, end));
 logf('[POST] Mean V_sink       : %.4e um/s\n',  mean(V_sink_all));
 logf('[POST] Steady V_sink     : %.4e um/s (last 10%%)\n', ...
     mean(V_sink_all(round(0.9*NT):end)));
+logf('[POST] Initial tilt      : %.4f rad (%.2f deg)\n', ...
+    tilt_angle_vec(1), rad2deg(tilt_angle_vec(1)));
+logf('[POST] Final tilt        : %.4f rad (%.2f deg)\n', ...
+    tilt_angle_vec(end), rad2deg(tilt_angle_vec(end)));
 logf('\n');
 
 %% =====================================================================
@@ -617,7 +655,22 @@ logf('[SAVE] Saving simulation data...\n');
 mat_file = fullfile(output_dir, 'simulation_results.mat');
 save(mat_file, 'results', 'params', '-v7.3');
 mat_info = dir(mat_file);
-logf('[SAVE] Data saved: %s (%.2f MB)\n', mat_file, mat_info.bytes/1e6);
+logf('[SAVE] Data saved  : %s (%.2f MB)\n', mat_file, mat_info.bytes/1e6);
+
+% --- Export scalar time series as CSV ---
+csv_file = fullfile(output_dir, 'timeseries.csv');
+T_csv = table( ...
+    results.t', ...
+    results.X_cm_um(1,:)', results.X_cm_um(2,:)', results.X_cm_um(3,:)', ...
+    results.V_cm_um(1,:)', results.V_cm_um(2,:)', results.V_cm_um(3,:)', ...
+    results.V_sink', ...
+    results.tilt_angle', rad2deg(results.tilt_angle)', ...
+    'VariableNames', {'t_s', 'X_um', 'Y_um', 'Z_um', ...
+                      'Vx_um_s', 'Vy_um_s', 'Vz_um_s', ...
+                      'Vsink_um_s', 'tilt_rad', 'tilt_deg'});
+writetable(T_csv, csv_file);
+csv_info = dir(csv_file);
+logf('[SAVE] CSV exported: %s (%.1f KB)\n', csv_file, csv_info.bytes/1e3);
 
 %% =====================================================================
 %  PRE-COMPUTE CAPSULE SURFACE MESH (for visualisation)
@@ -728,13 +781,13 @@ ylabel('{\itV}_{sink} (μm/s)',        'FontName', 'Arial', 'FontSize', 12);
 title('Sinking Velocity',                 'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
 grid on; box on;
 
-% --- Subplot 3: Quaternion norm check ---
+% --- Subplot 3: Body tilt angle ---
 subplot(2, 3, 3);
-q_norms = sqrt(sum(results.q.^2, 1));
-plot(t_s, q_norms - 1, 'k-', 'LineWidth', 1.8);
-xlabel('Time (s)',                         'FontName', 'Arial', 'FontSize', 12);
-ylabel('|{\bfq}| - 1',                    'FontName', 'Arial', 'FontSize', 12);
-title('Quaternion Norm Deviation',         'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
+plot(t_s, rad2deg(results.tilt_angle), '-', ...
+     'Color', [0.49 0.18 0.56], 'LineWidth', 1.8);
+xlabel('Time (s)',                'FontName', 'Arial', 'FontSize', 12);
+ylabel('Tilt angle \alpha (°)',   'FontName', 'Arial', 'FontSize', 12);
+title('Body Tilt Angle',          'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
 grid on; box on;
 
 % --- Subplot 4-6: 3D/XZ/YZ snapshot views ---
@@ -1078,11 +1131,19 @@ logf('    Total wall time : %s\n',   format_duration(total_sim_walltime));
 logf('  ------------------------------------------------\n');
 logf('  Files saved:\n');
 logf('    Data  : simulation_results.mat\n');
+logf('    CSV   : timeseries.csv\n');
 logf('    Plot  : summary_plot.png\n');
+if preview_initial
+    logf('    Pose  : initial_pose.png\n');
+end
 if generate_animation
     logf('    Video : bacteria_3d_motion.mp4\n');
 end
 logf('    Log   : simulation.log\n');
+logf('  ------------------------------------------------\n');
+logf('  results fields added:\n');
+logf('    tilt_angle  [rad] : body long-axis elevation angle vs time\n');
+logf('    V_cm_um [um/s x3] : full translational velocity vs time\n');
 logf('================================================================\n');
 logf('  Output units: time [s], length [um], force [pN], angle [rad]\n');
 logf('================================================================\n\n');

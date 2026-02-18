@@ -2,8 +2,8 @@
 
 > **作者**: Lucien (lucien-6@qq.com)  
 > **创建日期**: 2026-02-06  
-> **更新日期**: 2026-02-15  
-> **版本**: 2.1
+> **更新日期**: 2026-02-18  
+> **版本**: 2.2
 
 ---
 
@@ -85,9 +85,11 @@ main_coupled_simulation
 
 ```
 output/MyCase/
-├── simulation_results.mat    % 完整结果 + 参数
-├── summary_plot.png          % 静态总览图
-├── bacteria_3d_motion.mp4   % 3D 运动动画
+├── simulation_results.mat    % 完整结果 + 参数（v7.3 / HDF5）
+├── timeseries.csv            % 标量时间序列（10 列，纯文本）
+├── summary_plot.png          % 静态总览图（300 dpi）
+├── initial_pose.png          % 初始姿态预览图（200 dpi，预览开启时）
+├── bacteria_3d_motion.mp4    % 3D 运动动画（动画开启时）
 └── simulation.log            % 完整运行日志
 ```
 
@@ -106,7 +108,7 @@ output/MyCase/
 | `mu` | `1e-3` | 流体动力粘度 [Pa·s] |
 | `rho_bac` | `1180.0` | 细菌密度 [kg/m³] |
 | `rho_fluid` | `998.232` | 流体密度 [kg/m³] |
-| `T_obs` | `360.0` | 总观测时间 [s] |
+| `T_obs` | `300.0` | 总观测时间 [s] |
 | `AbsTol` / `RelTol` | `1e-4` | ODE 求解器容差 |
 | `delta` | `pi/20` | Euler 角奇异性阈值 [rad] |
 | `preview_initial` | `true` | 积分前显示初始姿态预览 |
@@ -466,19 +468,48 @@ $$
 
 ### 16.2 输出文件
 
-| 文件 | 内容 |
-|------|------|
-| `simulation_results.mat` | `results` 结构体（轨迹、速度、计时）+ `params` |
-| `summary_plot.png` | 静态总览：沉降速度、倾斜角、纤毛形态 |
-| `bacteria_3d_motion.mp4` | 3D 动画，含光滑胞体表面 + 着色纤毛 |
-| `simulation.log` | 带时间戳的完整运行日志 |
+| 文件 | 格式 | 内容 |
+|------|------|------|
+| `simulation_results.mat` | MAT v7.3 (HDF5) | `results` + `params` 完整结构体 |
+| `timeseries.csv` | 纯文本 | 10 列标量时间序列（见下表） |
+| `summary_plot.png` | PNG 300 dpi | 静态总览：CM 轨迹、沉降速度、倾斜角、快照三视图 |
+| `initial_pose.png` | PNG 200 dpi | 初始姿态预览三视图（`preview_initial = true` 时生成） |
+| `bacteria_3d_motion.mp4` | MPEG-4 | 3D 动画，含光滑胞体表面 + 着色纤毛 + CM 轨迹 |
+| `simulation.log` | 纯文本 | 带时间戳的完整双通道运行日志 |
 
-### 16.3 单位约定
+### 16.3 results 结构体字段（物理单位）
+
+| 字段 | 单位 | 尺寸 | 说明 |
+|------|------|------|------|
+| `t` | s | `[1 × NT]` | 物理时间序列 |
+| `t_dimless` | — | `[1 × NT]` | 无量纲时间序列 |
+| `X_cm_um` | μm | `[3 × NT]` | 质心位置 (X/Y/Z) |
+| `V_cm_um` | μm/s | `[3 × NT]` | 质心速度三分量 |
+| `V_sink` | μm/s | `[1 × NT]` | 沉降速度（Z 分量） |
+| `tilt_angle` | rad | `[1 × NT]` | 胞体长轴偏仰角（与 `alpha_0` 约定一致） |
+| `q` | — | `[4 × NT]` | 方向四元数 |
+| `X_pili_um` | μm | cell `{M × 1}` | 各纤毛节点坐标 `[Nseg+1 × 3 × NT]` |
+| `F_sink_pN` | pN | 标量 | 净沉降力（重力浮力差） |
+| `units` | — | struct | 单位及特征尺度元数据 |
+
+**`timeseries.csv` 列说明：**
+
+| 列名 | 单位 | 说明 |
+|------|------|------|
+| `t_s` | s | 时间 |
+| `X_um`, `Y_um`, `Z_um` | μm | 质心坐标 |
+| `Vx_um_s`, `Vy_um_s`, `Vz_um_s` | μm/s | 质心速度三分量 |
+| `Vsink_um_s` | μm/s | 沉降速度（Z 方向） |
+| `tilt_rad` | rad | 胞体倾斜角 |
+| `tilt_deg` | ° | 胞体倾斜角（度） |
+
+### 16.4 单位约定
 
 | 物理量 | 输出单位 |
 |--------|----------|
 | 时间 | 秒 [s] |
 | 长度 | 微米 [μm] |
+| 速度 | 微米/秒 [μm/s] |
 | 力 | 皮牛 [pN] |
 | 角度 | 弧度 [rad] |
 
@@ -640,6 +671,11 @@ Coupled_Body_Pili/
 | 13 | 坐标轴范围最小下限 `4*major_axis` (v2.1) | 2026-02-15 |
 | 14 | 动画中全分辨率 CM 轨迹 (v2.1) | 2026-02-15 |
 | 15 | 重力标识紧贴坐标轴框 (v2.1) | 2026-02-15 |
+| 16 | `results.tilt_angle`：胞体长轴偏仰角时间序列 (v2.2) | 2026-02-18 |
+| 17 | `results.V_cm_um`：质心速度三分量时间序列 (v2.2) | 2026-02-18 |
+| 18 | 初始姿态预览图自动保存为 `initial_pose.png` (v2.2) | 2026-02-18 |
+| 19 | `timeseries.csv` 导出：10 列标量时间序列，便于外部工具调用 (v2.2) | 2026-02-18 |
+| 20 | summary_plot 第 3 子图替换为胞体倾斜角时间演化图 (v2.2) | 2026-02-18 |
 
 ### 20.4 质量评估
 
@@ -652,7 +688,7 @@ Coupled_Body_Pili/
 | 多纤毛支持 | ★★★★★ | 模块级量纲一致性完整验证 |
 | 数值稳定性 | ★★★★★ | LU 求解、四元数归一化、几何投影、自适应基底 |
 | 代码质量 | ★★★★★ | 统一 `snake_case`、完整文件头、无冗余代码 |
-| 输出系统 | ★★★★★ | 双通道日志、`.mat` 数据、PNG、MP4、进度条、计时/ETA |
+| 输出系统 | ★★★★★ | 双通道日志、`.mat` 数据、CSV、PNG（总览图 + 初始姿态）、MP4、倾斜角、三分量速度 |
 | 可视化 | ★★★★★ | 期刊级排版、光滑胞体表面、逐纤毛着色、时间梯度 |
 | 性能 | ★★★★★ | 向量化 RSS 组装；约 15 段/μm 即可满足精度（逐点 RSM 需约 150） |
 
