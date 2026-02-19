@@ -42,9 +42,10 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-18 — Fix gravity indicator position: move calls to after
-%                         sgtitle so subplot Positions are fully settled;
-%                         use TightInset(3) for accurate right-edge estimate
+%  Updated: 2026-02-19 — Fix gravity indicator gap: cap TightInset(3) at
+%                         0.020 to prevent 3-D axis over-estimation; pre-
+%                         configure animation axis (limits/DAR/view/labels)
+%                         before indicator placement so Position is settled
 
 close all force;
 clear; clc;
@@ -85,7 +86,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 2.2\n');
+logf('  Version 2.4\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -1020,7 +1021,29 @@ if generate_animation
                   'DefaultAxesFontSize',  11, ...
                   'DefaultAxesLineWidth', 0.8);
     ax_anim = axes(fig_anim);
-    drawnow;  % Ensure axis position is established before annotation placement
+    % Pre-configure axis with the SAME final properties used inside the frame
+    % loop so that ax.Position is fully settled (equal-aspect 3-D view with
+    % fixed limits) before add_gravity_indicator_outside reads it.
+    % Without this, the annotation is placed using the default full-figure
+    % Position, which shifts once DataAspectRatio=[1 1 1] is applied in the
+    % first frame, producing a large gap between the axis box and the arrow.
+    xlim(ax_anim, ax_lim_x);
+    ylim(ax_anim, ax_lim_y);
+    zlim(ax_anim, ax_lim_z);
+    set(ax_anim, 'DataAspectRatio', [1 1 1], 'TickDir', 'out');
+    grid(ax_anim, 'on');
+    box(ax_anim,  'on');
+    view(ax_anim, 45, 25);
+    xlabel(ax_anim, 'X (\mum)', 'FontName', 'Arial', 'FontSize', 12);
+    ylabel(ax_anim, 'Y (\mum)', 'FontName', 'Arial', 'FontSize', 12);
+    zlabel(ax_anim, 'Z (\mum)', 'FontName', 'Arial', 'FontSize', 12);
+    % Include a representative title so MATLAB accounts for its height when
+    % computing Position.  cla() does NOT clear Title (HandleVisibility='off'),
+    % so the title persists; the first frame's title() call just updates the
+    % string, leaving Position unchanged from the pre-configured state.
+    title(ax_anim, sprintf('Time = %.4f s  (frame %d/%d)', 0.0, 1, n_frames), ...
+        'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
+    drawnow;  % Flush layout so Position reflects the fully decorated 3-D state
     add_gravity_indicator_outside(fig_anim, ax_anim, 13, 2.5);
 
     for fi = 1:n_frames
@@ -1194,23 +1217,27 @@ function add_gravity_indicator_outside(fig_handle, ax_handle, font_size, line_wi
 %  Uses figure-normalized annotation coordinates so marker location is
 %  stable across views and axis limits.
 %
-%  IMPORTANT: Must be called AFTER any sgtitle() on the parent figure.
-%  sgtitle shifts all subplot Positions inward; calling this function
-%  before sgtitle produces stale coordinates that leave a large gap.
+%  IMPORTANT:
+%    1. Must be called AFTER any sgtitle() on the parent figure, because
+%       sgtitle shifts all subplot Positions inward.
+%    2. Must be called AFTER the axes has been fully configured (xlim/ylim/
+%       zlim, DataAspectRatio, view, labels) so that ax.Position reflects
+%       the final layout before this function reads it.
 
     drawnow;   % Flush pending layout so ax Position is up-to-date
 
     ax_pos   = get(ax_handle, 'Position');    % [left bottom width height], normalised
     ax_tight = get(ax_handle, 'TightInset'); % [left bottom right top] label margins
 
-    % Right boundary of ALL visible content (axis frame + any tick/axis
-    % labels that protrude to the right of the Position rectangle):
-    %   x_right = Position_right + TightInset_right
-    % For 2-D-like views (el = 0)  TightInset(3) captures the Y/Z label width.
-    % For full 3-D views (el > 0)  TightInset(3) is typically small but
-    % still the best estimate available without a full camera projection.
-    x_right = ax_pos(1) + ax_pos(3) + ax_tight(3);
-    x_arrow = x_right + 0.010;            % small gap just beyond all content
+    % TightInset(3) (right margin) is unreliable for 3-D axes: MATLAB often
+    % over-estimates it because the 3-D camera projection can project tick /
+    % axis labels far to the right of the Position box, even when the visible
+    % axis frame is well within it.  Capping at 0.020 (2 % of figure width)
+    % keeps the arrow visually close to the axis box while still clearing the
+    % small label overhangs that genuinely occur on 2-D-like views (el = 0).
+    tight_right_capped = min(ax_tight(3), 0.020);
+    x_right = ax_pos(1) + ax_pos(3) + tight_right_capped;
+    x_arrow = x_right + 0.008;            % small gap just beyond visible content
     y_mid   = ax_pos(2) + 0.50 * ax_pos(4);
     y_top   = y_mid + 0.055;
     y_bot   = y_mid - 0.055;
