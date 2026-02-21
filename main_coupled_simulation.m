@@ -42,10 +42,14 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-19 — Fix gravity indicator gap: cap TightInset(3) at
-%                         0.020 to prevent 3-D axis over-estimation; pre-
-%                         configure animation axis (limits/DAR/view/labels)
-%                         before indicator placement so Position is settled
+%  Updated: 2026-02-19 — Root-cause fix for gravity indicator gap: replace
+%                         TightInset heuristic with orthographic projection
+%                         of the data bounding box to find the true rendered
+%                         right edge under DataAspectRatio=[1 1 1]
+%           2026-02-19 — Visual fixes: replace Gouraud headlight with
+%                         lighting('none') on static snapshots for true
+%                         FaceColor rendering; force CM trajectory to bottom
+%                         drawing layer via uistack in animation
 
 close all force;
 clear; clc;
@@ -86,7 +90,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 2.4\n');
+logf('  Version 2.5\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -306,7 +310,7 @@ if preview_initial
             scatter3(ax_pv, Xp(:,1), Xp(:,2), Xp(:,3), ...
                      12, prev_pili_colors(kp,:), 'filled');
             legend_entries{end+1} = sprintf('Pili %d (site %d)', ...
-                kp, Pili_Matrix(8, kp)); %#ok<AGROW>
+                kp, Pili_Matrix(8, kp)); 
         end
 
         % Formatting
@@ -316,9 +320,9 @@ if preview_initial
         set(ax_pv, 'DataAspectRatio', [1 1 1], 'TickDir', 'out');
         grid(ax_pv, 'on');
         box(ax_pv,  'on');
-        xlabel(ax_pv, 'X (\mum)', 'FontName', 'Arial', 'FontSize', 12);
-        ylabel(ax_pv, 'Y (\mum)', 'FontName', 'Arial', 'FontSize', 12);
-        zlabel(ax_pv, 'Z (\mum)', 'FontName', 'Arial', 'FontSize', 12);
+        xlabel(ax_pv, 'X (μm)', 'FontName', 'Arial', 'FontSize', 12);
+        ylabel(ax_pv, 'Y (μm)', 'FontName', 'Arial', 'FontSize', 12);
+        zlabel(ax_pv, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 12);
         view(ax_pv, view_configs{vi, 1}, view_configs{vi, 2});
         title(ax_pv, view_configs{vi, 3}, ...
               'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
@@ -904,9 +908,14 @@ for ai = 1:numel(snap_axes)
     ylim(axi, ax_lim_y);
     zlim(axi, ax_lim_z);
     set(axi, 'DataAspectRatio', [1 1 1], 'TickDir', 'out');
-    camlight(axi, 'headlight');
-    lighting(axi, 'gouraud');
-    material(axi, 'dull');
+    % Use uniform ambient lighting (no directional light source) so that
+    % surfaces display their true FaceColor without Gouraud darkening.
+    % A single headlight dims capsule faces whose normals are near-
+    % perpendicular to the camera direction, making the body appear dark
+    % regardless of the chosen colour gradient.  lighting('none') renders
+    % pure FaceColor at the specified alpha, giving the intended bright
+    % green/blue gradient appearance.
+    lighting(axi, 'none');
     xlabel(axi, 'X (μm)', 'FontName', 'Arial', 'FontSize', 12);
     ylabel(axi, 'Y (μm)', 'FontName', 'Arial', 'FontSize', 12);
     zlabel(axi, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 12);
@@ -1034,9 +1043,9 @@ if generate_animation
     grid(ax_anim, 'on');
     box(ax_anim,  'on');
     view(ax_anim, 45, 25);
-    xlabel(ax_anim, 'X (\mum)', 'FontName', 'Arial', 'FontSize', 12);
-    ylabel(ax_anim, 'Y (\mum)', 'FontName', 'Arial', 'FontSize', 12);
-    zlabel(ax_anim, 'Z (\mum)', 'FontName', 'Arial', 'FontSize', 12);
+    xlabel(ax_anim, 'X (μm)', 'FontName', 'Arial', 'FontSize', 12);
+    ylabel(ax_anim, 'Y (μm)', 'FontName', 'Arial', 'FontSize', 12);
+    zlabel(ax_anim, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 12);
     % Include a representative title so MATLAB accounts for its height when
     % computing Position.  cla() does NOT clear Title (HandleVisibility='off'),
     % so the title persists; the first frame's title() call just updates the
@@ -1050,13 +1059,6 @@ if generate_animation
         ti = frame_indices(fi);
         cla(ax_anim);
         hold(ax_anim, 'on');
-
-        % --- Draw CM trajectory: full-resolution light red line up to current ---
-        if fi > 1
-            plot3(ax_anim, cm_traj_full_um(1,1:ti), cm_traj_full_um(2,1:ti), ...
-                  cm_traj_full_um(3,1:ti), '-', 'Color', traj_color, ...
-                  'LineWidth', 1.0);
-        end
 
         % --- Draw body: smooth capsule surface with transparency ---
         R_fi  = quat_to_rotmat(results.q(:, ti));
@@ -1081,6 +1083,19 @@ if generate_animation
         % --- Mark body centre of mass ---
         plot3(ax_anim, cm_um(1), cm_um(2), cm_um(3), ...
               'r+', 'MarkerSize', 5, 'LineWidth', 1);
+
+        % --- Draw CM trajectory LAST, then push to bottom of Children list ---
+        % Drawing last ensures the handle can be captured; uistack('bottom')
+        % moves it to the first position in the axes Children array so that
+        % MATLAB's painters renderer draws it first (behind all other objects).
+        % This prevents the trajectory from visually obstructing the semi-
+        % transparent body or the pili in both painters and OpenGL modes.
+        if fi > 1
+            h_traj = plot3(ax_anim, cm_traj_full_um(1,1:ti), ...
+                           cm_traj_full_um(2,1:ti), cm_traj_full_um(3,1:ti), ...
+                           '-', 'Color', traj_color, 'LineWidth', 1.0);
+            uistack(h_traj, 'bottom');
+        end
 
         % --- Lighting ---
         camlight(ax_anim, 'headlight');
@@ -1214,30 +1229,81 @@ end
 
 function add_gravity_indicator_outside(fig_handle, ax_handle, font_size, line_width)
 %ADD_GRAVITY_INDICATOR_OUTSIDE  Draw gravity arrow flush outside axis right edge.
-%  Uses figure-normalized annotation coordinates so marker location is
+%  Uses figure-normalised annotation coordinates so marker location is
 %  stable across views and axis limits.
 %
+%  Root-cause fix (v2.4):
+%    With DataAspectRatio=[1 1 1] and a strongly elongated data range
+%    (e.g. Z >> X,Y for a sinking bacterium), MATLAB renders a very narrow
+%    axis box CENTRED inside the Position rectangle.  Using the Position
+%    right edge (the old approach) places the arrow hundreds of pixels to
+%    the right of the actual box edge.
+%
+%    This function instead computes the TRUE rendered right edge by:
+%      1. Obtaining the figure size in pixels (aspect ratio).
+%      2. Projecting the data bounding box (xlim x ylim x zlim) onto the
+%         screen-horizontal direction via the orthographic approximation:
+%           right   = [cos(az), sin(az), 0]
+%           data_w  = dx|cos az| + dy|sin az|
+%           data_h  = (dx|sin az|+dy|cos az|)|sin el| + dz|cos el|
+%      3. Applying the equal-aspect scale:
+%           px_per_unit = min(ax_w_px/data_w, ax_h_px/data_h)
+%      4. Computing the centred right edge:
+%           actual_right = ax_pos(1) + ax_pos(3)/2
+%                        + data_w*px_per_unit / (2*fig_w_px)
+%
 %  IMPORTANT:
-%    1. Must be called AFTER any sgtitle() on the parent figure, because
-%       sgtitle shifts all subplot Positions inward.
-%    2. Must be called AFTER the axes has been fully configured (xlim/ylim/
-%       zlim, DataAspectRatio, view, labels) so that ax.Position reflects
-%       the final layout before this function reads it.
+%    1. Must be called AFTER any sgtitle() on the parent figure.
+%    2. Must be called AFTER the axes is fully configured (xlim/ylim/zlim,
+%       DataAspectRatio, view, labels, title) so ax.Position is settled.
 
-    drawnow;   % Flush pending layout so ax Position is up-to-date
+    drawnow;   % Flush pending layout so ax.Position is up-to-date
 
-    ax_pos   = get(ax_handle, 'Position');    % [left bottom width height], normalised
-    ax_tight = get(ax_handle, 'TightInset'); % [left bottom right top] label margins
+    ax_pos = get(ax_handle, 'Position');   % [left bottom width height] normalised
 
-    % TightInset(3) (right margin) is unreliable for 3-D axes: MATLAB often
-    % over-estimates it because the 3-D camera projection can project tick /
-    % axis labels far to the right of the Position box, even when the visible
-    % axis frame is well within it.  Capping at 0.020 (2 % of figure width)
-    % keeps the arrow visually close to the axis box while still clearing the
-    % small label overhangs that genuinely occur on 2-D-like views (el = 0).
-    tight_right_capped = min(ax_tight(3), 0.020);
-    x_right = ax_pos(1) + ax_pos(3) + tight_right_capped;
-    x_arrow = x_right + 0.008;            % small gap just beyond visible content
+    % ---- Figure size in pixels (needed for aspect-ratio computation) ----
+    old_units = get(fig_handle, 'Units');
+    set(fig_handle, 'Units', 'pixels');
+    fig_pos_px = get(fig_handle, 'Position');   % [x y w h] in screen pixels
+    set(fig_handle, 'Units', old_units);
+    fig_w_px = fig_pos_px(3);
+    fig_h_px = fig_pos_px(4);
+
+    % ---- Axis Position in pixels ----------------------------------------
+    ax_w_px = ax_pos(3) * fig_w_px;
+    ax_h_px = ax_pos(4) * fig_h_px;
+
+    % ---- Data bounding-box ranges (equal physical units on all axes) ----
+    dx = abs(diff(xlim(ax_handle)));
+    dy = abs(diff(ylim(ax_handle)));
+    dz = abs(diff(zlim(ax_handle)));
+
+    % ---- Orthographic projection of the data box onto screen axes -------
+    %  Screen right-vector:  r = [cos(az), sin(az), 0]
+    %  Screen up-vector:     u = [-sin(az)*sin(el), cos(az)*sin(el), cos(el)]
+    %
+    %  Projected extents of the axis-aligned bounding box:
+    %    data_w = dx|cos az| + dy|sin az|
+    %    data_h = (dx|sin az|+dy|cos az|)*|sin el| + dz*|cos el|
+    [az_deg, el_deg] = view(ax_handle);
+    ca = abs(cos(az_deg * pi/180));   sa = abs(sin(az_deg * pi/180));
+    ce = abs(cos(el_deg * pi/180));   se = abs(sin(el_deg * pi/180));
+
+    data_w = dx * ca + dy * sa;
+    data_h = (dx * sa + dy * ca) * se + dz * ce;
+    data_w = max(data_w, 1e-12);   % guard against degenerate limits
+    data_h = max(data_h, 1e-12);
+
+    % ---- Equal-aspect scale factor: whichever axis fills first ----------
+    px_per_unit = min(ax_w_px / data_w,  ax_h_px / data_h);
+
+    % ---- Actual rendered half-width in normalised figure coords ---------
+    % MATLAB centres the equal-aspect box inside the Position rectangle.
+    actual_half_w = (data_w * px_per_unit) / (2 * fig_w_px);
+    actual_right  = ax_pos(1) + ax_pos(3) / 2 + actual_half_w;
+
+    % Place arrow 1 % of figure width to the right of the rendered box edge
+    x_arrow = actual_right + 0.010;
     y_mid   = ax_pos(2) + 0.50 * ax_pos(4);
     y_top   = y_mid + 0.055;
     y_bot   = y_mid - 0.055;
