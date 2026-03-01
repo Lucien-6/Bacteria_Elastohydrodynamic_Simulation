@@ -46,7 +46,7 @@
 %                         TightInset heuristic with orthographic projection
 %                         of the data bounding box to find the true rendered
 %                         right edge under DataAspectRatio=[1 1 1]
-%           2026-02-19 — Visual fixes: replace Gouraud headlight with
+%           2026-02-22 — Visual fixes: replace Gouraud headlight with
 %                         lighting('none') on static snapshots for true
 %                         FaceColor rendering; force CM trajectory to bottom
 %                         drawing layer via uistack in animation
