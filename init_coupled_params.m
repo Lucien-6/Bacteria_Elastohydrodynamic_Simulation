@@ -43,6 +43,7 @@ function params = init_coupled_params(varargin)
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
 %  Updated: 2026-02-14 — Pure RSS mode (removed RSM fallback)
+%           2026-03-01 — eps_body: h_min/2 → h_mean/6 (Cortez 2005 optimal ratio)
 
 %% Parse inputs
 p = inputParser;
@@ -129,7 +130,7 @@ min_dists_body = sqrt(min(D2_body, [], 2));
 h_min  = min(min_dists_body);
 h_mean = mean(min_dists_body);
 
-params.eps_body   = h_min / 2;                     % Half of min NN distance
+params.eps_body   = h_mean / 6;                    % Cortez (2005): optimal ratio eps/ds_avg ~ 0.154
 params.body_h_min  = h_min;
 params.body_h_mean = h_mean;
 
@@ -294,7 +295,7 @@ fprintf('  Mobility Method : RSM (body) + RSS (pili) + Rotlet  [Cortez 2018]\n')
 fprintf('  Regularisation Parameters\n');
 fprintf('  Body spacing : h_min = %.4f L0, h_mean = %.4f L0\n', ...
     params.body_h_min, params.body_h_mean);
-fprintf('  Body  : eps_body = %.4f L0 = %.1f nm (= h_min/2)\n', ...
+fprintf('  Body  : eps_body = %.4f L0 = %.1f nm (= h_mean/6, eps/ds ~ 0.167)\n', ...
     params.eps_body, params.eps_body * L_0 * 1e9);
 if M_pili > 0
     eps_pili_dim_print = params.epsilon * L_0;

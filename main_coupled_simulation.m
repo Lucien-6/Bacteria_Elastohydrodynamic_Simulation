@@ -50,6 +50,7 @@
 %                         lighting('none') on static snapshots for true
 %                         FaceColor rendering; force CM trajectory to bottom
 %                         drawing layer via uistack in animation
+%           2026-03-01 — eps_body regularisation: h_min/2 → h_mean/6
 
 close all force;
 clear; clc;
@@ -90,7 +91,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 2.5\n');
+logf('  Version 2.6\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
