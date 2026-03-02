@@ -42,15 +42,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-19 — Root-cause fix for gravity indicator gap: replace
-%                         TightInset heuristic with orthographic projection
-%                         of the data bounding box to find the true rendered
-%                         right edge under DataAspectRatio=[1 1 1]
-%           2026-02-22 — Visual fixes: replace Gouraud headlight with
-%                         lighting('none') on static snapshots for true
-%                         FaceColor rendering; force CM trajectory to bottom
-%                         drawing layer via uistack in animation
-%           2026-03-01 — eps_body regularisation: h_min/2 → h_mean/6
+%  Last Updated: 2026-03-01 — eps_body regularisation: h_min/2 → h_mean/6 → h_mean/3 (empirical)
 
 close all force;
 clear; clc;
@@ -60,7 +52,7 @@ tic_sim_start = tic;        % Global wall clock for the entire run
 %% =====================================================================
 %  CASE IDENTIFICATION (must precede output directory setup)
 %  =====================================================================
-case_name = 'Test';                    % User-defined case name (string)
+case_name = 'OnePili-P1-L3-dt01-T300-Normal';                    % User-defined case name (string)
                                    %   Non-empty : output saved to output/<case_name>/
                                    %   Empty ''  : output saved to output/run_YYYYMMDD_HHMMSS/
 
@@ -91,7 +83,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 2.6\n');
+  logf('  Version 2.7\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -118,23 +110,31 @@ alpha_0    = 0;                % [rad] Initial tilt angle in XZ plane
 % -------- Pili Configuration --------
 %  Each column defines one pilus:
 %    Row 1 : Type (1=linear, 2=parabolic, 3=circular, 4=sinusoidal, 5=spiral)
-%    Row 2 : Length [um]
+%    Row 2 : Length [um]  (must be > 0)
 %    Row 3 : Deflection angle from Z-axis [rad]
 %    Row 4 : Deflection angle from X-axis [rad]
 %    Row 5-7: Shape parameters (NaN if unused)
 %    Row 8 : Attachment site (1-14)
-Pili_Matrix = [1;                  % Type: linear (straight)
-               3;                  % Length
-               0;                  % Deflection from axis-Z
-               0;                  % Deflection from axis-X
-               NaN; NaN; NaN;     % Shape parameters
-               1];                 % Attachment site
+%
+%  NOTE: To simulate a bare body with NO pili, use an empty matrix:
+%    Pili_Matrix = zeros(8, 0);
+%  Do NOT use a column with Length = 0; that will raise an error.
+Pili_Matrix = [1;
+                    3;
+                    0;
+                    0;
+                    NaN; NaN; NaN;
+                    1];
 
 % -------- Pili Discretisation (RSS, Cortez 2018) --------
 seg_per_um = 15;                  % [seg/um] RSS exact segment integrals
-pili_lengths_um  = Pili_Matrix(2, :);
-N_segments       = round(pili_lengths_um * seg_per_um);
-N_segments       = max(N_segments, 10);
+if size(Pili_Matrix, 2) > 0
+    pili_lengths_um = Pili_Matrix(2, :);
+    N_segments      = round(pili_lengths_um * seg_per_um);
+    N_segments      = max(N_segments, 10);
+else
+    N_segments      = zeros(1, 0);
+end
 
 % -------- Material Properties --------
 E       = 3.67e8;                 % [Pa]     Young's modulus of pili

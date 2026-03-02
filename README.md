@@ -3,7 +3,7 @@
 > **作者**: Lucien (lucien-6@qq.com)  
 > **创建日期**: 2026-02-06  
 > **更新日期**: 2026-03-01  
-> **版本**: 2.6
+> **版本**: 2.7
 
 ---
 
@@ -304,8 +304,8 @@ $$
 
 | 分块     | 评估点 | 力源 | 方法     | $\varepsilon$         |
 | -------- | ------ | ---- | -------- | --------------------- |
-| $M_{BB}$ | 胞体   | 胞体 | RSM 点力 | $h_{\text{mean}}/6$   |
-| $M_{PB}$ | 纤毛   | 胞体 | RSM 点力 | $h_{\text{mean}}/6$   |
+| $M_{BB}$ | 胞体   | 胞体 | RSM 点力 | $h_{\text{mean}}/3$   |
+| $M_{PB}$ | 纤毛   | 胞体 | RSM 点力 | $h_{\text{mean}}/3$   |
 | $M_{BP}$ | 胞体   | 纤毛 | RSS 线段 | $r_{\text{pili}}/L_0$ |
 | $M_{PP}$ | 纤毛   | 纤毛 | RSS 线段 | $r_{\text{pili}}/L_0$ |
 
@@ -338,10 +338,10 @@ $$
 ### 8.5 正则化参数
 
 $$
-\varepsilon_j = \begin{cases} h_{\text{body}}^{\text{mean}} / 6 & \text{胞体表面点} \\ r_{\text{pili}} / L_0 & \text{纤毛节点} \end{cases}
+\varepsilon_j = \begin{cases} h_{\text{body}}^{\text{mean}} / 3 & \text{胞体表面点} \\ r_{\text{pili}} / L_0 & \text{纤毛节点} \end{cases}
 $$
 
-**胞体**（RSM，力源在封闭曲面上）：$h_{\text{body}}^{\text{mean}}$ 为胞体表面所有点最近邻距离的均值（平均网格间距 $\Delta s_{\text{avg}}$），$h_{\text{mean}}/6$ 对应比值 $\varepsilon/\Delta s_{\text{avg}} \approx 0.167$，与 Cortez et al. (2005) 数值实验的最优比值 0.154 一致，在正则化误差 $\mathcal{O}(\varepsilon)$ 与离散化误差 $\mathcal{O}(\Delta s^2/\varepsilon^3)$ 之间取得最佳平衡。$\varepsilon \to 0$ 的极限存在（退化为奇异 BEM），故 $\varepsilon$ 为纯数值参数，应尽量小。
+**胞体**（RSM，力源在封闭曲面上）：$h_{\text{body}}^{\text{mean}}$ 为胞体表面所有点最近邻距离的均值（平均网格间距 $\Delta s_{\text{avg}}$），$h_{\text{mean}}/3$ 对应比值 $\varepsilon/\Delta s_{\text{avg}} \approx 0.333$，为针对当前胶囊几何（$a/b = 3.125$，$N_{\text{body}} = 1000$）数值调试所得的经验最优值，在阻力矩阵精度与数值稳定性之间取得最佳平衡。$\varepsilon \to 0$ 的极限存在（退化为奇异 BEM），故 $\varepsilon$ 为纯数值参数，应通过与解析解（如 Stokes 球阻力）对比验证。
 
 **纤毛**（RSS，力源在一维曲线上）：$\varepsilon = r_{\text{pili}}/L_0$ 是**物理参数**，代表力作用区域的空间延展半径（纤毛横截面半径）。Cortez et al. (2005) 明确指出，当力作用于曲线时 $\varepsilon \to 0$ 的极限不存在（速度场发散），因此 $\varepsilon$ 不可趋向零，而应取纤毛的物理横截面半径。细长比 $\varepsilon/\ell = r_{\text{pili}}/L_{\text{pili}} \approx 10^{-3}$ 远小于 1，满足细长体假设；段长与正则化参数之比 $\Delta s/\varepsilon = \Delta s \cdot L_0 / r_{\text{pili}} \approx 22$，RSS 精确积分在此范围内精度充分。
 
@@ -665,6 +665,7 @@ Coupled_Body_Pili/
 | 22  | 静态快照中胞体与纤毛颜色偏暗，无法呈现预设明亮渐变色 (v2.4→v2.5) | 2026-02-19 | 移除三个快照视图的 `camlight`/`lighting('gouraud')`/`material('dull')`，改为 `lighting(axi,'none')` 均匀环境光，曲面以 `FaceColor` 原色全亮度渲染，消除单向定向光照造成的暗区 |
 | 23  | 3D 动画中 CM 轨迹线遮挡半透明胞体和纤毛 (v2.4→v2.5) | 2026-02-19 | 调整绘制顺序（胞体→纤毛→CM 标记→轨迹），绘制轨迹后立即调用 `uistack(h_traj,'bottom')` 将其移至 `Children` 数组首位，强制 Painters 渲染器最先绘制轨迹，使其位于所有对象之下 |
 | 24  | 胞体正则化参数 `eps_body` 由 `h_min/2` 改为 `h_mean/6` (v2.6) | 2026-03-01 | 原策略受球帽—圆柱拼接处局部几何（CDis/2 ≈ 38.6 nm）驱动，使 ε/Δs 系统性偏大（≈ 0.24–0.35）；新策略基于全局平均最近邻间距，ε/Δs ≈ 0.167，与 Cortez et al. (2005) 最优比值 0.154 吻合，正则化误差降低约 40% |
+| 25  | 胞体正则化参数 `eps_body` 由 `h_mean/6` 调整为 `h_mean/3` (v2.7) | 2026-03-01 | 经数值测试验证，ε/Δs ≈ 0.333 对当前胶囊几何（$a/b=3.125$，$N_\text{body}=1000$）为经验最优值，阻力矩阵精度与数值稳定性均优于 h_mean/6 |
 
 ### 20.3 功能历史
 
@@ -698,6 +699,7 @@ Coupled_Body_Pili/
 | 26  | 静态快照均匀光照：三视图改用 `lighting('none')` 环境光，消除 Gouraud 单向光照对非正对摄像机曲面的暗化，胞体/纤毛以真实颜色渐变完整呈现 (v2.5) | 2026-02-19 |
 | 27  | 动画 CM 轨迹置底层渲染：绘制完成后调用 `uistack(h_traj,'bottom')`，轨迹线始终位于胞体与纤毛之下，不影响半透明胞体及纤毛的视觉效果 (v2.5) | 2026-02-19 |
 | 28  | 胞体正则化参数优化为 `h_mean/6`（v2.6）：正则化参数策略由局部最小间距 `h_min/2` 改为全局平均最近邻间距 `h_mean/6`，ε/Δs ≈ 0.167，符合 Cortez et al. (2005) 对球体算例的最优配置，兼顾正则化精度与数值稳定性 | 2026-03-01 |
+| 29  | 胞体正则化参数进一步调整为 `h_mean/3`（v2.7）：经数值测试，ε/Δs ≈ 0.333 对当前胶囊几何为经验最优，精度与稳定性优于 `h_mean/6` | 2026-03-01 |
 
 ### 20.4 质量评估
 

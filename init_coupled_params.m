@@ -44,6 +44,7 @@ function params = init_coupled_params(varargin)
 %  Created: 2026-02-06
 %  Updated: 2026-02-14 — Pure RSS mode (removed RSM fallback)
 %           2026-03-01 — eps_body: h_min/2 → h_mean/6 (Cortez 2005 optimal ratio)
+%           2026-03-01 — eps_body: h_mean/6 → h_mean/3 (empirically optimal)
 
 %% Parse inputs
 p = inputParser;
@@ -130,7 +131,7 @@ min_dists_body = sqrt(min(D2_body, [], 2));
 h_min  = min(min_dists_body);
 h_mean = mean(min_dists_body);
 
-params.eps_body   = h_mean / 6;                    % Cortez (2005): optimal ratio eps/ds_avg ~ 0.154
+params.eps_body   = h_mean / 3;                    % Empirically optimal (eps/ds_avg ~ 0.333)
 params.body_h_min  = h_min;
 params.body_h_mean = h_mean;
 
@@ -151,6 +152,18 @@ M_pili      = size(Pili_Matrix, 2);
 params.M_pili = M_pili;
 
 if M_pili > 0
+    % Validate: pili lengths must be strictly positive
+    pili_lengths_check = Pili_Matrix(2, :);
+    zero_mask = (pili_lengths_check <= 0);
+    if any(zero_mask)
+        zero_idx = find(zero_mask);
+        error('init_coupled_params:ZeroPiliLength', ...
+            ['Pili [%s] has zero or negative length (%.4g um).\n' ...
+             'To simulate a body with no pili, use an empty Pili_Matrix: ' ...
+             'Pili_Matrix = zeros(8, 0).'], ...
+            num2str(zero_idx), pili_lengths_check(zero_idx(1)));
+    end
+
     % Validate: check for duplicate attachment sites
     attach_sites = Pili_Matrix(8, :);
     [unique_sites, ~, ic] = unique(attach_sites);
@@ -295,7 +308,7 @@ fprintf('  Mobility Method : RSM (body) + RSS (pili) + Rotlet  [Cortez 2018]\n')
 fprintf('  Regularisation Parameters\n');
 fprintf('  Body spacing : h_min = %.4f L0, h_mean = %.4f L0\n', ...
     params.body_h_min, params.body_h_mean);
-fprintf('  Body  : eps_body = %.4f L0 = %.1f nm (= h_mean/6, eps/ds ~ 0.167)\n', ...
+fprintf('  Body  : eps_body = %.4f L0 = %.1f nm (= h_mean/3, eps/ds ~ 0.333)\n', ...
     params.eps_body, params.eps_body * L_0 * 1e9);
 if M_pili > 0
     eps_pili_dim_print = params.epsilon * L_0;
