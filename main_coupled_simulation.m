@@ -42,7 +42,9 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Last Updated: 2026-03-01 — eps_body regularisation: h_min/2 → h_mean/6 → h_mean/3 (empirical)
+%  Last Updated: 2026-03-03 — v2.8: 600 dpi PNG output; axis min-range unified to 4x body length;
+%                             CM trajectory RGBA alpha fix (OpenGL occlusion); dynamic animation
+%                             figure sizing (orthographic projection); 1440 px / quality 100 video
 
 close all force;
 clear; clc;
@@ -83,7 +85,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-  logf('  Version 2.7\n');
+  logf('  Version 2.8\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -315,9 +317,25 @@ if preview_initial
         end
 
         % Formatting
-        xlim(ax_pv, [pv_min(1)-pv_margin(1), pv_max(1)+pv_margin(1)]);
-        ylim(ax_pv, [pv_min(2)-pv_margin(2), pv_max(2)+pv_margin(2)]);
-        zlim(ax_pv, [pv_min(3)-pv_margin(3), pv_max(3)+pv_margin(3)]);
+        pv_lim_x = [pv_min(1)-pv_margin(1), pv_max(1)+pv_margin(1)];
+        pv_lim_y = [pv_min(2)-pv_margin(2), pv_max(2)+pv_margin(2)];
+        pv_lim_z = [pv_min(3)-pv_margin(3), pv_max(3)+pv_margin(3)];
+
+        % Enforce minimum axis range: 6 * body full length (= 12 * major_axis)
+        pv_min_range = 4 * 2 * (major_axis * 1e6);
+        if diff(pv_lim_x) < pv_min_range
+            cx = mean(pv_lim_x); pv_lim_x = cx + [-1, 1] * pv_min_range / 2;
+        end
+        if diff(pv_lim_y) < pv_min_range
+            cy = mean(pv_lim_y); pv_lim_y = cy + [-1, 1] * pv_min_range / 2;
+        end
+        if diff(pv_lim_z) < pv_min_range
+            cz = mean(pv_lim_z); pv_lim_z = cz + [-1, 1] * pv_min_range / 2;
+        end
+
+        xlim(ax_pv, pv_lim_x);
+        ylim(ax_pv, pv_lim_y);
+        zlim(ax_pv, pv_lim_z);
         set(ax_pv, 'DataAspectRatio', [1 1 1], 'TickDir', 'out');
         grid(ax_pv, 'on');
         box(ax_pv,  'on');
@@ -375,7 +393,7 @@ if preview_initial
 
     % Save preview figure to disk before closing
     preview_png = fullfile(output_dir, 'initial_pose.png');
-    exportgraphics(fig_preview, preview_png, 'Resolution', 200);
+    exportgraphics(fig_preview, preview_png, 'Resolution', 600);
     logf('[PREVIEW] Initial pose saved : %s\n', preview_png);
     logf('[PREVIEW] User confirmed. Closing preview and continuing...\n\n');
     close(fig_preview);
@@ -737,7 +755,8 @@ logf('[PLOT] Capsule mesh: %d x %d = %d vertices\n', ...
 % --- Colour palette (journal style) ---
 body_color    = [0.20 0.65 0.33];    % Forest green
 body_alpha    = 0.35;                 % Body transparency
-traj_color    = [1.00 0.55 0.55];    % Light red for CM trajectory
+traj_color    = [1.00 0.55 0.55 0.30];  % Light red, 30 % opacity — keeps trajectory visible
+                                         % without occluding pili under OpenGL depth testing
 
 % Per-pili distinguishable colours (up to 10; cycles if M_pili > 10)
 pili_palette = [0.20 0.40 0.80;      % Medium blue
@@ -860,8 +879,8 @@ ax_lim_x = [min(all_x) - margin_x, max(all_x) + margin_x];
 ax_lim_y = [min(all_y) - margin_y, max(all_y) + margin_y];
 ax_lim_z = [min(all_z) - margin_z, max(all_z) + margin_z];
 
-% Enforce minimum axis range: 4 * major_axis [um]
-min_ax_range = 4 * a_um;
+% Enforce minimum axis range: 4 * body full length (= 8 * major_axis)
+min_ax_range = 4 * 2 * a_um;
 if diff(ax_lim_x) < min_ax_range
     cx = mean(ax_lim_x); ax_lim_x = cx + [-1, 1] * min_ax_range / 2;
 end
@@ -946,7 +965,7 @@ end
 
 % Save figure
 png_file = fullfile(output_dir, 'summary_plot.png');
-exportgraphics(fig_summary, png_file, 'Resolution', 300);
+exportgraphics(fig_summary, png_file, 'Resolution', 600);
 logf('[PLOT] Summary figure saved: %s\n', png_file);
 
 %% =====================================================================
@@ -1002,8 +1021,8 @@ if generate_animation
     ax_lim_y = [min(all_y) - margin_y, max(all_y) + margin_y];
     ax_lim_z = [min(all_z) - margin_z, max(all_z) + margin_z];
 
-    % Enforce minimum axis range: 4 * major_axis [um]
-    min_ax_range = 4 * a_um;
+    % Enforce minimum axis range: 4 * body full length (= 8 * major_axis)
+    min_ax_range = 4 * 2 * a_um;
     if diff(ax_lim_x) < min_ax_range
         cx = mean(ax_lim_x); ax_lim_x = cx + [-1, 1] * min_ax_range / 2;
     end
@@ -1017,15 +1036,41 @@ if generate_animation
     logf('[ANIM] Global axis limits (per-axis): X=[%.2f, %.2f], Y=[%.2f, %.2f], Z=[%.2f, %.2f] um\n', ...
         ax_lim_x(1), ax_lim_x(2), ax_lim_y(1), ax_lim_y(2), ax_lim_z(1), ax_lim_z(2));
 
+    % --- Compute figure dimensions to minimise left/right whitespace ----------
+    % With DataAspectRatio=[1 1 1], MATLAB centres the equal-aspect data box
+    % inside the axes Position rectangle.  When the projected data content is
+    % taller than wide (e.g. a sinking bacterium with large Z range), a fixed
+    % landscape figure leaves large blank bands on the sides.
+    %
+    % Fix: project the 3D bounding box onto the screen at view(45,25), derive
+    % the natural content aspect ratio, and size the figure accordingly so the
+    % data box fills it without padding.
+    %
+    % The axes inner area occupies approximately 70 % (width) x 78 % (height)
+    % of the figure in a single-axes 3-D plot with title + axis labels.
+    % Inverting these fractions converts projected data dimensions to figure px.
+    az_v = 45;  el_v = 25;
+    proj_w_data = diff(ax_lim_x) * abs(cosd(az_v)) + diff(ax_lim_y) * abs(sind(az_v));
+    proj_h_data = (diff(ax_lim_x) * abs(sind(az_v)) + diff(ax_lim_y) * abs(cosd(az_v))) ...
+                  * abs(sind(el_v)) + diff(ax_lim_z) * abs(cosd(el_v));
+    axes_fill_w = 0.70;   % approx fraction of figure width used by axes
+    axes_fill_h = 0.78;   % approx fraction of figure height used by axes
+    anim_fig_h   = 1440;
+    fig_w_target = round(anim_fig_h * (proj_w_data / proj_h_data) ...
+                         * (axes_fill_h / axes_fill_w));
+    anim_fig_w   = max(fig_w_target, 900);   % 900 px minimum to fit labels
+    logf('[ANIM] Figure size: %d x %d px  (proj_w=%.2f, proj_h=%.2f um)\n', ...
+        anim_fig_w, anim_fig_h, proj_w_data, proj_h_data);
+
     % Setup video writer
     mp4_file = fullfile(output_dir, 'bacteria_3d_motion.mp4');
     vid = VideoWriter(mp4_file, 'MPEG-4');
     vid.FrameRate = animation_fps;
-    vid.Quality   = 95;
+    vid.Quality   = 100;
     open(vid);
 
     % Create (invisible) animation figure with OpenGL renderer for transparency
-    fig_anim = figure('Position', [100, 100, 1080, 810], 'Color', 'w', ...
+    fig_anim = figure('Position', [100, 100, anim_fig_w, anim_fig_h], 'Color', 'w', ...
                       'Visible', 'off');
     set(fig_anim, 'DefaultAxesFontName',  'Arial', ...
                   'DefaultAxesFontSize',  11, ...
@@ -1085,17 +1130,17 @@ if generate_animation
         plot3(ax_anim, cm_um(1), cm_um(2), cm_um(3), ...
               'r+', 'MarkerSize', 5, 'LineWidth', 1);
 
-        % --- Draw CM trajectory LAST, then push to bottom of Children list ---
-        % Drawing last ensures the handle can be captured; uistack('bottom')
-        % moves it to the first position in the axes Children array so that
-        % MATLAB's painters renderer draws it first (behind all other objects).
-        % This prevents the trajectory from visually obstructing the semi-
-        % transparent body or the pili in both painters and OpenGL modes.
+        % --- Draw CM trajectory (semi-transparent RGBA colour) ---
+        % uistack is ineffective under the OpenGL renderer (required for
+        % FaceAlpha surfaces): draw order is governed by the depth buffer,
+        % so a geometrically-forward trajectory line will always occlude
+        % objects behind it.  Using a 4-component [R G B A] colour with
+        % low alpha (0.30) ensures the trajectory remains visible as a
+        % subtle guide without blocking the pili or body surface.
         if fi > 1
-            h_traj = plot3(ax_anim, cm_traj_full_um(1,1:ti), ...
+            plot3(ax_anim, cm_traj_full_um(1,1:ti), ...
                            cm_traj_full_um(2,1:ti), cm_traj_full_um(3,1:ti), ...
                            '-', 'Color', traj_color, 'LineWidth', 1.0);
-            uistack(h_traj, 'bottom');
         end
 
         % --- Lighting ---
