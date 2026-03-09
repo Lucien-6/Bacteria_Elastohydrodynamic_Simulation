@@ -27,9 +27,10 @@
 %        .F_sink_pN    [pN]     net sinking force (scalar)
 %        .units              unit metadata struct
 %    timeseries.csv          scalar time series (10 columns, plain text)
-%    summary_plot.png        static overview figure (300 dpi)
-%    initial_pose.png        initial pose preview (200 dpi, if previewed)
+%    summary_plot.png        static overview figure (600 dpi)
+%    initial_pose.png        initial pose preview (600 dpi, if previewed)
 %    bacteria_3d_motion.mp4  3D animation (MPEG-4, if enabled)
+%    flowfield_xz.png        XZ-plane flow field at final state (600 dpi)
 %    simulation.log          full run log (dual-channel: console + file)
 %
 %  Output unit convention:
@@ -42,9 +43,9 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Last Updated: 2026-03-03 — v2.8: 600 dpi PNG output; axis min-range unified to 4x body length;
-%                             CM trajectory RGBA alpha fix (OpenGL occlusion); dynamic animation
-%                             figure sizing (orthographic projection); 1440 px / quality 100 video
+%  Last Updated: 2026-03-06 — v2.9: XZ-plane flow field visualisation at final state
+%                             (RSM/RSS/Rotlet kernel evaluation on external grid; jet colourmap
+%                             velocity magnitude + normalised quiver arrows; capsule interior mask)
 
 close all force;
 clear; clc;
@@ -54,7 +55,7 @@ tic_sim_start = tic;        % Global wall clock for the entire run
 %% =====================================================================
 %  CASE IDENTIFICATION (must precede output directory setup)
 %  =====================================================================
-case_name = 'OnePili-P1-L3-dt01-T300-Normal';                    % User-defined case name (string)
+case_name = 'TwoPili-Test';                    % User-defined case name (string)
                                    %   Non-empty : output saved to output/<case_name>/
                                    %   Empty ''  : output saved to output/run_YYYYMMDD_HHMMSS/
 
@@ -85,7 +86,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-  logf('  Version 2.8\n');
+  logf('  Version 2.9\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -119,14 +120,14 @@ alpha_0    = 0;                % [rad] Initial tilt angle in XZ plane
 %    Row 8 : Attachment site (1-14)
 %
 %  NOTE: To simulate a bare body with NO pili, use an empty matrix:
-%    Pili_Matrix = zeros(8, 0);
+   % Pili_Matrix = zeros(8, 0);
 %  Do NOT use a column with Length = 0; that will raise an error.
-Pili_Matrix = [1;
-                    3;
-                    0;
-                    0;
-                    NaN; NaN; NaN;
-                    1];
+Pili_Matrix = [1,1;
+               3,3;
+               0,0;
+               0,0;
+               NaN,NaN; NaN,NaN; NaN,NaN;
+               1,6];
 
 % -------- Pili Discretisation (RSS, Cortez 2018) --------
 seg_per_um = 15;                  % [seg/um] RSS exact segment integrals
@@ -165,7 +166,7 @@ NT     = round(T_obs / dt) + 1;  % [-]      Number of output time points (derive
 preview_initial    = true;         % Show initial pose scatter plot before ODE
 generate_animation = true;
 animation_fps      = 30;           % Frames per second for MP4
-animation_skip     = 1;            % Frame skip interval (every Nth output point)
+animation_skip     = 10;            % Frame skip interval (every Nth output point)
 
 % --- Log all parameters ---
 logf('[PARAMS] Body: a = %.2f um, b = %.2f um, N_body = %d, alpha_0 = %.4f rad (%.1f deg)\n', ...
@@ -278,7 +279,7 @@ if preview_initial
     % Compute per-axis bounding box
     all_pts = X_body_prev;
     for kp = 1:params.M_pili
-        all_pts = [all_pts; X_pili_prev{kp}]; %#ok<AGROW>
+        all_pts = [all_pts; X_pili_prev{kp}]; 
     end
     pv_min = min(all_pts);
     pv_max = max(all_pts);
@@ -858,14 +859,14 @@ for si = 1:n_snapshots
         R_snap = quat_to_rotmat(results.q(:, ti));
         cm_um  = results.X_cm_um(:, ti);
         pts_snap = R_snap * capsule_flat + cm_um;    % [3 x N_mesh]
-        all_x = [all_x; pts_snap(1,:)']; %#ok<AGROW>
-        all_y = [all_y; pts_snap(2,:)']; %#ok<AGROW>
-        all_z = [all_z; pts_snap(3,:)']; %#ok<AGROW>
+        all_x = [all_x; pts_snap(1,:)']; 
+        all_y = [all_y; pts_snap(2,:)']; 
+        all_z = [all_z; pts_snap(3,:)']; 
         for k = 1:M_pili
             X_p = results.X_pili_um{k}(:,:,ti);
-            all_x = [all_x; X_p(:,1)]; %#ok<AGROW>
-            all_y = [all_y; X_p(:,2)]; %#ok<AGROW>
-            all_z = [all_z; X_p(:,3)]; %#ok<AGROW>
+            all_x = [all_x; X_p(:,1)]; 
+            all_y = [all_y; X_p(:,2)]; 
+            all_z = [all_z; X_p(:,3)]; 
         end
     end
 end
@@ -999,14 +1000,14 @@ if generate_animation
         ti   = frame_indices(idx);
         R_fi = quat_to_rotmat(results.q(:, ti));
         pts  = R_fi * capsule_flat + results.X_cm_um(:, ti);  % [3 x N_mesh]
-        all_x = [all_x; pts(1,:)']; %#ok<AGROW>
-        all_y = [all_y; pts(2,:)']; %#ok<AGROW>
-        all_z = [all_z; pts(3,:)']; %#ok<AGROW>
+        all_x = [all_x; pts(1,:)']; 
+        all_y = [all_y; pts(2,:)']; 
+        all_z = [all_z; pts(3,:)']; 
         for k = 1:M_pili
             Xp = results.X_pili_um{k}(:,:,ti);
-            all_x = [all_x; Xp(:,1)]; %#ok<AGROW>
-            all_y = [all_y; Xp(:,2)]; %#ok<AGROW>
-            all_z = [all_z; Xp(:,3)]; %#ok<AGROW>
+            all_x = [all_x; Xp(:,1)]; 
+            all_y = [all_y; Xp(:,2)]; 
+            all_z = [all_z; Xp(:,3)]; 
         end
     end
 
@@ -1192,6 +1193,16 @@ if generate_animation
 end
 
 %% =====================================================================
+%  FLOW FIELD VISUALISATION (XZ Plane at Final State)
+%  =====================================================================
+
+logf('\n[FLOW] Computing XZ-plane flow field at final state...\n');
+t_flow_start = tic;
+compute_flowfield_xz(last_Z, params, output_dir, run_id, logf);
+t_flow_elapsed = toc(t_flow_start);
+logf('[FLOW] Flow field visualisation completed in %s\n\n', format_duration(t_flow_elapsed));
+
+%% =====================================================================
 %  FINAL SUMMARY
 %  =====================================================================
 
@@ -1216,6 +1227,7 @@ logf('    ODE integration : %s\n',   format_duration(elapsed_total));
 if generate_animation
     logf('    Animation render: %s\n',   format_duration(t_anim_elapsed));
 end
+logf('    Flow field      : %s\n',   format_duration(t_flow_elapsed));
 logf('    Total wall time : %s\n',   format_duration(total_sim_walltime));
 logf('  ------------------------------------------------\n');
 logf('  Files saved:\n');
@@ -1228,6 +1240,7 @@ end
 if generate_animation
     logf('    Video : bacteria_3d_motion.mp4\n');
 end
+logf('    Flow  : flowfield_xz.png\n');
 logf('    Log   : simulation.log\n');
 logf('  ------------------------------------------------\n');
 logf('  results fields added:\n');
