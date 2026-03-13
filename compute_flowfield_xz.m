@@ -73,6 +73,11 @@ V    = dZ(1:3);
 dqdt = dZ(4:7);
 q    = geom.q;
 
+% Recover angular velocity Omega from the quaternion rate dq/dt.
+% Derivation: dq/dt = 0.5 * [0; Omega] ⊗ q
+%   => [0; Omega] = 2 * (dq/dt) ⊗ q^{-1}
+%                = 2 * (dq/dt) ⊗ q*          (unit quaternion: q^{-1} = q*)
+% Take the vector part (components 2-4) to obtain Omega in the lab frame.
 q_conj     = [q(1); -q(2:4)];
 omega_quat = 2 * quat_multiply(dqdt, q_conj);
 Omega      = omega_quat(2:4);

@@ -61,6 +61,17 @@ switch Pili_Type
         rztail  = zeros(1, Ntail);
 
     case 2  % Parabolic
+        % K is a curvature scaling factor that controls how strongly the
+        % pilus curves.  The arc-length parameter is scaled by K so that
+        % different curvatures can be generated from a single template curve.
+        %
+        % The 6th-order polynomial below maps the scaled arc-length parameter
+        % (range [0, K*L_um]) to the projected x-coordinate of the parabola.
+        % Coefficients were obtained by least-squares fitting of the analytic
+        % arc-length integral for y = x^2 (parabola) using MATLAB's polyfit
+        % over the range [0, 4] (unitless).  Valid input range: K*L_um <= 4.
+        % The polynomial is then inverted: given arc length s, find x such
+        % that arc_length(0->x) = s.
         K       = PM(5);
         L_helix = 0 : K*L_helix/(Ntail-1) : K*L_helix;
         XEnd    = -0.0002146*L_helix.^6 + 0.004265*L_helix.^5 ...

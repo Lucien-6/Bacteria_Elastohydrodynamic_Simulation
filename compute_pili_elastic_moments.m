@@ -25,7 +25,10 @@ function [kappa1, kappa2, kappa3] = compute_pili_elastic_moments( ...
 %    kappa3 - [N_k x 1] Twist deviation / (1 + sigma)
 %
 %  Note:
-%    kappa(1) = 0 (free-end) — overwritten by clamped BC in lin_sys.
+%    The root segment (index 1) elastic moment is set to zero here as a
+%    placeholder for the clamped-end constraint.  It is overwritten by the
+%    clamped boundary condition equations in ode_coupled_rhs (lin_sys Step 7)
+%    and must not be interpreted as a free-end condition.
 %
 %  References:
 %    [1] Walker et al. (2020), Physical Review E, Eqs. (11)-(12).
@@ -49,7 +52,7 @@ kappa1_full = dot(d3NC, d2NCds, 2) - kb0_k(:, 1);
 kappa2_full = dot(d1NC, d3NCds, 2) - kb0_k(:, 2);
 kappa3_full = dot(d2NC, d1NCds, 2) - kb0_k(:, 3);
 
-%% Base moment = 0 (free-end or overwritten by clamped BC)
+%% Set root-segment moment to zero (placeholder, overwritten by clamped BC)
 kappa1_full(1) = 0;
 kappa2_full(1) = 0;
 kappa3_full(1) = 0;

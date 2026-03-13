@@ -86,7 +86,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-  logf('  Version 2.9\n');
+logf('  Version 2.9\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -120,7 +120,7 @@ alpha_0    = 0;                % [rad] Initial tilt angle in XZ plane
 %    Row 8 : Attachment site (1-14)
 %
 %  NOTE: To simulate a bare body with NO pili, use an empty matrix:
-   % Pili_Matrix = zeros(8, 0);
+%    Pili_Matrix = zeros(8, 0);
 %  Do NOT use a column with Length = 0; that will raise an error.
 Pili_Matrix = [1,1;
                3,3;

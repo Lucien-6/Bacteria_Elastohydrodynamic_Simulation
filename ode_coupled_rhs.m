@@ -114,7 +114,11 @@ for k = 1:M
     end
     Q_k_spatial = Q_k_spatial(row_order, :);
 
-    % Extend with psi (twist)
+    % Extend Q_k_spatial with twist (psi) rows.
+    % The effective twist rate is: omega_twist_j = dpsi_j + cos(theta_j)*dphi_j
+    % The cos(theta_j) factor arises because the phi-rate component projects
+    % onto the tangent d3 (and hence onto the twist direction) with weight
+    % cos(theta_j).  See Walker (2020), Eq. (A8) or directors.m.
     Q_k_ext = blkdiag(Q_k_spatial, eye(N_k));
     Q_k_ext(3*(N_k+1)+1 : 3*(N_k+1)+N_k, 3+N_k+1 : 3+2*N_k) = diag(cos(theta_k));
 
@@ -251,12 +255,28 @@ for k = 1:M
     d2N = reshape(meanRots(:,2,:), [3, N_k+1])';
     d3N = reshape(meanRots(:,3,:), [3, N_k+1])';
 
-    % Build B_k (Walker convention, pili basis)
+    % Build B_k: the moment-balance matrix for pilus k in the pili basis.
+    % Implements Walker (2020) Eq. (B6)-(B8) (Supplemental Material).
+    % B_k maps force/torque vectors at the N_k+1 nodes (columns) to the
+    % moment-balance residuals at the N_k segments (rows), yielding 3*N_k
+    % scalar equations (one per director per segment).
+    %
+    % Layout of columns:
+    %   Cols 1 : 3*(N_k+1)          — translational force columns (3 per node)
+    %   Cols 3*(N_k+1)+1 : end      — torque (twist) columns       (3 per seg)
+    %
+    % The helper variable 'inter' is an intermediate position/tangent
+    % combination that compactly expresses the moment arm integrals for
+    % interior nodes; see Walker (2020) dz_free_space.m lines 189-200.
     B_k   = zeros(3*N_k, 3*(N_k+1) + 3*N_k);
     inter = (d3_k(2:end,:) + 2*d3_k(1:end-1,:)) / (6*Nk2) + ...
             (X_k(2:end-1,:) + X_k(1:end-2,:)) / (2*N_k);
 
-    % d1 moment balance
+    % d1 moment balance — Walker (2020) Eq. (B6)
+    % Row i of B_k corresponds to the torque balance along d1 at segment i:
+    %   (d1_i x sum_j w_ij * (x_j - x_i + ...) ) + d1_i/N_k * tau_j
+    % The cross-product terms handle translational forces; the final inner
+    % loop assigns the d1 director contribution to the twist columns.
     for i = 1:N_k
         i_row = 3*(i-1) + 1;
         j = i;  j_col = 3*(j-1);
@@ -281,7 +301,8 @@ for k = 1:M
         end
     end
 
-    % d2 moment balance
+    % d2 moment balance — Walker (2020) Eq. (B7)
+    % Identical structure to the d1 loop; replaces d1N with d2N throughout.
     for i = 1:N_k
         i_row = 3*(i-1) + 2;
         j = i;  j_col = 3*(j-1);
@@ -306,7 +327,9 @@ for k = 1:M
         end
     end
 
-    % d3 moment balance (twist)
+    % d3 moment balance (twist) — Walker (2020) Eq. (B8)
+    % Replaces d1N/d2N with d3N (tangent director).  This row enforces the
+    % torque balance about the tangent axis, coupling to the twist rates.
     for i = 1:N_k
         i_row = 3*(i-1) + 3;
         j = i;  j_col = 3*(j-1);
@@ -331,7 +354,9 @@ for k = 1:M
         end
     end
 
-    % Transform B_k from pili basis to lab frame
+    % Transform B_k from the pili adaptive basis to the lab frame.
+    % The ell_k^3 prefactor restores the dimensional scaling removed when
+    % X_k was normalised by ell_k above (Walker 2020, Eq. B5 scaling).
     R_f_trans = kron(eye(N_k+1), rot_k);
     R_f_twist = kron(eye(N_k), rot_k);
     R_f_block = blkdiag(R_f_trans, R_f_twist);
