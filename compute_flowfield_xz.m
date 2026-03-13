@@ -463,7 +463,7 @@ colormap(ax_flow, jet(256));
 caxis(ax_flow, [0 max(Umag(:), [], 'omitnan')]);
 
 cb = colorbar(ax_flow);
-cb.Label.String   = 'Velocity magnitude (\mum/s)';
+cb.Label.String   = 'Velocity magnitude (μm/s)';
 cb.Label.FontName = 'Arial';
 cb.Label.FontSize = 12;
 
@@ -518,8 +518,8 @@ quiver(ax_flow, XG_sub, ZG_sub, ...
 axis(ax_flow, 'equal');
 xlim(ax_flow, [X_cm_um(1) - half_range, X_cm_um(1) + half_range]);
 ylim(ax_flow, [X_cm_um(3) - half_range, X_cm_um(3) + half_range]);
-xlabel(ax_flow, 'X (\mum)', 'FontName', 'Arial', 'FontSize', 13);
-ylabel(ax_flow, 'Z (\mum)', 'FontName', 'Arial', 'FontSize', 13);
+xlabel(ax_flow, 'X (μm)', 'FontName', 'Arial', 'FontSize', 13);
+ylabel(ax_flow, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 13);
 title(ax_flow, sprintf('Flow Field — XZ Plane  [%s]', run_id), ...
     'FontName', 'Arial', 'FontSize', 14, 'FontWeight', 'bold');
 set(ax_flow, 'TickDir', 'out', 'Box', 'on', 'Layer', 'top');

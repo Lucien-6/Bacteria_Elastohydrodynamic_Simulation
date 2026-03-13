@@ -55,7 +55,7 @@ tic_sim_start = tic;        % Global wall clock for the entire run
 %% =====================================================================
 %  CASE IDENTIFICATION (must precede output directory setup)
 %  =====================================================================
-case_name = 'TwoPili-Test';                    % User-defined case name (string)
+case_name = 'TwoPili-Test-Soft';                    % User-defined case name (string)
                                    %   Non-empty : output saved to output/<case_name>/
                                    %   Empty ''  : output saved to output/run_YYYYMMDD_HHMMSS/
 
@@ -140,7 +140,7 @@ else
 end
 
 % -------- Material Properties --------
-E       = 3.67e8;                 % [Pa]     Young's modulus of pili
+E       = 1.768e7;                 % [Pa]     Young's modulus of pili
 r_pili  = 3e-9;                   % [m]      Pili radius
 sigma_p = 0.2;                    % [-]      Poisson's ratio
 
