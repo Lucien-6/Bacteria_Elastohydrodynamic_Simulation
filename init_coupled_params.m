@@ -28,6 +28,8 @@ function params = init_coupled_params(varargin)
 %                  Angle of body long axis (body X) from +X in XZ plane
 %                  pi/2 = vertical (+Z), 0 = horizontal (+X),
 %                  -pi/2 = inverted (-Z).  Range: [-pi/2, pi/2]
+%    'Temper'      Absolute temperature [K]            (default: 293.15)
+%    'enable_brown' Enable body Brownian motion        (default: false)
 %
 %  Outputs:
 %    params - Structure with all simulation parameters
@@ -45,6 +47,7 @@ function params = init_coupled_params(varargin)
 %  Updated: 2026-02-14 — Pure RSS mode (removed RSM fallback)
 %           2026-03-01 — eps_body: h_min/2 → h_mean/6 (Cortez 2005 optimal ratio)
 %           2026-03-01 — eps_body: h_mean/6 → h_mean/3 (empirically optimal)
+%           2026-03-14 — v3.0: Body Brownian motion parameters (Temper, enable_brown)
 
 %% Parse inputs
 p = inputParser;
@@ -62,6 +65,8 @@ addParameter(p, 'Pili_Matrix', [1; 3; 0; 0; NaN; NaN; NaN; 1], @isnumeric);
 addParameter(p, 'seg_per_um',  15,     @isnumeric);
 addParameter(p, 'delta',       pi/20,  @isnumeric);
 addParameter(p, 'alpha_0',    pi/2,   @isnumeric);
+addParameter(p, 'Temper',      293.15,  @isnumeric);
+addParameter(p, 'enable_brown', false,  @(x) islogical(x) || (isnumeric(x) && isscalar(x)));
 parse(p, varargin{:});
 
 %% Store dimensional parameters
@@ -72,6 +77,8 @@ params.dim.E          = p.Results.E;
 params.dim.r_pili     = p.Results.r_pili;
 params.dim.rho_bac    = p.Results.rho_bac;
 params.dim.rho_fluid  = p.Results.rho_fluid;
+params.dim.Temper     = p.Results.Temper;
+params.brown_enabled  = p.Results.enable_brown;
 
 %% Characteristic scales for nondimensionalisation
 L_0 = p.Results.major_axis;                       % Length scale [m]
@@ -279,6 +286,21 @@ else
     params.pili_x0    = {};
 end
 
+%% Compute Brownian motion parameters (body only)
+if params.brown_enabled
+    fprintf('Computing body Brownian motion parameters (RSM, body only)...\n');
+    X_body_dim    = params.body_local' * L_0;
+    eps_body_dim  = params.eps_body    * L_0;
+    params.brown  = compute_body_brownian_params( ...
+        X_body_dim, p.Results.mu, eps_body_dim, p.Results.Temper);
+    fprintf('  D_trans diagonal: [%.3e  %.3e  %.3e] m^2/s\n', ...
+        params.brown.D_trans(1,1), params.brown.D_trans(2,2), params.brown.D_trans(3,3));
+    fprintf('  D_rot   diagonal: [%.3e  %.3e  %.3e] rad^2/s\n', ...
+        params.brown.D_rot(1,1),   params.brown.D_rot(2,2),   params.brown.D_rot(3,3));
+else
+    params.brown = [];
+end
+
 %% Print summary
 fprintf('\n');
 fprintf('=============================================================\n');
@@ -328,6 +350,12 @@ if M_pili > 0
     fprintf('    Pili force -> any point: eps = %.1f nm (physical radius)\n', ...
         eps_pili_dim_print * 1e9);
 end
+fprintf('  Brownian : %s', mat2str(params.brown_enabled));
+if params.brown_enabled
+    fprintf('  (T = %.2f K = %.2f deg C)', ...
+        p.Results.Temper, p.Results.Temper - 273.15);
+end
+fprintf('\n');
 fprintf('=============================================================\n\n');
 
 end

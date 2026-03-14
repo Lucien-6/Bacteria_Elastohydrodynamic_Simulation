@@ -43,9 +43,9 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Last Updated: 2026-03-06 — v2.9: XZ-plane flow field visualisation at final state
-%                             (RSM/RSS/Rotlet kernel evaluation on external grid; jet colourmap
-%                             velocity magnitude + normalised quiver arrows; capsule interior mask)
+%  Last Updated: 2026-03-14 — v3.0: Body Brownian dynamics (split-step Euler-Maruyama);
+%                             2x2 flow field panels (XZ+YZ, 3D surface + 2D imagesc);
+%                             animation triple-panel layout (3D + XZ + YZ projections)
 
 close all force;
 clear; clc;
@@ -55,7 +55,7 @@ tic_sim_start = tic;        % Global wall clock for the entire run
 %% =====================================================================
 %  CASE IDENTIFICATION (must precede output directory setup)
 %  =====================================================================
-case_name = 'TwoPili-Test-Soft';                    % User-defined case name (string)
+case_name = 'Test';                    % User-defined case name (string)
                                    %   Non-empty : output saved to output/<case_name>/
                                    %   Empty ''  : output saved to output/run_YYYYMMDD_HHMMSS/
 
@@ -86,7 +86,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 2.9\n');
+logf('  Version 3.0\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -122,12 +122,12 @@ alpha_0    = 0;                % [rad] Initial tilt angle in XZ plane
 %  NOTE: To simulate a bare body with NO pili, use an empty matrix:
 %    Pili_Matrix = zeros(8, 0);
 %  Do NOT use a column with Length = 0; that will raise an error.
-Pili_Matrix = [1,1;
-               3,3;
-               0,0;
-               0,0;
-               NaN,NaN; NaN,NaN; NaN,NaN;
-               1,6];
+Pili_Matrix = [1;
+               3;
+               0;
+               0;
+               NaN; NaN; NaN;
+               1];
 
 % -------- Pili Discretisation (RSS, Cortez 2018) --------
 seg_per_um = 15;                  % [seg/um] RSS exact segment integrals
@@ -140,7 +140,7 @@ else
 end
 
 % -------- Material Properties --------
-E       = 1.768e7;                 % [Pa]     Young's modulus of pili
+E       = 3.279e8;                 % [Pa]     Young's modulus of pili
 r_pili  = 3e-9;                   % [m]      Pili radius
 sigma_p = 0.2;                    % [-]      Poisson's ratio
 
@@ -161,6 +161,11 @@ delta  = pi / 20;                 % [rad]    Euler angle singularity threshold
 tlim   = 120;                     % [s]      ODE timeout limit
 dt     = 1e-1;                    % [s]      Output time step
 NT     = round(T_obs / dt) + 1;  % [-]      Number of output time points (derived)
+
+% -------- Brownian Motion (Thermal Fluctuations) --------
+enable_brown = false;            % true = enable body Brownian motion; false = deterministic
+Temper       = 293.15;            % [K]  Fluid temperature (default 20 deg C)
+dt_B         = dt/2;                % [s]  Brownian time step (dimensional, fixed)
 
 % -------- Preview & Animation Settings --------
 preview_initial    = true;         % Show initial pose scatter plot before ODE
@@ -187,6 +192,8 @@ logf('[PARAMS] Simulation: T_obs = %.1f s, dt = %.2e s, NT = %d, AbsTol = %.0e, 
 logf('[PARAMS] Numerics: delta = pi/%.0f rad, timeout = %d s\n', pi/delta, tlim);
 logf('[PARAMS] Preview: %s\n', mat2str(preview_initial));
 logf('[PARAMS] Animation: fps = %d, skip = %d\n', animation_fps, animation_skip);
+logf('[PARAMS] Brownian: enable = %s, Temper = %.2f K, dt_B = %.4f s\n', ...
+    mat2str(enable_brown), Temper, dt_B);
 if isempty(strtrim(case_name))
     logf('[PARAMS] Case name: (auto — timestamp)\n');
 else
@@ -201,20 +208,22 @@ logf('\n[INIT] Initialising simulation parameters...\n');
 t_init_start = tic;
 
 params = init_coupled_params( ...
-    'N_body',      N_body, ...
-    'minor_axis',  minor_axis, ...
-    'major_axis',  major_axis, ...
-    'alpha_0',     alpha_0, ...
-    'mu',          mu, ...
-    'E',           E, ...
-    'r_pili',      r_pili, ...
-    'sigma',       sigma_p, ...
-    'rho_bac',     rho_bac, ...
-    'rho_fluid',   rho_fluid, ...
-    'N_segments',  N_segments, ...
-    'Pili_Matrix', Pili_Matrix, ...
-    'seg_per_um',  seg_per_um, ...
-    'delta',       delta);
+    'N_body',       N_body, ...
+    'minor_axis',   minor_axis, ...
+    'major_axis',   major_axis, ...
+    'alpha_0',      alpha_0, ...
+    'mu',           mu, ...
+    'E',            E, ...
+    'r_pili',       r_pili, ...
+    'sigma',        sigma_p, ...
+    'rho_bac',      rho_bac, ...
+    'rho_fluid',    rho_fluid, ...
+    'N_segments',   N_segments, ...
+    'Pili_Matrix',  Pili_Matrix, ...
+    'seg_per_um',   seg_per_um, ...
+    'delta',        delta, ...
+    'Temper',       Temper, ...
+    'enable_brown', enable_brown);
 
 logf('[INIT] Building initial state vector...\n');
 Z0 = init_coupled_state(params);
@@ -446,6 +455,30 @@ segment_count    = 0;
 seg_walltimes    = [];          % Wall time per segment [s]
 seg_dtstar       = [];          % Dimensionless time advanced per segment
 
+% ---- Brownian dynamics node tracking ----
+if params.brown_enabled && ~isempty(params.brown)
+    dt_B_dimless   = dt_B / params.scales.T_0;
+    T_brown_next   = dt_B_dimless;
+    logf('[BROWN] Brownian dynamics enabled: dt_B = %.4f s = %.4e T*\n', ...
+        dt_B, dt_B_dimless);
+    tau_trans = params.scales.L_0^2 / mean(diag(params.brown.D_trans));
+    tau_rot   = 1 / (6 * mean(diag(params.brown.D_rot)));
+    tau_min   = min(tau_trans, tau_rot);
+    logf('[BROWN] tau_trans = %.3f s, tau_rot = %.3f s, tau_min = %.3f s\n', ...
+        tau_trans, tau_rot, tau_min);
+    logf('[BROWN] dt_B / tau_min = %.4f (should be << 1)\n', dt_B / tau_min);
+    if dt_B > 0.2 * tau_min
+        logf('[BROWN] WARNING: dt_B / tau_min = %.2f > 0.2. Consider reducing dt_B.\n', ...
+            dt_B / tau_min);
+    end
+    brown_kick_count    = 0;
+    brown_log_interval  = 100;
+    % rng(42, 'twister');   % Uncomment to fix RNG seed for debugging
+else
+    dt_B_dimless = Inf;
+    T_brown_next = Inf;
+end
+
 while T_achieved < T_obs_dimless
     Z = last_Z;
     segment_count = segment_count + 1;
@@ -462,6 +495,9 @@ while T_achieved < T_obs_dimless
         end
     end
 
+    % Determine integration target for this segment
+    T_seg_target = min(T_brown_next, T_obs_dimless);
+
     % Setup ODE solver
     tstart_ode   = tic;
     eventFunc    = @(t_ev, Z_ev) singularity_event(t_ev, Z_ev, params, tstart_ode, tlim);
@@ -477,9 +513,9 @@ while T_achieved < T_obs_dimless
     dZ_func = @(t_ode, Z_ode) ode_coupled_rhs(t_ode, Z_ode, params);
 
     logf('[ODE] Segment %d: integrating t* = [%.4e, %.4e]\n', ...
-        segment_count, T_achieved, T_obs_dimless);
+        segment_count, T_achieved, T_seg_target);
 
-    sol      = ode15s(dZ_func, [T_achieved, T_obs_dimless], Z, ode_ops);
+    sol      = ode15s(dZ_func, [T_achieved, T_seg_target], Z, ode_ops);
     seg_wall = toc(tstart_ode);
     logf('[ODE] Segment %d completed (%.1f s, %d steps)\n', ...
         segment_count, seg_wall, length(sol.x));
@@ -517,7 +553,51 @@ while T_achieved < T_obs_dimless
     Z_end(4:7)    = q_end / q_norm_before;
 
     % Enforce geometric clamped BC (correct constraint drift)
-    Z_end  = enforce_clamped_geometry(Z_end, params);
+    Z_end = enforce_clamped_geometry(Z_end, params);
+
+    % ---- Apply Brownian kick at Brownian node (fixed dt_B) ----
+    brown_kick_applied = false;
+    if params.brown_enabled && ~isempty(params.brown)
+        brown_tol = dt_B_dimless * 1e-8;
+        if T_achieved >= T_brown_next - brown_tol
+
+            R_body = quat_to_rotmat(Z_end(4:7));
+
+            % -- Translational Brownian displacement --
+            eta_t      = randn(3, 1);
+            dX_body    = params.brown.L_trans * eta_t * sqrt(dt_B);
+            dX_lab     = R_body * dX_body;
+            Z_end(1:3) = Z_end(1:3) + dX_lab / params.scales.L_0;
+
+            % -- Rotational Brownian displacement --
+            eta_r       = randn(3, 1);
+            dTheta_body = params.brown.L_rot * eta_r * sqrt(dt_B);
+            dTheta_lab  = R_body * dTheta_body;
+            ang         = norm(dTheta_lab);
+            if ang > 1e-15
+                Delta_q = [cos(ang / 2); (sin(ang / 2) / ang) * dTheta_lab];
+            else
+                Delta_q = [1; 0; 0; 0];
+            end
+            Z_end(4:7) = quat_multiply(Delta_q, Z_end(4:7));
+
+            Z_end(4:7) = Z_end(4:7) / norm(Z_end(4:7));
+
+            % Re-enforce clamped BC (body quaternion changed)
+            Z_end = enforce_clamped_geometry(Z_end, params);
+
+            brown_kick_applied = true;
+            brown_kick_count   = brown_kick_count + 1;
+            T_brown_next       = (brown_kick_count + 1) * dt_B_dimless;
+
+            if brown_kick_count <= 5 || mod(brown_kick_count, brown_log_interval) == 0
+                logf('[BROWN] Kick #%d at t* = %.4e | |dX| = %.2e m | |dTheta| = %.2e rad\n', ...
+                    brown_kick_count, T_achieved, norm(dX_lab), ang);
+            end
+        end
+    end
+    % ---- End Brownian kick ----
+
     last_Z = Z_end;
 
     % Log quaternion health
@@ -532,10 +612,17 @@ while T_achieved < T_obs_dimless
     valid_ts = valid_ts(current_time_ind+1 : end);
 
     if ~isempty(valid_ts)
+        valid_ts = max(valid_ts, sol.x(1));
+        valid_ts = min(valid_ts, sol.x(end));
         Z_at_ts = deval(sol, valid_ts);
         for i = 1:length(valid_ts)
             ti  = current_time_ind + i;
             Z_i = Z_at_ts(:, i);
+
+            % Override with post-kick state at Brownian node
+            if brown_kick_applied && abs(valid_ts(i) - T_achieved) < 1e-14
+                Z_i = Z_end;
+            end
 
             % Renormalise quaternion
             Z_i(4:7) = Z_i(4:7) / norm(Z_i(4:7));
@@ -561,7 +648,6 @@ while T_achieved < T_obs_dimless
     elapsed_ode  = toc(tic_total);
 
     if progress_pct > 0 && progress_pct < 100
-        % ETA from linear extrapolation: elapsed * (remaining / done)
         eta_ode_s = elapsed_ode * (100 - progress_pct) / progress_pct;
         logf('[ODE]   Progress: %.1f%% | Elapsed: %s | ETA: %s\n', ...
             progress_pct, format_duration(elapsed_ode), ...
@@ -756,7 +842,7 @@ logf('[PLOT] Capsule mesh: %d x %d = %d vertices\n', ...
 % --- Colour palette (journal style) ---
 body_color    = [0.20 0.65 0.33];    % Forest green
 body_alpha    = 0.35;                 % Body transparency
-traj_color    = [1.00 0.55 0.55 0.30];  % Light red, 30 % opacity — keeps trajectory visible
+traj_color    = [0.85 0.25 0.25 0.45];  % Deeper red, 45 % opacity
                                          % without occluding pili under OpenGL depth testing
 
 % Per-pili distinguishable colours (up to 10; cycles if M_pili > 10)
@@ -1059,9 +1145,10 @@ if generate_animation
     anim_fig_h   = 1440;
     fig_w_target = round(anim_fig_h * (proj_w_data / proj_h_data) ...
                          * (axes_fill_h / axes_fill_w));
-    anim_fig_w   = max(fig_w_target, 900);   % 900 px minimum to fit labels
-    logf('[ANIM] Figure size: %d x %d px  (proj_w=%.2f, proj_h=%.2f um)\n', ...
-        anim_fig_w, anim_fig_h, proj_w_data, proj_h_data);
+    anim_fig_h   = 1200;
+    anim_fig_w   = 2 * ceil(max(round(fig_w_target * 2), 1800) / 2);   % 1x3, even for H.264
+    logf('[ANIM] Figure size: %d x %d px  (1x3 layout: 3D + XZ + YZ)\n', ...
+        anim_fig_w, anim_fig_h);
 
     % Setup video writer
     mp4_file = fullfile(output_dir, 'bacteria_3d_motion.mp4');
@@ -1070,103 +1157,154 @@ if generate_animation
     vid.Quality   = 100;
     open(vid);
 
-    % Create (invisible) animation figure with OpenGL renderer for transparency
-    fig_anim = figure('Position', [100, 100, anim_fig_w, anim_fig_h], 'Color', 'w', ...
+    % Create (invisible) animation figure — 3-panel layout
+    fig_anim = figure('Position', [50, 50, anim_fig_w, anim_fig_h], 'Color', 'w', ...
                       'Visible', 'off');
     set(fig_anim, 'DefaultAxesFontName',  'Arial', ...
                   'DefaultAxesFontSize',  11, ...
                   'DefaultAxesLineWidth', 0.8);
-    ax_anim = axes(fig_anim);
-    % Pre-configure axis with the SAME final properties used inside the frame
-    % loop so that ax.Position is fully settled (equal-aspect 3-D view with
-    % fixed limits) before add_gravity_indicator_outside reads it.
-    % Without this, the annotation is placed using the default full-figure
-    % Position, which shifts once DataAspectRatio=[1 1 1] is applied in the
-    % first frame, producing a large gap between the axis box and the arrow.
-    xlim(ax_anim, ax_lim_x);
-    ylim(ax_anim, ax_lim_y);
-    zlim(ax_anim, ax_lim_z);
-    set(ax_anim, 'DataAspectRatio', [1 1 1], 'TickDir', 'out');
-    grid(ax_anim, 'on');
-    box(ax_anim,  'on');
-    view(ax_anim, 45, 25);
-    xlabel(ax_anim, 'X (μm)', 'FontName', 'Arial', 'FontSize', 12);
-    ylabel(ax_anim, 'Y (μm)', 'FontName', 'Arial', 'FontSize', 12);
-    zlabel(ax_anim, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 12);
-    % Include a representative title so MATLAB accounts for its height when
-    % computing Position.  cla() does NOT clear Title (HandleVisibility='off'),
-    % so the title persists; the first frame's title() call just updates the
-    % string, leaving Position unchanged from the pre-configured state.
-    title(ax_anim, sprintf('Time = %.4f s  (frame %d/%d)', 0.0, 1, n_frames), ...
+
+    % Three axes in a single row: 3D (left), XZ (centre), YZ (right)
+    ax_3d = axes(fig_anim, 'Position', [0.03, 0.08, 0.30, 0.84]);
+    ax_xz = axes(fig_anim, 'Position', [0.36, 0.08, 0.30, 0.84]);
+    ax_yz = axes(fig_anim, 'Position', [0.69, 0.08, 0.30, 0.84]);
+
+    % Pre-configure 3D axes so Position is settled before gravity indicator
+    xlim(ax_3d, ax_lim_x);  ylim(ax_3d, ax_lim_y);  zlim(ax_3d, ax_lim_z);
+    set(ax_3d, 'DataAspectRatio', [1 1 1], 'TickDir', 'out');
+    grid(ax_3d, 'on');  box(ax_3d, 'on');
+    view(ax_3d, 45, 25);
+    xlabel(ax_3d, 'X (μm)', 'FontName', 'Arial', 'FontSize', 12);
+    ylabel(ax_3d, 'Y (μm)', 'FontName', 'Arial', 'FontSize', 12);
+    zlabel(ax_3d, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 12);
+    title(ax_3d, sprintf('Time = %.4f s  (frame %d/%d)', 0.0, 1, n_frames), ...
         'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
-    drawnow;  % Flush layout so Position reflects the fully decorated 3-D state
-    add_gravity_indicator_outside(fig_anim, ax_anim, 13, 2.5);
+
+    % Pre-configure XZ projection axes (view along Y axis)
+    xlim(ax_xz, ax_lim_x);  ylim(ax_xz, ax_lim_y);  zlim(ax_xz, ax_lim_z);
+    set(ax_xz, 'DataAspectRatio', [1 1 1], 'TickDir', 'out', ...
+        'Projection', 'orthographic');
+    grid(ax_xz, 'on');  box(ax_xz, 'off');
+    view(ax_xz, 0, 0);
+    xlabel(ax_xz, 'X (μm)', 'FontName', 'Arial', 'FontSize', 11);
+    zlabel(ax_xz, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 11);
+    title(ax_xz, 'XZ Projection', ...
+        'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold');
+
+    % Pre-configure YZ projection axes (view along X axis)
+    xlim(ax_yz, ax_lim_x);  ylim(ax_yz, ax_lim_y);  zlim(ax_yz, ax_lim_z);
+    set(ax_yz, 'DataAspectRatio', [1 1 1], 'TickDir', 'out', ...
+        'Projection', 'orthographic');
+    grid(ax_yz, 'on');  box(ax_yz, 'off');
+    view(ax_yz, 90, 0);
+    ylabel(ax_yz, 'Y (μm)', 'FontName', 'Arial', 'FontSize', 11);
+    zlabel(ax_yz, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 11);
+    title(ax_yz, 'YZ Projection', ...
+        'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold');
+
+    drawnow;
+    add_gravity_indicator_outside(fig_anim, ax_3d, 13, 2.5);
+
+    ax_all = [ax_3d, ax_xz, ax_yz];
 
     for fi = 1:n_frames
         ti = frame_indices(fi);
-        cla(ax_anim);
-        hold(ax_anim, 'on');
 
-        % --- Draw body: smooth capsule surface with transparency ---
+        % --- Compute geometry once per frame ---
         R_fi  = quat_to_rotmat(results.q(:, ti));
         cm_um = results.X_cm_um(:, ti);
         pts   = R_fi * capsule_flat + cm_um;       % [3 x N_mesh]
-        Xsurf = reshape(pts(1,:), mesh_size);
-        Ysurf = reshape(pts(2,:), mesh_size);
-        Zsurf = reshape(pts(3,:), mesh_size);
+        Xsurf_f = reshape(pts(1,:), mesh_size);
+        Ysurf_f = reshape(pts(2,:), mesh_size);
+        Zsurf_f = reshape(pts(3,:), mesh_size);
 
-        surf(ax_anim, Xsurf, Ysurf, Zsurf, ...
-             'FaceColor', body_color, 'FaceAlpha', body_alpha, ...
-             'EdgeColor', 'none', 'FaceLighting', 'gouraud');
+        % --- Draw bacterium on all three axes ---
+        for ai = 1:3
+            ax = ax_all(ai);
+            cla(ax);
+            hold(ax, 'on');
 
-        % --- Draw pili: per-pili coloured polylines ---
-        for k = 1:M_pili
-            Xp = results.X_pili_um{k}(:,:,ti);
-            pk_c = pili_colors(k, :);
-            plot3(ax_anim, Xp(:,1), Xp(:,2), Xp(:,3), ...
-                  '-', 'Color', pk_c, 'LineWidth', 1.25);
+            surf(ax, Xsurf_f, Ysurf_f, Zsurf_f, ...
+                 'FaceColor', body_color, 'FaceAlpha', body_alpha, ...
+                 'EdgeColor', 'none', 'FaceLighting', 'gouraud');
+
+            for k = 1:M_pili
+                Xp   = results.X_pili_um{k}(:,:,ti);
+                pk_c = pili_colors(k, :);
+                plot3(ax, Xp(:,1), Xp(:,2), Xp(:,3), ...
+                      '-', 'Color', pk_c, 'LineWidth', 1.25);
+            end
+
+            plot3(ax, cm_um(1), cm_um(2), cm_um(3), ...
+                  'r+', 'MarkerSize', 5, 'LineWidth', 1);
+
+            if fi > 1
+                plot3(ax, cm_traj_full_um(1,1:ti), ...
+                          cm_traj_full_um(2,1:ti), ...
+                          cm_traj_full_um(3,1:ti), ...
+                          '-', 'Color', traj_color, 'LineWidth', 1.0);
+            end
+
+            hold(ax, 'off');
         end
 
-        % --- Mark body centre of mass ---
-        plot3(ax_anim, cm_um(1), cm_um(2), cm_um(3), ...
-              'r+', 'MarkerSize', 5, 'LineWidth', 1);
-
-        % --- Draw CM trajectory (semi-transparent RGBA colour) ---
-        % uistack is ineffective under the OpenGL renderer (required for
-        % FaceAlpha surfaces): draw order is governed by the depth buffer,
-        % so a geometrically-forward trajectory line will always occlude
-        % objects behind it.  Using a 4-component [R G B A] colour with
-        % low alpha (0.30) ensures the trajectory remains visible as a
-        % subtle guide without blocking the pili or body surface.
-        if fi > 1
-            plot3(ax_anim, cm_traj_full_um(1,1:ti), ...
-                           cm_traj_full_um(2,1:ti), cm_traj_full_um(3,1:ti), ...
-                           '-', 'Color', traj_color, 'LineWidth', 1.0);
-        end
-
-        % --- Lighting ---
-        camlight(ax_anim, 'headlight');
-        camlight(ax_anim, 'left');
-        lighting(ax_anim, 'gouraud');
-        material(ax_anim, 'dull');
-
-        % --- Axis formatting (fixed equal-aspect limits) ---
-        xlim(ax_anim, ax_lim_x);
-        ylim(ax_anim, ax_lim_y);
-        zlim(ax_anim, ax_lim_z);
-        set(ax_anim, 'DataAspectRatio', [1 1 1]);
-        grid(ax_anim, 'on');
-        box(ax_anim,  'on');
-        set(ax_anim, 'TickDir', 'out');
-        view(ax_anim, 45, 25);
-        xlabel(ax_anim, 'X (μm)', 'FontName', 'Arial', 'FontSize', 12);
-        ylabel(ax_anim, 'Y (μm)', 'FontName', 'Arial', 'FontSize', 12);
-        zlabel(ax_anim, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 12);
-        title(ax_anim, sprintf('Time = %.4f s  (frame %d/%d)', ...
+        % --- Format 3D view ---
+        camlight(ax_3d, 'headlight');
+        camlight(ax_3d, 'left');
+        lighting(ax_3d, 'gouraud');
+        material(ax_3d, 'dull');
+        xlim(ax_3d, ax_lim_x);  ylim(ax_3d, ax_lim_y);  zlim(ax_3d, ax_lim_z);
+        set(ax_3d, 'DataAspectRatio', [1 1 1]);
+        grid(ax_3d, 'on');  box(ax_3d, 'on');
+        set(ax_3d, 'TickDir', 'out');
+        view(ax_3d, 45, 25);
+        xlabel(ax_3d, 'X (μm)', 'FontName', 'Arial', 'FontSize', 12);
+        ylabel(ax_3d, 'Y (μm)', 'FontName', 'Arial', 'FontSize', 12);
+        zlabel(ax_3d, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 12);
+        title(ax_3d, sprintf('Time = %.4f s  (frame %d/%d)', ...
             results.t(ti), fi, n_frames), ...
             'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
 
-        hold(ax_anim, 'off');
+        % --- Format XZ projection ---
+        camlight(ax_xz, 'headlight');
+        lighting(ax_xz, 'gouraud');
+        material(ax_xz, 'dull');
+        xlim(ax_xz, ax_lim_x);  ylim(ax_xz, ax_lim_y);  zlim(ax_xz, ax_lim_z);
+        set(ax_xz, 'DataAspectRatio', [1 1 1], 'Projection', 'orthographic');
+        grid(ax_xz, 'on');  box(ax_xz, 'off');
+        set(ax_xz, 'TickDir', 'out');
+        view(ax_xz, 0, 0);
+        hold(ax_xz, 'on');
+        plot3(ax_xz, [ax_lim_x(2) ax_lim_x(2)], ax_lim_y([1 1]), ax_lim_z, ...
+            'k-', 'LineWidth', 0.8, 'HandleVisibility', 'off');
+        plot3(ax_xz, ax_lim_x, ax_lim_y([1 1]), [ax_lim_z(2) ax_lim_z(2)], ...
+            'k-', 'LineWidth', 0.8, 'HandleVisibility', 'off');
+        hold(ax_xz, 'off');
+        xlabel(ax_xz, 'X (μm)', 'FontName', 'Arial', 'FontSize', 11);
+        zlabel(ax_xz, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 11);
+        title(ax_xz, 'XZ Projection', ...
+            'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold');
+
+        % --- Format YZ projection ---
+        camlight(ax_yz, 'headlight');
+        lighting(ax_yz, 'gouraud');
+        material(ax_yz, 'dull');
+        xlim(ax_yz, ax_lim_x);  ylim(ax_yz, ax_lim_y);  zlim(ax_yz, ax_lim_z);
+        set(ax_yz, 'DataAspectRatio', [1 1 1], 'Projection', 'orthographic');
+        grid(ax_yz, 'on');  box(ax_yz, 'off');
+        set(ax_yz, 'TickDir', 'out');
+        view(ax_yz, 90, 0);
+        hold(ax_yz, 'on');
+        plot3(ax_yz, ax_lim_x([1 1]), [ax_lim_y(2) ax_lim_y(2)], ax_lim_z, ...
+            'k-', 'LineWidth', 0.8, 'HandleVisibility', 'off');
+        plot3(ax_yz, ax_lim_x([1 1]), ax_lim_y, [ax_lim_z(2) ax_lim_z(2)], ...
+            'k-', 'LineWidth', 0.8, 'HandleVisibility', 'off');
+        hold(ax_yz, 'off');
+        ylabel(ax_yz, 'Y (μm)', 'FontName', 'Arial', 'FontSize', 11);
+        zlabel(ax_yz, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 11);
+        title(ax_yz, 'YZ Projection', ...
+            'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold');
+
         drawnow;
 
         % Capture frame
@@ -1198,7 +1336,7 @@ end
 
 logf('\n[FLOW] Computing XZ-plane flow field at final state...\n');
 t_flow_start = tic;
-compute_flowfield_xz(last_Z, params, output_dir, run_id, logf);
+compute_plot_flowfield(last_Z, params, output_dir, run_id, logf);
 t_flow_elapsed = toc(t_flow_start);
 logf('[FLOW] Flow field visualisation completed in %s\n\n', format_duration(t_flow_elapsed));
 
@@ -1240,7 +1378,7 @@ end
 if generate_animation
     logf('    Video : bacteria_3d_motion.mp4\n');
 end
-logf('    Flow  : flowfield_xz.png\n');
+logf('    Flow  : flowfield_panels.png\n');
 logf('    Log   : simulation.log\n');
 logf('  ------------------------------------------------\n');
 logf('  results fields added:\n');
