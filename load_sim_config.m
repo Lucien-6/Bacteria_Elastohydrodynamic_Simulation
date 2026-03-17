@@ -26,6 +26,7 @@ function cfg = load_sim_config(json_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
+%  Updated: 2026-03-17 — v3.2: Fixed dead code in get_json (islogical guard)
 
 %% Read and decode JSON
 fid = fopen(json_path, 'r', 'n', 'UTF-8');

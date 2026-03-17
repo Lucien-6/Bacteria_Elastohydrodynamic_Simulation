@@ -20,9 +20,9 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Last Updated: 2026-03-17 — v3.1: Refactored to thin entry-point + run_simulation();
+%  Last Updated: 2026-03-17 — v3.2: Refactored to thin entry-point + run_simulation();
 %                             External JSON config support; parameter validation;
-%                             auto-confirm headless mode; enhanced progress bars;
+%                             auto-confirm headless mode; progress bars (persistent state);
 %                             output directory overwrite protection; pili struct interface
 
 close all force;
@@ -34,7 +34,7 @@ clear; clc;
 %  Priority: config_file (if non-empty) > inline defaults below.
 %  To use external config: set config_file to a valid JSON path.
 %  To use inline parameters: leave config_file = '' (default).
-config_file = '';    % e.g. 'configs/my_case.json'
+config_file = 'configs/OnePili-P1-L3.json';    % e.g. 'configs/my_case.json'
 
 if ~isempty(config_file) && isfile(config_file)
     %% --- External JSON configuration ---
@@ -42,7 +42,7 @@ if ~isempty(config_file) && isfile(config_file)
     cfg = load_sim_config(config_file);
 else
     %% --- Inline parameter definitions ---
-    cfg.case_name = 'Brown-Test-Soft';
+    cfg.case_name = 'Test';
 
     % -------- Bacterial Body Geometry --------
     cfg.minor_axis = 0.4e-6;              % [m]   Semi-minor axis (body radius)

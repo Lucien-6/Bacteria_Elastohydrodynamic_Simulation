@@ -39,7 +39,8 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-06
 %  Updated: 2026-03-14 — 2x2 panel layout (3D + 2D, XZ + YZ)
-%           2026-03-17 — Configurable grid/quiver/chunk via flow_opts argument
+%           2026-03-17 — Configurable grid/quiver/chunk via flow_opts argument;
+%                        v3.2: progress bar call updated to 4-arg persistent interface
 
 %% ---- Configuration ----
 if nargin < 6 || isempty(flow_opts), flow_opts = struct(); end
@@ -667,7 +668,6 @@ if show_progress
         n_chunks_pili = ceil(N_eval / chunk_size);
     end
     n_chunks_total = n_chunks_body + n_chunks_pili;
-    flow_prev_len  = [0];
     flow_tick      = 0;
     t_flow_bar     = tic;
 end
@@ -697,7 +697,7 @@ for ci = 1:chunk_size:N_eval
 
     if show_progress
         flow_tick = flow_tick + 1;
-        render_progress_bar(progress_tag, flow_tick, n_chunks_total, t_flow_bar, flow_prev_len);
+        render_progress_bar(progress_tag, flow_tick, n_chunks_total, t_flow_bar);
     end
 end
 
@@ -814,7 +814,7 @@ if seg_data.active
 
         if show_progress
             flow_tick = flow_tick + 1;
-            render_progress_bar(progress_tag, flow_tick, n_chunks_total, t_flow_bar, flow_prev_len);
+            render_progress_bar(progress_tag, flow_tick, n_chunks_total, t_flow_bar);
         end
     end
 end

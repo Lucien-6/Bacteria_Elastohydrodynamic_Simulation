@@ -1,23 +1,20 @@
-function render_progress_bar(tag, current, total, tstart, prev_len_container)
+function render_progress_bar(tag, current, total, tstart)
 %RENDER_PROGRESS_BAR  Generic in-place text progress bar for long loops
 %
 %  Description:
 %    Displays a real-time text progress bar in the Command Window, similar
 %    to odetpbar but for arbitrary loops (animation rendering, flow field
 %    evaluation, etc.).  Updates are throttled to avoid excessive I/O.
-%    The progress bar overwrites itself in-place using \b characters.
+%    Uses persistent variables for cross-call state (same pattern as odetpbar).
 %
 %  Syntax:
-%    render_progress_bar(tag, current, total, tstart, prev_len_container)
+%    render_progress_bar(tag, current, total, tstart)
 %
 %  Inputs:
-%    tag                - Prefix label string, e.g. '[ANIM]  ' or '[FLOW]  '
-%    current            - Current step number (1-based)
-%    total              - Total number of steps
-%    tstart             - tic handle for elapsed / ETA computation
-%    prev_len_container - [1 x 1] numeric array (mutable pass-by-reference
-%                         workaround) storing the previous message length.
-%                         Initialise to [0] before the loop.
+%    tag     - Prefix label string, e.g. '[ANIM]  ' or '[FLOW-XZ] '
+%    current - Current step number (1-based)
+%    total   - Total number of steps
+%    tstart  - tic handle for elapsed / ETA computation
 %
 %  Display format:
 %    [ANIM]   [==============................]  46.7%  Elapsed: 12.3 s  ETA: 14.0 s
@@ -28,13 +25,16 @@ function render_progress_bar(tag, current, total, tstart, prev_len_container)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
+%  Updated: 2026-03-17 — v3.2: Fixed pass-by-value bug; replaced prev_len_container
+%                         parameter with persistent prev_msg_len (same pattern as odetpbar)
 
-persistent last_upd_time;
+persistent prev_msg_len last_upd_time;
 
 BAR_W    = 30;
 THROTTLE = 0.25;   % Min seconds between display refreshes
 
 if current == 1
+    prev_msg_len  = 0;
     last_upd_time = -Inf;
 end
 
@@ -57,16 +57,19 @@ else
         tag, bar_str, pct, fmt_dur_rpb(now_s));
 end
 
-if prev_len_container(1) > 0
-    fprintf(repmat('\b', 1, prev_len_container(1)));
+% In-place overwrite via \b (backspace) — same mechanism as odetpbar.
+% State is tracked via persistent prev_msg_len (NOT via a parameter,
+% because MATLAB passes numeric arrays by value, not by reference).
+if prev_msg_len > 0
+    fprintf(repmat('\b', 1, prev_msg_len));
 end
 fprintf('%s', msg);
-prev_len_container(1) = numel(msg);
+prev_msg_len  = numel(msg);
 last_upd_time = now_s;
 
 if current == total
     fprintf('\n');
-    prev_len_container(1) = 0;
+    prev_msg_len = 0;
 end
 
 drawnow;

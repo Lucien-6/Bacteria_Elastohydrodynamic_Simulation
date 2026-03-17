@@ -20,6 +20,7 @@ function validate_simulation_params(cfg)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
+%  Updated: 2026-03-17 — v3.2: Fixed duplicate site detection indexing bug
 
 errs  = {};
 warns = {};
