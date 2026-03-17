@@ -1,4 +1,4 @@
-function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf)
+function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_opts)
 %COMPUTE_PLOT_FLOWFIELD  Compute and plot flow field panels at final state
 %
 %  Description:
@@ -18,6 +18,7 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf)
 %
 %  Syntax:
 %    compute_plot_flowfield(Z_final, params, output_dir, run_id, logf)
+%    compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_opts)
 %
 %  Inputs:
 %    Z_final    - Final state vector from ODE integration
@@ -25,6 +26,11 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf)
 %    output_dir - Output directory path
 %    run_id     - Run identifier string
 %    logf       - Logging function handle (dual_log)
+%    flow_opts  - (Optional) struct with fields:
+%                   .grid_spacing_um  Grid spacing [um]       (default: 0.05)
+%                   .grid_range_um    Grid extent [um]        (default: 10.0)
+%                   .quiver_skip      Quiver subsample        (default: 5)
+%                   .chunk_size       Eval-point chunk size   (default: 2000)
 %
 %  References:
 %    [1] Cortez et al. (2005), Phys. Fluids 17, 031504.
@@ -33,12 +39,14 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf)
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-06
 %  Updated: 2026-03-14 — 2x2 panel layout (3D + 2D, XZ + YZ)
+%           2026-03-17 — Configurable grid/quiver/chunk via flow_opts argument
 
 %% ---- Configuration ----
-grid_spacing_um = 0.05;          % Grid spacing [um]
-grid_range_um   = 10.0;          % Total grid extent [um] (square domain)
-quiver_skip     = 5;             % Subsample interval for quiver arrows
-chunk_size      = 2000;          % Eval-point chunk size (memory management)
+if nargin < 6 || isempty(flow_opts), flow_opts = struct(); end
+grid_spacing_um = get_flow_opt(flow_opts, 'grid_spacing_um', 0.05);
+grid_range_um   = get_flow_opt(flow_opts, 'grid_range_um',   10.0);
+quiver_skip     = get_flow_opt(flow_opts, 'quiver_skip',     5);
+chunk_size      = get_flow_opt(flow_opts, 'chunk_size',      2000);
 
 %% ---- Dimensional conversions ----
 L_0     = params.scales.L_0;
@@ -245,7 +253,7 @@ grid_xz_dl = [XG_xz(:)*um_to_L, YG_xz(:)*um_to_L, ZG_xz(:)*um_to_L];
 
 [Ux_xz, ~, Uz_xz, Umag_xz, mask_xz, dist_xz] = evaluate_plane_velocity( ...
     grid_xz_dl, [Nz_xz, Nx_xz], X_cm, R_body, b_dl, c_dl, ...
-    body_data, seg_data, um_s_factor, chunk_size);
+    body_data, seg_data, um_s_factor, chunk_size, '[FLOW-XZ] ');
 
 logf('[FLOW] XZ velocity range: [%.4e, %.4e] um/s\n', ...
     min(Umag_xz(:), [], 'omitnan'), max(Umag_xz(:), [], 'omitnan'));
@@ -267,7 +275,7 @@ grid_yz_dl = [XG_yz(:)*um_to_L, YG_yz(:)*um_to_L, ZG_yz(:)*um_to_L];
 
 [~, Uy_yz, Uz_yz, Umag_yz, mask_yz, dist_yz] = evaluate_plane_velocity( ...
     grid_yz_dl, [Nz_yz, Ny_yz], X_cm, R_body, b_dl, c_dl, ...
-    body_data, seg_data, um_s_factor, chunk_size);
+    body_data, seg_data, um_s_factor, chunk_size, '[FLOW-YZ] ');
 
 t_flow_elapsed = toc(t_flow_start);
 logf('[FLOW] YZ velocity range: [%.4e, %.4e] um/s  (total compute: %.1f s)\n', ...
@@ -605,28 +613,32 @@ end
 %  =====================================================================
 function [Ux, Uy, Uz, Umag, inside_mask, dist_field] = evaluate_plane_velocity( ...
     grid_pts_dl, grid_size, X_cm, R_body, b_dl, c_dl, ...
-    body_data, seg_data, um_s_factor, chunk_size)
+    body_data, seg_data, um_s_factor, chunk_size, progress_tag)
 %EVALUATE_PLANE_VELOCITY  Stokes velocity on a planar evaluation grid
 %
 %  Performs capsule-interior masking and evaluates the RSM (body) plus
 %  RSS+Rotlet (pili) velocity kernels at all exterior grid points.
 %
 %  Inputs:
-%    grid_pts_dl  [N x 3]  Grid points in dimensionless units
-%    grid_size    [1 x 2]  [Nrows, Ncols] of the grid
-%    X_cm         [3 x 1]  Body CM (dimensionless)
-%    R_body       [3 x 3]  Body rotation matrix
-%    b_dl, c_dl            Capsule SDF parameters (dimensionless)
-%    body_data    struct   .X, .fx, .fy, .fz, .e2
-%    seg_data     struct   Pili segment data (.active, .y0, .y1, ...)
-%    um_s_factor  scalar   Velocity unit conversion factor
-%    chunk_size   scalar   Memory-management chunk size
+%    grid_pts_dl   [N x 3]  Grid points in dimensionless units
+%    grid_size     [1 x 2]  [Nrows, Ncols] of the grid
+%    X_cm          [3 x 1]  Body CM (dimensionless)
+%    R_body        [3 x 3]  Body rotation matrix
+%    b_dl, c_dl             Capsule SDF parameters (dimensionless)
+%    body_data     struct   .X, .fx, .fy, .fz, .e2
+%    seg_data      struct   Pili segment data (.active, .y0, .y1, ...)
+%    um_s_factor   scalar   Velocity unit conversion factor
+%    chunk_size    scalar   Memory-management chunk size
+%    progress_tag  char     (optional) Progress bar label, e.g. '[FLOW-XZ] '
 %
 %  Outputs:
 %    Ux, Uy, Uz  [Nrows x Ncols]  Velocity components [um/s] (NaN inside)
 %    Umag         [Nrows x Ncols]  Velocity magnitude [um/s]
 %    inside_mask  [Nrows x Ncols]  Logical mask (true = interior)
 %    dist_field   [N x 1]          Capsule distance field (dimensionless)
+
+if nargin < 11 || isempty(progress_tag), progress_tag = ''; end
+show_progress = ~isempty(progress_tag);
 
 Nrows = grid_size(1);
 Ncols = grid_size(2);
@@ -646,6 +658,19 @@ X_eval      = grid_pts_dl(outside_idx, :);
 ux_ev = zeros(N_eval, 1);
 uy_ev = zeros(N_eval, 1);
 uz_ev = zeros(N_eval, 1);
+
+% ---- Progress bar setup ----
+if show_progress
+    n_chunks_body = ceil(N_eval / chunk_size);
+    n_chunks_pili = 0;
+    if seg_data.active
+        n_chunks_pili = ceil(N_eval / chunk_size);
+    end
+    n_chunks_total = n_chunks_body + n_chunks_pili;
+    flow_prev_len  = [0];
+    flow_tick      = 0;
+    t_flow_bar     = tic;
+end
 
 % ---- RSM body contribution ----
 X_body = body_data.X;
@@ -669,6 +694,11 @@ for ci = 1:chunk_size:N_eval
     ux_ev(idx) = ux_ev(idx) + H1*bfx + sum(H2 .* rx .* rdotf, 2);
     uy_ev(idx) = uy_ev(idx) + H1*bfy + sum(H2 .* ry .* rdotf, 2);
     uz_ev(idx) = uz_ev(idx) + H1*bfz + sum(H2 .* rz .* rdotf, 2);
+
+    if show_progress
+        flow_tick = flow_tick + 1;
+        render_progress_bar(progress_tag, flow_tick, n_chunks_total, t_flow_bar, flow_prev_len);
+    end
 end
 
 % ---- RSS pili + Rotlet contribution ----
@@ -781,6 +811,11 @@ if seg_data.active
             uy_ev(idx) = uy_ev(idx) + sum(-Rxy.*tx + Ryz.*tz, 2);
             uz_ev(idx) = uz_ev(idx) + sum(-Rxz.*tx - Ryz.*ty, 2);
         end
+
+        if show_progress
+            flow_tick = flow_tick + 1;
+            render_progress_bar(progress_tag, flow_tick, n_chunks_total, t_flow_bar, flow_prev_len);
+        end
     end
 end
 
@@ -819,4 +854,10 @@ while kk < size(C, 2)
     kk = kk + n_pts + 1;
 end
 
+end
+
+
+function v = get_flow_opt(s, fname, default)
+%GET_FLOW_OPT  Read field from options struct with fallback default
+    if isfield(s, fname), v = s.(fname); else, v = default; end
 end

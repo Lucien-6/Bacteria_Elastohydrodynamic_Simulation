@@ -1,0 +1,64 @@
+{
+    "case_name": "Example-Case",
+
+    "body": {
+        "minor_axis": 0.4e-6,
+        "major_axis": 1.25e-6,
+        "N_body": 1000,
+        "alpha_0": 0
+    },
+
+    "pili": [
+        {
+            "type": "linear",
+            "length_um": 3,
+            "deflection_z": 0,
+            "deflection_x": 0,
+            "shape_params": [],
+            "site": 1
+        }
+    ],
+
+    "material": {
+        "E": 1.768e7,
+        "r_pili": 3e-9,
+        "sigma_p": 0.2
+    },
+
+    "fluid": {
+        "mu": 1e-3,
+        "rho_bac": 1180.0,
+        "rho_fluid": 998.232
+    },
+
+    "simulation": {
+        "T_obs": 30.0,
+        "AbsTol": 1e-4,
+        "RelTol": 1e-4,
+        "delta_frac": 20,
+        "tlim": 120,
+        "dt": 0.1,
+        "seg_per_um": 15
+    },
+
+    "brownian": {
+        "enable": true,
+        "temperature": 293.15,
+        "dt_B_ratio": 0.5
+    },
+
+    "output": {
+        "preview_initial": true,
+        "generate_animation": true,
+        "animation_fps": 30,
+        "animation_skip": 1,
+        "auto_confirm": false
+    },
+
+    "flowfield": {
+        "grid_spacing_um": 0.05,
+        "grid_range_um": 10.0,
+        "quiver_skip": 5,
+        "chunk_size": 2000
+    }
+}

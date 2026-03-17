@@ -2,8 +2,8 @@
 
 > **作者**: Lucien (lucien-6@qq.com)  
 > **创建日期**: 2026-02-06  
-> **更新日期**: 2026-03-14  
-> **版本**: 3.0
+> **更新日期**: 2026-03-17  
+> **版本**: 3.1
 
 ---
 
@@ -59,31 +59,61 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 - **时间积分**：MATLAB `ode15s`（隐式刚性求解器）+ 固定 `dt_B` 布朗节点
 - **自适应基底**：逐纤毛 Euler 角基底旋转以规避奇异性
 - **固支边界条件**：双重施加（运动学速率约束 + 几何投影）
-- **输出**：双通道日志、`.mat` 数据、PNG 图像、3D MP4 动画
+- **输出**：双通道日志、`.mat` 数据、PNG 图像、3D MP4 动画、JSON 配置快照
 - **可视化**：参数化光滑胞体表面（半透明，Gouraud 着色）+ 逐纤毛着色折线，含时间梯度
 - **流场可视化**：末状态双平面流场图（XZ + YZ，各含 3D 表面视图与 2D 着色图；速度大小 jet 着色 + 归一化方向箭头；胞体内部遮罩）
 - **动画布局**：三面板 1×3（3D + XZ 投影 + YZ 投影），动态图像尺寸
 - **初始姿态**：用户可配置 `alpha_0`（胞体在 XZ 平面内的倾斜角）
+- **外部配置**：支持 JSON 配置文件，运行时自动保存配置快照至输出目录（可追溯复现）
+- **参数验证**：启动前自动执行参数合理性预检（错误聚合 + 警告分级）
+- **无人值守模式**：`auto_confirm = true` 跳过所有交互对话框，支持批量参数扫描
+- **纤毛结构体接口**：`parse_pili_config` 提供命名字段的用户友好纤毛定义方式
+- **函数化封装**：`run_simulation()` 将全部仿真逻辑封装为可编程调用的函数
+- **进度反馈**：动画渲染和流场计算配备实时文本进度条（含 ETA）
+- **输出目录保护**：检测已有仿真数据时弹出覆盖/重命名/中止对话框
 
 ---
 
 ## 2. 快速开始
 
+### 2.1 方式一：编辑内联参数（默认）
+
 ```matlab
 % 1. 在 MATLAB 中打开 main_coupled_simulation.m
-% 2. 在 PARAMETER SETTINGS 区域调整参数：
+% 2. 在 "Inline parameter definitions" 区域调整 cfg 结构体字段：
 
-case_name  = 'MyCase';        % 输出文件夹名称
-alpha_0    = pi/4;            % 初始胞体倾斜角 [rad]
-N_body     = 1000;            % 胞体表面力点数
-seg_per_um = 15;              % 纤毛每微米段数 (RSS)
+cfg.case_name  = 'MyCase';
+cfg.alpha_0    = pi/4;
+cfg.N_body     = 1000;
 
-% 3. 定义纤毛配置（每列 = 一根纤毛）：
-Pili_Matrix = [1;  3;  0;  0;  NaN; NaN; NaN;  1];
-%              type length deflZ deflX shape(3)  site
+% 3. 定义纤毛配置（命名结构体，推荐）：
+pili_config(1).type      = 'linear';
+pili_config(1).length_um = 3;
+pili_config(1).site      = 1;
+cfg.Pili_Matrix = parse_pili_config(pili_config);
 
 % 4. 运行：
 main_coupled_simulation
+```
+
+### 2.2 方式二：从 JSON 文件加载配置
+
+```matlab
+% 在 main_coupled_simulation.m 中设置：
+config_file = 'configs/my_case.json';    % 指向 JSON 配置文件
+% 运行即可，所有参数从 JSON 加载（参见 config_example.json 模板）
+```
+
+### 2.3 方式三：编程式调用 / 批量扫描
+
+```matlab
+% 直接调用 run_simulation() 函数：
+cfg = load_sim_config('configs/base.json');
+cfg.alpha_0      = pi/4;
+cfg.auto_confirm = true;     % 无人值守模式
+[results, params, output_dir] = run_simulation(cfg);
+
+% 批量扫描示例参见 batch_sweep_example.m
 ```
 
 **输出**（保存至 `output/<case_name>/`）：
@@ -92,6 +122,7 @@ main_coupled_simulation
 output/MyCase/
 ├── simulation_results.mat    % 完整结果 + 参数（v7.3 / HDF5）
 ├── timeseries.csv            % 标量时间序列（10 列，纯文本）
+├── config.json               % 配置快照（可直接复用以复现运行）
 ├── summary_plot.png          % 静态总览图（600 dpi）
 ├── initial_pose.png          % 初始姿态预览图（600 dpi，预览开启时）
 ├── bacteria_3d_motion.mp4    % 3D 运动动画（三面板 1×3，动态尺寸，动画开启时）
@@ -99,29 +130,37 @@ output/MyCase/
 └── simulation.log            % 完整运行日志
 ```
 
-**用户可配置参数**（位于 `main_coupled_simulation.m`）：
+**用户可配置参数**（位于 `main_coupled_simulation.m` 或 JSON 配置文件）：
 
-| 参数                 | 默认值    | 说明                                           |
-| -------------------- | --------- | ---------------------------------------------- |
-| `case_name`          | `'Test'`  | 案例名称（作为输出文件夹名；为空则使用时间戳） |
-| `alpha_0`            | `0`       | XZ 平面内初始胞体倾斜角 [rad]                  |
-| `N_body`             | `1000`    | 胞体表面力点数                                 |
-| `seg_per_um`         | `15`      | 纤毛每微米段数（RSS 精确积分）                 |
-| `Pili_Matrix`        | 单根直线  | 纤毛配置矩阵 [8 × M]                           |
-| `E`                  | `3.67e8`  | 杨氏模量 [Pa]                                  |
-| `r_pili`             | `3e-9`    | 纤毛半径 [m]                                   |
-| `sigma_p`            | `0.2`     | 泊松比                                         |
-| `mu`                 | `1e-3`    | 流体动力粘度 [Pa·s]                            |
-| `rho_bac`            | `1180.0`  | 细菌密度 [kg/m³]                               |
-| `rho_fluid`          | `998.232` | 流体密度 [kg/m³]                               |
-| `T_obs`              | `300.0`   | 总观测时间 [s]                                 |
-| `AbsTol` / `RelTol`  | `1e-4`    | ODE 求解器容差                                 |
-| `delta`              | `pi/20`   | Euler 角奇异性阈值 [rad]                       |
-| `preview_initial`    | `true`    | 积分前显示初始姿态预览                         |
-| `generate_animation` | `true`    | 生成 MP4 动画                                  |
-| `enable_brown`       | `false`   | 启用胞体布朗运动                               |
-| `Temper`             | `293.15`  | 流体绝对温度 [K]（默认 20°C）                  |
-| `dt_B`               | `dt/2`    | 布朗时间步 [s]（`enable_brown = true` 时生效）  |
+| 参数 | 默认值 | 说明 |
+| ---- | ------ | ---- |
+| `case_name` | `'Test'` | 案例名称（作为输出文件夹名；为空则使用时间戳） |
+| `alpha_0` | `0` | XZ 平面内初始胞体倾斜角 [rad] |
+| `N_body` | `1000` | 胞体表面力点数 |
+| `seg_per_um` | `15` | 纤毛每微米段数（RSS 精确积分） |
+| `Pili_Matrix` | 单根直线 | 纤毛配置矩阵 [8 × M]（可用 `parse_pili_config` 从结构体生成） |
+| `E` | `1.768e7` | 杨氏模量 [Pa] |
+| `r_pili` | `3e-9` | 纤毛半径 [m] |
+| `sigma_p` | `0.2` | 泊松比 |
+| `mu` | `1e-3` | 流体动力粘度 [Pa·s] |
+| `rho_bac` | `1180.0` | 细菌密度 [kg/m³] |
+| `rho_fluid` | `998.232` | 流体密度 [kg/m³] |
+| `T_obs` | `30.0` | 总观测时间 [s] |
+| `AbsTol` / `RelTol` | `1e-4` | ODE 求解器容差 |
+| `delta` | `pi/20` | Euler 角奇异性阈值 [rad] |
+| `tlim` | `120` | ODE 段超时限制 [s] |
+| `preview_initial` | `true` | 积分前显示初始姿态预览 |
+| `generate_animation` | `true` | 生成 MP4 动画 |
+| `animation_fps` | `30` | 动画帧率 |
+| `animation_skip` | `1` | 动画帧跳步间隔 |
+| `enable_brown` | `false` | 启用胞体布朗运动 |
+| `Temper` | `293.15` | 流体绝对温度 [K]（默认 20°C） |
+| `dt_B` | `dt/2` | 布朗时间步 [s]（`enable_brown = true` 时生效） |
+| `auto_confirm` | `false` | 无人值守模式（跳过所有交互对话框） |
+| `flowfield_grid_spacing` | `0.05` | 流场网格间距 [μm] |
+| `flowfield_grid_range` | `10.0` | 流场网格范围 [μm] |
+| `flowfield_quiver_skip` | `5` | 流场箭头降采样倍率 |
+| `flowfield_chunk_size` | `2000` | 流场评估分块大小 |
 
 ---
 
@@ -131,13 +170,20 @@ output/MyCase/
 
 ```mermaid
 graph TD
-    A[main_coupled_simulation.m] --> B[init_coupled_params.m]
-    A --> C[init_coupled_state.m]
-    A --> D[ode15s + ode_coupled_rhs.m]
-    A --> E[adaptive_basis_check.m]
-    A --> F[enforce_clamped_geometry.m]
-    A --> V[compute_plot_flowfield.m]
-    A --> G[Output: .mat / .png / .mp4 / .log]
+    ENTRY[main_coupled_simulation.m<br/>Entry Point — cfg 定义] --> PC[parse_pili_config.m]
+    ENTRY --> LC[load_sim_config.m]
+    ENTRY --> RUN[run_simulation.m<br/>Core Engine]
+
+    RUN --> VAL[validate_simulation_params.m]
+    RUN --> SC[save_sim_config.m]
+    RUN --> B[init_coupled_params.m]
+    RUN --> C[init_coupled_state.m]
+    RUN --> D[ode15s + ode_coupled_rhs.m]
+    RUN --> E[adaptive_basis_check.m]
+    RUN --> F[enforce_clamped_geometry.m]
+    RUN --> V[compute_plot_flowfield.m]
+    RUN --> PB[render_progress_bar.m]
+    RUN --> G[Output: .mat / .png / .mp4 / .log / .json]
 
     B --> H[capsule_body_building.m]
     B --> I[pili_building.m]
@@ -156,6 +202,7 @@ graph TD
     V --> L
     V --> D
     V --> M
+    V --> PB
 
     L --> Q[pili_directors.m]
     L --> R[pili_spatial_coords.m]
@@ -165,13 +212,18 @@ graph TD
     E --> Q
     E --> U[pili_euler_angles.m]
     E --> S
+
+    BATCH[batch_sweep_example.m] --> RUN
 ```
 
 ### 3.2 功能分层
 
 | 层级       | 文件                                                                                                 | 职责                                          |
 | ---------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| 主脚本     | `main_coupled_simulation.m`                                                                          | 参数设置、积分循环、布朗积分、后处理、输出    |
+| 入口脚本   | `main_coupled_simulation.m`                                                                          | cfg 结构体定义、配置来源选择、调用 `run_simulation` |
+| 仿真引擎   | `run_simulation.m`                                                                                   | 积分循环、布朗积分、后处理、输出（可编程调用）|
+| 配置管理   | `load_sim_config.m`, `save_sim_config.m`, `parse_pili_config.m`                                      | JSON 读写、纤毛结构体→矩阵转换               |
+| 参数验证   | `validate_simulation_params.m`                                                                       | 启动前参数合理性预检（错误聚合 + 警告分级）   |
 | 初始化     | `init_coupled_params.m`, `init_coupled_state.m`                                                      | 特征尺度、几何构建、布朗参数、初始状态        |
 | 核心计算   | `ode_coupled_rhs.m`                                                                                  | Q、A、B 矩阵组装，线性系统求解               |
 | 几何工具   | `reconstruct_geometry.m`, `pili_*.m`, `quat_*.m`                                                     | 状态 ↔ 空间坐标转换                          |
@@ -182,7 +234,8 @@ graph TD
 | 数值稳定性 | `adaptive_basis_check.m`                                                                             | Euler 角奇异性规避                            |
 | 几何生成   | `capsule_body_building.m`, `pili_building.m`, `pili_type_building.m`, `compute_curvature_binormal.m` | 胞体/纤毛离散化                               |
 | 流场可视化 | `compute_plot_flowfield.m`                                                                           | 末状态双平面流场评估与绘图（2×2 面板）        |
-| 进度显示   | `odetpbar.m`                                                                                         | ODE 段内进度条（ode15s OutputFcn）            |
+| 进度显示   | `odetpbar.m`, `render_progress_bar.m`                                                                | ODE 段内进度条 + 通用文本进度条（动画/流场）  |
+| 批量扫描   | `batch_sweep_example.m`                                                                              | 参数扫描示例脚本（调用 `run_simulation`）     |
 | 工具函数   | `skew_matrix.m`, `pack_state_rates.m`, `unpack_state.m`                                              | 线性代数辅助、状态打包                        |
 
 ---
@@ -571,12 +624,23 @@ $$
 - 非空 `case_name` → `output/<case_name>/`
 - 为空 → `output/run_YYYYMMDD_HHMMSS/`
 
+**覆盖保护**（v3.1）：当输出目录已包含仿真数据文件（`.mat`、`.csv`、`.log`、`.mp4`、`.png`）时，弹出三选一对话框：
+
+| 选项 | 行为 |
+| ---- | ---- |
+| Overwrite | 清空目录内所有文件，重新运行 |
+| Rename | 将原目录追加时间戳重命名（`<name>_bak_YYYYMMDD_HHMMSS`），创建新目录 |
+| Abort | 终止仿真，返回空结果 |
+
+`auto_confirm = true`（无人值守模式）下默认执行 Rename 操作。
+
 ### 17.2 输出文件
 
 | 文件                     | 格式            | 内容                                                  |
 | ------------------------ | --------------- | ----------------------------------------------------- |
 | `simulation_results.mat` | MAT v7.3 (HDF5) | `results` + `params` 完整结构体                                                      |
 | `timeseries.csv`         | 纯文本          | 10 列标量时间序列（见下表）                                                          |
+| `config.json`            | JSON            | 配置参数快照（可直接作为输入复用以精确复现运行）                                     |
 | `summary_plot.png`       | PNG 600 dpi     | 静态总览：CM 轨迹、沉降速度、倾斜角、快照三视图                                      |
 | `initial_pose.png`       | PNG 600 dpi     | 初始姿态预览三视图（`preview_initial = true` 时生成）                                |
 | `bacteria_3d_motion.mp4` | MPEG-4 质量 100 | 3D 动画，三面板 1×3 布局（3D + XZ + YZ 投影），动态图像尺寸，含光滑胞体表面 + 着色纤毛 + CM 轨迹 |
@@ -653,12 +717,16 @@ $$
 
 ### 18.3 配置参数
 
-| 参数              | 默认值 | 说明                                |
-| ----------------- | ------ | ----------------------------------- |
-| `grid_spacing_um` | 0.05   | 网格间距 [μm]                       |
-| `grid_range_um`   | 10     | 网格总范围 [μm]（10×10）            |
-| `quiver_skip`     | 5      | 箭头降采样倍率（每 5 个点一箭）     |
-| `chunk_size`      | 2000   | 核函数评估分块大小                  |
+流场参数已提升至主脚本 `cfg` 结构体，通过 `flow_opts` 传入 `compute_plot_flowfield`。缺省值在函数内部通过 `get_flow_opt` 回退提供：
+
+| cfg 字段 | flow_opts 字段 | 默认值 | 说明 |
+| -------- | -------------- | ------ | ---- |
+| `flowfield_grid_spacing` | `grid_spacing_um` | 0.05 | 网格间距 [μm] |
+| `flowfield_grid_range` | `grid_range_um` | 10 | 网格总范围 [μm]（10×10） |
+| `flowfield_quiver_skip` | `quiver_skip` | 5 | 箭头降采样倍率（每 5 个点一箭） |
+| `flowfield_chunk_size` | `chunk_size` | 2000 | 核函数评估分块大小 |
+
+流场计算过程现配备 `render_progress_bar` 实时进度条（含 ETA），分别显示 `[FLOW-XZ]` 和 `[FLOW-YZ]` 标签。
 
 ---
 
@@ -667,7 +735,13 @@ $$
 ```
 Coupled_Body_Pili/
 │
-├── main_coupled_simulation.m           % 入口：参数设置、ODE 循环、布朗积分、输出
+├── main_coupled_simulation.m           % 入口脚本：cfg 结构体定义 + 调用 run_simulation
+├── run_simulation.m                    % 仿真引擎：积分循环、布朗积分、后处理、输出
+│
+├── load_sim_config.m                   % JSON 配置文件 → cfg 结构体
+├── save_sim_config.m                   % cfg 结构体 → JSON 配置快照
+├── parse_pili_config.m                 % 纤毛命名结构体 → Pili_Matrix [8×M]
+├── validate_simulation_params.m        % 参数合理性预检（错误聚合 + 警告分级）
 │
 ├── init_coupled_params.m               % 参数初始化（无量纲化、几何、布朗参数）
 ├── init_coupled_state.m                % 初始状态向量 Z0
@@ -701,13 +775,17 @@ Coupled_Body_Pili/
 ├── compute_plot_flowfield.m            % 末状态双平面流场评估与绘图（2×2 面板）
 │
 ├── odetpbar.m                          % ODE 段内进度条（ode15s OutputFcn）
+├── render_progress_bar.m               % 通用文本进度条（动画渲染/流场计算）
+│
+├── batch_sweep_example.m               % 参数扫描示例脚本
+├── config_example.json                 % JSON 配置文件模板
 │
 ├── README.md                           % 本文件
 ├── Brownian_Implementation_Plan.md     % 布朗动力学实施方案文档
 └── Cortez - 2018 - Regularized stokeslet segments.pdf
 ```
 
-总计：**25 个 MATLAB 源文件**（无冗余代码，无未使用函数）。
+总计：**32 个 MATLAB 源文件 + 1 个 JSON 模板**（无冗余代码，无未使用函数）。
 
 ---
 
@@ -857,6 +935,14 @@ Coupled_Body_Pili/
 | 37  | 流场网格间距由 0.1 μm 细化至 0.05 μm（v3.0）：分辨率翻倍，流场细节更清晰 | 2026-03-14 |
 | 38  | 动画三面板 1×3 布局（v3.0）：3D 视图（左）+ XZ 投影（中）+ YZ 投影（右），每帧三个面板同步更新；XZ/YZ 面板采用正射影投影（`Projection = orthographic`），手动补充封闭轴框线 | 2026-03-14 |
 | 39  | 动画图像尺寸自适应（v3.0）：固定高度 1200 px，宽度按正射影投影数据边界框宽高比动态计算（最小 1800 px），适配 1×3 三面板布局 | 2026-03-14 |
+| 40  | 流场参数提升至主脚本（v3.1）：`grid_spacing_um`、`grid_range_um`、`quiver_skip`、`chunk_size` 从 `compute_plot_flowfield` 硬编码提升至 `cfg` 结构体，通过 `flow_opts` 传入，函数内通过 `get_flow_opt` 回退默认值 | 2026-03-17 |
+| 41  | 纤毛结构体接口（v3.1）：新增 `parse_pili_config.m`，支持以命名字段（`type`, `length_um`, `site` 等）定义纤毛配置，自动转换为 `Pili_Matrix [8×M]`；保留原始矩阵格式向后兼容 | 2026-03-17 |
+| 42  | 无人值守模式（v3.1）：新增 `auto_confirm` 参数（默认 `false`），设为 `true` 时跳过初始姿态预览确认和输出目录覆盖对话框，支持无交互批量运行 | 2026-03-17 |
+| 43  | 参数合理性预检（v3.1）：新增 `validate_simulation_params.m`，在仿真启动前对所有用户参数执行合理性检查；错误聚合（一次性报告全部违规）+ 警告分级（次优但可接受的参数值） | 2026-03-17 |
+| 44  | 输出目录覆盖保护（v3.1）：检测到输出目录已包含仿真数据文件时，弹出三选一对话框（覆盖/重命名/中止）；`auto_confirm` 模式下默认重命名（追加时间戳） | 2026-03-17 |
+| 45  | 通用文本进度条（v3.1）：新增 `render_progress_bar.m`，为动画渲染（`[ANIM]`）和流场计算（`[FLOW-XZ]`/`[FLOW-YZ]`）提供带 ETA 的实时进度反馈；0.25s 刷新节流，`\b` 原地更新 | 2026-03-17 |
+| 46  | 外部 JSON 配置系统（v3.1）：新增 `load_sim_config.m` / `save_sim_config.m`，支持从 JSON 文件加载参数 + 运行时自动保存 `config.json` 至输出目录；配置快照可直接复用以精确复现运行 | 2026-03-17 |
+| 47  | 函数化封装 + 批量扫描（v3.1）：核心仿真逻辑封装为 `run_simulation(cfg)` 函数，支持编程式调用；`main_coupled_simulation.m` 简化为入口脚本；新增 `batch_sweep_example.m` 参数扫描示例 | 2026-03-17 |
 
 ### 22.4 质量评估
 
@@ -868,11 +954,13 @@ Coupled_Body_Pili/
 | 胞体—纤毛耦合 | ★★★★★ | Q 根部耦合、B 力/力矩平衡、双重固支边界条件                                     |
 | 多纤毛支持    | ★★★★★ | 模块级量纲一致性完整验证                                                        |
 | 数值稳定性    | ★★★★★ | LU 求解、四元数归一化、几何投影、自适应基底                                     |
-| 代码质量      | ★★★★★ | 统一 `snake_case`、完整文件头、无冗余代码                                       |
+| 代码质量      | ★★★★★ | 统一 `snake_case`、完整文件头、无冗余代码；函数化封装可编程调用                 |
 | 布朗动力学    | ★★★★★ | 分裂步解耦、固定 dt_B 节点、FDT Cholesky 扩散、四元数旋转扰动                  |
-| 输出系统      | ★★★★★ | 双通道日志、`.mat` 数据、CSV、PNG（总览图 + 初始姿态 + 流场面板）、MP4          |
+| 输出系统      | ★★★★★ | 双通道日志、`.mat` 数据、CSV、JSON 配置快照、PNG、MP4                           |
 | 可视化        | ★★★★★ | 期刊级排版、光滑胞体表面、逐纤毛着色、时间梯度、双平面 2×2 流场面板            |
 | 性能          | ★★★★★ | 向量化 RSS 组装；约 15 段/μm 即可满足精度（逐点 RSM 需约 150）                  |
+| 用户交互      | ★★★★★ | 参数预检、输出目录保护、进度条（含 ETA）、无人值守模式、JSON 配置可追溯         |
+| 可扩展性      | ★★★★★ | `run_simulation()` 函数化封装，支持批量扫描、外部脚本调用和 JSON 配置驱动       |
 
 ---
 
