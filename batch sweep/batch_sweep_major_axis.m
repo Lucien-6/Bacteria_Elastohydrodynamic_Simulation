@@ -1,0 +1,111 @@
+%% batch_sweep_major_axis.m
+%  Automated Parameter Sweep: Bacterial Body Major Axis Length
+%
+%  Description:
+%    Sweeps the semi-major axis of the bacterial ellipsoidal body while
+%    keeping all other parameters fixed.  The aspect ratio changes with
+%    each run because minor_axis is held constant.  Results are compared
+%    via the steady-state sinking speed V_sink.
+%
+%    Key points:
+%      - auto_confirm = true  to suppress all interactive dialogs
+%      - preview_initial = false  to skip the pose preview figure
+%      - generate_animation = false  to reduce per-run wall time
+%      - Each run produces its own output directory with full logs and data
+%
+%  Author:  Lucien (lucien-6@qq.com)
+%  Created: 2026-03-18
+
+close all force;
+clear; clc;
+
+%% ---- Define base configuration ----
+cfg_base.case_name  = '';           % Will be auto-set per run below
+cfg_base.minor_axis = 0.4e-6;
+cfg_base.major_axis = 1.25e-6;     % Overridden in the loop
+cfg_base.N_body     = 1000;
+cfg_base.alpha_0    = 0;
+
+pili_cfg(1).type      = 'linear';
+pili_cfg(1).length_um = 3;
+pili_cfg(1).site      = 1;
+cfg_base.Pili_Matrix  = parse_pili_config(pili_cfg);
+cfg_base.seg_per_um   = 15;
+
+cfg_base.E       = 1.768e7;
+cfg_base.r_pili  = 3e-9;
+cfg_base.sigma_p = 0.2;
+
+cfg_base.mu        = 1e-3;
+cfg_base.rho_bac   = 1180.0;
+cfg_base.rho_fluid = 998.232;
+
+cfg_base.T_obs  = 30.0;
+cfg_base.AbsTol = 1e-4;
+cfg_base.RelTol = 1e-4;
+cfg_base.delta  = pi / 20;
+cfg_base.tlim   = 120;
+cfg_base.dt     = 0.1;
+
+cfg_base.enable_brown = true;
+cfg_base.Temper       = 293.15;
+cfg_base.dt_B         = cfg_base.dt / 2;
+
+cfg_base.preview_initial    = false;    % No interactive preview
+cfg_base.generate_animation = false;    % Skip animation for speed
+cfg_base.animation_fps      = 30;
+cfg_base.animation_skip     = 1;
+
+cfg_base.auto_confirm = true;           % Headless mode
+
+cfg_base.flowfield_grid_spacing = 0.05;
+cfg_base.flowfield_grid_range   = 10.0;
+cfg_base.flowfield_quiver_skip  = 5;
+cfg_base.flowfield_chunk_size   = 2000;
+
+%% ---- Define sweep values ----
+% Major axis values in metres; minor_axis fixed at 0.4 um
+major_values = [0.75, 1.00, 1.25, 1.50, 1.75, 2.00] * 1e-6;
+n_runs       = numel(major_values);
+
+sweep_results = cell(n_runs, 1);
+sweep_dirs    = cell(n_runs, 1);
+
+fprintf('========================================\n');
+fprintf('  Parameter Sweep: major_axis\n');
+fprintf('  %d runs scheduled\n', n_runs);
+fprintf('========================================\n\n');
+
+%% ---- Execute sweep ----
+t_sweep_start = tic;
+
+for ii = 1:n_runs
+    cfg_i = cfg_base;
+    cfg_i.major_axis = major_values(ii);
+    cfg_i.case_name  = sprintf('sweep_major_%04.0f_nm', major_values(ii) * 1e9);
+
+    fprintf('\n--- Run %d/%d: major_axis = %.2f um ---\n', ...
+        ii, n_runs, major_values(ii) * 1e6);
+
+    [res_i, ~, dir_i] = run_simulation(cfg_i);
+    sweep_results{ii} = res_i;
+    sweep_dirs{ii}    = dir_i;
+end
+
+t_sweep_total = toc(t_sweep_start);
+
+%% ---- Summary ----
+fprintf('\n========================================\n');
+fprintf('  Sweep Complete  (%d runs, %.1f s total)\n', n_runs, t_sweep_total);
+fprintf('========================================\n');
+
+for ii = 1:n_runs
+    if ~isempty(sweep_results{ii})
+        Vs = sweep_results{ii}.V_sink;
+        fprintf('  major_axis = %5.2f um  |  Steady V_sink = %.4e um/s\n', ...
+            major_values(ii) * 1e6, mean(Vs(round(0.9 * numel(Vs)):end)));
+    else
+        fprintf('  major_axis = %5.2f um  |  ABORTED\n', major_values(ii) * 1e6);
+    end
+end
+fprintf('========================================\n');

@@ -2,8 +2,8 @@
 
 > **作者**: Lucien (lucien-6@qq.com)  
 > **创建日期**: 2026-02-06  
-> **更新日期**: 2026-03-17  
-> **版本**: 3.2
+> **更新日期**: 2026-03-18  
+> **版本**: 3.3
 
 ---
 
@@ -71,6 +71,8 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 - **函数化封装**：`run_simulation()` 将全部仿真逻辑封装为可编程调用的函数
 - **进度反馈**：动画渲染和流场计算配备实时文本进度条（含 ETA）
 - **输出目录保护**：检测已有仿真数据时弹出覆盖/重命名/中止对话框
+- **参数扫描套件**（`batch sweep/`）：6 个独立脚本分别扫描初始倾斜角、胞体长轴、纤毛长度、纤毛附着点位、纤毛数量、纤毛杨氏模量，均采用 headless 无头模式批量调用 `run_simulation()`
+- **JSON 批量运行器**：`batch_run_from_json.m` 自动检索用户指定文件夹内全部 JSON 配置文件并依次执行，单工况失败自动跳过继续，运行结束输出对齐汇总表及批次日志
 
 ---
 
@@ -113,7 +115,7 @@ cfg.alpha_0      = pi/4;
 cfg.auto_confirm = true;     % 无人值守模式
 [results, params, output_dir] = run_simulation(cfg);
 
-% 批量扫描示例参见 batch_sweep_example.m
+% 参数扫描脚本参见 batch sweep/ 文件夹（6 个扫描脚本 + 1 个 JSON 批量运行器）
 ```
 
 **输出**（保存至 `output/<case_name>/`）：
@@ -213,7 +215,7 @@ graph TD
     E --> U[pili_euler_angles.m]
     E --> S
 
-    BATCH[batch_sweep_example.m] --> RUN
+    BATCH["batch sweep/ 文件夹<br/>batch_sweep_alpha / major_axis / pili_length<br/>pili_site / pili_count / pili_E<br/>batch_run_from_json"] --> RUN
 ```
 
 ### 3.2 功能分层
@@ -235,7 +237,7 @@ graph TD
 | 几何生成   | `capsule_body_building.m`, `pili_building.m`, `pili_type_building.m`, `compute_curvature_binormal.m` | 胞体/纤毛离散化                               |
 | 流场可视化 | `compute_plot_flowfield.m`                                                                           | 末状态双平面流场评估与绘图（2×2 面板）        |
 | 进度显示   | `odetpbar.m`, `render_progress_bar.m`                                                                | ODE 段内进度条 + 通用文本进度条（动画/流场）  |
-| 批量扫描   | `batch_sweep_example.m`                                                                              | 参数扫描示例脚本（调用 `run_simulation`）     |
+| 批量扫描   | `batch sweep/batch_sweep_alpha.m`, `batch_sweep_major_axis.m`, `batch_sweep_pili_length.m`, `batch_sweep_pili_site.m`, `batch_sweep_pili_count.m`, `batch_sweep_pili_E.m`, `batch_run_from_json.m` | 6 个独立参数扫描脚本（初始角/胞体长轴/纤毛长度/附着点位/数量/杨氏模量）+ JSON 批量运行器 |
 | 工具函数   | `skew_matrix.m`, `pack_state_rates.m`, `unpack_state.m`                                              | 线性代数辅助、状态打包                        |
 
 ---
@@ -777,7 +779,15 @@ Coupled_Body_Pili/
 ├── odetpbar.m                          % ODE 段内进度条（ode15s OutputFcn）
 ├── render_progress_bar.m               % 通用文本进度条（动画渲染/流场计算）
 │
-├── batch_sweep_example.m               % 参数扫描示例脚本
+├── batch sweep/                        % 自动化参数扫描与批量运行脚本集
+│   ├── batch_sweep_alpha.m             % 扫描初始倾斜角 alpha_0（0°~90°，7 工况）
+│   ├── batch_sweep_major_axis.m        % 扫描胞体长半轴（0.75~2.00 μm，6 工况）
+│   ├── batch_sweep_pili_length.m       % 扫描纤毛长度（1~6 μm，6 工况）
+│   ├── batch_sweep_pili_site.m         % 扫描纤毛附着点位（1~14，14 工况）
+│   ├── batch_sweep_pili_count.m        % 扫描纤毛数量（1~6 根，6 工况）
+│   ├── batch_sweep_pili_E.m            % 扫描纤毛杨氏模量（1e6~1e9 Pa，5 工况）
+│   └── batch_run_from_json.m           % JSON 批量运行器：检索文件夹→依次执行→失败跳过
+│
 ├── config_example.json                 % JSON 配置文件模板
 │
 ├── README.md                           % 本文件
@@ -785,7 +795,7 @@ Coupled_Body_Pili/
 └── Cortez - 2018 - Regularized stokeslet segments.pdf
 ```
 
-总计：**32 个 MATLAB 源文件 + 1 个 JSON 模板**（无冗余代码，无未使用函数）。
+总计：**38 个 MATLAB 源文件 + 1 个 JSON 模板**（31 个核心模块 + 7 个批量扫描脚本，无冗余代码，无未使用函数）。
 
 ---
 
@@ -948,6 +958,9 @@ Coupled_Body_Pili/
 | 45  | 通用文本进度条（v3.1→v3.2 修复）：新增 `render_progress_bar.m`，为动画渲染（`[ANIM]`）和流场计算（`[FLOW-XZ]`/`[FLOW-YZ]`）提供带 ETA 的实时进度反馈；0.25s 刷新节流，`\b` 原地更新；v3.2 改用 `persistent` 变量管理状态（解决值传递导致无法原地刷新的问题） | 2026-03-17 |
 | 46  | 外部 JSON 配置系统（v3.1）：新增 `load_sim_config.m` / `save_sim_config.m`，支持从 JSON 文件加载参数 + 运行时自动保存 `config.json` 至输出目录；配置快照可直接复用以精确复现运行 | 2026-03-17 |
 | 47  | 函数化封装 + 批量扫描（v3.1）：核心仿真逻辑封装为 `run_simulation(cfg)` 函数，支持编程式调用；`main_coupled_simulation.m` 简化为入口脚本；新增 `batch_sweep_example.m` 参数扫描示例 | 2026-03-17 |
+| 48  | 参数扫描套件 `batch sweep/`（v3.3）：`batch_sweep_example.m` 重命名为 `batch_sweep_alpha.m` 并与 5 个新脚本统一归入 `batch sweep/` 子文件夹；各脚本分别扫描：初始倾斜角 `alpha_0`（7 工况）、胞体长半轴 `major_axis`（6 工况）、纤毛长度 `length_um`（6 工况）、纤毛附着点位 `site`（14 工况）、纤毛数量（6 工况）、纤毛杨氏模量 `E`（5 工况）；全部采用 headless 无头模式；代码审查修复杨氏模量脚本注释错误及 case_name 小数点问题（`1p77e07` 格式） | 2026-03-18 |
+| 49  | JSON 批量运行器 `batch_run_from_json.m`（v3.3）：`uigetdir` 交互选择文件夹（支持硬编码路径旁路）→ 自动发现并字母序排列全部 `*.json` → `load_sim_config` 加载并强制 headless 覆盖 → `try-catch` 捕获异常跳过失败工况继续执行 → 运行结束输出对齐汇总表（状态 / 稳态 V_sink / 耗时 / 错误原因）→ 自动生成 `batch_summary_*.log`；ETA 基于历史均值动态估算；使用 `mean(...,'omitnan')` 消除 Statistics Toolbox 依赖 | 2026-03-18 |
+| 50  | 批量脚本代码审查修复（v3.3）：修复 `batch_run_from_json.m` 的死代码（`cfg.generate_animation` 自赋值）与冗余赋值（`blog_fid=-1` 在 `fopen` 已返回 -1 后的重复写入） | 2026-03-18 |
 
 ### 22.4 质量评估
 
@@ -965,7 +978,7 @@ Coupled_Body_Pili/
 | 可视化        | ★★★★★ | 期刊级排版、光滑胞体表面、逐纤毛着色、时间梯度、双平面 2×2 流场面板            |
 | 性能          | ★★★★★ | 向量化 RSS 组装；约 15 段/μm 即可满足精度（逐点 RSM 需约 150）                  |
 | 用户交互      | ★★★★★ | 参数预检、输出目录保护、进度条（含 ETA）、无人值守模式、JSON 配置可追溯         |
-| 可扩展性      | ★★★★★ | `run_simulation()` 函数化封装，支持批量扫描、外部脚本调用和 JSON 配置驱动       |
+| 可扩展性      | ★★★★★ | `run_simulation()` 函数化封装，支持批量扫描、外部脚本调用和 JSON 配置驱动；`batch sweep/` 套件提供 6 维参数扫描（50 工况）+ JSON 批量运行器 |
 
 ---
 
