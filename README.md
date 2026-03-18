@@ -30,7 +30,7 @@
 19. [文件结构](#19-文件结构)
 20. [与 Walker (2020) 的标度一致性](#20-与-walker-2020-的标度一致性)
 21. [多纤毛支持](#21-多纤毛支持)
-22. [验证与质量总结](#22-验证与质量总结)
+22. [验证总结](#22-验证总结)
 23. [参考文献](#23-参考文献)
 24. [附录 A：关键标度推导](#附录-a关键标度推导)
 25. [许可证](#许可证)
@@ -137,6 +137,8 @@ output/MyCase/
 | 参数 | 默认值 | 说明 |
 | ---- | ------ | ---- |
 | `case_name` | `'Test'` | 案例名称（作为输出文件夹名；为空则使用时间戳） |
+| `minor_axis` | `0.4e-6` | 胞体椭球短半轴（体宽半径）[m] |
+| `major_axis` | `1.25e-6` | 胞体椭球长半轴（体长半径）[m] |
 | `alpha_0` | `0` | XZ 平面内初始胞体倾斜角 [rad] |
 | `N_body` | `1000` | 胞体表面力点数 |
 | `seg_per_um` | `15` | 纤毛每微米段数（RSS 精确积分） |
@@ -237,7 +239,7 @@ graph TD
 | 几何生成   | `capsule_body_building.m`, `pili_building.m`, `pili_type_building.m`, `compute_curvature_binormal.m` | 胞体/纤毛离散化                               |
 | 流场可视化 | `compute_plot_flowfield.m`                                                                           | 末状态双平面流场评估与绘图（2×2 面板）        |
 | 进度显示   | `odetpbar.m`, `render_progress_bar.m`                                                                | ODE 段内进度条 + 通用文本进度条（动画/流场）  |
-| 批量扫描   | `batch sweep/batch_sweep_alpha.m`, `batch_sweep_major_axis.m`, `batch_sweep_pili_length.m`, `batch_sweep_pili_site.m`, `batch_sweep_pili_count.m`, `batch_sweep_pili_E.m`, `batch_run_from_json.m` | 6 个独立参数扫描脚本（初始角/胞体长轴/纤毛长度/附着点位/数量/杨氏模量）+ JSON 批量运行器 |
+| 批量扫描   | `batch sweep/batch_sweep_alpha.m`, `batch sweep/batch_sweep_major_axis.m`, `batch sweep/batch_sweep_pili_length.m`, `batch sweep/batch_sweep_pili_site.m`, `batch sweep/batch_sweep_pili_count.m`, `batch sweep/batch_sweep_pili_E.m`, `batch sweep/batch_run_from_json.m` | 6 个独立参数扫描脚本（初始角/胞体长轴/纤毛长度/附着点位/数量/杨氏模量）+ JSON 批量运行器 |
 | 工具函数   | `skew_matrix.m`, `pack_state_rates.m`, `unpack_state.m`                                              | 线性代数辅助、状态打包                        |
 
 ---
@@ -259,7 +261,7 @@ graph TD
 | 胞体形状、表面点、附着位点 | 母项目 `Stokes Brown Flexible` | `capsule_body_building`, `pili_building`             |
 | 纤毛弹性杆模型             | Walker (2020)                  | Kirchhoff 弹性杆 + Euler 角参数化                    |
 | 流体力学（平移）           | Cortez (2005, 2018)            | 胞体：RSM 点力；纤毛：RSS 精确线段积分 + Rotlet 线段 |
-| 流体力学（扭转）           | Walker (2020)                  | 阻力力理论 (RFT)                                     |
+| 流体力学（扭转）           | Walker (2020)                  | 阻力理论 (RFT)                                     |
 | 胞体姿态                   | 本项目                         | 四元数参数化（规避万向锁）                           |
 | 时间积分                   | Walker (2020)                  | MATLAB `ode15s` 隐式求解器                           |
 
@@ -387,7 +389,7 @@ $$
 
 ### 8.4 Rotlet 线段迁移率
 
-捕获纤毛上扭矩密度到所有评估点平移速度的流体力学耦合（Cortez 2018, Sec. 2.5）：
+捕获纤毛上扭矩密度到所有评估点平移速度的流体力学耦合（Cortez 2018, Sec. 2.4）：
 
 $$
 \mathbf{u}(\hat{\mathbf{x}}) = -L\left[c_a\,[\mathbf{x}_0]_\times + c_b\,[\mathbf{v}]_\times\right]\boldsymbol{\tau}
@@ -425,7 +427,7 @@ $\mathbf{A}_{\text{trans}} = M_{\text{weighted}}^{-1}$ — 通过 LU 分解计�
 
 ### 8.7 扭转阻力 (RFT)
 
-逐纤毛扭转阻力（阻力力理论）：
+逐纤毛扭转阻力（阻力理论）：
 
 $$
 \tilde{A}_k = \frac{\ell_k\,\varepsilon_k^2}{2}\,\hat{A}_k, \quad [\hat{A}_k]_{3(j-1)+1:3j, \, j} = \mathbf{d}_3^{(j)}
@@ -500,10 +502,10 @@ $$
 1. **速率层面**（在 `ode_coupled_rhs.m` 步骤 7 中）：将每根纤毛力矩平衡块的前 3 行替换为：
 
 $$
-\dot{\theta}_1 = J_e \cdot \boldsymbol{\Omega}, \quad \dot{\phi}_1 = J_e \cdot \boldsymbol{\Omega}, \quad \dot{\psi}_1 = J_e \cdot \boldsymbol{\Omega}
+[\dot{\theta}_1,\; \dot{\phi}_1,\; \dot{\psi}_1]^T = J_e \cdot \boldsymbol{\Omega}
 $$
 
-其中 $J_e$ 为自适应基底下 Euler 角到角速度的雅可比矩阵。
+其中 $J_e \in \mathbb{R}^{3 \times 3}$ 为自适应基底下 Euler 角速率到角速度的雅可比矩阵，将胞体角速度 $\boldsymbol{\Omega}$ 映射为根节点的三个 Euler 角速率。
 
 2. **位置层面**（在 `enforce_clamped_geometry.m` 中）：每个 ODE 步后，几何投影修正纤毛—胞体连接处的约束漂移。
 
@@ -631,7 +633,7 @@ $$
 | 选项 | 行为 |
 | ---- | ---- |
 | Overwrite | 清空目录内所有文件，重新运行 |
-| Rename | 将原目录追加时间戳重命名（`<name>_bak_YYYYMMDD_HHMMSS`），创建新目录 |
+| Rename | 为当前运行追加时间戳创建新目录（`<name>_YYYYMMDD_HHmmss`），原目录保留不变 |
 | Abort | 终止仿真，返回空结果 |
 
 `auto_confirm = true`（无人值守模式）下默认执行 Rename 操作。
@@ -788,6 +790,9 @@ Coupled_Body_Pili/
 │   ├── batch_sweep_pili_E.m            % 扫描纤毛杨氏模量（1e6~1e9 Pa，5 工况）
 │   └── batch_run_from_json.m           % JSON 批量运行器：检索文件夹→依次执行→失败跳过
 │
+├── configs/                            % JSON 配置文件目录
+│   └── OnePili-P1-L3.json             % 单根纤毛、P1 附着点、3 μm 长度的参考工况配置
+│
 ├── config_example.json                 % JSON 配置文件模板
 │
 ├── README.md                           % 本文件
@@ -795,7 +800,7 @@ Coupled_Body_Pili/
 └── Cortez - 2018 - Regularized stokeslet segments.pdf
 ```
 
-总计：**38 个 MATLAB 源文件 + 1 个 JSON 模板**（31 个核心模块 + 7 个批量扫描脚本，无冗余代码，无未使用函数）。
+总计：**38 个 MATLAB 源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置**（31 个核心模块 + 7 个批量扫描脚本，无冗余代码，无未使用函数）。
 
 ---
 
@@ -848,7 +853,7 @@ Coupled_Body_Pili/
 
 ---
 
-## 22. 验证与质量总结
+## 22. 验证总结
 
 ### 22.1 已验证项目 (30+)
 
@@ -961,24 +966,6 @@ Coupled_Body_Pili/
 | 48  | 参数扫描套件 `batch sweep/`（v3.3）：`batch_sweep_example.m` 重命名为 `batch_sweep_alpha.m` 并与 5 个新脚本统一归入 `batch sweep/` 子文件夹；各脚本分别扫描：初始倾斜角 `alpha_0`（7 工况）、胞体长半轴 `major_axis`（6 工况）、纤毛长度 `length_um`（6 工况）、纤毛附着点位 `site`（14 工况）、纤毛数量（6 工况）、纤毛杨氏模量 `E`（5 工况）；全部采用 headless 无头模式；代码审查修复杨氏模量脚本注释错误及 case_name 小数点问题（`1p77e07` 格式） | 2026-03-18 |
 | 49  | JSON 批量运行器 `batch_run_from_json.m`（v3.3）：`uigetdir` 交互选择文件夹（支持硬编码路径旁路）→ 自动发现并字母序排列全部 `*.json` → `load_sim_config` 加载并强制 headless 覆盖 → `try-catch` 捕获异常跳过失败工况继续执行 → 运行结束输出对齐汇总表（状态 / 稳态 V_sink / 耗时 / 错误原因）→ 自动生成 `batch_summary_*.log`；ETA 基于历史均值动态估算；使用 `mean(...,'omitnan')` 消除 Statistics Toolbox 依赖 | 2026-03-18 |
 | 50  | 批量脚本代码审查修复（v3.3）：修复 `batch_run_from_json.m` 的死代码（`cfg.generate_animation` 自赋值）与冗余赋值（`blog_fid=-1` 在 `fopen` 已返回 -1 后的重复写入） | 2026-03-18 |
-
-### 22.4 质量评估
-
-| 维度          | 评级  | 备注                                                                            |
-| ------------- | ----- | ------------------------------------------------------------------------------- |
-| 理论正确性    | ★★★★★ | 核心理论已验证；所有缺陷已修复；RSM 正则化参数遵循 Cortez (2005) 最优比值      |
-| 实现正确性    | ★★★★★ | 所有源文件逐行对照 Walker 审查                                                  |
-| 无量纲化      | ★★★★★ | 自洽尺度，显式量纲输出                                                          |
-| 胞体—纤毛耦合 | ★★★★★ | Q 根部耦合、B 力/力矩平衡、双重固支边界条件                                     |
-| 多纤毛支持    | ★★★★★ | 模块级量纲一致性完整验证                                                        |
-| 数值稳定性    | ★★★★★ | LU 求解、四元数归一化、几何投影、自适应基底                                     |
-| 代码质量      | ★★★★★ | 统一 `snake_case`、完整文件头、无冗余代码；函数化封装可编程调用                 |
-| 布朗动力学    | ★★★★★ | 分裂步解耦、固定 dt_B 节点、FDT Cholesky 扩散、四元数旋转扰动                  |
-| 输出系统      | ★★★★★ | 双通道日志、`.mat` 数据、CSV、JSON 配置快照、PNG、MP4                           |
-| 可视化        | ★★★★★ | 期刊级排版、光滑胞体表面、逐纤毛着色、时间梯度、双平面 2×2 流场面板            |
-| 性能          | ★★★★★ | 向量化 RSS 组装；约 15 段/μm 即可满足精度（逐点 RSM 需约 150）                  |
-| 用户交互      | ★★★★★ | 参数预检、输出目录保护、进度条（含 ETA）、无人值守模式、JSON 配置可追溯         |
-| 可扩展性      | ★★★★★ | `run_simulation()` 函数化封装，支持批量扫描、外部脚本调用和 JSON 配置驱动；`batch sweep/` 套件提供 6 维参数扫描（50 工况）+ JSON 批量运行器 |
 
 ---
 

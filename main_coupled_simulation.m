@@ -8,7 +8,7 @@
 %
 %    To run with inline parameters:  edit the defaults below, then Run.
 %    To run from a JSON config file: set config_file to the path.
-%    To automate parameter sweeps:   see batch_sweep_example.m.
+%    To automate parameter sweeps:   see batch sweep/ folder (batch_sweep_alpha.m etc.).
 %
 %  Output unit convention:
 %    Time [s] | Length [um] | Velocity [um/s] | Force [pN] | Angle [rad]
