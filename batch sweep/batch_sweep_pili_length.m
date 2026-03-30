@@ -1,13 +1,15 @@
 %% batch_sweep_pili_length.m
-%  Automated Parameter Sweep: Pilus Length
+%  Automated Parameter Sweep: Pilus Length (single or multiple pili)
 %
 %  Description:
-%    Sweeps the contour length of a single linear pilus while keeping all
-%    other parameters fixed.  The number of discrete segments scales
-%    automatically with length via seg_per_um.  Results are compared via
-%    the steady-state sinking speed V_sink.
+%    Sweeps the contour length [um] shared by all linear pili while keeping
+%    other parameters fixed.  When N_pili > 1, each run uses N_pili identical
+%    filaments at consecutive attachment sites 1..N_pili (all same length).
+%    The number of discrete segments per filament scales with length via
+%    seg_per_um.  Results are compared via the steady-state sinking speed V_sink.
 %
 %    Key points:
+%      - Set N_pili (1-14) below; default 1 recovers the original single-pilus sweep
 %      - auto_confirm = true  to suppress all interactive dialogs
 %      - preview_initial = false  to skip the pose preview figure
 %      - generate_animation = false  to reduce per-run wall time
@@ -15,6 +17,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-18
+%  Updated: 2026-03-30 — multi-pili support (equal length per run, sites 1:N_pili)
 
 close all force;
 clear; clc;
@@ -59,15 +62,23 @@ cfg_base.flowfield_grid_range   = 10.0;
 cfg_base.flowfield_quiver_skip  = 5;
 cfg_base.flowfield_chunk_size   = 2000;
 
+%% ---- Multi-pili: equal length per run (sites 1 .. N_pili) ----
+N_pili = 1;   % integer 1-14; all pili share length_um from the sweep each run
+
+if N_pili < 1 || N_pili > 14 || floor(N_pili) ~= N_pili
+    error('batch_sweep_pili_length:InvalidNPili', ...
+        'N_pili must be an integer in 1..14 (attachment sites 1..N_pili).');
+end
+
 %% ---- Define sweep values ----
-length_values = [1, 2, 3, 4, 5, 6];    % Pilus contour length [um]
+length_values = [1, 2, 3, 4, 5, 6];    % Pilus contour length [um], all pili equal
 n_runs        = numel(length_values);
 
 sweep_results = cell(n_runs, 1);
 sweep_dirs    = cell(n_runs, 1);
 
 fprintf('========================================\n');
-fprintf('  Parameter Sweep: pili length\n');
+fprintf('  Parameter Sweep: pili length (N_pili = %d, equal length per run)\n', N_pili);
 fprintf('  %d runs scheduled\n', n_runs);
 fprintf('========================================\n\n');
 
@@ -75,16 +86,16 @@ fprintf('========================================\n\n');
 t_sweep_start = tic;
 
 for ii = 1:n_runs
-    pili_cfg_i(1).type      = 'linear';
-    pili_cfg_i(1).length_um = length_values(ii);
-    pili_cfg_i(1).site      = 1;
+    L = length_values(ii);
+    % N_pili linear pili, same length, consecutive sites (same pattern as batch_sweep_pili_count.m)
+    pili_cfg_i = struct('type', 'linear', 'length_um', L, 'site', num2cell(1:N_pili));
 
     cfg_i             = cfg_base;
     cfg_i.Pili_Matrix = parse_pili_config(pili_cfg_i);
-    cfg_i.case_name   = sprintf('sweep_plen_%02d_um', length_values(ii));
+    cfg_i.case_name   = sprintf('sweep_plen_%02d_um_np%02d', L, N_pili);
 
-    fprintf('\n--- Run %d/%d: pili length = %d um ---\n', ...
-        ii, n_runs, length_values(ii));
+    fprintf('\n--- Run %d/%d: length = %d um, N_pili = %d ---\n', ...
+        ii, n_runs, L, N_pili);
 
     [res_i, ~, dir_i] = run_simulation(cfg_i);
     sweep_results{ii} = res_i;
@@ -101,10 +112,11 @@ fprintf('========================================\n');
 for ii = 1:n_runs
     if ~isempty(sweep_results{ii})
         Vs = sweep_results{ii}.V_sink;
-        fprintf('  pili length = %2d um  |  Steady V_sink = %.4e um/s\n', ...
-            length_values(ii), mean(Vs(round(0.9 * numel(Vs)):end)));
+        fprintf('  length = %2d um  (N_pili=%d)  |  Steady V_sink = %.4e um/s\n', ...
+            length_values(ii), N_pili, mean(Vs(round(0.9 * numel(Vs)):end)));
     else
-        fprintf('  pili length = %2d um  |  ABORTED\n', length_values(ii));
+        fprintf('  length = %2d um  (N_pili=%d)  |  ABORTED\n', ...
+            length_values(ii), N_pili);
     end
 end
 fprintf('========================================\n');
