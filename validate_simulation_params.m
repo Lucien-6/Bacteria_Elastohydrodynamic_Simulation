@@ -21,6 +21,7 @@ function validate_simulation_params(cfg)
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
 %  Updated: 2026-03-17 — v3.2: Fixed duplicate site detection indexing bug
+%  Updated: 2026-03-30 — allow major_axis == minor_axis (spherical body)
 
 errs  = {};
 warns = {};
@@ -44,8 +45,8 @@ if cfg.minor_axis <= 0
 end
 if cfg.major_axis <= 0
     errs{end+1} = 'major_axis must be > 0.';
-elseif cfg.major_axis <= cfg.minor_axis
-    errs{end+1} = sprintf('major_axis (%.2e) must exceed minor_axis (%.2e).', ...
+elseif cfg.major_axis < cfg.minor_axis
+    errs{end+1} = sprintf('major_axis (%.2e) must be >= minor_axis (%.2e).', ...
         cfg.major_axis, cfg.minor_axis);
 end
 if cfg.N_body < 10

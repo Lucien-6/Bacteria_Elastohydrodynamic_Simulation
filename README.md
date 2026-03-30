@@ -3,7 +3,7 @@
 > **作者**: Lucien (lucien-6@qq.com)  
 > **创建日期**: 2026-02-06  
 > **更新日期**: 2026-03-30  
-> **版本**: 3.3.1  
+> **版本**: 3.3.2  
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
@@ -73,7 +73,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 - **函数化封装**：`run_simulation()` 将全部仿真逻辑封装为可编程调用的函数
 - **进度反馈**：动画渲染和流场计算配备实时文本进度条（含 ETA）
 - **输出目录保护**：检测已有仿真数据时弹出覆盖/重命名/中止对话框
-- **参数扫描套件**（`batch sweep/`）：6 个独立脚本分别扫描初始倾斜角、胞体长轴、纤毛长度、纤毛附着点位、纤毛数量、纤毛杨氏模量，均采用 headless 无头模式批量调用 `run_simulation()`
+- **参数扫描套件**（`batch sweep/`）：7 个独立脚本分别扫描初始倾斜角、胞体长轴、纤毛长度、纤毛附着点位、纤毛杨氏模量、胞体 `N_body`、纤毛 `seg_per_um`，均采用 headless 无头模式批量调用 `run_simulation()`
 - **JSON 批量运行器**：`batch_run_from_json.m` 自动检索用户指定文件夹内全部 JSON 配置文件并依次执行，单工况失败自动跳过继续，运行结束输出对齐汇总表及批次日志
 
 ---
@@ -117,7 +117,7 @@ cfg.alpha_0      = pi/4;
 cfg.auto_confirm = true;     % 无人值守模式
 [results, params, output_dir] = run_simulation(cfg);
 
-% 参数扫描脚本参见 batch sweep/ 文件夹（6 个扫描脚本 + 1 个 JSON 批量运行器）
+% 参数扫描脚本参见 batch sweep/ 文件夹（7 个扫描脚本 + 1 个 JSON 批量运行器）
 ```
 
 **输出**（保存至 `output/<case_name>/`）：
@@ -219,7 +219,7 @@ graph TD
     E --> U[pili_euler_angles.m]
     E --> S
 
-    BATCH["batch sweep/ 文件夹<br/>batch_sweep_alpha / major_axis / pili_length<br/>pili_site / pili_count / pili_E<br/>batch_run_from_json"] --> RUN
+    BATCH["batch sweep/ 文件夹<br/>batch_sweep_alpha / major_axis / pili_length<br/>pili_site / pili_E / N_body / seg_per_um<br/>batch_run_from_json"] --> RUN
 ```
 
 ### 3.2 功能分层
@@ -241,7 +241,7 @@ graph TD
 | 几何生成   | `capsule_body_building.m`, `pili_building.m`, `pili_type_building.m`, `compute_curvature_binormal.m` | 胞体/纤毛离散化                               |
 | 流场可视化 | `compute_plot_flowfield.m`                                                                           | 末状态双平面流场评估与绘图（2×2 面板）        |
 | 进度显示   | `odetpbar.m`, `render_progress_bar.m`                                                                | ODE 段内进度条 + 通用文本进度条（动画/流场）  |
-| 批量扫描   | `batch sweep/batch_sweep_alpha.m`, `batch sweep/batch_sweep_major_axis.m`, `batch sweep/batch_sweep_pili_length.m`, `batch sweep/batch_sweep_pili_site.m`, `batch sweep/batch_sweep_pili_count.m`, `batch sweep/batch_sweep_pili_E.m`, `batch sweep/batch_run_from_json.m` | 6 个独立参数扫描脚本（初始角/胞体长轴/纤毛长度/附着点位/数量/杨氏模量）+ JSON 批量运行器 |
+| 批量扫描   | `batch sweep/batch_sweep_alpha.m`, `batch sweep/batch_sweep_major_axis.m`, `batch sweep/batch_sweep_pili_length.m`, `batch sweep/batch_sweep_pili_site.m`, `batch sweep/batch_sweep_pili_E.m`, `batch sweep/batch_sweep_N_body.m`, `batch sweep/batch_sweep_seg_per_um.m`, `batch sweep/batch_run_from_json.m` | 7 个独立参数扫描脚本（初始角/胞体长轴/纤毛长度/附着点位/杨氏模量/N_body/seg_per_um）+ JSON 批量运行器 |
 | 工具函数   | `skew_matrix.m`, `pack_state_rates.m`, `unpack_state.m`                                              | 线性代数辅助、状态打包                        |
 
 ---
@@ -788,8 +788,9 @@ Coupled_Body_Pili/
 │   ├── batch_sweep_major_axis.m        % 扫描胞体长半轴（0.75~2.00 μm，6 工况）
 │   ├── batch_sweep_pili_length.m       % 扫描纤毛长度（1~6 μm，6 工况）
 │   ├── batch_sweep_pili_site.m         % 扫描纤毛附着点位（1~14，14 工况）
-│   ├── batch_sweep_pili_count.m        % 扫描纤毛数量（1~6 根，6 工况）
-│   ├── batch_sweep_pili_E.m            % 扫描纤毛杨氏模量（1e6~1e9 Pa，5 工况）
+│   ├── batch_sweep_pili_E.m            % 扫描纤毛杨氏模量（1e5~1e9 Pa，10 倍档）
+│   ├── batch_sweep_N_body.m            % 球体 R=0.4 μm、无纤毛，扫描 N_body（600~1600，步长 200）
+│   ├── batch_sweep_seg_per_um.m        % 扫描纤毛 seg_per_um（10~35，步长 5）
 │   └── batch_run_from_json.m           % JSON 批量运行器：检索文件夹→依次执行→失败跳过
 │
 ├── configs/                            % JSON 配置文件目录
@@ -804,7 +805,7 @@ Coupled_Body_Pili/
 └── Cortez - 2018 - Regularized stokeslet segments.pdf
 ```
 
-总计：**38 个 MATLAB 源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（31 个核心模块 + 7 个批量扫描脚本，无冗余代码，无未使用函数）。
+总计：**39 个 MATLAB 源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（31 个核心模块 + 8 个 `batch sweep/` 脚本，无冗余代码，无未使用函数）。
 
 ---
 
@@ -972,6 +973,7 @@ Coupled_Body_Pili/
 | 50  | 批量脚本代码审查修复（v3.3）：修复 `batch_run_from_json.m` 的死代码（`cfg.generate_animation` 自赋值）与冗余赋值（`blog_fid=-1` 在 `fopen` 已返回 -1 后的重复写入） | 2026-03-18 |
 | 51  | 流场 2D `quiver` 单层深灰箭头（v3.3.1）：移除白色衬底叠绘；箭头长度/线宽/箭头头相对原深色层放大 50%，便于在 jet 背景上判读 | 2026-03-30 |
 | 52  | 配套文档与版本对齐（v3.3.1）：新增 `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`；`README.md` 增补 §25；`run_simulation` 日志横幅版本与发布一致 | 2026-03-30 |
+| 53  | 批量扫描套件（v3.3.2）：新增 `batch_sweep_N_body.m`（球体 R=0.4 μm、无纤毛，`N_body` 600–1600 步长 200）、`batch_sweep_seg_per_um.m`（10–35 步长 5）；删除 `batch_sweep_pili_count.m`；各 `batch_sweep_*.m` 统一 `T_obs=200`、关布朗、开动画且 `animation_skip=5`、`case_name` 连字符、默认纤毛 `E=3.279e8` Pa；`batch_sweep_pili_length` 支持 `site_list`；`batch_sweep_pili_E` 扫描 `1e5`–`1e9` Pa（10 倍档）；`validate_simulation_params` 允许等轴球体 | 2026-03-30 |
 
 ---
 

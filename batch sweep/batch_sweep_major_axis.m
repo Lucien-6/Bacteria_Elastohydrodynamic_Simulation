@@ -10,7 +10,7 @@
 %    Key points:
 %      - auto_confirm = true  to suppress all interactive dialogs
 %      - preview_initial = false  to skip the pose preview figure
-%      - generate_animation = false  to reduce per-run wall time
+%      - generate_animation = true; animation_skip = 5
 %      - Each run produces its own output directory with full logs and data
 %
 %  Author:  Lucien (lucien-6@qq.com)
@@ -32,7 +32,7 @@ pili_cfg(1).site      = 1;
 cfg_base.Pili_Matrix  = parse_pili_config(pili_cfg);
 cfg_base.seg_per_um   = 15;
 
-cfg_base.E       = 1.768e7;
+cfg_base.E       = 3.279e8;
 cfg_base.r_pili  = 3e-9;
 cfg_base.sigma_p = 0.2;
 
@@ -40,21 +40,21 @@ cfg_base.mu        = 1e-3;
 cfg_base.rho_bac   = 1180.0;
 cfg_base.rho_fluid = 998.232;
 
-cfg_base.T_obs  = 30.0;
+cfg_base.T_obs  = 200.0;
 cfg_base.AbsTol = 1e-4;
 cfg_base.RelTol = 1e-4;
 cfg_base.delta  = pi / 20;
 cfg_base.tlim   = 120;
 cfg_base.dt     = 0.1;
 
-cfg_base.enable_brown = true;
+cfg_base.enable_brown = false;
 cfg_base.Temper       = 293.15;
 cfg_base.dt_B         = cfg_base.dt / 2;
 
 cfg_base.preview_initial    = false;    % No interactive preview
-cfg_base.generate_animation = false;    % Skip animation for speed
+cfg_base.generate_animation = true;
 cfg_base.animation_fps      = 30;
-cfg_base.animation_skip     = 1;
+cfg_base.animation_skip     = 5;
 
 cfg_base.auto_confirm = true;           % Headless mode
 
@@ -82,7 +82,7 @@ t_sweep_start = tic;
 for ii = 1:n_runs
     cfg_i = cfg_base;
     cfg_i.major_axis = major_values(ii);
-    cfg_i.case_name  = sprintf('sweep_major_%04.0f_nm', major_values(ii) * 1e9);
+    cfg_i.case_name  = sprintf('sweep-major-%04.0f-nm', major_values(ii) * 1e9);
 
     fprintf('\n--- Run %d/%d: major_axis = %.2f um ---\n', ...
         ii, n_runs, major_values(ii) * 1e6);

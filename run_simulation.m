@@ -25,6 +25,7 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %  Updated: 2026-03-17 — v3.2: Fixed Overwrite not clearing old files;
 %                         progress bar call updated to 4-arg persistent interface
 %           2026-03-30 — v3.3.1: Log banner version aligned with release
+%           2026-03-30 — v3.3.2: Log banner version bump (batch sweep suite)
 
 %% ---- Input parsing ----
 if ischar(cfg_or_path) || isstring(cfg_or_path)
@@ -147,7 +148,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 3.3.1\n');
+logf('  Version 3.3.2\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);

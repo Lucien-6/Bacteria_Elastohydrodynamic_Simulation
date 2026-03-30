@@ -25,6 +25,7 @@
 %                             auto-confirm headless mode; progress bars (persistent state);
 %                             output directory overwrite protection; pili struct interface
 %           2026-03-30 — v3.3.1: Docs (README/CHANGELOG/USER_GUIDE/requirements); flow-field quiver style
+%           2026-03-30 — v3.3.2: Batch sweep suite updates (see CHANGELOG.md)
 
 close all force;
 clear; clc;
