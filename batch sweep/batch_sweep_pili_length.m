@@ -3,13 +3,15 @@
 %
 %  Description:
 %    Sweeps the contour length [um] shared by all linear pili while keeping
-%    other parameters fixed.  When N_pili > 1, each run uses N_pili identical
-%    filaments at consecutive attachment sites 1..N_pili (all same length).
-%    The number of discrete segments per filament scales with length via
-%    seg_per_um.  Results are compared via the steady-state sinking speed V_sink.
+%    other parameters fixed.  Each pilus uses an attachment site index from
+%    site_list (1-14); sites may be chosen freely (e.g. [1 6 11] or 1:3).
+%    All pili in a run share the same length_um; segment count scales with
+%    length via seg_per_um.  Results are compared via steady-state V_sink.
 %
 %    Key points:
-%      - Set N_pili (1-14) below; default 1 recovers the original single-pilus sweep
+%      - Set site_list below (one entry per pilus); e.g. 1 = original single
+%        pilus at site 1; [1 2 3 6] = four pili at those sites
+%      - Duplicate sites are allowed but trigger init_coupled_params warning
 %      - auto_confirm = true  to suppress all interactive dialogs
 %      - preview_initial = false  to skip the pose preview figure
 %      - generate_animation = false  to reduce per-run wall time
@@ -17,7 +19,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-18
-%  Updated: 2026-03-30 — multi-pili support (equal length per run, sites 1:N_pili)
+%  Updated: 2026-03-30 — site_list for arbitrary per-pilus attachment sites
 
 close all force;
 clear; clc;
@@ -62,12 +64,22 @@ cfg_base.flowfield_grid_range   = 10.0;
 cfg_base.flowfield_quiver_skip  = 5;
 cfg_base.flowfield_chunk_size   = 2000;
 
-%% ---- Multi-pili: equal length per run (sites 1 .. N_pili) ----
-N_pili = 1;   % integer 1-14; all pili share length_um from the sweep each run
+%% ---- Per-pilus attachment sites (indices 1-14, arbitrary order) ----
+%  One integer per pilus; length(site_list) = number of pili.
+%  Examples:  1          -> single pilus at site 1
+%             1:6        -> six pili at consecutive sites 1..6
+%             [1 6 11]   -> three pili at left pole, right y+, middle z-
+site_list = 1;
 
-if N_pili < 1 || N_pili > 14 || floor(N_pili) ~= N_pili
-    error('batch_sweep_pili_length:InvalidNPili', ...
-        'N_pili must be an integer in 1..14 (attachment sites 1..N_pili).');
+site_list = site_list(:).';   % row vector
+n_pili    = numel(site_list);
+if n_pili < 1
+    error('batch_sweep_pili_length:EmptySiteList', ...
+        'site_list must contain at least one attachment site index.');
+end
+if any(site_list < 1 | site_list > 14 | floor(site_list) ~= site_list)
+    error('batch_sweep_pili_length:InvalidSite', ...
+        'Each site must be an integer in 1..14 (see parse_pili_config).');
 end
 
 %% ---- Define sweep values ----
@@ -78,7 +90,8 @@ sweep_results = cell(n_runs, 1);
 sweep_dirs    = cell(n_runs, 1);
 
 fprintf('========================================\n');
-fprintf('  Parameter Sweep: pili length (N_pili = %d, equal length per run)\n', N_pili);
+fprintf('  Parameter Sweep: pili length (n_pili = %d, sites = [%s])\n', ...
+    n_pili, num2str(site_list));
 fprintf('  %d runs scheduled\n', n_runs);
 fprintf('========================================\n\n');
 
@@ -87,15 +100,17 @@ t_sweep_start = tic;
 
 for ii = 1:n_runs
     L = length_values(ii);
-    % N_pili linear pili, same length, consecutive sites (same pattern as batch_sweep_pili_count.m)
-    pili_cfg_i = struct('type', 'linear', 'length_um', L, 'site', num2cell(1:N_pili));
+    % Same length for each pilus; site per pilus from site_list
+    pili_cfg_i = struct('type', 'linear', 'length_um', L, 'site', num2cell(site_list));
 
     cfg_i             = cfg_base;
     cfg_i.Pili_Matrix = parse_pili_config(pili_cfg_i);
-    cfg_i.case_name   = sprintf('sweep_plen_%02d_um_np%02d', L, N_pili);
+    site_tag = sprintf('%d_', site_list);
+    site_tag = site_tag(1:end-1);   % e.g. "1_6_11"
+    cfg_i.case_name   = sprintf('sweep_plen_%02d_um_sites_%s', L, site_tag);
 
-    fprintf('\n--- Run %d/%d: length = %d um, N_pili = %d ---\n', ...
-        ii, n_runs, L, N_pili);
+    fprintf('\n--- Run %d/%d: length = %d um, sites [%s] ---\n', ...
+        ii, n_runs, L, num2str(site_list));
 
     [res_i, ~, dir_i] = run_simulation(cfg_i);
     sweep_results{ii} = res_i;
@@ -112,11 +127,12 @@ fprintf('========================================\n');
 for ii = 1:n_runs
     if ~isempty(sweep_results{ii})
         Vs = sweep_results{ii}.V_sink;
-        fprintf('  length = %2d um  (N_pili=%d)  |  Steady V_sink = %.4e um/s\n', ...
-            length_values(ii), N_pili, mean(Vs(round(0.9 * numel(Vs)):end)));
+        fprintf('  length = %2d um  (sites [%s])  |  Steady V_sink = %.4e um/s\n', ...
+            length_values(ii), num2str(site_list), ...
+            mean(Vs(round(0.9 * numel(Vs)):end)));
     else
-        fprintf('  length = %2d um  (N_pili=%d)  |  ABORTED\n', ...
-            length_values(ii), N_pili);
+        fprintf('  length = %2d um  (sites [%s])  |  ABORTED\n', ...
+            length_values(ii), num2str(site_list));
     end
 end
 fprintf('========================================\n');
