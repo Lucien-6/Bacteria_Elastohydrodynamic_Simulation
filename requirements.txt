@@ -1,0 +1,10 @@
+# Coupled Body-Pili elastohydrodynamic simulation — MATLAB project
+#
+# This repository has no Python/pip dependencies. Simulation code is MATLAB-only.
+#
+# Runtime
+#   - MATLAB R2020b or later recommended (tested with modern releases).
+#   - Statistics Toolbox: not required (code uses 'omitnan' in base MATLAB where applicable).
+#
+# Python / conda: N/A for running the simulator. If you add Python tooling later,
+# list packages here and prefer conda + pip per project policy.

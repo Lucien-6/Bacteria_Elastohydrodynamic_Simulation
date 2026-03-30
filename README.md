@@ -2,8 +2,9 @@
 
 > **作者**: Lucien (lucien-6@qq.com)  
 > **创建日期**: 2026-02-06  
-> **更新日期**: 2026-03-18  
-> **版本**: 3.3
+> **更新日期**: 2026-03-30  
+> **版本**: 3.3.1  
+> **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
 
@@ -33,7 +34,8 @@
 22. [验证总结](#22-验证总结)
 23. [参考文献](#23-参考文献)
 24. [附录 A：关键标度推导](#附录-a关键标度推导)
-25. [许可证](#许可证)
+25. [配套文档与变更日志](#25-配套文档与变更日志)
+26. [许可证](#26-许可证)
 
 ---
 
@@ -61,7 +63,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 - **固支边界条件**：双重施加（运动学速率约束 + 几何投影）
 - **输出**：双通道日志、`.mat` 数据、PNG 图像、3D MP4 动画、JSON 配置快照
 - **可视化**：参数化光滑胞体表面（半透明，Gouraud 着色）+ 逐纤毛着色折线，含时间梯度
-- **流场可视化**：末状态双平面流场图（XZ + YZ，各含 3D 表面视图与 2D 着色图；速度大小 jet 着色 + 归一化方向箭头；胞体内部遮罩）
+- **流场可视化**：末状态双平面流场图（XZ + YZ，各含 3D 表面视图与 2D 着色图；速度大小 jet 着色 + 单层深灰归一化方向箭头，无白色衬底；箭头几何尺寸较 v3.3 基准放大 50%；胞体内部遮罩）
 - **动画布局**：三面板 1×3（3D + XZ 投影 + YZ 投影），动态图像尺寸
 - **初始姿态**：用户可配置 `alpha_0`（胞体在 XZ 平面内的倾斜角）
 - **外部配置**：支持 JSON 配置文件，运行时自动保存配置快照至输出目录（可追溯复现）
@@ -648,7 +650,7 @@ $$
 | `summary_plot.png`       | PNG 600 dpi     | 静态总览：CM 轨迹、沉降速度、倾斜角、快照三视图                                      |
 | `initial_pose.png`       | PNG 600 dpi     | 初始姿态预览三视图（`preview_initial = true` 时生成）                                |
 | `bacteria_3d_motion.mp4` | MPEG-4 质量 100 | 3D 动画，三面板 1×3 布局（3D + XZ + YZ 投影），动态图像尺寸，含光滑胞体表面 + 着色纤毛 + CM 轨迹 |
-| `flowfield_panels.png`   | PNG 600 dpi     | 双平面流场 2×2 面板图：XZ + YZ，3D 表面视图 + 2D 着色图；jet 色图 + 归一化箭头       |
+| `flowfield_panels.png`   | PNG 600 dpi     | 双平面流场 2×2 面板图：XZ + YZ，3D 表面视图 + 2D 着色图；jet 色图 + 单层深灰归一化箭头（v3.3.1 起无白边） |
 | `simulation.log`         | 纯文本          | 带时间戳的完整双通道运行日志                                                         |
 
 ### 17.3 results 结构体字段（物理单位）
@@ -710,8 +712,8 @@ $$
 | ---- | ---------- | -------------------------------------------------------------------------------------------- |
 | 左上 | 3D — XZ 面 | XZ 流场以纹理表面（`texturemap`）铺设于 3D 视图中，半透明胞体 + 纤毛叠加                     |
 | 右上 | 3D — YZ 面 | YZ 流场以纹理表面铺设于 3D 视图中，半透明胞体 + 纤毛叠加                                     |
-| 左下 | 2D — XZ 面 | 速度大小 `imagesc` + 归一化等长 `quiver` 箭头（白色光晕 + 深色核心）；胞体白色填充 + 灰色描边 |
-| 右下 | 2D — YZ 面 | 速度大小 `imagesc` + 归一化等长 `quiver` 箭头（白色光晕 + 深色核心）；胞体白色填充 + 灰色描边 |
+| 左下 | 2D — XZ 面 | 速度大小 `imagesc` + 归一化等长单层深灰 `quiver` 箭头（v3.3.1：无白色衬底；箭头尺寸较先前深色层 +50%）；胞体白色填充 + 灰色描边 |
+| 右下 | 2D — YZ 面 | 速度大小 `imagesc` + 归一化等长单层深灰 `quiver` 箭头（同上）；胞体白色填充 + 灰色描边 |
 
 **共享特性**：
 
@@ -795,12 +797,14 @@ Coupled_Body_Pili/
 │
 ├── config_example.json                 % JSON 配置文件模板
 │
-├── README.md                           % 本文件
-├── Brownian_Implementation_Plan.md     % 布朗动力学实施方案文档
+├── README.md                           % 本文件（完整理论与用户说明）
+├── CHANGELOG.md                        % 版本变更记录（Keep a Changelog 风格）
+├── USER_GUIDE.md                       % 简明用户指南（快速上手 + 输出说明）
+├── requirements.txt                    % 运行环境说明（MATLAB 工程，无 pip 依赖）
 └── Cortez - 2018 - Regularized stokeslet segments.pdf
 ```
 
-总计：**38 个 MATLAB 源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置**（31 个核心模块 + 7 个批量扫描脚本，无冗余代码，无未使用函数）。
+总计：**38 个 MATLAB 源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（31 个核心模块 + 7 个批量扫描脚本，无冗余代码，无未使用函数）。
 
 ---
 
@@ -966,6 +970,8 @@ Coupled_Body_Pili/
 | 48  | 参数扫描套件 `batch sweep/`（v3.3）：`batch_sweep_example.m` 重命名为 `batch_sweep_alpha.m` 并与 5 个新脚本统一归入 `batch sweep/` 子文件夹；各脚本分别扫描：初始倾斜角 `alpha_0`（7 工况）、胞体长半轴 `major_axis`（6 工况）、纤毛长度 `length_um`（6 工况）、纤毛附着点位 `site`（14 工况）、纤毛数量（6 工况）、纤毛杨氏模量 `E`（5 工况）；全部采用 headless 无头模式；代码审查修复杨氏模量脚本注释错误及 case_name 小数点问题（`1p77e07` 格式） | 2026-03-18 |
 | 49  | JSON 批量运行器 `batch_run_from_json.m`（v3.3）：`uigetdir` 交互选择文件夹（支持硬编码路径旁路）→ 自动发现并字母序排列全部 `*.json` → `load_sim_config` 加载并强制 headless 覆盖 → `try-catch` 捕获异常跳过失败工况继续执行 → 运行结束输出对齐汇总表（状态 / 稳态 V_sink / 耗时 / 错误原因）→ 自动生成 `batch_summary_*.log`；ETA 基于历史均值动态估算；使用 `mean(...,'omitnan')` 消除 Statistics Toolbox 依赖 | 2026-03-18 |
 | 50  | 批量脚本代码审查修复（v3.3）：修复 `batch_run_from_json.m` 的死代码（`cfg.generate_animation` 自赋值）与冗余赋值（`blog_fid=-1` 在 `fopen` 已返回 -1 后的重复写入） | 2026-03-18 |
+| 51  | 流场 2D `quiver` 单层深灰箭头（v3.3.1）：移除白色衬底叠绘；箭头长度/线宽/箭头头相对原深色层放大 50%，便于在 jet 背景上判读 | 2026-03-30 |
+| 52  | 配套文档与版本对齐（v3.3.1）：新增 `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`；`README.md` 增补 §25；`run_simulation` 日志横幅版本与发布一致 | 2026-03-30 |
 
 ---
 
@@ -1012,7 +1018,19 @@ $$
 
 ---
 
-## 许可证
+## 25. 配套文档与变更日志
+
+| 文件 | 说明 |
+| ---- | ---- |
+| `CHANGELOG.md` | 版本变更记录（Keep a Changelog 风格） |
+| `USER_GUIDE.md` | 简明用户指南：快速上手、主要输出、`flowfield_panels.png` 与流场参数说明 |
+| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖） |
+
+长篇理论、公式与完整参数表仍以本文件为准。
+
+---
+
+## 26. 许可证
 
 MIT License
 

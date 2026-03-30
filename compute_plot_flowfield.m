@@ -41,6 +41,7 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 %  Updated: 2026-03-14 — 2x2 panel layout (3D + 2D, XZ + YZ)
 %           2026-03-17 — Configurable grid/quiver/chunk via flow_opts argument;
 %                        v3.2: progress bar call updated to 4-arg persistent interface
+%           2026-03-30 — 2D quiver: single dark arrows (no white underlay); 50% larger
 
 %% ---- Configuration ----
 if nargin < 6 || isempty(flow_opts), flow_opts = struct(); end
@@ -358,6 +359,7 @@ pili_colors = [0.20 0.40 0.80;
 all_Umag = [Umag_xz(~isnan(Umag_xz)); Umag_yz(~isnan(Umag_yz))];
 Umag_max = prctile(all_Umag, 99);
 arrow_scale = 0.55 * grid_spacing_um * quiver_skip;
+arrow_scale_2d = 1.5 * arrow_scale;
 
 % ------------------------------------------------------------------
 %  Subplot 1 (top-left): 3D view + XZ flow-field surface
@@ -504,10 +506,8 @@ Ux_n = NaN(size(Ux_sub));  Uz_n = NaN(size(Uz_sub));
 Ux_n(ok) = Ux_sub(ok) ./ spd(ok);
 Uz_n(ok) = Uz_sub(ok) ./ spd(ok);
 
-quiver(ax3, XG_sub, ZG_sub, Ux_n*arrow_scale, Uz_n*arrow_scale, 0, ...
-    'Color', 'w', 'LineWidth', 1.2, 'MaxHeadSize', 0.4, 'AutoScale', 'off');
-quiver(ax3, XG_sub, ZG_sub, Ux_n*arrow_scale, Uz_n*arrow_scale, 0, ...
-    'Color', [0.12 0.12 0.12], 'LineWidth', 0.5, 'MaxHeadSize', 0.3, ...
+quiver(ax3, XG_sub, ZG_sub, Ux_n*arrow_scale_2d, Uz_n*arrow_scale_2d, 0, ...
+    'Color', [0.12 0.12 0.12], 'LineWidth', 0.75, 'MaxHeadSize', 0.45, ...
     'AutoScale', 'off');
 
 axis(ax3, 'equal');
@@ -571,10 +571,8 @@ Uy_n  = NaN(size(Uy_sub));  Uz_n2 = NaN(size(Uz_sub2));
 Uy_n(ok2)  = Uy_sub(ok2)  ./ spd2(ok2);
 Uz_n2(ok2) = Uz_sub2(ok2) ./ spd2(ok2);
 
-quiver(ax4, YG_sub, ZG_sub2, Uy_n*arrow_scale, Uz_n2*arrow_scale, 0, ...
-    'Color', 'w', 'LineWidth', 1.2, 'MaxHeadSize', 0.4, 'AutoScale', 'off');
-quiver(ax4, YG_sub, ZG_sub2, Uy_n*arrow_scale, Uz_n2*arrow_scale, 0, ...
-    'Color', [0.12 0.12 0.12], 'LineWidth', 0.5, 'MaxHeadSize', 0.3, ...
+quiver(ax4, YG_sub, ZG_sub2, Uy_n*arrow_scale_2d, Uz_n2*arrow_scale_2d, 0, ...
+    'Color', [0.12 0.12 0.12], 'LineWidth', 0.75, 'MaxHeadSize', 0.45, ...
     'AutoScale', 'off');
 
 axis(ax4, 'equal');

@@ -24,6 +24,7 @@
 %                             External JSON config support; parameter validation;
 %                             auto-confirm headless mode; progress bars (persistent state);
 %                             output directory overwrite protection; pili struct interface
+%           2026-03-30 — v3.3.1: Docs (README/CHANGELOG/USER_GUIDE/requirements); flow-field quiver style
 
 close all force;
 clear; clc;
@@ -34,7 +35,7 @@ clear; clc;
 %  Priority: config_file (if non-empty) > inline defaults below.
 %  To use external config: set config_file to a valid JSON path.
 %  To use inline parameters: leave config_file = '' (default).
-config_file = 'configs/OnePili-P1-L3.json';    % e.g. 'configs/my_case.json'
+config_file = '';    % e.g. 'configs/my_case.json'
 
 if ~isempty(config_file) && isfile(config_file)
     %% --- External JSON configuration ---
@@ -42,7 +43,7 @@ if ~isempty(config_file) && isfile(config_file)
     cfg = load_sim_config(config_file);
 else
     %% --- Inline parameter definitions ---
-    cfg.case_name = 'Test';
+    cfg.case_name = 'TwoPili-S29-L3-Brown';
 
     % -------- Bacterial Body Geometry --------
     cfg.minor_axis = 0.4e-6;              % [m]   Semi-minor axis (body radius)
@@ -57,7 +58,12 @@ else
     pili_config(1).length_um   = 3;
     pili_config(1).deflection_z = 0;
     pili_config(1).deflection_x = 0;
-    pili_config(1).site        = 1;
+    pili_config(1).site        = 2;
+    pili_config(2).type        = 'linear';
+    pili_config(2).length_um   = 3;
+    pili_config(2).deflection_z = 0;
+    pili_config(2).deflection_x = 0;
+    pili_config(2).site        = 9;
     cfg.Pili_Matrix = parse_pili_config(pili_config);
 
     % Legacy raw-matrix alternative (uncomment to use instead):
@@ -67,7 +73,7 @@ else
     cfg.seg_per_um = 15;                  % [seg/um] RSS segment density
 
     % -------- Material Properties --------
-    cfg.E       = 1.768e7;                % [Pa]   Young's modulus of pili
+    cfg.E       = 3.279e8;                % [Pa]   Young's modulus of pili
     cfg.r_pili  = 3e-9;                   % [m]    Pili radius
     cfg.sigma_p = 0.2;                    % [-]    Poisson's ratio
 
