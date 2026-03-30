@@ -26,6 +26,7 @@
 %                             output directory overwrite protection; pili struct interface
 %           2026-03-30 — v3.3.1: Docs (README/CHANGELOG/USER_GUIDE/requirements); flow-field quiver style
 %           2026-03-30 — v3.3.2: Batch sweep suite updates (see CHANGELOG.md)
+%           2026-03-30 — v3.3.3: batch_sweep_alpha body-only; docs v3.3.3
 
 close all force;
 clear; clc;

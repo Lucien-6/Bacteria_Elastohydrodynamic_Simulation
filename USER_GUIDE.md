@@ -1,7 +1,7 @@
 # User Guide — Coupled Body-Pili Simulation
 
 > **Author:** Lucien (lucien-6@qq.com)  
-> **Version:** 3.3.2  
+> **Version:** 3.3.3  
 > **Updated:** 2026-03-30  
 
 This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
@@ -62,6 +62,7 @@ Under `output/<case_name>/` (or timestamped folder):
 - **2D panels:** Velocity magnitude on a `jet` scale + **normalized** direction arrows (equal length per arrow; magnitude is read from the color field).
 - **v3.3.1:** 2D arrows are single dark-gray vectors (no white halo). Arrows are drawn **50% larger** than the previous dark layer for readability.
 - **v3.3.2:** Batch sweep scripts under `batch sweep/` were refreshed (new `N_body` / `seg_per_um` drivers, removed `batch_sweep_pili_count.m`); see `CHANGELOG.md`.
+- **v3.3.3:** `batch_sweep_alpha.m` sweeps **`alpha_0` for a body-only capsule** (empty `Pili_Matrix`, no pili).
 
 Tunable via `cfg`: `flowfield_grid_spacing`, `flowfield_grid_range`, `flowfield_quiver_skip`, `flowfield_chunk_size`.
 

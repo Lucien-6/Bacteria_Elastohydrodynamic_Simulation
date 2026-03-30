@@ -2,11 +2,12 @@
 %  Automated Parameter Sweep (alpha_0) using run_simulation()
 %
 %  Description:
-%    Demonstrates how to programmatically sweep a parameter (here: initial
-%    tilt angle alpha_0) using run_simulation().  Each run is assigned a
-%    unique case name, and results are collected for cross-comparison.
+%    Sweeps initial body tilt angle alpha_0 using run_simulation().  The model
+%    is body-only (no pili): empty Pili_Matrix.  Ellipsoidal capsule geometry
+%    is fixed; each run gets a unique case name.  Results compared via V_sink.
 %
 %    Key points:
+%      - No pili: Pili_Matrix = zeros(8, 0)
 %      - auto_confirm = true  to suppress all interactive dialogs
 %      - preview_initial = false  to skip the pose preview figure
 %      - generate_animation = true; animation_skip = 5
@@ -14,6 +15,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
+%  Updated: 2026-03-30 — body-only (no pili)
 
 close all force;
 clear; clc;
@@ -25,10 +27,7 @@ cfg_base.major_axis = 1.25e-6;
 cfg_base.N_body     = 1000;
 cfg_base.alpha_0    = 0;            % Overridden in the loop
 
-pili_cfg(1).type      = 'linear';
-pili_cfg(1).length_um = 3;
-pili_cfg(1).site      = 1;
-cfg_base.Pili_Matrix  = parse_pili_config(pili_cfg);
+cfg_base.Pili_Matrix  = zeros(8, 0);   % No pili (body only)
 cfg_base.seg_per_um   = 15;
 
 cfg_base.E       = 3.279e8;
@@ -70,7 +69,7 @@ sweep_results = cell(n_runs, 1);
 sweep_dirs    = cell(n_runs, 1);
 
 fprintf('========================================\n');
-fprintf('  Parameter Sweep: alpha_0\n');
+fprintf('  Parameter Sweep: alpha_0 (body only, no pili)\n');
 fprintf('  %d runs scheduled\n', n_runs);
 fprintf('========================================\n\n');
 
