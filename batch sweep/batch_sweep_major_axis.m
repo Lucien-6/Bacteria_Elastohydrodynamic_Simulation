@@ -4,10 +4,11 @@
 %  Description:
 %    Sweeps the semi-major axis of the bacterial ellipsoidal body while
 %    keeping all other parameters fixed.  The aspect ratio changes with
-%    each run because minor_axis is held constant.  Results are compared
-%    via the steady-state sinking speed V_sink.
+%    each run because minor_axis is held constant.  Model is body-only
+%    (no pili): empty Pili_Matrix.  Results compared via V_sink steady mean.
 %
 %    Key points:
+%      - No pili: Pili_Matrix = zeros(8, 0)
 %      - auto_confirm = true  to suppress all interactive dialogs
 %      - preview_initial = false  to skip the pose preview figure
 %      - generate_animation = true; animation_skip = 5
@@ -15,6 +16,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-18
+%  Updated: 2026-03-30 — body-only (no pili)
 
 close all force;
 clear; clc;
@@ -26,10 +28,7 @@ cfg_base.major_axis = 1.25e-6;     % Overridden in the loop
 cfg_base.N_body     = 1000;
 cfg_base.alpha_0    = 0;
 
-pili_cfg(1).type      = 'linear';
-pili_cfg(1).length_um = 3;
-pili_cfg(1).site      = 1;
-cfg_base.Pili_Matrix  = parse_pili_config(pili_cfg);
+cfg_base.Pili_Matrix  = zeros(8, 0);   % No pili (body only)
 cfg_base.seg_per_um   = 15;
 
 cfg_base.E       = 3.279e8;
@@ -64,15 +63,15 @@ cfg_base.flowfield_quiver_skip  = 5;
 cfg_base.flowfield_chunk_size   = 2000;
 
 %% ---- Define sweep values ----
-% Major axis values in metres; minor_axis fixed at 0.4 um
-major_values = [0.75, 1.00, 1.25, 1.50, 1.75, 2.00] * 1e-6;
+% Semi-major axis [m]; minor_axis fixed at 0.4 um; grid 0.4:0.2:1.6 um
+major_values = (0.4:0.2:1.6) * 1e-6;
 n_runs       = numel(major_values);
 
 sweep_results = cell(n_runs, 1);
 sweep_dirs    = cell(n_runs, 1);
 
 fprintf('========================================\n');
-fprintf('  Parameter Sweep: major_axis\n');
+fprintf('  Parameter Sweep: major_axis (body only, no pili)\n');
 fprintf('  %d runs scheduled\n', n_runs);
 fprintf('========================================\n\n');
 

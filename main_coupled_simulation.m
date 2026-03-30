@@ -20,13 +20,6 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Last Updated: 2026-03-17 — v3.2: Refactored to thin entry-point + run_simulation();
-%                             External JSON config support; parameter validation;
-%                             auto-confirm headless mode; progress bars (persistent state);
-%                             output directory overwrite protection; pili struct interface
-%           2026-03-30 — v3.3.1: Docs (README/CHANGELOG/USER_GUIDE/requirements); flow-field quiver style
-%           2026-03-30 — v3.3.2: Batch sweep suite updates (see CHANGELOG.md)
-%           2026-03-30 — v3.3.3: batch_sweep_alpha body-only; docs v3.3.3
 
 close all force;
 clear; clc;
