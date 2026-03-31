@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coupled Body-Pili Elastohydrodynamic Simulation</title>
+
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Inter', 'Arial', 'sans-serif'] },
+      colors: {
+        navy: { 900: '#0f172a', 800: '#1e293b', 700: '#334155' },
+        teal:  { 500: '#14b8a6', 600: '#0d9488', 700: '#0f766e' },
+      }
+    }
+  }
+}
+</script>
+
+<!-- KaTeX -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],ignoredTags:['script','noscript','style','textarea','pre','code','option'],throwOnError:false});">
+</script>
+
+<!-- Highlight.js -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/matlab.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/json.min.js"></script>
+
+<!-- Mermaid -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #64748b; border-radius: 3px; }
+
+  .hero-gradient {
+    background: linear-gradient(-45deg, #0f172a, #0f766e, #1e293b, #14b8a6);
+    background-size: 400% 400%;
+    animation: heroShift 12s ease infinite;
+  }
+  @keyframes heroShift {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  .nav-link.active { color: #14b8a6; border-left-color: #14b8a6; font-weight: 600; }
+  .info-card { transition: transform 0.2s, box-shadow 0.2s; }
+  .info-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.12); }
+  .collapsible-body { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
+  .collapsible-body.open { max-height: 4000px; }
+  .katex-display { overflow-x: auto; overflow-y: hidden; padding: 8px 0; }
+  .tab-btn.active-tab { border-bottom-color: #14b8a6; color: #14b8a6; font-weight: 600; }
+  .tab-panel { display: none; }
+  .tab-panel.active-panel { display: block; }
+  pre code.hljs { border-radius: 8px; font-size: 0.85rem; }
+  .sidebar-overlay { display: none; }
+  .sidebar-overlay.show { display: block; }
+  @media print { .no-print { display: none !important; } }
+
+  /* i18n visibility */
+  html[lang="en"] .zh { display: none !important; }
+  html[lang="zh"] .en { display: none !important; }
+</style>
+</head>
+
+<body class="bg-white dark:bg-navy-900 text-gray-800 dark:text-gray-200 font-sans leading-relaxed">
+
+<noscript>
+  <div style="background:#fef3c7;color:#92400e;padding:16px;text-align:center;font-size:14px;">
+    This page requires JavaScript for interactive features.
+  </div>
+</noscript>
+
+<!-- Back to top -->
+<button id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})"
+  class="no-print fixed bottom-6 right-6 z-50 bg-teal-600 hover:bg-teal-700 text-white w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition opacity-0 pointer-events-none"
+  aria-label="Back to top">
+  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
+</button>
+
+<!-- ============================================================ -->
+<!--  SIDEBAR                                                      -->
+<!-- ============================================================ -->
+<div id="sidebarOverlay" class="sidebar-overlay fixed inset-0 bg-black/40 z-40 no-print" onclick="toggleSidebar()"></div>
+
+<aside id="sidebar" class="no-print fixed top-0 left-0 h-full w-64 bg-navy-900 text-gray-300 z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 overflow-y-auto">
+  <div class="p-6 border-b border-navy-700">
+    <h2 class="text-white font-bold text-lg leading-tight">Coupled Body-Pili</h2>
+    <p class="text-xs text-teal-500 mt-1">v4.0.0 &mdash; Documentation</p>
+  </div>
+  <nav class="p-4 space-y-1 text-sm">
+    <a href="#hero"         class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Home</span><span class="zh">首页</span></a>
+    <a href="#overview"     class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Project Overview</span><span class="zh">项目概述</span></a>
+    <a href="#theory"       class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Theoretical Foundations</span><span class="zh">理论基础</span></a>
+    <a href="#brownian"     class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Brownian Dynamics</span><span class="zh">布朗动力学</span></a>
+    <a href="#architecture" class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Code Architecture</span><span class="zh">代码架构</span></a>
+    <a href="#usage"        class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Quick Start &amp; Usage</span><span class="zh">快速上手</span></a>
+    <a href="#references"   class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">References &amp; License</span><span class="zh">参考文献</span></a>
+  </nav>
+  <div class="p-4 border-t border-navy-700 mt-4 space-y-3">
+    <!-- Language toggle -->
+    <button onclick="toggleLang()" class="flex items-center gap-2 text-xs text-gray-400 hover:text-white transition w-full">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+      <span id="langLabel">中文</span>
+    </button>
+    <!-- Dark mode toggle -->
+    <button onclick="toggleDark()" class="flex items-center gap-2 text-xs text-gray-400 hover:text-white transition w-full">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+      <span id="darkLabelSidebar">Dark Mode</span>
+    </button>
+  </div>
+</aside>
+
+<!-- Mobile hamburger -->
+<button id="menuBtn" class="no-print lg:hidden fixed top-4 left-4 z-50 bg-navy-900 text-white p-2 rounded-lg shadow-lg" onclick="toggleSidebar()">
+  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+</button>
+
+<!-- ============================================================ -->
+<!--  MAIN CONTENT                                                -->
+<!-- ============================================================ -->
+<main class="lg:ml-64 min-h-screen">
+
+<!-- ==================== SECTION 1: HERO ==================== -->
+<section id="hero" class="hero-gradient text-white py-24 px-6 md:px-16 lg:px-24">
+  <div class="max-w-4xl mx-auto text-center">
+    <div class="inline-block bg-teal-600/30 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-3 py-1 rounded-full mb-6 tracking-wide">
+      VERSION 4.0.0 &bull; 2026-03-31
+    </div>
+    <h1 class="text-3xl md:text-5xl font-extrabold leading-tight mb-4">
+      <span class="en">Coupled Body-Pili<br>Elastohydrodynamic Simulation</span>
+      <span class="zh">细菌胞体-纤毛耦合<br>弹性流体动力学仿真</span>
+    </h1>
+    <p class="text-base md:text-lg text-gray-300 leading-relaxed max-w-2xl mx-auto mb-3">
+      <span class="en">细菌胞体-纤毛耦合弹性流体动力学仿真</span>
+      <span class="zh">Coupled Body-Pili Elastohydrodynamic Simulation</span>
+    </p>
+    <p class="text-sm md:text-base text-gray-400 max-w-2xl mx-auto mb-10">
+      <span class="en">A MATLAB simulation framework for modelling capsule-shaped bacteria with elastic pili
+      sinking in Stokes flow, featuring regularized Stokeslet methods, Kirchhoff elastic rods,
+      full-system effective friction Brownian dynamics, and adaptive Euler-angle singularity avoidance.</span>
+      <span class="zh">一个基于 MATLAB 的仿真框架，用于模拟携带弹性纤毛的胶囊状细菌在 Stokes 流体中的沉降运动。
+      融合正则化 Stokeslet 方法、Kirchhoff 弹性杆模型、全系统有效摩擦布朗动力学以及自适应欧拉角奇点规避。</span>
+    </p>
+    <div class="flex flex-wrap justify-center gap-4">
+      <a href="#usage" class="bg-teal-600 hover:bg-teal-700 text-white font-semibold px-6 py-3 rounded-lg transition shadow-lg">
+        <span class="en">Get Started</span><span class="zh">快速上手</span>
+      </a>
+      <a href="#theory" class="border border-gray-400 hover:border-white text-gray-300 hover:text-white font-medium px-6 py-3 rounded-lg transition">
+        <span class="en">Read the Theory</span><span class="zh">阅读理论</span>
+      </a>
+    </div>
+    <p class="mt-8 text-xs text-gray-500">
+      <span class="en">Author: Lucien &lt;lucien-6@qq.com&gt; &nbsp;|&nbsp; MATLAB R2020b+</span>
+      <span class="zh">作者：Lucien &lt;lucien-6@qq.com&gt; &nbsp;|&nbsp; MATLAB R2020b+</span>
+    </p>
+  </div>
+</section>
+
+<!-- ==================== SECTION 2: OVERVIEW ==================== -->
+<section id="overview" class="py-20 px-6 md:px-16 lg:px-24 bg-gray-50 dark:bg-navy-800">
+  <div class="max-w-6xl mx-auto">
+    <h2 class="text-2xl md:text-3xl font-bold mb-2">
+      <span class="en">Project Overview</span><span class="zh">项目概述</span>
+    </h2>
+    <div class="w-16 h-1 bg-teal-600 rounded mb-8"></div>
+
+    <p class="text-gray-600 dark:text-gray-400 max-w-3xl mb-12 leading-relaxed">
+      <span class="en">This project simulates a capsule-shaped bacterium (rigid body with hemispherical caps)
+      bearing one or more clamped elastic pili (Kirchhoff rods) as it sediments under gravity
+      in a viscous Stokes-flow environment at the micro-scale. The full hydrodynamic coupling
+      between the body surface and every pili filament is resolved at each time step.</span>
+      <span class="zh">本项目模拟携带一根或多根弹性纤毛（Kirchhoff 弹性杆）的胶囊状细菌（带半球端盖的刚性体）
+      在微尺度粘性 Stokes 流体环境中受重力作用的沉降运动。每一时间步均求解胞体表面与所有纤毛之间的完整流体动力耦合。</span>
+    </p>
+
+    <!-- Physical setup illustration -->
+    <div class="bg-white dark:bg-navy-900 rounded-2xl shadow-lg p-8 mb-14 border border-gray-200 dark:border-navy-700">
+      <h3 class="font-semibold text-lg mb-4">
+        <span class="en">Physical Setup</span><span class="zh">物理模型</span>
+      </h3>
+      <div class="flex flex-col md:flex-row items-center gap-8">
+        <img src="Bacterial%20Model.png" alt="Bacterial Model: capsule body with pilus"
+             class="w-full md:w-96 rounded-xl shadow-md object-contain bg-gray-100 dark:bg-navy-800">
+        <div class="text-sm text-gray-600 dark:text-gray-400 space-y-3">
+          <p>
+            <strong class="text-gray-800 dark:text-gray-200">
+              <span class="en">Capsule body</span><span class="zh">胶囊胞体</span>
+            </strong> &mdash;
+            <span class="en">Rigid spherocylinder, RSM (Regularized Stokeslet Method) surface discretisation with $N_\text{body}$ force points. Orientation tracked via unit quaternion $\mathbf{q}$.</span>
+            <span class="zh">刚性球柱体，采用 RSM（正则化 Stokeslet 方法）进行表面离散，共 $N_\text{body}$ 个力点。方向通过单位四元数 $\mathbf{q}$ 追踪。</span>
+          </p>
+          <p>
+            <strong class="text-gray-800 dark:text-gray-200">
+              <span class="en">Elastic pili</span><span class="zh">弹性纤毛</span>
+            </strong> &mdash;
+            <span class="en">Kirchhoff inextensible rods, RSS (Regularized Stokeslet Segments) + Rotlet line segments. Euler-angle parameterisation per segment.</span>
+            <span class="zh">Kirchhoff 不可伸长弹性杆，采用 RSS（正则化 Stokeslet 线段）+ Rotlet 线段。每段使用欧拉角参数化。</span>
+          </p>
+          <p>
+            <strong class="text-gray-800 dark:text-gray-200">
+              <span class="en">Clamped boundary</span><span class="zh">固支边界</span>
+            </strong> &mdash;
+            <span class="en">Pili root rigidly attached to the body surface; dual enforcement via kinematic rate constraints + geometric projection.</span>
+            <span class="zh">纤毛根部刚性连接于胞体表面；通过运动学速率约束与几何投影双重保障固支条件。</span>
+          </p>
+          <p>
+            <strong class="text-gray-800 dark:text-gray-200">
+              <span class="en">Brownian motion</span><span class="zh">布朗运动</span>
+            </strong> &mdash;
+            <span class="en">Thermal fluctuations applied to the body using a full-system effective friction tensor that naturally includes pili drag.</span>
+            <span class="zh">基于全系统有效摩擦张量为胞体施加热涨落，该张量自然包含纤毛带来的额外阻力。</span>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature cards -->
+    <h3 class="font-semibold text-lg mb-6">
+      <span class="en">Key Features</span><span class="zh">核心特性</span>
+    </h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div class="info-card bg-white dark:bg-navy-900 rounded-xl p-5 border border-gray-200 dark:border-navy-700 shadow-sm">
+        <div class="text-2xl mb-2">🌊</div>
+        <h4 class="font-semibold text-sm mb-1">
+          <span class="en">RSM + RSS Hydrodynamics</span><span class="zh">RSM + RSS 流体动力学</span>
+        </h4>
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          <span class="en">Body surface RSM points coupled with pili RSS line-segment integrals and Rotlet twist correction.</span>
+          <span class="zh">胞体表面 RSM 力点与纤毛 RSS 线段积分耦合，并包含 Rotlet 扭转修正。</span>
+        </p>
+      </div>
+      <div class="info-card bg-white dark:bg-navy-900 rounded-xl p-5 border border-gray-200 dark:border-navy-700 shadow-sm">
+        <div class="text-2xl mb-2">🔬</div>
+        <h4 class="font-semibold text-sm mb-1">
+          <span class="en">Full-System Brownian</span><span class="zh">全系统布朗运动</span>
+        </h4>
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          <span class="en">Dynamic 6&times;6 effective diffusion tensor via probing method; pili drag naturally suppresses thermal diffusion.</span>
+          <span class="zh">通过探测法动态计算 6&times;6 有效扩散张量；纤毛阻力自然抑制热扩散。</span>
+        </p>
+      </div>
+      <div class="info-card bg-white dark:bg-navy-900 rounded-xl p-5 border border-gray-200 dark:border-navy-700 shadow-sm">
+        <div class="text-2xl mb-2">🔄</div>
+        <h4 class="font-semibold text-sm mb-1">
+          <span class="en">Quaternion Orientation</span><span class="zh">四元数姿态</span>
+        </h4>
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          <span class="en">Gimbal-lock-free body orientation via unit quaternions with consistent left-multiply convention.</span>
+          <span class="zh">通过单位四元数避免万向锁，采用统一的左乘约定追踪胞体姿态。</span>
+        </p>
+      </div>
+      <div class="info-card bg-white dark:bg-navy-900 rounded-xl p-5 border border-gray-200 dark:border-navy-700 shadow-sm">
+        <div class="text-2xl mb-2">⚡</div>
+        <h4 class="font-semibold text-sm mb-1">
+          <span class="en">Adaptive Euler Basis</span><span class="zh">自适应欧拉基</span>
+        </h4>
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          <span class="en">Per-pilus Euler-angle basis rotation near singularities ensures robust long-time integration.</span>
+          <span class="zh">在奇点附近对每根纤毛的欧拉角基进行旋转，确保长时间积分的鲁棒性。</span>
+        </p>
+      </div>
+      <div class="info-card bg-white dark:bg-navy-900 rounded-xl p-5 border border-gray-200 dark:border-navy-700 shadow-sm">
+        <div class="text-2xl mb-2">⏱️</div>
+        <h4 class="font-semibold text-sm mb-1">
+          <span class="en">ode15s Stiff Solver</span><span class="zh">ode15s 刚性求解器</span>
+        </h4>
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          <span class="en">MATLAB implicit adaptive solver with event-driven Euler-angle singularity detection and wall-clock timeout.</span>
+          <span class="zh">MATLAB 隐式自适应求解器，结合事件驱动的欧拉角奇点检测与挂钟超时机制。</span>
+        </p>
+      </div>
+      <div class="info-card bg-white dark:bg-navy-900 rounded-xl p-5 border border-gray-200 dark:border-navy-700 shadow-sm">
+        <div class="text-2xl mb-2">🎬</div>
+        <h4 class="font-semibold text-sm mb-1">
+          <span class="en">3D Visualisation</span><span class="zh">3D 可视化</span>
+        </h4>
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          <span class="en">Smooth capsule surface rendering, per-pili colour coding, 3-panel MP4 animation (3D + XZ + YZ projections).</span>
+          <span class="zh">光滑胶囊表面渲染、纤毛分色、三面板 MP4 动画 (3D + XZ + YZ 投影)。</span>
+        </p>
+      </div>
+      <div class="info-card bg-white dark:bg-navy-900 rounded-xl p-5 border border-gray-200 dark:border-navy-700 shadow-sm">
+        <div class="text-2xl mb-2">📊</div>
+        <h4 class="font-semibold text-sm mb-1">
+          <span class="en">Batch Parameter Sweeps</span><span class="zh">批量参数扫描</span>
+        </h4>
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          <span class="en">6 dedicated sweep scripts + JSON batch runner for headless parameter studies with automated summary tables.</span>
+          <span class="zh">6 个专用扫描脚本 + JSON 批处理运行器，支持无界面参数研究与自动汇总表。</span>
+        </p>
+      </div>
+      <div class="info-card bg-white dark:bg-navy-900 rounded-xl p-5 border border-gray-200 dark:border-navy-700 shadow-sm">
+        <div class="text-2xl mb-2">⚙️</div>
+        <h4 class="font-semibold text-sm mb-1">
+          <span class="en">JSON Configuration</span><span class="zh">JSON 配置</span>
+        </h4>
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          <span class="en">External JSON config files with automatic snapshot saving for full reproducibility of every simulation run.</span>
+          <span class="zh">外部 JSON 配置文件，自动保存配置快照，确保每次仿真完全可复现。</span>
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 3: THEORY ==================== -->
+<section id="theory" class="py-20 px-6 md:px-16 lg:px-24">
+  <div class="max-w-5xl mx-auto">
+    <h2 class="text-2xl md:text-3xl font-bold mb-2">
+      <span class="en">Theoretical Foundations</span><span class="zh">理论基础</span>
+    </h2>
+    <div class="w-16 h-1 bg-teal-600 rounded mb-10"></div>
+
+    <!-- 3a: Stokes Flow -->
+    <div class="mb-14">
+      <h3 class="text-xl font-semibold mb-4 flex items-center gap-2">
+        <span class="bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-400 text-xs font-bold px-2 py-0.5 rounded">3a</span>
+        <span class="en">Stokes Flow &amp; Regularized Methods</span>
+        <span class="zh">Stokes 流动与正则化方法</span>
+      </h3>
+      <p class="text-gray-600 dark:text-gray-400 mb-4">
+        <span class="en">At micro-scale ($\text{Re} \ll 1$), inertia is negligible and fluid motion is governed by the Stokes equations.
+        The velocity field due to a regularized point force $\mathbf{f}$ at $\mathbf{x}_0$ is given by the
+        <strong>regularized Stokeslet</strong>:</span>
+        <span class="zh">在微尺度 ($\text{Re} \ll 1$) 下，惯性可忽略，流体运动由 Stokes 方程描述。
+        位于 $\mathbf{x}_0$ 处的正则化点力 $\mathbf{f}$ 产生的速度场由<strong>正则化 Stokeslet</strong> 给出：</span>
+      </p>
+      <div class="bg-gray-50 dark:bg-navy-800 rounded-xl p-6 border border-gray-200 dark:border-navy-700 mb-4">
+        $$\mathbf{u}(\mathbf{x}) = \frac{1}{8\pi\mu} \left[ \frac{|\mathbf{r}|^2 + 2\varepsilon^2}{\left(|\mathbf{r}|^2 + \varepsilon^2\right)^{3/2}} \mathbf{I} + \frac{\mathbf{r}\mathbf{r}^\top}{\left(|\mathbf{r}|^2 + \varepsilon^2\right)^{3/2}} \right] \mathbf{f}$$
+      </div>
+      <p class="text-gray-600 dark:text-gray-400 mb-3">
+        <span class="en">where $\mathbf{r} = \mathbf{x} - \mathbf{x}_0$ and $\varepsilon$ is the regularization parameter.</span>
+        <span class="zh">其中 $\mathbf{r} = \mathbf{x} - \mathbf{x}_0$，$\varepsilon$ 为正则化参数。</span>
+      </p>
+      <div class="grid md:grid-cols-2 gap-4 text-sm">
+        <div class="bg-white dark:bg-navy-900 rounded-lg p-4 border border-gray-200 dark:border-navy-700">
+          <h4 class="font-semibold mb-2 text-teal-700 dark:text-teal-400">
+            <span class="en">RSM &mdash; Body Surface</span><span class="zh">RSM &mdash; 胞体表面</span>
+          </h4>
+          <p class="text-gray-600 dark:text-gray-400">
+            <span class="en">The capsule body is discretised into $N_\text{body}$ surface points. Each carries a regularized Stokeslet, forming the $3N_\text{body} \times 3N_\text{body}$ mobility matrix $\mathbf{M}_{BB}$.</span>
+            <span class="zh">胶囊胞体被离散为 $N_\text{body}$ 个表面力点。每个力点携带一个正则化 Stokeslet，构成 $3N_\text{body} \times 3N_\text{body}$ 迁移率矩阵 $\mathbf{M}_{BB}$。</span>
+          </p>
+        </div>
+        <div class="bg-white dark:bg-navy-900 rounded-lg p-4 border border-gray-200 dark:border-navy-700">
+          <h4 class="font-semibold mb-2 text-teal-700 dark:text-teal-400">
+            <span class="en">RSS &mdash; Pili Filaments</span><span class="zh">RSS &mdash; 纤毛丝</span>
+          </h4>
+          <p class="text-gray-600 dark:text-gray-400">
+            <span class="en">Each pili segment uses exact line-segment integration of the Stokeslet kernel (Cortez 2018), plus Rotlet line segments for twist&ndash;translation coupling. This decouples $\varepsilon$ from segment length $h$.</span>
+            <span class="zh">每段纤毛对 Stokeslet 核进行精确线段积分 (Cortez 2018)，并叠加 Rotlet 线段以捕捉扭转-平动耦合。这使 $\varepsilon$ 与线段长度 $h$ 解耦。</span>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3b: Kirchhoff Rod -->
+    <div class="mb-14">
+      <h3 class="text-xl font-semibold mb-4 flex items-center gap-2">
+        <span class="bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-400 text-xs font-bold px-2 py-0.5 rounded">3b</span>
+        <span class="en">Kirchhoff Elastic Rod Model</span>
+        <span class="zh">Kirchhoff 弹性杆模型</span>
+      </h3>
+      <p class="text-gray-600 dark:text-gray-400 mb-4">
+        <span class="en">Each pilus is modelled as an inextensible Kirchhoff elastic rod. The centreline orientation
+        is parameterised by Euler angles $(\theta_j, \phi_j, \psi_j)$ at each segment $j$, defining
+        a material frame $\{\mathbf{d}_1, \mathbf{d}_2, \mathbf{d}_3\}$. The elastic restoring moments are:</span>
+        <span class="zh">每根纤毛被建模为不可伸长的 Kirchhoff 弹性杆。中心线方向由每段 $j$ 的欧拉角 $(\theta_j, \phi_j, \psi_j)$ 参数化，
+        定义材料标架 $\{\mathbf{d}_1, \mathbf{d}_2, \mathbf{d}_3\}$。弹性恢复力矩为：</span>
+      </p>
+      <div class="bg-gray-50 dark:bg-navy-800 rounded-xl p-6 border border-gray-200 dark:border-navy-700 mb-4">
+        $$m_1 = EI\!\left(\frac{\partial \theta}{\partial s} - \kappa_1^0\right), \quad m_2 = EI\!\left(\sin\theta\,\frac{\partial \phi}{\partial s} - \kappa_2^0\right), \quad m_3 = \frac{EI}{1+\sigma}\!\left(\frac{\partial \psi}{\partial s} + \cos\theta\,\frac{\partial \phi}{\partial s} - \kappa_3^0\right)$$
+      </div>
+      <p class="text-gray-600 dark:text-gray-400 text-sm">
+        <span class="en">where $EI$ is the bending stiffness, $\sigma$ is the Poisson ratio giving torsional stiffness $GJ = EI/(1+\sigma)$,
+        and $\kappa_\alpha^0$ are the intrinsic (stress-free) curvatures.</span>
+        <span class="zh">其中 $EI$ 为弯曲刚度，$\sigma$ 为泊松比，扭转刚度 $GJ = EI/(1+\sigma)$，
+        $\kappa_\alpha^0$ 为固有（无应力状态下的）曲率。</span>
+      </p>
+    </div>
+
+    <!-- 3c: Coupled Linear System -->
+    <div class="mb-14">
+      <h3 class="text-xl font-semibold mb-4 flex items-center gap-2">
+        <span class="bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-400 text-xs font-bold px-2 py-0.5 rounded">3c</span>
+        <span class="en">Coupled Linear System</span>
+        <span class="zh">耦合线性系统</span>
+      </h3>
+      <p class="text-gray-600 dark:text-gray-400 mb-4">
+        <span class="en">The body and pili degrees of freedom are coupled through hydrodynamic interactions
+        into a single generalized linear system:</span>
+        <span class="zh">胞体和纤毛的自由度通过流体动力学交互耦合为统一的广义线性系统：</span>
+      </p>
+      <div class="bg-gray-50 dark:bg-navy-800 rounded-xl p-6 border border-gray-200 dark:border-navy-700 mb-4">
+        $$\underbrace{-\mathbf{B}\,\mathbf{M}_\text{weighted}^{-1}\,\mathbf{Q}}_{\textstyle\text{lin\_sys}\;=\;-\boldsymbol{\Xi}_\text{gen}}\;\dot{\mathbf{z}} = \mathbf{R}$$
+      </div>
+      <div class="grid md:grid-cols-3 gap-4 text-sm mt-4">
+        <div class="bg-white dark:bg-navy-900 rounded-lg p-4 border border-gray-200 dark:border-navy-700">
+          <h4 class="font-semibold mb-1 text-teal-700 dark:text-teal-400">
+            <span class="en">Q Matrix</span><span class="zh">Q 矩阵</span>
+          </h4>
+          <p class="text-gray-500 dark:text-gray-400">
+            <span class="en">Maps generalised velocities $\dot{\mathbf{z}}$ (body velocity + Euler-angle rates) to spatial velocities at all surface/node points.</span>
+            <span class="zh">将广义速度 $\dot{\mathbf{z}}$（胞体速度 + 欧拉角速率）映射到所有表面/节点的空间速度。</span>
+          </p>
+        </div>
+        <div class="bg-white dark:bg-navy-900 rounded-lg p-4 border border-gray-200 dark:border-navy-700">
+          <h4 class="font-semibold mb-1 text-teal-700 dark:text-teal-400">
+            <span class="en">B Matrix</span><span class="zh">B 矩阵</span>
+          </h4>
+          <p class="text-gray-500 dark:text-gray-400">
+            <span class="en">Maps distributed surface/node forces back to generalised forces/moments (force &amp; moment balance).</span>
+            <span class="zh">将分布式表面/节点力映射回广义力与力矩（力与力矩平衡）。</span>
+          </p>
+        </div>
+        <div class="bg-white dark:bg-navy-900 rounded-lg p-4 border border-gray-200 dark:border-navy-700">
+          <h4 class="font-semibold mb-1 text-teal-700 dark:text-teal-400">
+            <span class="en">R Vector</span><span class="zh">R 向量</span>
+          </h4>
+          <p class="text-gray-500 dark:text-gray-400">
+            <span class="en">Right-hand side: gravitational force $-E_g\,\hat{\mathbf{g}}$ on the body plus elastic restoring moments on each pilus.</span>
+            <span class="zh">右端项：作用于胞体的重力 $-E_g\,\hat{\mathbf{g}}$ 以及各纤毛的弹性恢复力矩。</span>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3d: Nondimensionalization -->
+    <div>
+      <h3 class="text-xl font-semibold mb-4 flex items-center gap-2">
+        <span class="bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-400 text-xs font-bold px-2 py-0.5 rounded">3d</span>
+        <span class="en">Nondimensionalization</span>
+        <span class="zh">无量纲化</span>
+      </h3>
+      <p class="text-gray-600 dark:text-gray-400 mb-4">
+        <span class="en">All state variables are nondimensionalized using bending-stiffness-based characteristic scales:</span>
+        <span class="zh">所有状态变量均采用基于弯曲刚度的特征尺度进行无量纲化：</span>
+      </p>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm border border-gray-200 dark:border-navy-700 rounded-lg overflow-hidden">
+          <thead class="bg-gray-100 dark:bg-navy-800 text-gray-700 dark:text-gray-300">
+            <tr>
+              <th class="px-4 py-3 text-left"><span class="en">Scale</span><span class="zh">尺度</span></th>
+              <th class="px-4 py-3 text-left"><span class="en">Formula</span><span class="zh">公式</span></th>
+              <th class="px-4 py-3 text-left"><span class="en">Typical Value</span><span class="zh">典型值</span></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 dark:divide-navy-700">
+            <tr><td class="px-4 py-2 font-mono">$L_0$</td><td class="px-4 py-2"><span class="en">$a$ (semi-major axis)</span><span class="zh">$a$（半长轴）</span></td><td class="px-4 py-2">1.25 &mu;m</td></tr>
+            <tr><td class="px-4 py-2 font-mono">$T_0$</td><td class="px-4 py-2">$8\pi\mu L_0^3 / EI$</td><td class="px-4 py-2">~0.1 s</td></tr>
+            <tr><td class="px-4 py-2 font-mono">$U_0$</td><td class="px-4 py-2">$L_0 / T_0 = EI/(8\pi\mu L_0^2)$</td><td class="px-4 py-2">~10 &mu;m/s</td></tr>
+            <tr><td class="px-4 py-2 font-mono">$F_0$</td><td class="px-4 py-2">$EI / L_0^2$</td><td class="px-4 py-2">~pN</td></tr>
+            <tr><td class="px-4 py-2 font-mono">$E_g$</td><td class="px-4 py-2">$\Delta\rho\, g\, V_\text{body}\, L_0^2 / EI$</td><td class="px-4 py-2">~0.01&ndash;0.1</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 4: BROWNIAN ==================== -->
+<section id="brownian" class="py-20 px-6 md:px-16 lg:px-24 bg-gray-50 dark:bg-navy-800">
+  <div class="max-w-5xl mx-auto">
+    <h2 class="text-2xl md:text-3xl font-bold mb-2">
+      <span class="en">Brownian Dynamics Scheme</span><span class="zh">布朗动力学方案</span>
+    </h2>
+    <div class="w-16 h-1 bg-teal-600 rounded mb-10"></div>
+
+    <!-- Motivation -->
+    <div class="bg-white dark:bg-navy-900 rounded-2xl shadow-lg p-6 md:p-8 border border-gray-200 dark:border-navy-700 mb-10">
+      <h3 class="font-semibold text-lg mb-3">
+        <span class="en">Physical Motivation</span><span class="zh">物理动机</span>
+      </h3>
+      <p class="text-gray-600 dark:text-gray-400 mb-4 text-sm leading-relaxed">
+        <span class="en">In the overdamped regime ($\text{Re} \ll 1$), the body experiences thermal fluctuations governed by the
+        <strong>fluctuation-dissipation theorem</strong> (FDT). The effective friction of the body is not determined by
+        the body alone &mdash; pili attached to the body contribute additional hydrodynamic drag.
+        More and longer pili <strong>increase the effective friction</strong> and correspondingly
+        <strong>reduce thermal diffusion</strong>. This coupling is captured through the Schur complement
+        of the full-system generalised resistance matrix.</span>
+        <span class="zh">在过阻尼区域 ($\text{Re} \ll 1$) 中，胞体受<strong>涨落耗散定理</strong> (FDT) 支配的热涨落驱动。
+        胞体的有效摩擦不仅取决于胞体本身——附着于胞体的纤毛贡献了额外的流体动力学阻力。
+        纤毛越多、越长，有效摩擦越大，相应的<strong>热扩散越弱</strong>。
+        该耦合通过全系统广义阻力矩阵的 Schur 补来捕捉。</span>
+      </p>
+      <div class="bg-gray-50 dark:bg-navy-800 rounded-xl p-5 border border-gray-200 dark:border-navy-700">
+        $$\mathbf{M}_\text{eff} = \left[\boldsymbol{\Xi}_\text{gen}^{-1}\right]_{BB} = \left(\boldsymbol{\Xi}_{BB} - \boldsymbol{\Xi}_{BP}\,\boldsymbol{\Xi}_{PP}^{-1}\,\boldsymbol{\Xi}_{PB}\right)^{-1}$$
+      </div>
+      <p class="text-xs text-gray-500 dark:text-gray-500 mt-3">
+        <span class="en">The Schur complement $\boldsymbol{\Xi}_{BB} - \boldsymbol{\Xi}_{BP}\,\boldsymbol{\Xi}_{PP}^{-1}\,\boldsymbol{\Xi}_{PB}$ is the effective body resistance after eliminating pili DOFs. Since the full system includes hydrodynamic coupling from the pili, the resulting body mobility $\mathbf{M}_\text{eff}$ is smaller (more damped) than the isolated body's mobility.</span>
+        <span class="zh">Schur 补 $\boldsymbol{\Xi}_{BB} - \boldsymbol{\Xi}_{BP}\,\boldsymbol{\Xi}_{PP}^{-1}\,\boldsymbol{\Xi}_{PB}$ 为消除纤毛自由度后胞体的有效阻力。由于全系统包含纤毛的流体动力学耦合，所得胞体迁移率 $\mathbf{M}_\text{eff}$ 小于（阻尼更大）孤立胞体的迁移率。</span>
+      </p>
+    </div>
+
+    <!-- Probing Method -->
+    <div class="mb-10">
+      <h3 class="text-lg font-semibold mb-4">
+        <span class="en">Probing Method &mdash; Extracting Effective Mobility</span>
+        <span class="zh">探测法 &mdash; 提取有效迁移率</span>
+      </h3>
+      <p class="text-gray-600 dark:text-gray-400 mb-4 text-sm">
+        <span class="en">Rather than explicitly inverting the full $n \times n$ resistance matrix, we extract the 6&times;6
+        body mobility block by solving the coupled linear system with 6 unit probe vectors:</span>
+        <span class="zh">无需显式求逆整个 $n \times n$ 阻力矩阵，而是通过求解耦合线性系统的 6 个单位探测向量来提取 6&times;6 胞体迁移率块：</span>
+      </p>
+      <pre><code class="language-matlab">% Assemble coupled linear system (Steps 1-7)
+[lin_sys, ~] = build_coupled_lin_sys(Z, params);
+
+% Probe with 6 unit body forces/torques
+R_probe = zeros(n_state, 6);
+R_probe(1:6, 1:6) = -eye(6);   % lin_sys = -Xi_gen
+
+z_dot_probe = lin_sys \ R_probe;
+M_eff_dimless = z_dot_probe(1:6, :);  % 6x6 effective mobility</code></pre>
+      <p class="text-gray-600 dark:text-gray-400 mt-4 mb-2 text-sm">
+        <span class="en">The dimensionless mobility is then converted to physical units:</span>
+        <span class="zh">无量纲迁移率随后被转换为有量纲物理单位：</span>
+      </p>
+      <div class="bg-gray-50 dark:bg-navy-800 rounded-xl p-5 border border-gray-200 dark:border-navy-700">
+        $$M_\text{eff,dim}(i,j) = \frac{\tilde{M}_\text{eff}(i,j)}{S_i \, S_j}, \qquad \mathbf{S} = \bigl[\underbrace{\sqrt{8\pi\mu L_0}}_{\text{translation}\;\times 3},\; \underbrace{\sqrt{8\pi\mu L_0^3}}_{\text{rotation}\;\times 3}\bigr]^\top$$
+      </div>
+    </div>
+
+    <!-- FDT and Cholesky -->
+    <div class="mb-10">
+      <h3 class="text-lg font-semibold mb-4">
+        <span class="en">Diffusion Tensor &amp; Euler-Maruyama Discretisation</span>
+        <span class="zh">扩散张量与 Euler-Maruyama 离散化</span>
+      </h3>
+      <div class="bg-gray-50 dark:bg-navy-800 rounded-xl p-5 border border-gray-200 dark:border-navy-700 mb-4">
+        $$\mathbf{D}_\text{eff} = k_B T\,\mathbf{M}_\text{eff}, \qquad \mathbf{L}_\text{eff}\,\mathbf{L}_\text{eff}^\top = 2\,\mathbf{D}_\text{eff}, \qquad \delta\mathbf{U} = \mathbf{L}_\text{eff}\,\boldsymbol{\eta}\,\sqrt{\Delta t_B}, \quad \boldsymbol{\eta} \sim \mathcal{N}(\mathbf{0},\,\mathbf{I}_6)$$
+      </div>
+      <p class="text-gray-600 dark:text-gray-400 text-sm">
+        <span class="en">The 6D displacement $\delta\mathbf{U}$ contains both translational ($\delta\mathbf{X}$, in metres)
+        and rotational ($\delta\boldsymbol{\omega}$, in radians) components, coupled through the off-diagonal
+        blocks of $\mathbf{L}_\text{eff}$. The rotation is applied via quaternion composition:
+        $\mathbf{q}_{n+1} = \Delta\mathbf{q}\,\otimes\,\mathbf{q}_n$.</span>
+        <span class="zh">6D 位移 $\delta\mathbf{U}$ 包含平动分量 ($\delta\mathbf{X}$，单位：米)
+        和转动分量 ($\delta\boldsymbol{\omega}$，单位：弧度)，通过 $\mathbf{L}_\text{eff}$ 的非对角块耦合。
+        转动通过四元数复合施加：$\mathbf{q}_{n+1} = \Delta\mathbf{q}\,\otimes\,\mathbf{q}_n$。</span>
+      </p>
+    </div>
+
+    <!-- Fixman midpoint (collapsible) -->
+    <div class="bg-white dark:bg-navy-900 rounded-xl border border-gray-200 dark:border-navy-700 overflow-hidden">
+      <button onclick="this.nextElementSibling.classList.toggle('open'); this.querySelector('svg').classList.toggle('rotate-180')"
+        class="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 dark:hover:bg-navy-800 transition">
+        <span class="font-semibold text-sm">
+          <span class="en">Optional: Fixman Midpoint Correction</span>
+          <span class="zh">可选：Fixman 中点修正</span>
+        </span>
+        <svg class="w-5 h-5 text-gray-400 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      <div class="collapsible-body px-5 pb-5">
+        <p class="text-gray-600 dark:text-gray-400 text-sm mb-4">
+          <span class="en">When $\mathbf{M}_\text{eff}$ depends on the configuration (as it does here &mdash; pili change shape over time),
+          the It&ocirc; form of the overdamped SDE acquires a <strong>spurious drift term</strong>
+          $k_B T\,\nabla_{\!\mathbf{q}}\!\cdot\!\mathbf{M}_\text{eff}$. Directly computing this divergence
+          requires $O(n)$ additional linear solves, which is prohibitively expensive.</span>
+          <span class="zh">当 $\mathbf{M}_\text{eff}$ 依赖于构型时（此处确实如此——纤毛形状随时间变化），
+          过阻尼 SDE 的 It&ocirc; 形式会产生一个<strong>伪漂移项</strong>
+          $k_B T\,\nabla_{\!\mathbf{q}}\!\cdot\!\mathbf{M}_\text{eff}$。直接计算此散度
+          需要 $O(n)$ 次额外线性求解，计算成本过高。</span>
+        </p>
+        <p class="text-gray-600 dark:text-gray-400 text-sm mb-3">
+          <span class="en">The <strong>Fixman midpoint scheme</strong> captures this drift implicitly:</span>
+          <span class="zh"><strong>Fixman 中点格式</strong>隐式捕捉该漂移：</span>
+        </p>
+        <ol class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-decimal list-inside mb-4">
+          <li><span class="en">Compute $\mathbf{L}_n$ at current configuration $\mathbf{q}_n$</span><span class="zh">在当前构型 $\mathbf{q}_n$ 处计算 $\mathbf{L}_n$</span></li>
+          <li><span class="en">Draw random vector $\boldsymbol{\eta} \sim \mathcal{N}(\mathbf{0},\,\mathbf{I}_6)$</span><span class="zh">生成随机向量 $\boldsymbol{\eta} \sim \mathcal{N}(\mathbf{0},\,\mathbf{I}_6)$</span></li>
+          <li><span class="en">Trial kick: $\Delta\mathbf{U}_\text{trial} = \mathbf{L}_n\,\boldsymbol{\eta}\,\sqrt{\Delta t_B}$</span><span class="zh">试探步：$\Delta\mathbf{U}_\text{trial} = \mathbf{L}_n\,\boldsymbol{\eta}\,\sqrt{\Delta t_B}$</span></li>
+          <li><span class="en">Half-step: $\mathbf{q}_\text{mid} = \mathbf{q}_n + \tfrac{1}{2}\,\Delta\mathbf{U}_\text{trial}$</span><span class="zh">半步推进：$\mathbf{q}_\text{mid} = \mathbf{q}_n + \tfrac{1}{2}\,\Delta\mathbf{U}_\text{trial}$</span></li>
+          <li><span class="en">Recompute $\mathbf{L}_\text{mid}$ at midpoint configuration</span><span class="zh">在中点构型处重新计算 $\mathbf{L}_\text{mid}$</span></li>
+          <li><span class="en">Final kick: $\Delta\mathbf{U} = \mathbf{L}_\text{mid}\,\boldsymbol{\eta}\,\sqrt{\Delta t_B}$ &mdash; <strong>same</strong> $\boldsymbol{\eta}$!</span><span class="zh">最终位移：$\Delta\mathbf{U} = \mathbf{L}_\text{mid}\,\boldsymbol{\eta}\,\sqrt{\Delta t_B}$ &mdash; 使用<strong>相同的</strong> $\boldsymbol{\eta}$！</span></li>
+        </ol>
+        <p class="text-xs text-gray-500 dark:text-gray-500">
+          <span class="en">Cost: 2&times; linear system solve per Brownian step. Controlled via <code class="text-teal-600">fixman_midpoint</code> in the JSON config.</span>
+          <span class="zh">代价：每个布朗步需 2 次线性求解。通过 JSON 配置中的 <code class="text-teal-600">fixman_midpoint</code> 控制。</span>
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 5: ARCHITECTURE ==================== -->
+<section id="architecture" class="py-20 px-6 md:px-16 lg:px-24">
+  <div class="max-w-6xl mx-auto">
+    <h2 class="text-2xl md:text-3xl font-bold mb-2">
+      <span class="en">Code Architecture</span><span class="zh">代码架构</span>
+    </h2>
+    <div class="w-16 h-1 bg-teal-600 rounded mb-10"></div>
+
+    <!-- Mermaid diagram -->
+    <div class="bg-white dark:bg-navy-900 rounded-2xl shadow-lg p-6 md:p-8 border border-gray-200 dark:border-navy-700 mb-10 overflow-x-auto">
+      <h3 class="font-semibold text-lg mb-4">
+        <span class="en">Module Dependency Graph</span><span class="zh">模块依赖关系图</span>
+      </h3>
+      <pre class="mermaid">
+graph TD
+    ENTRY["main_coupled_simulation.m\nEntry Point"] --> PC["parse_pili_config.m"]
+    ENTRY --> LC["load_sim_config.m"]
+    ENTRY --> RUN["run_simulation.m\nCore Engine"]
+
+    RUN --> VAL["validate_simulation_params.m"]
+    RUN --> SC["save_sim_config.m"]
+    RUN --> INIT["init_coupled_params.m"]
+    RUN --> STATE["init_coupled_state.m"]
+    RUN --> ODE["ode15s + ode_coupled_rhs.m"]
+    RUN --> ABC["adaptive_basis_check.m"]
+    RUN --> ECG["enforce_clamped_geometry.m"]
+    RUN --> BROWN["compute_effective_body_brownian.m"]
+    RUN --> FLOW["compute_plot_flowfield.m"]
+    RUN --> OUT["Output: .mat / .png / .mp4"]
+
+    INIT --> CAP["capsule_body_building.m"]
+    INIT --> PIB["pili_building.m"]
+    PIB --> PTB["pili_type_building.m"]
+    PIB --> CCB["compute_curvature_binormal.m"]
+
+    BROWN --> BLS["build_coupled_lin_sys.m"]
+    ODE --> BLS
+    BLS --> RG["reconstruct_geometry.m"]
+    BLS --> BGR["build_global_resistance.m"]
+
+    RG --> PD["pili_directors.m"]
+    RG --> PSC["pili_spatial_coords.m"]
+    RG --> US["unpack_state.m"]
+    RG --> QTR["quat_to_rotmat.m"]
+
+    BATCH["batch sweep/ scripts"] --> RUN
+      </pre>
+    </div>
+
+    <!-- Layer table -->
+    <div class="mb-10">
+      <h3 class="font-semibold text-lg mb-4">
+        <span class="en">Functional Layers</span><span class="zh">功能层级</span>
+      </h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm border border-gray-200 dark:border-navy-700 rounded-lg overflow-hidden">
+          <thead class="bg-gray-100 dark:bg-navy-800 text-gray-700 dark:text-gray-300">
+            <tr>
+              <th class="px-4 py-3 text-left"><span class="en">Layer</span><span class="zh">层级</span></th>
+              <th class="px-4 py-3 text-left"><span class="en">Files</span><span class="zh">文件</span></th>
+              <th class="px-4 py-3 text-left"><span class="en">Responsibility</span><span class="zh">职责</span></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 dark:divide-navy-700 text-gray-600 dark:text-gray-400">
+            <tr>
+              <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">Entry</span><span class="zh">入口</span></td>
+              <td class="px-4 py-2"><code>main_coupled_simulation.m</code></td>
+              <td class="px-4 py-2"><span class="en">User-facing script; defines inline or JSON config, calls <code>run_simulation</code></span><span class="zh">用户接口脚本；定义内联或 JSON 配置，调用 <code>run_simulation</code></span></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">Engine</span><span class="zh">引擎</span></td>
+              <td class="px-4 py-2"><code>run_simulation.m</code></td>
+              <td class="px-4 py-2"><span class="en">ODE loop, Brownian kicks, post-processing, visualisation, data export</span><span class="zh">ODE 循环、布朗扰动、后处理、可视化、数据导出</span></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">ODE Core</span><span class="zh">ODE 核心</span></td>
+              <td class="px-4 py-2"><code>ode_coupled_rhs.m</code>, <code>build_coupled_lin_sys.m</code></td>
+              <td class="px-4 py-2"><span class="en">Deterministic RHS: linear system assembly + elastic moments + state-rate packing</span><span class="zh">确定性右端项：线性系统装配 + 弹性力矩 + 状态速率组装</span></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">Brownian</span><span class="zh">布朗</span></td>
+              <td class="px-4 py-2"><code>compute_effective_body_brownian.m</code></td>
+              <td class="px-4 py-2"><span class="en">Probing method, dimensionalisation, Cholesky decomposition</span><span class="zh">探测法、量纲化、Cholesky 分解</span></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">Geometry</span><span class="zh">几何</span></td>
+              <td class="px-4 py-2"><code>reconstruct_geometry.m</code>, <code>capsule_body_building.m</code>, ...</td>
+              <td class="px-4 py-2"><span class="en">State &rarr; spatial coordinates &amp; director frames</span><span class="zh">状态 &rarr; 空间坐标 &amp; 标架</span></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">Physics</span><span class="zh">物理</span></td>
+              <td class="px-4 py-2"><code>build_global_resistance.m</code>, <code>compute_pili_elastic_moments.m</code></td>
+              <td class="px-4 py-2"><span class="en">Hydrodynamic mobility/resistance; elastic restoring moments</span><span class="zh">流体动力学迁移率/阻力；弹性恢复力矩</span></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">Utilities</span><span class="zh">工具</span></td>
+              <td class="px-4 py-2"><code>skew_matrix.m</code>, <code>quat_*.m</code>, <code>pili_*.m</code>, ...</td>
+              <td class="px-4 py-2"><span class="en">Quaternion algebra, Euler angles, state packing</span><span class="zh">四元数代数、欧拉角、状态组装</span></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">Config/IO</span><span class="zh">配置/IO</span></td>
+              <td class="px-4 py-2"><code>load_sim_config.m</code>, <code>save_sim_config.m</code>, ...</td>
+              <td class="px-4 py-2"><span class="en">JSON read/write, parameter validation, pili config parsing</span><span class="zh">JSON 读写、参数验证、纤毛配置解析</span></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">Batch</span><span class="zh">批处理</span></td>
+              <td class="px-4 py-2"><code>batch_sweep_*.m</code>, <code>batch_run_from_json.m</code></td>
+              <td class="px-4 py-2"><span class="en">Headless parameter sweeps, JSON batch runner</span><span class="zh">无界面参数扫描、JSON 批处理运行器</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- File tree (collapsible) -->
+    <div class="bg-white dark:bg-navy-900 rounded-xl border border-gray-200 dark:border-navy-700 overflow-hidden">
+      <button onclick="this.nextElementSibling.classList.toggle('open'); this.querySelector('svg').classList.toggle('rotate-180')"
+        class="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 dark:hover:bg-navy-800 transition">
+        <span class="font-semibold text-sm">
+          <span class="en">Project File Tree (40+ MATLAB files)</span>
+          <span class="zh">项目文件树（40+ MATLAB 文件）</span>
+        </span>
+        <svg class="w-5 h-5 text-gray-400 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      <div class="collapsible-body px-5 pb-5">
+        <pre class="text-xs text-gray-600 dark:text-gray-400 font-mono leading-relaxed whitespace-pre">Coupled_Body_Pili/
+├── main_coupled_simulation.m        % Entry point
+├── run_simulation.m                 % Core simulation engine
+├── init_coupled_params.m            % Parameter initialisation
+├── init_coupled_state.m             % Initial state vector Z0
+├── ode_coupled_rhs.m                % ODE right-hand side
+├── build_coupled_lin_sys.m          % Coupled linear system assembly
+├── build_global_resistance.m        % RSM/RSS mobility matrices
+├── reconstruct_geometry.m           % State → geometry
+├── compute_pili_elastic_moments.m   % Kirchhoff elastic moments
+├── compute_effective_body_brownian.m% Full-system Brownian (probing)
+├── enforce_clamped_geometry.m       % Clamped BC projection
+├── adaptive_basis_check.m           % Euler-angle singularity avoidance
+├── compute_plot_flowfield.m         % Flow field visualisation
+├── capsule_body_building.m          % Capsule body mesh
+├── pili_building.m                  % Pili structure initialisation
+├── pili_type_building.m             % Pili shape generation
+├── pili_directors.m                 % Euler angles → director frame
+├── pili_euler_angles.m              % Director frame → Euler angles
+├── pili_spatial_coords.m            % Pili node coordinates
+├── compute_curvature_binormal.m     % Discrete curvature binormal
+├── skew_matrix.m                    % 3D skew-symmetric matrix
+├── unpack_state.m                   % Z → body + pili components
+├── pack_state_rates.m               % Assemble dZ/dt
+├── quat_kinematics.m                % Quaternion time derivative
+├── quat_multiply.m                  % Quaternion product
+├── quat_to_rotmat.m                 % Quaternion → rotation matrix
+├── parse_pili_config.m              % Struct → Pili_Matrix
+├── load_sim_config.m                % JSON → cfg struct
+├── save_sim_config.m                % cfg → JSON
+├── validate_simulation_params.m     % Pre-flight checks
+├── render_progress_bar.m            % Console progress bar
+├── odetpbar.m                       % ODE OutputFcn progress
+├── config_example.json              % Example JSON configuration
+├── configs/
+│   └── OnePili-P1-L3.json          % Reference config
+├── batch sweep/
+│   ├── batch_sweep_alpha.m
+│   ├── batch_sweep_major_axis.m
+│   ├── batch_sweep_pili_length.m
+│   ├── batch_sweep_pili_E.m
+│   ├── batch_sweep_N_body.m
+│   ├── batch_sweep_seg_per_um.m
+│   └── batch_run_from_json.m
+└── docs/
+    └── index.html                   % This documentation page</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 6: USAGE ==================== -->
+<section id="usage" class="py-20 px-6 md:px-16 lg:px-24 bg-gray-50 dark:bg-navy-800">
+  <div class="max-w-5xl mx-auto">
+    <h2 class="text-2xl md:text-3xl font-bold mb-2">
+      <span class="en">Quick Start &amp; Usage</span><span class="zh">快速上手与使用</span>
+    </h2>
+    <div class="w-16 h-1 bg-teal-600 rounded mb-10"></div>
+
+    <!-- Prerequisites -->
+    <div class="bg-white dark:bg-navy-900 rounded-xl p-6 border border-gray-200 dark:border-navy-700 mb-10">
+      <h3 class="font-semibold mb-3">
+        <span class="en">Prerequisites</span><span class="zh">运行环境</span>
+      </h3>
+      <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+        <li>&#10003;&nbsp; <strong>MATLAB R2020b</strong> <span class="en">or later</span><span class="zh">或更高版本</span></li>
+        <li>&#10003;&nbsp; <span class="en">No additional toolboxes required</span><span class="zh">无需额外工具箱</span></li>
+        <li>&#10003;&nbsp; <span class="en">Navigate MATLAB to the</span><span class="zh">将 MATLAB 工作目录切换至</span> <code class="bg-gray-100 dark:bg-navy-800 px-1.5 py-0.5 rounded text-xs">Coupled_Body_Pili/</code> <span class="en">directory</span><span class="zh">目录</span></li>
+      </ul>
+    </div>
+
+    <!-- Tabs -->
+    <div class="mb-10">
+      <h3 class="font-semibold text-lg mb-4">
+        <span class="en">Three Ways to Run</span><span class="zh">三种运行方式</span>
+      </h3>
+      <div class="flex border-b border-gray-200 dark:border-navy-700 mb-4">
+        <button class="tab-btn active-tab px-5 py-3 text-sm border-b-2 border-transparent transition" onclick="switchTab(event, 'tab-inline')">
+          <span class="en">Inline Config</span><span class="zh">内联配置</span>
+        </button>
+        <button class="tab-btn px-5 py-3 text-sm border-b-2 border-transparent transition" onclick="switchTab(event, 'tab-json')">
+          <span class="en">JSON File</span><span class="zh">JSON 文件</span>
+        </button>
+        <button class="tab-btn px-5 py-3 text-sm border-b-2 border-transparent transition" onclick="switchTab(event, 'tab-batch')">
+          <span class="en">Batch Sweep</span><span class="zh">批量扫描</span>
+        </button>
+      </div>
+
+      <div id="tab-inline" class="tab-panel active-panel">
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          <span class="en">Edit parameters directly in <code>main_coupled_simulation.m</code>, then press Run:</span>
+          <span class="zh">直接在 <code>main_coupled_simulation.m</code> 中编辑参数，然后运行：</span>
+        </p>
+        <pre><code class="language-matlab">cfg.case_name    = 'TwoPili-S29-L3-Brown';
+cfg.minor_axis   = 0.4e-6;       % [m]
+cfg.major_axis   = 1.25e-6;      % [m]
+cfg.N_body       = 1000;
+cfg.enable_brown = true;
+cfg.Temper       = 293.15;       % [K]
+cfg.dt_B         = cfg.dt / 2;
+cfg.fixman_midpoint = false;
+
+[results, params, output_dir] = run_simulation(cfg);</code></pre>
+      </div>
+
+      <div id="tab-json" class="tab-panel">
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          <span class="en">Load configuration from a JSON file:</span>
+          <span class="zh">从 JSON 文件加载配置：</span>
+        </p>
+        <pre><code class="language-matlab">config_file = 'configs/OnePili-P1-L3.json';
+cfg = load_sim_config(config_file);
+[results, params, output_dir] = run_simulation(cfg);</code></pre>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mt-4 mb-3">
+          <span class="en">Example JSON structure:</span><span class="zh">JSON 配置示例：</span>
+        </p>
+        <pre><code class="language-json">{
+    "case_name": "OnePili-P1-L3",
+    "body": {
+        "minor_axis": 0.4e-6,
+        "major_axis": 1.25e-6,
+        "N_body": 1000,
+        "alpha_0": 0
+    },
+    "pili": [
+        { "type": "linear", "length_um": 3, "site": 1 }
+    ],
+    "brownian": {
+        "enable": true,
+        "temperature": 293.15,
+        "dt_B_ratio": 0.5,
+        "fixman_midpoint": false
+    }
+}</code></pre>
+      </div>
+
+      <div id="tab-batch" class="tab-panel">
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          <span class="en">Use a dedicated sweep script or the JSON batch runner:</span>
+          <span class="zh">使用专用扫描脚本或 JSON 批处理运行器：</span>
+        </p>
+        <pre><code class="language-matlab">% Sweep pili length from 1 to 6 um
+run('batch sweep/batch_sweep_pili_length.m');
+
+% Or run all JSON configs in a folder
+run('batch sweep/batch_run_from_json.m');</code></pre>
+        <p class="text-sm text-gray-500 dark:text-gray-500 mt-3">
+          <span class="en">Available sweeps:</span><span class="zh">可用扫描：</span>
+          <code>alpha</code>, <code>major_axis</code>, <code>pili_length</code>,
+          <code>pili_E</code>, <code>N_body</code>, <code>seg_per_um</code>.
+        </p>
+      </div>
+    </div>
+
+    <!-- Brownian parameters -->
+    <div class="mb-10">
+      <h3 class="font-semibold text-lg mb-4">
+        <span class="en">Brownian Motion Parameters</span><span class="zh">布朗运动参数</span>
+      </h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm border border-gray-200 dark:border-navy-700 rounded-lg overflow-hidden">
+          <thead class="bg-gray-100 dark:bg-navy-800 text-gray-700 dark:text-gray-300">
+            <tr>
+              <th class="px-4 py-3 text-left"><span class="en">Parameter</span><span class="zh">参数</span></th>
+              <th class="px-4 py-3 text-left">JSON Key</th>
+              <th class="px-4 py-3 text-left"><span class="en">Default</span><span class="zh">默认值</span></th>
+              <th class="px-4 py-3 text-left"><span class="en">Description</span><span class="zh">说明</span></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 dark:divide-navy-700 text-gray-600 dark:text-gray-400">
+            <tr><td class="px-4 py-2 font-mono text-xs">enable_brown</td><td class="px-4 py-2"><code>brownian.enable</code></td><td class="px-4 py-2"><code>false</code></td><td class="px-4 py-2"><span class="en">Master switch for Brownian motion</span><span class="zh">布朗运动总开关</span></td></tr>
+            <tr><td class="px-4 py-2 font-mono text-xs">Temper</td><td class="px-4 py-2"><code>brownian.temperature</code></td><td class="px-4 py-2"><code>293.15</code> K</td><td class="px-4 py-2"><span class="en">Fluid temperature</span><span class="zh">流体温度</span></td></tr>
+            <tr><td class="px-4 py-2 font-mono text-xs">dt_B</td><td class="px-4 py-2"><code>brownian.dt_B_ratio</code> &times; dt</td><td class="px-4 py-2"><code>dt/2</code></td><td class="px-4 py-2"><span class="en">Brownian time step (fixed, dimensional)</span><span class="zh">布朗时间步长（固定、有量纲）</span></td></tr>
+            <tr><td class="px-4 py-2 font-mono text-xs">fixman_midpoint</td><td class="px-4 py-2"><code>brownian.fixman_midpoint</code></td><td class="px-4 py-2"><code>false</code></td><td class="px-4 py-2"><span class="en">Enable Fixman midpoint drift correction (2&times; cost)</span><span class="zh">启用 Fixman 中点漂移修正（2 倍代价）</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Output files -->
+    <div>
+      <h3 class="font-semibold text-lg mb-4">
+        <span class="en">Output Files</span><span class="zh">输出文件</span>
+      </h3>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="bg-white dark:bg-navy-900 rounded-lg p-4 border border-gray-200 dark:border-navy-700 flex items-start gap-3">
+          <span class="text-xl mt-0.5">📦</span>
+          <div><h4 class="font-semibold text-sm">simulation_results.mat</h4><p class="text-xs text-gray-500"><span class="en">Full results &amp; params (HDF5 v7.3)</span><span class="zh">完整结果与参数 (HDF5 v7.3)</span></p></div>
+        </div>
+        <div class="bg-white dark:bg-navy-900 rounded-lg p-4 border border-gray-200 dark:border-navy-700 flex items-start gap-3">
+          <span class="text-xl mt-0.5">📊</span>
+          <div><h4 class="font-semibold text-sm">timeseries.csv</h4><p class="text-xs text-gray-500"><span class="en">Position, velocity, tilt angle vs time</span><span class="zh">位置、速度、倾斜角 vs 时间</span></p></div>
+        </div>
+        <div class="bg-white dark:bg-navy-900 rounded-lg p-4 border border-gray-200 dark:border-navy-700 flex items-start gap-3">
+          <span class="text-xl mt-0.5">🖼️</span>
+          <div><h4 class="font-semibold text-sm">summary_plot.png</h4><p class="text-xs text-gray-500"><span class="en">6-panel summary (trajectories + snapshots)</span><span class="zh">6 面板汇总（轨迹 + 快照）</span></p></div>
+        </div>
+        <div class="bg-white dark:bg-navy-900 rounded-lg p-4 border border-gray-200 dark:border-navy-700 flex items-start gap-3">
+          <span class="text-xl mt-0.5">🎬</span>
+          <div><h4 class="font-semibold text-sm">bacteria_3d_motion.mp4</h4><p class="text-xs text-gray-500"><span class="en">3-panel animation (3D + XZ + YZ)</span><span class="zh">三面板动画 (3D + XZ + YZ)</span></p></div>
+        </div>
+        <div class="bg-white dark:bg-navy-900 rounded-lg p-4 border border-gray-200 dark:border-navy-700 flex items-start gap-3">
+          <span class="text-xl mt-0.5">🌊</span>
+          <div><h4 class="font-semibold text-sm">flowfield_panels.png</h4><p class="text-xs text-gray-500"><span class="en">Dual-plane Stokes flow field at final state</span><span class="zh">终态双平面 Stokes 流场</span></p></div>
+        </div>
+        <div class="bg-white dark:bg-navy-900 rounded-lg p-4 border border-gray-200 dark:border-navy-700 flex items-start gap-3">
+          <span class="text-xl mt-0.5">📝</span>
+          <div><h4 class="font-semibold text-sm">simulation.log / config.json</h4><p class="text-xs text-gray-500"><span class="en">Dual-channel log + config snapshot</span><span class="zh">双通道日志 + 配置快照</span></p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 7: REFERENCES ==================== -->
+<section id="references" class="py-20 px-6 md:px-16 lg:px-24 bg-gray-50 dark:bg-navy-800">
+  <div class="max-w-5xl mx-auto">
+    <h2 class="text-2xl md:text-3xl font-bold mb-2">
+      <span class="en">References &amp; License</span><span class="zh">参考文献与许可</span>
+    </h2>
+    <div class="w-16 h-1 bg-teal-600 rounded mb-10"></div>
+
+    <div class="grid md:grid-cols-2 gap-10">
+      <div>
+        <h3 class="font-semibold text-lg mb-4">
+          <span class="en">Key References</span><span class="zh">主要参考文献</span>
+        </h3>
+        <ol class="text-sm text-gray-600 dark:text-gray-400 space-y-4 list-decimal list-inside">
+          <li>
+            <strong>Walker, B. J., Wheeler, R. J., Ishimoto, K., &amp; Gaffney, E. A.</strong> (2020).
+            Boundary behaviours of <em>Leishmania mexicana</em>: A hydrodynamic simulation study.
+            <em>Physical Review E</em>, 100(3).
+          </li>
+          <li>
+            <strong>Cortez, R., Fauci, L., &amp; Medovikov, A.</strong> (2005).
+            The method of regularized Stokeslets in three dimensions: Analysis, validation, and application to helical swimming.
+            <em>Physics of Fluids</em>, 17, 031504.
+          </li>
+          <li>
+            <strong>Cortez, R.</strong> (2018).
+            Regularized Stokeslet segments.
+            <em>Journal of Computational Physics</em>, 375, 783&ndash;796.
+          </li>
+        </ol>
+      </div>
+      <div>
+        <h3 class="font-semibold text-lg mb-4">
+          <span class="en">License</span><span class="zh">许可协议</span>
+        </h3>
+        <div class="bg-white dark:bg-navy-900 rounded-xl p-5 border border-gray-200 dark:border-navy-700 mb-6">
+          <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">
+            <span class="en">This project is released under the <strong>MIT License</strong>.</span>
+            <span class="zh">本项目基于 <strong>MIT 许可协议</strong> 发布。</span>
+          </p>
+          <p class="text-xs text-gray-500">
+            <span class="en">You are free to use, modify, and distribute the code for academic or commercial purposes,
+            provided the original copyright notice and license are included.</span>
+            <span class="zh">您可以自由使用、修改和分发本代码，用于学术或商业目的，前提是保留原始版权声明与许可协议。</span>
+          </p>
+        </div>
+        <h3 class="font-semibold text-lg mb-4">
+          <span class="en">Contact</span><span class="zh">联系方式</span>
+        </h3>
+        <div class="bg-white dark:bg-navy-900 rounded-xl p-5 border border-gray-200 dark:border-navy-700">
+          <p class="text-sm text-gray-700 dark:text-gray-300 font-semibold">Lucien</p>
+          <p class="text-sm text-gray-500">lucien-6@qq.com</p>
+          <p class="text-xs text-gray-400 mt-2">
+            <span class="en">PhD Student &mdash; Fluid Dynamics &amp; Microbiology</span>
+            <span class="zh">博士研究生 &mdash; 流体力学与微生物学</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="bg-navy-900 text-gray-500 text-center py-8 text-xs">
+  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v4.0.0 &mdash; 2026-03-31</p>
+  <p class="mt-1">Built by Lucien &bull; MIT License</p>
+</footer>
+
+</main>
+
+<!-- ============================================================ -->
+<!--  JAVASCRIPT                                                  -->
+<!-- ============================================================ -->
+<script>
+document.addEventListener('DOMContentLoaded', () => { hljs.highlightAll(); });
+
+mermaid.initialize({
+  startOnLoad: true,
+  theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
+  flowchart: { useMaxWidth: true, htmlLabels: true }
+});
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('-translate-x-full');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+
+document.querySelectorAll('.nav-link').forEach(link => {
+  link.addEventListener('click', () => {
+    if (window.innerWidth < 1024) toggleSidebar();
+  });
+});
+
+// Dark mode
+function toggleDark() {
+  document.documentElement.classList.toggle('dark');
+  const isDark = document.documentElement.classList.contains('dark');
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  document.getElementById('darkLabelSidebar').textContent = isDark ? 'Light Mode' : 'Dark Mode';
+}
+if (localStorage.getItem('theme') === 'dark' ||
+    (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+  document.documentElement.classList.add('dark');
+  document.getElementById('darkLabelSidebar').textContent = 'Light Mode';
+}
+
+// Language toggle
+function toggleLang() {
+  const html = document.documentElement;
+  const current = html.getAttribute('lang');
+  const next = current === 'en' ? 'zh' : 'en';
+  html.setAttribute('lang', next);
+  localStorage.setItem('lang', next);
+  document.getElementById('langLabel').textContent = next === 'en' ? '中文' : 'English';
+  document.title = next === 'en'
+    ? 'Coupled Body-Pili Elastohydrodynamic Simulation'
+    : '细菌胞体-纤毛耦合弹性流体动力学仿真';
+}
+(function restoreLang() {
+  const saved = localStorage.getItem('lang');
+  if (saved && saved !== 'en') {
+    document.documentElement.setAttribute('lang', saved);
+    document.getElementById('langLabel').textContent = 'English';
+    document.title = '细菌胞体-纤毛耦合弹性流体动力学仿真';
+  }
+})();
+
+// Scroll-spy
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('.nav-link');
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      navLinks.forEach(l => l.classList.remove('active'));
+      const t = document.querySelector(`.nav-link[href="#${entry.target.id}"]`);
+      if (t) t.classList.add('active');
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+sections.forEach(s => observer.observe(s));
+
+// Back to top
+const backBtn = document.getElementById('backToTop');
+window.addEventListener('scroll', () => {
+  if (window.scrollY > 600) {
+    backBtn.classList.remove('opacity-0', 'pointer-events-none');
+    backBtn.classList.add('opacity-100');
+  } else {
+    backBtn.classList.add('opacity-0', 'pointer-events-none');
+    backBtn.classList.remove('opacity-100');
+  }
+});
+
+// Tabs
+function switchTab(e, panelId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active-tab'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active-panel'));
+  e.target.closest('.tab-btn').classList.add('active-tab');
+  document.getElementById(panelId).classList.add('active-panel');
+}
+</script>
+
+</body>
+</html>

@@ -29,7 +29,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Removed
 
-- **`compute_body_brownian_params.m`**: Deleted. Old body-only RSM friction matrix implementation fully superseded by `compute_effective_body_brownian.m`. Degradation test in `test_effective_brownian.m` updated to remove this dependency.
+- **`compute_body_brownian_params.m`**: Deleted. Old body-only RSM friction matrix implementation fully superseded by `compute_effective_body_brownian.m`.
+- **`test_effective_brownian.m`**: Deleted. Verification tests passed (7/7); script no longer needed.
 
 ### Fixed
 
