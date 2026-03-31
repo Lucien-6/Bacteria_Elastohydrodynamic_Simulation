@@ -16,7 +16,7 @@ function validate_simulation_params(cfg)
 %      T_obs, dt, minor_axis, major_axis, N_body, seg_per_um,
 %      Pili_Matrix, E, r_pili, mu, rho_bac, rho_fluid,
 %      AbsTol, RelTol, tlim, enable_brown, dt_B,
-%      animation_fps, sigma_p
+%      animation_fps, sigma_p, fixman_midpoint
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
@@ -107,6 +107,11 @@ if cfg.enable_brown
     if cfg.dt_B <= 0
         errs{end+1} = 'Brownian time step dt_B must be > 0 when enable_brown = true.';
     end
+end
+
+% Fixman midpoint
+if isfield(cfg, 'fixman_midpoint') && cfg.fixman_midpoint && ~cfg.enable_brown
+    warns{end+1} = 'fixman_midpoint = true has no effect when enable_brown = false.';
 end
 
 %% ---- Warnings ----

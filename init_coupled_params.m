@@ -30,6 +30,7 @@ function params = init_coupled_params(varargin)
 %                  -pi/2 = inverted (-Z).  Range: [-pi/2, pi/2]
 %    'Temper'      Absolute temperature [K]            (default: 293.15)
 %    'enable_brown' Enable body Brownian motion        (default: false)
+%    'fixman_midpoint' Enable Fixman midpoint correction (default: false)
 %
 %  Outputs:
 %    params - Structure with all simulation parameters
@@ -48,6 +49,8 @@ function params = init_coupled_params(varargin)
 %           2026-03-01 — eps_body: h_min/2 → h_mean/6 (Cortez 2005 optimal ratio)
 %           2026-03-01 — eps_body: h_mean/6 → h_mean/3 (empirically optimal)
 %           2026-03-14 — v3.0: Body Brownian motion parameters (Temper, enable_brown)
+%           2026-03-31 — v4.0: Full-system effective friction (dynamic per-step),
+%                               removed body-only pre-computation, added fixman_midpoint
 
 %% Parse inputs
 p = inputParser;
@@ -67,6 +70,7 @@ addParameter(p, 'delta',       pi/20,  @isnumeric);
 addParameter(p, 'alpha_0',    pi/2,   @isnumeric);
 addParameter(p, 'Temper',      293.15,  @isnumeric);
 addParameter(p, 'enable_brown', false,  @(x) islogical(x) || (isnumeric(x) && isscalar(x)));
+addParameter(p, 'fixman_midpoint', false, @(x) islogical(x) || (isnumeric(x) && isscalar(x)));
 parse(p, varargin{:});
 
 %% Store dimensional parameters
@@ -286,19 +290,16 @@ else
     params.pili_x0    = {};
 end
 
-%% Compute Brownian motion parameters (body only)
+%% Brownian motion configuration
+%  The effective body diffusion tensor is now computed dynamically at each
+%  Brownian step via compute_effective_body_brownian, which probes the full
+%  coupled body-pili linear system.  No pre-computation is needed here.
+%  The old body-only routine compute_body_brownian_params.m has been
+%  removed; its functionality is fully superseded by the new method.
+params.brown_fixman_midpoint = logical(p.Results.fixman_midpoint);
 if params.brown_enabled
-    fprintf('Computing body Brownian motion parameters (RSM, body only)...\n');
-    X_body_dim    = params.body_local' * L_0;
-    eps_body_dim  = params.eps_body    * L_0;
-    params.brown  = compute_body_brownian_params( ...
-        X_body_dim, p.Results.mu, eps_body_dim, p.Results.Temper);
-    fprintf('  D_trans diagonal: [%.3e  %.3e  %.3e] m^2/s\n', ...
-        params.brown.D_trans(1,1), params.brown.D_trans(2,2), params.brown.D_trans(3,3));
-    fprintf('  D_rot   diagonal: [%.3e  %.3e  %.3e] rad^2/s\n', ...
-        params.brown.D_rot(1,1),   params.brown.D_rot(2,2),   params.brown.D_rot(3,3));
-else
-    params.brown = [];
+    fprintf('Brownian motion enabled (full-system effective friction, computed per step).\n');
+    fprintf('  Fixman midpoint correction: %s\n', mat2str(params.brown_fixman_midpoint));
 end
 
 %% Print summary
@@ -352,8 +353,9 @@ if M_pili > 0
 end
 fprintf('  Brownian : %s', mat2str(params.brown_enabled));
 if params.brown_enabled
-    fprintf('  (T = %.2f K = %.2f deg C)', ...
-        p.Results.Temper, p.Results.Temper - 273.15);
+    fprintf('  (T = %.2f K = %.2f deg C, Fixman = %s)', ...
+        p.Results.Temper, p.Results.Temper - 273.15, ...
+        mat2str(params.brown_fixman_midpoint));
 end
 fprintf('\n');
 fprintf('=============================================================\n\n');

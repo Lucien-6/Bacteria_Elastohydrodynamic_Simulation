@@ -19,7 +19,7 @@ function cfg = load_sim_config(json_path)
 %      case_name, minor_axis, major_axis, N_body, alpha_0,
 %      Pili_Matrix, seg_per_um, E, r_pili, sigma_p,
 %      mu, rho_bac, rho_fluid, T_obs, AbsTol, RelTol,
-%      delta, tlim, dt, enable_brown, Temper, dt_B,
+%      delta, tlim, dt, enable_brown, Temper, dt_B, fixman_midpoint,
 %      preview_initial, generate_animation, animation_fps, animation_skip,
 %      auto_confirm, flowfield_grid_spacing, flowfield_grid_range,
 %      flowfield_quiver_skip, flowfield_chunk_size
@@ -82,10 +82,11 @@ cfg.seg_per_um = get_json(js, 'seg_per_um', 15);
 
 % Brownian
 jbr = get_json(j, 'brownian', struct());
-cfg.enable_brown = logical(get_json(jbr, 'enable', false));
-cfg.Temper       = get_json(jbr, 'temperature', 293.15);
-dt_B_ratio       = get_json(jbr, 'dt_B_ratio', 0.5);
-cfg.dt_B         = cfg.dt * dt_B_ratio;
+cfg.enable_brown     = logical(get_json(jbr, 'enable', false));
+cfg.Temper           = get_json(jbr, 'temperature', 293.15);
+dt_B_ratio           = get_json(jbr, 'dt_B_ratio', 0.5);
+cfg.dt_B             = cfg.dt * dt_B_ratio;
+cfg.fixman_midpoint  = logical(get_json(jbr, 'fixman_midpoint', false));
 
 % Output / visualisation
 jo = get_json(j, 'output', struct());

@@ -1,0 +1,107 @@
+function [L_eff, D_eff, M_eff_dim] = compute_effective_body_brownian(Z, params)
+%COMPUTE_EFFECTIVE_BODY_BROWNIAN  Full-system effective 6x6 body Brownian parameters
+%
+%  Description:
+%    Computes the effective 6x6 body mobility, diffusion tensor, and
+%    Cholesky factor by probing the fully coupled body-pili linear
+%    system.  The resulting mobility implicitly incorporates the
+%    hydrodynamic contribution of ALL pili via the Schur complement
+%    of the pili DOFs:
+%
+%      M_eff = [Xi_gen^{-1}]_{BB}
+%            = (Xi_BB - Xi_BP * Xi_PP^{-1} * Xi_PB)^{-1}
+%
+%    This is obtained without explicit block inversion by solving
+%    the full lin_sys with 6 unit probe vectors and extracting the
+%    body rows of the solution.
+%
+%  Algorithm:
+%    1. Assemble the coupled linear system via build_coupled_lin_sys.
+%    2. Probe with 6 unit force/torque vectors on the body DOFs.
+%    3. Extract dimensionless 6x6 effective mobility.
+%    4. Dimensionalise using characteristic scales.
+%    5. Compute diffusion tensor D = kB*T * M and Cholesky factor L.
+%
+%  Syntax:
+%    [L_eff, D_eff, M_eff_dim] = compute_effective_body_brownian(Z, params)
+%
+%  Inputs:
+%    Z      - [n x 1] Global state vector (dimensionless)
+%    params - Parameter structure (from init_coupled_params)
+%
+%  Outputs:
+%    L_eff     - [6x6] Lower Cholesky factor of 2*D_eff
+%                Units: [m/sqrt(s), m/sqrt(s), m/sqrt(s),
+%                        rad/sqrt(s), rad/sqrt(s), rad/sqrt(s)]
+%    D_eff     - [6x6] Full effective diffusion tensor
+%                Units: [m^2/s (TT), m*rad/s (TR), rad^2/s (RR)]
+%    M_eff_dim - [6x6] Dimensional effective mobility matrix
+%                Units: [m/(s*N) (TT), 1/(s*N) (TR), rad/(s*N*m) (RR)]
+%
+%  References:
+%    [1] Walker et al. (2020), Physical Review E.
+%    [2] Cortez et al. (2005), Phys. Fluids 17, 031504.
+%
+%  Author:  Lucien (lucien-6@qq.com)
+%  Created: 2026-03-31
+
+%% Step 1: Assemble coupled linear system
+[lin_sys, ~] = build_coupled_lin_sys(Z, params);
+
+n_state = size(lin_sys, 1);
+
+%% Step 2: Probe with unit body forces/torques
+%  lin_sys = -Xi_gen, so to get Xi_gen^{-1} * e_i we solve:
+%    lin_sys * z_dot = -e_i
+%  Then z_dot = -Xi_gen^{-1} * (-e_i) = Xi_gen^{-1} * e_i = M_gen * e_i
+R_probe = zeros(n_state, 6);
+R_probe(1:6, 1:6) = -eye(6);
+
+z_dot_probe = lin_sys \ R_probe;
+
+%% Step 3: Extract dimensionless 6x6 effective mobility
+M_eff_dimless = z_dot_probe(1:6, :);
+
+% Symmetrise (numerical round-off may break exact symmetry)
+M_eff_dimless = 0.5 * (M_eff_dimless + M_eff_dimless');
+
+%% Step 4: Dimensionalise
+%  Scaling: the dimensionless system uses EI-based nondimensionalisation.
+%  M_eff_dim(j,i) = M_eff_dimless(j,i) / (S_j * S_i)
+%  where S encodes the force/velocity scaling per DOF component.
+%
+%  Derivation:
+%    V_dim = V~ * U_0,     F_dim = F~ * F_0     => M_TT_dim = M_TT~ * U_0/F_0 = M_TT~ / (8*pi*mu*L_0)
+%    Omega_dim = Omega~/T_0, tau_dim = tau~*F_0*L_0 => M_RR_dim = M_RR~ / (8*pi*mu*L_0^3)
+%    V_dim / tau_dim => M_TR_dim = M_TR~ / (8*pi*mu*L_0^2)
+mu  = params.dim.mu;
+L_0 = params.scales.L_0;
+
+coeff = 8 * pi * mu;
+S = [sqrt(coeff * L_0) * ones(3,1); sqrt(coeff * L_0^3) * ones(3,1)];
+M_eff_dim = M_eff_dimless ./ (S * S');
+
+% Symmetrise dimensional mobility
+M_eff_dim = 0.5 * (M_eff_dim + M_eff_dim');
+
+%% Step 5: Diffusion tensor and Cholesky decomposition
+kB    = 1.380649e-23;
+Temper = params.dim.Temper;
+
+D_eff = kB * Temper * M_eff_dim;
+D_eff = 0.5 * (D_eff + D_eff');
+
+% Positive-definiteness check with diagonal regularisation fallback
+[~, flag] = chol(2 * D_eff);
+if flag ~= 0
+    eigvals = eig(D_eff);
+    min_eig = min(eigvals);
+    warning('compute_effective_body_brownian:NotPosDef', ...
+        '2*D_eff not positive definite (min eigenvalue = %.2e). Regularising...', min_eig);
+    reg = max(eps(norm(D_eff, 'fro')), abs(min_eig) * (1 + 1e-6));
+    D_eff = D_eff + eye(6) * reg;
+end
+
+L_eff = chol(2 * D_eff, 'lower');
+
+end

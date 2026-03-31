@@ -2,8 +2,8 @@
 
 > **作者**: Lucien (lucien-6@qq.com)  
 > **创建日期**: 2026-02-06  
-> **更新日期**: 2026-03-30  
-> **版本**: 3.3.5  
+> **更新日期**: 2026-03-31  
+> **版本**: 4.0.0  
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
@@ -57,7 +57,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 - **刚体胞体**：胶囊几何体（半球端盖 + 圆柱中段），四元数参数化姿态（无万向锁）
 - **弹性纤毛**：Kirchhoff 不可伸长弹性杆 + Euler 角参数化（Walker 2020）
 - **流体力学**：胞体 RSM 点力 + 纤毛 RSS Stokeslet 线段 + Rotlet 线段耦合（扭转—平移）
-- **布朗动力学**：胞体热涨落（分裂步 Euler-Maruyama，RSM 摩擦矩阵 → Schur 补解耦 → Cholesky 扩散张量）
+- **布朗动力学**：胞体热涨落（全系统有效摩擦张量，每步动态计算包含纤毛水动力贡献的 6×6 扩散张量；可选 Fixman 中点修正）
 - **时间积分**：MATLAB `ode15s`（隐式刚性求解器）+ 固定 `dt_B` 布朗节点
 - **自适应基底**：逐纤毛 Euler 角基底旋转以规避奇异性
 - **固支边界条件**：双重施加（运动学速率约束 + 几何投影）
@@ -193,7 +193,8 @@ graph TD
 
     B --> H[capsule_body_building.m]
     B --> I[pili_building.m]
-    B --> W[compute_body_brownian_params.m]
+    B --> W[compute_effective_body_brownian.m]
+    W --> W2[build_coupled_lin_sys.m]
     I --> J[pili_type_building.m]
     I --> K[compute_curvature_binormal.m]
 
@@ -235,7 +236,8 @@ graph TD
 | 几何工具   | `reconstruct_geometry.m`, `pili_*.m`, `quat_*.m`                                                     | 状态 ↔ 空间坐标转换                          |
 | 流体力学   | `build_global_resistance.m`                                                                          | RSS 迁移率 + Rotlet 线段迁移率 + 扭转 RFT    |
 | 弹性力学   | `compute_pili_elastic_moments.m`                                                                     | Kirchhoff 弹性杆曲率                          |
-| 布朗参数   | `compute_body_brownian_params.m`                                                                     | RSM 摩擦矩阵 → Schur 补 → Cholesky 扩散因子  |
+| 布朗参数   | `compute_effective_body_brownian.m`, `build_coupled_lin_sys.m`                                        | 全系统有效摩擦张量 → Cholesky 扩散因子（每步动态） |
+| 布朗参考   | *(已删除 `compute_body_brownian_params.m`)*                                                          | 旧 body-only 实现已移除，功能由全系统方案取代  |
 | 边界条件   | `enforce_clamped_geometry.m`                                                                         | 固支运动学约束 + 几何投影                     |
 | 数值稳定性 | `adaptive_basis_check.m`                                                                             | Euler 角奇异性规避                            |
 | 几何生成   | `capsule_body_building.m`, `pili_building.m`, `pili_type_building.m`, `compute_curvature_binormal.m` | 胞体/纤毛离散化                               |
@@ -542,84 +544,81 @@ $$
 
 ---
 
-## 16. 胞体布朗动力学（分裂步 Euler-Maruyama）
+## 16. 胞体布朗动力学（全系统有效摩擦张量 + 分裂步 Euler-Maruyama）
 
 ### 16.1 方法概述
 
 胞体布朗运动通过**算符分裂（Operator Splitting）**与确定性弹性流体动力学解耦：
 
-- **Step A（确定性部分）**：`ode15s` 完整求解耦合胞体-纤毛弹性流体动力学；RHS 函数 `ode_coupled_rhs.m` 无需任何修改
-- **Step B（随机部分）**：每隔固定的布朗时间步 `dt_B`，向胞体状态施加 Euler-Maruyama 布朗位移"踢脚"
+- **Step A（确定性部分）**：`ode15s` 完整求解耦合胞体-纤毛弹性流体动力学
+- **Step B（随机部分）**：每隔固定的布朗时间步 `dt_B`，通过**全系统有效摩擦张量**计算布朗扩散并施加 6D Euler-Maruyama 位移
 
-该策略避免了将随机噪声注入隐式自适应求解器 `ode15s` 所导致的 Jacobian 污染和误差控制失效问题。分裂步引入的额外误差为 $O(\text{dt}_B)$，与 Euler-Maruyama 本身弱一阶精度一致，不降低整体精度。
+**v4.0 关键改进**（2026-03-31）：摩擦张量不再仅基于孤立胞体计算，而是在每个布朗步从包含完整体-纤毛水动力耦合的线性系统中**动态提取**有效 6×6 迁移率矩阵。纤毛的存在自然增大了系统整体阻力，从而降低了布朗扩散——更多、更长的纤毛带来更强的热扩散抑制。
 
 ### 16.2 物理模型
 
 过阻尼 Langevin 方程（Stokes 流极限）：
 
 $$
-\boldsymbol{\xi}_T \dot{\mathbf{X}} = \mathbf{F}_{\text{det}} + \sqrt{2k_BT\,\boldsymbol{\xi}_T}\;\boldsymbol{\eta}_T(t)
+\boldsymbol{\Xi}_{\text{eff}} \dot{\mathbf{U}} = \mathbf{F}_{\text{det}} + \sqrt{2k_BT\,\boldsymbol{\Xi}_{\text{eff}}}\;\boldsymbol{\eta}(t)
 $$
 
+其中 $\boldsymbol{\Xi}_{\text{eff}} \in \mathbb{R}^{6\times 6}$ 为包含纤毛水动力贡献的**有效胞体摩擦张量**，$\mathbf{U} = [\mathbf{V};\,\boldsymbol{\Omega}]$ 为胞体广义速度，$\boldsymbol{\eta}$ 为 6D 高斯白噪声。完整 6×6 框架自然包含平移-旋转耦合。
+
+### 16.3 有效摩擦张量的动态计算
+
+`compute_effective_body_brownian.m` 在每个布朗步动态计算有效扩散张量：
+
+1. **组装耦合线性系统** `lin_sys`（via `build_coupled_lin_sys.m`）：包含全系统水动力迁移率（RSM + RSS + Rotlet）、力/力矩平衡、和固支边界条件
+2. **探测（Probing）**：用 6 个单位力/力矩探测向量求解线性系统，提取胞体响应
+
 $$
-\boldsymbol{\xi}_R \dot{\boldsymbol{\Theta}} = \mathbf{T}_{\text{det}} + \sqrt{2k_BT\,\boldsymbol{\xi}_R}\;\boldsymbol{\eta}_R(t)
+\mathbf{M}_{\text{eff}}^{*}(:, i) = (\texttt{lin\_sys} \backslash (-\mathbf{e}_i))(1{:}6), \quad i = 1, \ldots, 6
 $$
 
-其中 $\boldsymbol{\xi}_T$、$\boldsymbol{\xi}_R$ 分别为平移和旋转摩擦张量，$\boldsymbol{\eta}$ 为高斯白噪声，$k_B$ 为 Boltzmann 常数，$T$ 为绝对温度。
+3. **隐式 Schur 补**：$\mathbf{M}_{\text{eff}}^{*} = [\boldsymbol{\Xi}_{\text{gen}}^{-1}]_{BB}$，等价于 $(\boldsymbol{\Xi}_{BB} - \boldsymbol{\Xi}_{BP}\boldsymbol{\Xi}_{PP}^{-1}\boldsymbol{\Xi}_{PB})^{-1}$
+4. **量纲转换**：$M_{\text{eff,dim}}(j,i) = M_{\text{eff}}^{*}(j,i) / (S_j \cdot S_i)$，其中 $S = [\sqrt{8\pi\mu L_0}\;\mathbf{1}_3;\;\sqrt{8\pi\mu L_0^3}\;\mathbf{1}_3]$
+5. **扩散张量**：$D_{\text{eff}} = k_BT \cdot M_{\text{eff,dim}}$
+6. **Cholesky 分解**：$L_{\text{eff}} = \text{chol}(2D_{\text{eff}}, \text{'lower'})$
 
-### 16.3 摩擦矩阵与扩散张量
-
-`compute_body_brownian_params.m` 计算胞体 6×6 摩擦矩阵并提取 Cholesky 扩散因子：
-
-1. **RSM 迁移率矩阵** $M_{BB} \in \mathbb{R}^{3N_b \times 3N_b}$：胞体表面点之间的正则化 Stokeslet 核函数
-2. **无滑移约束矩阵** $N_{\text{ns}} \in \mathbb{R}^{3N_b \times 6}$：将 6 个刚体自由度映射为 $3N_b$ 个表面点速度
-3. **力/力矩提取矩阵** $E \in \mathbb{R}^{6 \times 3N_b}$：将分布力求和为总力和总力矩
-4. **摩擦矩阵**：$\Xi = E \cdot M_{BB}^{-1} \cdot N_{\text{ns}} \in \mathbb{R}^{6 \times 6}$
-5. **Schur 补解耦**：将 $\Xi$ 的平移—旋转耦合消除，得到解耦的 $\boldsymbol{\xi}_T$ 和 $\boldsymbol{\xi}_R$
-6. **扩散张量**：$D_T = k_BT\,\boldsymbol{\xi}_T^{-1}$，$D_R = k_BT\,\boldsymbol{\xi}_R^{-1}$
-7. **Cholesky 分解**：$2D_T = L_T L_T^T$，$2D_R = L_R L_R^T$
-
-输出结构体 `params.brown` 包含：`L_trans`、`L_rot`（Cholesky 因子）、`D_trans`、`D_rot`（扩散张量）、`FM`（完整摩擦矩阵）、`DFM_trans`、`DFM_rot`（解耦摩擦张量）。
+物理含义：当胞体受到单位力/力矩时，纤毛被动通过流体拖曳（force-free，受 clamped BC 约束），总阻力自然包含纤毛贡献。
 
 ### 16.4 布朗扰动施加
 
-在每个布朗节点 $t = n \cdot \text{dt}_B$ 处：
-
-**平移扰动**（体坐标系 → 实验室坐标系）：
+在每个布朗节点 $t = n \cdot \text{dt}_B$ 处，直接在实验室坐标系中生成 6D 相关噪声：
 
 $$
-\Delta\mathbf{X}_{\text{lab}} = R_{\text{body}} \cdot L_T \cdot \boldsymbol{\eta}_T \cdot \sqrt{\text{dt}_B}
+\delta\mathbf{U}_{\text{dim}} = L_{\text{eff}} \cdot \boldsymbol{\eta} \cdot \sqrt{\text{dt}_B}, \quad \boldsymbol{\eta} \sim \mathcal{N}(\mathbf{0}, \mathbf{I}_6)
 $$
 
-**旋转扰动**（四元数合成）：
+其中 $\delta\mathbf{U} = [\delta\mathbf{X}(\text{m});\;\delta\boldsymbol{\Theta}(\text{rad})]$。平移部分无量纲化后叠加到质心位置；旋转部分转换为四元数增量后左乘合成。每次扰动后重新施加固支几何投影。
 
-$$
-\Delta\boldsymbol{\Theta}_{\text{lab}} = R_{\text{body}} \cdot L_R \cdot \boldsymbol{\eta}_R \cdot \sqrt{\text{dt}_B}
-$$
+### 16.5 Fixman 中点修正（可选）
 
-$$
-\Delta q = \left[\cos\frac{|\Delta\boldsymbol{\Theta}|}{2};\; \frac{\sin(|\Delta\boldsymbol{\Theta}|/2)}{|\Delta\boldsymbol{\Theta}|}\,\Delta\boldsymbol{\Theta}_{\text{lab}}\right]
-$$
+由于 $M_{\text{eff}}$ 依赖于当前构型（纤毛形状 + 胞体朝向），过阻尼 SDE 的 Ito 形式包含漂移项 $k_BT\nabla\cdot M_{\text{eff}}$。Fixman 中点法通过以下步骤隐式捕获该漂移：
 
-$$
-q_{\text{new}} = \Delta q \otimes q_{\text{old}} \quad (\text{归一化})
-$$
+1. 在当前态计算 $L_0 = \text{chol}(2 k_BT M_{\text{eff}})$
+2. 生成 $\boldsymbol{\eta} \sim \mathcal{N}(\mathbf{0}, \mathbf{I}_6)$
+3. 试探半步：$Z_{\text{mid}} = Z + \frac{1}{2} L_0 \boldsymbol{\eta} \sqrt{\text{dt}_B}$
+4. 在 $Z_{\text{mid}}$ 重算 $L_{\text{mid}}$
+5. 实际位移：$\delta\mathbf{U} = L_{\text{mid}} \cdot \boldsymbol{\eta} \cdot \sqrt{\text{dt}_B}$（**同一个** $\boldsymbol{\eta}$）
 
-每次扰动后重新施加固支几何投影（`enforce_clamped_geometry`）以修正约束漂移。
+通过 `fixman_midpoint = true` 启用（默认关闭），代价为每步 2x 线性系统组装/求解。
 
-### 16.5 主循环积分策略
+### 16.6 主循环积分策略
 
 当布朗运动启用时，外层 `while` 循环的积分目标从 `T_obs_dimless` 变为 `min(T_brown_next, T_obs_dimless)`，其中 `T_brown_next` 为下一个布朗节点（以 `dt_B / T_0` 为间隔的等距序列）。每当 `ode15s` 到达布朗节点时施加扰动；若被奇点事件提前终止则不施加扰动，继续积分直到节点。
 
-### 16.6 用户配置
+### 16.7 用户配置
 
-| 参数           | 默认值   | 说明                                     |
-| -------------- | -------- | ---------------------------------------- |
-| `enable_brown` | `false`  | 启用/禁用胞体布朗运动                   |
-| `Temper`       | `293.15` | 流体绝对温度 [K]（默认 20°C）           |
-| `dt_B`         | `dt/2`   | 布朗时间步 [s]（应远小于最短弛豫时间）   |
+| 参数               | 默认值   | 说明                                           |
+| ------------------ | -------- | ---------------------------------------------- |
+| `enable_brown`     | `false`  | 启用/禁用胞体布朗运动                         |
+| `Temper`           | `293.15` | 流体绝对温度 [K]（默认 20°C）                 |
+| `dt_B`             | `dt/2`   | 布朗时间步 [s]（应远小于最短弛豫时间）         |
+| `fixman_midpoint`  | `false`  | 启用 Fixman 中点修正（2x 计算成本）           |
 
-**启用布朗运动时**，`init_coupled_params` 会自动调用 `compute_body_brownian_params` 计算扩散参数，并将结果存入 `params.brown` 结构体。主循环在积分过程中自动检测弛豫时间并发出步长合理性警告。
+**启用布朗运动时**，有效扩散张量在每个布朗步从全系统耦合线性系统动态计算（无预计算阶段）。旧的 body-only 实现 `compute_body_brownian_params.m` 已删除，功能完全由 `compute_effective_body_brownian.m` 取代。
 
 ---
 
@@ -760,7 +759,8 @@ Coupled_Body_Pili/
 ├── enforce_clamped_geometry.m          % 固支几何投影（约束漂移修正）
 ├── adaptive_basis_check.m              % 逐纤毛自适应 Euler 角基底旋转
 │
-├── compute_body_brownian_params.m      % 胞体布朗参数：RSM 摩擦矩阵 → Schur 补 → Cholesky 扩散因子
+├── build_coupled_lin_sys.m              % 组装耦合线性系统（ode_coupled_rhs Steps 1-7 提取）
+├── compute_effective_body_brownian.m   % 全系统有效布朗参数：probing → 量纲转换 → Cholesky（每步动态）
 │
 ├── capsule_body_building.m             % 胶囊体表面网格生成
 ├── pili_building.m                     % 纤毛结构初始化（刚度、曲率）
@@ -877,7 +877,7 @@ Coupled_Body_Pili/
 | 自适应基底          | 逐纤毛检测与旋转、Euler 角重新计算                                           |
 | 多纤毛              | 状态向量、几何、Q/B 矩阵、边界条件均已验证（$M \geq 1$）                     |
 | 线性系统            | $L\dot{z}=R$ 每行逐一量纲追踪                                                |
-| 布朗动力学          | RSM 摩擦矩阵、Schur 补解耦、Cholesky 正定性检查、FDT 一致性                  |
+| 布朗动力学          | 全系统有效摩擦张量（probing method）、Cholesky 正定性检查、FDT 一致性、可选 Fixman 中点修正 |
 
 ### 22.2 缺陷修复历史（均已解决）
 
@@ -976,6 +976,7 @@ Coupled_Body_Pili/
 | 54  | `batch_sweep_alpha.m`（v3.3.3）：改为**无纤毛**胞体（`Pili_Matrix` 空），仅扫描胶囊胞体初始倾角 `alpha_0`；文档与版本号同步至 3.3.3 | 2026-03-30 |
 | 55  | 删除 `batch_sweep_pili_site.m`（v3.3.4）：附着点扫描由 `batch_sweep_pili_length.m` 的 `site_list` 覆盖；MATLAB 源文件 38 个、批量扫描脚本 6 个 + JSON 运行器 | 2026-03-30 |
 | 56  | `batch_sweep_major_axis.m`（v3.3.5）：无纤毛胞体长半轴扫描改为 **0.4~1.6 μm、步长 0.2 μm**（7 工况）；首档为等轴球（`major_axis = minor_axis`） | 2026-03-30 |
+| 57  | 全系统有效摩擦张量布朗动力学（v4.0）：布朗扩散张量不再基于孤立胞体预计算，而是在每个布朗步通过 probing method 从完整体-纤毛耦合线性系统动态提取有效 6×6 迁移率（隐式 Schur 补缩并纤毛自由度），纤毛数量与长度自然抑制热扩散；新增 `build_coupled_lin_sys.m`（提取 `ode_coupled_rhs` Steps 1-7 为可复用子程序）和 `compute_effective_body_brownian.m`（探测 + 量纲转换 + Cholesky）；可选 Fixman 中点修正消除构型相关漂移；删除旧 body-only `compute_body_brownian_params.m`；修复 `main_coupled_simulation.m` 缺失 `fixman_midpoint` 参数 | 2026-03-31 |
 
 ---
 

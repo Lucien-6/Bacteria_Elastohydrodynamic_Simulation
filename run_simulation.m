@@ -59,6 +59,7 @@ dt                     = cfg.dt;
 enable_brown           = cfg.enable_brown;
 Temper                 = cfg.Temper;
 dt_B                   = cfg.dt_B;
+fixman_midpoint        = cfg.fixman_midpoint;
 preview_initial        = cfg.preview_initial;
 generate_animation     = cfg.generate_animation;
 animation_fps          = cfg.animation_fps;
@@ -146,7 +147,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 3.3.5\n');
+logf('  Version 4.0.0\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -180,8 +181,8 @@ logf('[PARAMS] Preview: %s\n', mat2str(preview_initial));
 logf('[PARAMS] Animation: fps = %d, skip = %d\n', animation_fps, animation_skip);
 logf('[PARAMS] Flowfield: grid = %.2f um, range = %.1f um, quiver_skip = %d\n', ...
     flowfield_grid_spacing, flowfield_grid_range, flowfield_quiver_skip);
-logf('[PARAMS] Brownian: enable = %s, Temper = %.2f K, dt_B = %.4f s\n', ...
-    mat2str(enable_brown), Temper, dt_B);
+logf('[PARAMS] Brownian: enable = %s, Temper = %.2f K, dt_B = %.4f s, fixman = %s\n', ...
+    mat2str(enable_brown), Temper, dt_B, mat2str(fixman_midpoint));
 logf('[PARAMS] Auto-confirm: %s\n', mat2str(auto_confirm));
 if isempty(strtrim(case_name))
     logf('[PARAMS] Case name: (auto — timestamp)\n');
@@ -201,7 +202,8 @@ val_cfg = struct( ...
     'rho_bac', rho_bac, 'rho_fluid', rho_fluid, ...
     'AbsTol', AbsTol, 'RelTol', RelTol, 'tlim', tlim, ...
     'enable_brown', enable_brown, 'dt_B', dt_B, ...
-    'animation_fps', animation_fps, 'sigma_p', sigma_p);
+    'animation_fps', animation_fps, 'sigma_p', sigma_p, ...
+    'fixman_midpoint', fixman_midpoint);
 validate_simulation_params(val_cfg);
 logf('[VALIDATE] All parameter checks passed.\n');
 
@@ -228,7 +230,8 @@ params = init_coupled_params( ...
     'seg_per_um',   seg_per_um, ...
     'delta',        delta, ...
     'Temper',       Temper, ...
-    'enable_brown', enable_brown);
+    'enable_brown', enable_brown, ...
+    'fixman_midpoint', fixman_midpoint);
 
 logf('[INIT] Building initial state vector...\n');
 Z0 = init_coupled_state(params);
@@ -465,20 +468,15 @@ seg_walltimes    = [];          % Wall time per segment [s]
 seg_dtstar       = [];          % Dimensionless time advanced per segment
 
 % ---- Brownian dynamics node tracking ----
-if params.brown_enabled && ~isempty(params.brown)
+if params.brown_enabled
     dt_B_dimless   = dt_B / params.scales.T_0;
     T_brown_next   = dt_B_dimless;
-    logf('[BROWN] Brownian dynamics enabled: dt_B = %.4f s = %.4e T*\n', ...
-        dt_B, dt_B_dimless);
-    tau_trans = params.scales.L_0^2 / mean(diag(params.brown.D_trans));
-    tau_rot   = 1 / (6 * mean(diag(params.brown.D_rot)));
-    tau_min   = min(tau_trans, tau_rot);
-    logf('[BROWN] tau_trans = %.3f s, tau_rot = %.3f s, tau_min = %.3f s\n', ...
-        tau_trans, tau_rot, tau_min);
-    logf('[BROWN] dt_B / tau_min = %.4f (should be << 1)\n', dt_B / tau_min);
-    if dt_B > 0.2 * tau_min
-        logf('[BROWN] WARNING: dt_B / tau_min = %.2f > 0.2. Consider reducing dt_B.\n', ...
-            dt_B / tau_min);
+    logf('[BROWN] Brownian dynamics enabled (full-system effective friction)\n');
+    logf('[BROWN] dt_B = %.4f s = %.4e T*\n', dt_B, dt_B_dimless);
+    if params.brown_fixman_midpoint
+        logf('[BROWN] Fixman midpoint correction: ENABLED (2x mobility evaluation per step)\n');
+    else
+        logf('[BROWN] Fixman midpoint correction: DISABLED (single evaluation per step)\n');
     end
     brown_kick_count    = 0;
     brown_log_interval  = 100;
@@ -565,31 +563,58 @@ while T_achieved < T_obs_dimless
     Z_end = enforce_clamped_geometry(Z_end, params);
 
     % ---- Apply Brownian kick at Brownian node (fixed dt_B) ----
+    %  Full-system effective friction: dynamically computes the 6x6
+    %  effective body mobility (including pili drag) at each Brownian
+    %  step via probing the coupled linear system.  The 6D noise
+    %  naturally includes translation-rotation coupling.
     brown_kick_applied = false;
-    if params.brown_enabled && ~isempty(params.brown)
+    if params.brown_enabled
         brown_tol = dt_B_dimless * 1e-8;
         if T_achieved >= T_brown_next - brown_tol
 
-            R_body = quat_to_rotmat(Z_end(4:7));
+            if params.brown_fixman_midpoint
+                % --- Fixman midpoint correction (2x mobility evaluation) ---
+                L_0_chol = compute_effective_body_brownian(Z_end, params);
+                eta_6d   = randn(6, 1);
+                dU_trial = L_0_chol * eta_6d * sqrt(dt_B);
 
-            % -- Translational Brownian displacement --
-            eta_t      = randn(3, 1);
-            dX_body    = params.brown.L_trans * eta_t * sqrt(dt_B);
-            dX_lab     = R_body * dX_body;
+                % Half-step predictor state
+                Z_mid = Z_end;
+                Z_mid(1:3) = Z_mid(1:3) + 0.5 * dU_trial(1:3) / params.scales.L_0;
+                dTheta_half = 0.5 * dU_trial(4:6);
+                ang_h = norm(dTheta_half);
+                if ang_h > 1e-15
+                    dq_h = [cos(ang_h/2); (sin(ang_h/2)/ang_h) * dTheta_half];
+                else
+                    dq_h = [1; 0; 0; 0];
+                end
+                Z_mid(4:7) = quat_multiply(dq_h, Z_mid(4:7));
+                Z_mid(4:7) = Z_mid(4:7) / norm(Z_mid(4:7));
+                Z_mid = enforce_clamped_geometry(Z_mid, params);
+
+                % Corrector: recompute L at midpoint, SAME eta
+                L_mid  = compute_effective_body_brownian(Z_mid, params);
+                dU_dim = L_mid * eta_6d * sqrt(dt_B);
+            else
+                % --- Simple per-step evaluation (no drift correction) ---
+                L_eff_step = compute_effective_body_brownian(Z_end, params);
+                eta_6d     = randn(6, 1);
+                dU_dim     = L_eff_step * eta_6d * sqrt(dt_B);
+            end
+
+            % -- Apply translational displacement (lab frame) --
+            dX_lab     = dU_dim(1:3);
             Z_end(1:3) = Z_end(1:3) + dX_lab / params.scales.L_0;
 
-            % -- Rotational Brownian displacement --
-            eta_r       = randn(3, 1);
-            dTheta_body = params.brown.L_rot * eta_r * sqrt(dt_B);
-            dTheta_lab  = R_body * dTheta_body;
-            ang         = norm(dTheta_lab);
+            % -- Apply rotational displacement (lab-frame angle -> quaternion) --
+            dTheta_lab = dU_dim(4:6);
+            ang        = norm(dTheta_lab);
             if ang > 1e-15
                 Delta_q = [cos(ang / 2); (sin(ang / 2) / ang) * dTheta_lab];
             else
                 Delta_q = [1; 0; 0; 0];
             end
             Z_end(4:7) = quat_multiply(Delta_q, Z_end(4:7));
-
             Z_end(4:7) = Z_end(4:7) / norm(Z_end(4:7));
 
             % Re-enforce clamped BC (body quaternion changed)

@@ -76,6 +76,11 @@ if cfg.dt > 0
 else
     j.brownian.dt_B_ratio = 0.5;
 end
+if isfield(cfg, 'fixman_midpoint')
+    j.brownian.fixman_midpoint = cfg.fixman_midpoint;
+else
+    j.brownian.fixman_midpoint = false;
+end
 
 j.output.preview_initial    = cfg.preview_initial;
 j.output.generate_animation = cfg.generate_animation;

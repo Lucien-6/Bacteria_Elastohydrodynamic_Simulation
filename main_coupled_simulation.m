@@ -86,9 +86,10 @@ else
     cfg.dt     = 1e-1;                    % [s]   Output time step
 
     % -------- Brownian Motion --------
-    cfg.enable_brown = true;              % true = enable Brownian motion
-    cfg.Temper       = 293.15;            % [K]   Fluid temperature (20 deg C)
-    cfg.dt_B         = cfg.dt / 2;        % [s]   Brownian time step
+    cfg.enable_brown     = true;          % true = enable Brownian motion
+    cfg.Temper           = 293.15;        % [K]   Fluid temperature (20 deg C)
+    cfg.dt_B             = cfg.dt / 2;    % [s]   Brownian time step
+    cfg.fixman_midpoint  = false;         % true = Fixman midpoint drift correction (2x cost)
 
     % -------- Preview & Animation --------
     cfg.preview_initial    = true;

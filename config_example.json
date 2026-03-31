@@ -44,7 +44,8 @@
     "brownian": {
         "enable": true,
         "temperature": 293.15,
-        "dt_B_ratio": 0.5
+        "dt_B_ratio": 0.5,
+        "fixman_midpoint": false
     },
 
     "output": {
