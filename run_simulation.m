@@ -70,6 +70,20 @@ flowfield_grid_range   = cfg.flowfield_grid_range;
 flowfield_quiver_skip  = cfg.flowfield_quiver_skip;
 flowfield_chunk_size   = cfg.flowfield_chunk_size;
 
+% New feature fields (defaults for backward compatibility)
+if isfield(cfg, 'pili_ext') && ~isempty(cfg.pili_ext)
+    intrinsic_curvature_cfg = {cfg.pili_ext.intrinsic_curvature};
+    active_moment_cfg       = {cfg.pili_ext.active_moment};
+else
+    intrinsic_curvature_cfg = {};
+    active_moment_cfg       = {};
+end
+if isfield(cfg, 'background_flow')
+    background_flow_cfg = cfg.background_flow;
+else
+    background_flow_cfg = struct('type', 'off');
+end
+
 if size(Pili_Matrix, 2) > 0
     pili_lengths_um = Pili_Matrix(2, :);
     N_segments      = round(pili_lengths_um * seg_per_um);
@@ -147,7 +161,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 4.1.0\n');
+logf('  Version 5.0.0\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -204,6 +218,12 @@ val_cfg = struct( ...
     'enable_brown', enable_brown, 'dt_B', dt_B, ...
     'animation_fps', animation_fps, 'sigma_p', sigma_p, ...
     'fixman_midpoint', fixman_midpoint);
+if isfield(cfg, 'background_flow')
+    val_cfg.background_flow = cfg.background_flow;
+end
+if isfield(cfg, 'pili_ext')
+    val_cfg.pili_ext = cfg.pili_ext;
+end
 validate_simulation_params(val_cfg);
 logf('[VALIDATE] All parameter checks passed.\n');
 
@@ -231,7 +251,10 @@ params = init_coupled_params( ...
     'delta',        delta, ...
     'Temper',       Temper, ...
     'enable_brown', enable_brown, ...
-    'fixman_midpoint', fixman_midpoint);
+    'fixman_midpoint', fixman_midpoint, ...
+    'intrinsic_curvature', intrinsic_curvature_cfg, ...
+    'active_moment',       active_moment_cfg, ...
+    'background_flow',     background_flow_cfg);
 
 logf('[INIT] Building initial state vector...\n');
 Z0 = init_coupled_state(params);

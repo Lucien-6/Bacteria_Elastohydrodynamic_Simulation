@@ -154,6 +154,89 @@ if ~isempty(PM) && size(PM, 1) >= 8 && size(PM, 2) > 1
     end
 end
 
+% Background flow
+if isfield(cfg, 'background_flow') && isstruct(cfg.background_flow)
+    bg = cfg.background_flow;
+    valid_bg = {'off', 'uniform', 'shear_z'};
+    if ~any(strcmp(bg.type, valid_bg))
+        errs{end+1} = sprintf('background_flow.type must be one of {off, uniform, shear_z}, got ''%s''.', bg.type);
+    end
+    if ~strcmp(bg.type, 'off')
+        if ~isfield(bg, 'U_max') || bg.U_max <= 0
+            errs{end+1} = 'background_flow.U_max must be > 0 when flow is enabled.';
+        end
+        if isfield(bg, 'direction') && numel(bg.direction) ~= 3
+            errs{end+1} = 'background_flow.direction must be a 3-element vector.';
+        end
+        if isfield(bg, 'shear_axis') && numel(bg.shear_axis) ~= 3
+            errs{end+1} = 'background_flow.shear_axis must be a 3-element vector.';
+        end
+        if strcmp(bg.type, 'shear_z')
+            if ~isfield(bg, 'shear_height_m') || bg.shear_height_m <= 0
+                errs{end+1} = 'background_flow.shear_height_m must be > 0 for shear_z flow.';
+            end
+        end
+    end
+    if ~strcmp(bg.type, 'off') && cfg.enable_brown
+        warns{end+1} = ['Background flow + Brownian: flow is deterministic; ' ...
+            'diffusion tensor computed without flow contribution.'];
+    end
+end
+
+% Per-pili: intrinsic curvature and active moment
+M_pili = size(PM, 2);
+if isfield(cfg, 'pili_ext') && M_pili > 0
+    valid_ic = {'frozen', 'zero', 'constant', 'helix'};
+    valid_am = {'off', 'traveling_wave', 'custom'};
+    for kk = 1:min(numel(cfg.pili_ext), M_pili)
+        pe = cfg.pili_ext(kk);
+        % Intrinsic curvature
+        if isfield(pe, 'intrinsic_curvature') && ~isempty(pe.intrinsic_curvature)
+            ic_val = pe.intrinsic_curvature;
+            if ischar(ic_val) || isstring(ic_val)
+                ic_type = char(ic_val);
+            elseif isstruct(ic_val) && isfield(ic_val, 'type')
+                ic_type = ic_val.type;
+            else
+                ic_type = '';
+            end
+            if ~any(strcmp(ic_type, valid_ic))
+                errs{end+1} = sprintf('Pili %d: intrinsic_curvature type must be one of {frozen, zero, constant, helix}, got ''%s''.', kk, ic_type);
+            end
+            if strcmp(ic_type, 'constant')
+                if isstruct(ic_val) && isfield(ic_val, 'kappa')
+                    if numel(ic_val.kappa) ~= 3
+                        errs{end+1} = sprintf('Pili %d: intrinsic_curvature.kappa must be 3-element, got %d.', kk, numel(ic_val.kappa));
+                    end
+                else
+                    errs{end+1} = sprintf('Pili %d: intrinsic_curvature ''constant'' requires .kappa field.', kk);
+                end
+            end
+        end
+        % Active moment
+        if isfield(pe, 'active_moment') && isstruct(pe.active_moment)
+            am_val = pe.active_moment;
+            am_type = '';
+            if isfield(am_val, 'type'), am_type = am_val.type; end
+            if ~any(strcmp(am_type, valid_am))
+                errs{end+1} = sprintf('Pili %d: active_moment type must be one of {off, traveling_wave, custom}, got ''%s''.', kk, am_type);
+            end
+            if strcmp(am_type, 'traveling_wave')
+                if ~isfield(am_val, 'amplitude_Nm') || am_val.amplitude_Nm < 0
+                    errs{end+1} = sprintf('Pili %d: active_moment.amplitude_Nm must be >= 0.', kk);
+                end
+                if ~isfield(am_val, 'omega_Hz') || am_val.omega_Hz <= 0
+                    errs{end+1} = sprintf('Pili %d: active_moment.omega_Hz must be > 0.', kk);
+                end
+            end
+        end
+    end
+end
+
+if M_pili == 0 && isfield(cfg, 'pili_ext') && ~isempty(cfg.pili_ext)
+    warns{end+1} = 'pili_ext is non-empty but no pili are defined (Pili_Matrix is empty).';
+end
+
 %% ---- Report ----
 
 for i = 1:numel(warns)

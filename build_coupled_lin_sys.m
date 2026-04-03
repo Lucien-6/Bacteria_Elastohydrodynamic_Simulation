@@ -1,4 +1,4 @@
-function [lin_sys, geom] = build_coupled_lin_sys(Z, params)
+function [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params)
 %BUILD_COUPLED_LIN_SYS  Assemble the coupled body-pili linear system
 %
 %  Description:
@@ -28,6 +28,9 @@ function [lin_sys, geom] = build_coupled_lin_sys(Z, params)
 %              dimensionless units.
 %    geom    - Geometry struct from reconstruct_geometry (needed by
 %              caller for elastic moments, director frames, etc.)
+%    hydro   - (Optional, 3rd output) Hydrodynamic intermediate struct
+%              for background flow computation.  Fields:
+%                .B_global, .M_weighted, .A_twist_total, .M_rotlet, .n_trans
 %
 %  References:
 %    [1] Walker et al. (2020), Physical Review E.
@@ -339,6 +342,15 @@ else
 end
 
 lin_sys = -B_global * AQ;
+
+%% Step 6b: Optionally export hydrodynamic intermediates (for background flow)
+if nargout >= 3
+    hydro.B_global      = B_global;
+    hydro.M_weighted    = M_weighted;
+    hydro.A_twist_total = A_twist_total;
+    hydro.M_rotlet      = M_rotlet;
+    hydro.n_trans        = n_trans;
+end
 
 %% Step 7: Apply clamped boundary conditions
 col_offset = 6;

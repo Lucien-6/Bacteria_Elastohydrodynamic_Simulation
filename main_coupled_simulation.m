@@ -59,10 +59,37 @@ else
     pili_config(2).deflection_z = 0;
     pili_config(2).deflection_x = 0;
     pili_config(2).site        = 8;
-    cfg.Pili_Matrix = parse_pili_config(pili_config);
+
+    % -------- Per-pili: Intrinsic Curvature --------
+    %  Options: 'frozen' (default, keep initial geometry), 'zero',
+    %           struct('type','constant','kappa',[k1 k2 k3]),
+    %           struct('type','helix','kappa_d2',val,'kappa_d3',val)
+    pili_config(1).intrinsic_curvature = 'frozen';
+    pili_config(2).intrinsic_curvature = 'frozen';
+
+    % -------- Per-pili: Active Moment --------
+    %  Options: struct('type','off')  (default)
+    %           struct('type','traveling_wave', ...
+    %               'amplitude_Nm', 1e-18, 'omega_Hz', 10, ...
+    %               'wavenumber', 2*pi, ...
+    %               'd1_amp', 1, 'd2_amp', 0, 'd3_amp', 0)
+    %           struct('type','custom', 'fun', @my_moment_func)
+    pili_config(1).active_moment = struct('type', 'off');
+    pili_config(2).active_moment = struct('type', 'off');
+
+    [cfg.Pili_Matrix, cfg.pili_ext] = parse_pili_config(pili_config);
 
     % Legacy raw-matrix alternative (uncomment to use instead):
     %  cfg.Pili_Matrix = [1; 3; 0; 0; NaN; NaN; NaN; 1];
+
+    % -------- Background Flow --------
+    %  Options: 'off' (default), 'uniform', 'shear_z'
+    cfg.background_flow.type           = 'off';
+    % cfg.background_flow.type         = 'shear_z';
+    % cfg.background_flow.U_max        = 1e-6;       % [m/s]
+    % cfg.background_flow.direction    = [1, 0, 0];
+    % cfg.background_flow.shear_axis   = [0, 0, 1];
+    % cfg.background_flow.shear_height_m = 3e-6;     % [m]
 
     % -------- Pili Discretisation (RSS, Cortez 2018) --------
     cfg.seg_per_um = 15;                  % [seg/um] RSS segment density

@@ -99,13 +99,14 @@ tailwind.config = {
 <aside id="sidebar" class="no-print fixed top-0 left-0 h-full w-64 bg-navy-900 text-gray-300 z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 overflow-y-auto">
   <div class="p-6 border-b border-navy-700">
     <h2 class="text-white font-bold text-lg leading-tight">Coupled Body-Pili</h2>
-    <p class="text-xs text-teal-500 mt-1">v4.1.0 &mdash; Documentation</p>
+    <p class="text-xs text-teal-500 mt-1">v5.0.0 &mdash; Documentation</p>
   </div>
   <nav class="p-4 space-y-1 text-sm">
     <a href="#hero"         class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Home</span><span class="zh">首页</span></a>
     <a href="#overview"     class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Project Overview</span><span class="zh">项目概述</span></a>
     <a href="#theory"       class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Theoretical Foundations</span><span class="zh">理论基础</span></a>
     <a href="#brownian"     class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Brownian Dynamics</span><span class="zh">布朗动力学</span></a>
+    <a href="#newfeatures"  class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">New in v5.0</span><span class="zh">v5.0 新功能</span></a>
     <a href="#architecture" class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Code Architecture</span><span class="zh">代码架构</span></a>
     <a href="#usage"        class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Quick Start &amp; Usage</span><span class="zh">快速上手</span></a>
     <a href="#references"   class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">References &amp; License</span><span class="zh">参考文献</span></a>
@@ -138,7 +139,7 @@ tailwind.config = {
 <section id="hero" class="hero-gradient text-white py-24 px-6 md:px-16 lg:px-24">
   <div class="max-w-4xl mx-auto text-center">
     <div class="inline-block bg-teal-600/30 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-3 py-1 rounded-full mb-6 tracking-wide">
-      VERSION 4.1.0 &bull; 2026-04-03
+      VERSION 5.0.0 &bull; 2026-04-03
     </div>
     <h1 class="text-3xl md:text-5xl font-extrabold leading-tight mb-4">
       <span class="en">Coupled Body-Pili<br>Elastohydrodynamic Simulation</span>
@@ -151,9 +152,11 @@ tailwind.config = {
     <p class="text-sm md:text-base text-gray-400 max-w-2xl mx-auto mb-10">
       <span class="en">A MATLAB simulation framework for modelling capsule-shaped bacteria with elastic pili
       sinking in Stokes flow, featuring regularized Stokeslet methods, Kirchhoff elastic rods,
-      full-system effective friction Brownian dynamics, and adaptive Euler-angle singularity avoidance.</span>
+      full-system effective friction Brownian dynamics, adaptive Euler-angle singularity avoidance,
+      configurable intrinsic curvature, time-varying active moments, and steady background flow fields.</span>
       <span class="zh">一个基于 MATLAB 的仿真框架，用于模拟携带弹性纤毛的胶囊状细菌在 Stokes 流体中的沉降运动。
-      融合正则化 Stokeslet 方法、Kirchhoff 弹性杆模型、全系统有效摩擦布朗动力学以及自适应欧拉角奇点规避。</span>
+      融合正则化 Stokeslet 方法、Kirchhoff 弹性杆模型、全系统有效摩擦布朗动力学、自适应欧拉角奇点规避，
+      以及可配置的固有曲率、时变主动力矩和稳态背景流场。</span>
     </p>
     <div class="flex flex-wrap justify-center gap-4">
       <a href="#usage" class="bg-teal-600 hover:bg-teal-700 text-white font-semibold px-6 py-3 rounded-lg transition shadow-lg">
@@ -313,6 +316,39 @@ tailwind.config = {
           <span class="zh">外部 JSON 配置文件，自动保存配置快照，确保每次仿真完全可复现。</span>
         </p>
       </div>
+      <div class="info-card bg-white dark:bg-navy-900 rounded-xl p-5 border border-gray-200 dark:border-navy-700 shadow-sm ring-2 ring-teal-500/30">
+        <div class="text-2xl mb-2">🧬</div>
+        <h4 class="font-semibold text-sm mb-1">
+          <span class="en">Intrinsic Curvature</span><span class="zh">固有曲率</span>
+          <span class="text-[10px] ml-1 bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-400 px-1.5 py-0.5 rounded font-bold">NEW</span>
+        </h4>
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          <span class="en">Per-pilus static intrinsic curvature: <code>frozen</code>, <code>zero</code>, <code>constant</code>, or <code>helix</code>. Models naturally curved or helical filaments.</span>
+          <span class="zh">逐纤毛静态固有曲率：<code>frozen</code>、<code>zero</code>、<code>constant</code> 或 <code>helix</code>。模拟天然弯曲或螺旋形纤毛。</span>
+        </p>
+      </div>
+      <div class="info-card bg-white dark:bg-navy-900 rounded-xl p-5 border border-gray-200 dark:border-navy-700 shadow-sm ring-2 ring-teal-500/30">
+        <div class="text-2xl mb-2">💫</div>
+        <h4 class="font-semibold text-sm mb-1">
+          <span class="en">Active Moments</span><span class="zh">主动力矩</span>
+          <span class="text-[10px] ml-1 bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-400 px-1.5 py-0.5 rounded font-bold">NEW</span>
+        </h4>
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          <span class="en">Per-pilus time-varying internal moments: <code>traveling_wave</code> or <code>custom</code> function handle. Simulates active beating of cilia/flagella.</span>
+          <span class="zh">逐纤毛时变主动内力矩：<code>traveling_wave</code> 或 <code>custom</code> 函数句柄。模拟纤毛/鞭毛的主动摆动。</span>
+        </p>
+      </div>
+      <div class="info-card bg-white dark:bg-navy-900 rounded-xl p-5 border border-gray-200 dark:border-navy-700 shadow-sm ring-2 ring-teal-500/30">
+        <div class="text-2xl mb-2">🌀</div>
+        <h4 class="font-semibold text-sm mb-1">
+          <span class="en">Background Flow</span><span class="zh">背景流场</span>
+          <span class="text-[10px] ml-1 bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-400 px-1.5 py-0.5 rounded font-bold">NEW</span>
+        </h4>
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          <span class="en">Global steady background flow: <code>uniform</code> or <code>shear_z</code>. Contributes to the RHS via $\mathbf{B}\,\mathbf{A}^{-1}\,\mathbf{u}_\text{bg}$.</span>
+          <span class="zh">全局稳态背景流：<code>uniform</code> 或 <code>shear_z</code>。通过 $\mathbf{B}\,\mathbf{A}^{-1}\,\mathbf{u}_\text{bg}$ 贡献至右端项。</span>
+        </p>
+      </div>
     </div>
   </div>
 </section>
@@ -385,12 +421,28 @@ tailwind.config = {
       <div class="bg-gray-50 dark:bg-navy-800 rounded-xl p-6 border border-gray-200 dark:border-navy-700 mb-4">
         $$m_1 = EI\!\left(\frac{\partial \theta}{\partial s} - \kappa_1^0\right), \quad m_2 = EI\!\left(\sin\theta\,\frac{\partial \phi}{\partial s} - \kappa_2^0\right), \quad m_3 = \frac{EI}{1+\sigma}\!\left(\frac{\partial \psi}{\partial s} + \cos\theta\,\frac{\partial \phi}{\partial s} - \kappa_3^0\right)$$
       </div>
-      <p class="text-gray-600 dark:text-gray-400 text-sm">
+      <p class="text-gray-600 dark:text-gray-400 text-sm mb-4">
         <span class="en">where $EI$ is the bending stiffness, $\sigma$ is the Poisson ratio giving torsional stiffness $GJ = EI/(1+\sigma)$,
         and $\kappa_\alpha^0$ are the intrinsic (stress-free) curvatures.</span>
         <span class="zh">其中 $EI$ 为弯曲刚度，$\sigma$ 为泊松比，扭转刚度 $GJ = EI/(1+\sigma)$，
         $\kappa_\alpha^0$ 为固有（无应力状态下的）曲率。</span>
       </p>
+      <div class="bg-teal-50 dark:bg-teal-900/20 rounded-lg p-4 border border-teal-200 dark:border-teal-800 text-sm">
+        <p class="font-semibold text-teal-700 dark:text-teal-400 mb-1">
+          <span class="en">New in v5.0 &mdash; Configurable Intrinsic Curvature</span>
+          <span class="zh">v5.0 新增 &mdash; 可配置固有曲率</span>
+        </p>
+        <p class="text-gray-600 dark:text-gray-400">
+          <span class="en">The intrinsic curvature $\kappa_\alpha^0$ can now be set independently per pilus:
+          <code>frozen</code> (keep initial geometry), <code>zero</code> (straight rest shape),
+          <code>constant</code> (user-specified $[\kappa_1^0, \kappa_2^0, \kappa_3^0]$),
+          or <code>helix</code> (helical curvature from $\kappa_{d2}$/$\kappa_{d3}$).</span>
+          <span class="zh">固有曲率 $\kappa_\alpha^0$ 现可逐纤毛独立设置：
+          <code>frozen</code>（保持初始几何）、<code>zero</code>（直线静息形状）、
+          <code>constant</code>（用户指定 $[\kappa_1^0, \kappa_2^0, \kappa_3^0]$）
+          或 <code>helix</code>（通过 $\kappa_{d2}$/$\kappa_{d3}$ 设定螺旋曲率）。</span>
+        </p>
+      </div>
     </div>
 
     <!-- 3c: Coupled Linear System -->
@@ -432,8 +484,8 @@ tailwind.config = {
             <span class="en">R Vector</span><span class="zh">R 向量</span>
           </h4>
           <p class="text-gray-500 dark:text-gray-400">
-            <span class="en">Right-hand side: gravitational force $-E_g\,\hat{\mathbf{g}}$ on the body plus elastic restoring moments on each pilus.</span>
-            <span class="zh">右端项：作用于胞体的重力 $-E_g\,\hat{\mathbf{g}}$ 以及各纤毛的弹性恢复力矩。</span>
+            <span class="en">Right-hand side: gravitational force $-E_g\,\hat{\mathbf{g}}$, elastic restoring moments, active moments $\mathbf{M}_\text{act}$ (v5.0), and background flow contribution $\mathbf{B}\,\mathbf{A}^{-1}\,\mathbf{u}_\text{bg}$ (v5.0).</span>
+            <span class="zh">右端项：重力 $-E_g\,\hat{\mathbf{g}}$、弹性恢复力矩、主动力矩 $\mathbf{M}_\text{act}$（v5.0）以及背景流贡献 $\mathbf{B}\,\mathbf{A}^{-1}\,\mathbf{u}_\text{bg}$（v5.0）。</span>
           </p>
         </div>
       </div>
@@ -597,7 +649,182 @@ M_eff_dimless = z_dot_probe(1:6, :);  % 6x6 effective mobility</code></pre>
   </div>
 </section>
 
-<!-- ==================== SECTION 5: ARCHITECTURE ==================== -->
+<!-- ==================== SECTION 5: NEW IN v5.0 ==================== -->
+<section id="newfeatures" class="py-20 px-6 md:px-16 lg:px-24">
+  <div class="max-w-5xl mx-auto">
+    <h2 class="text-2xl md:text-3xl font-bold mb-2">
+      <span class="en">New in v5.0</span><span class="zh">v5.0 新功能</span>
+    </h2>
+    <div class="w-16 h-1 bg-teal-600 rounded mb-10"></div>
+
+    <p class="text-gray-600 dark:text-gray-400 max-w-3xl mb-12 leading-relaxed">
+      <span class="en">Version 5.0 introduces three major physics extensions &mdash; <strong>intrinsic curvature</strong>,
+      <strong>active moments</strong>, and <strong>background flow</strong> &mdash; all fully integrated into the
+      existing coupled body-pili framework. Each feature defaults to <em>off</em>, ensuring full backward compatibility.</span>
+      <span class="zh">v5.0 引入三项重要物理扩展——<strong>固有曲率</strong>、<strong>主动力矩</strong>和<strong>背景流场</strong>——均已完整集成至现有的胞体-纤毛耦合框架。
+      每项功能默认关闭，确保与已有配置完全向后兼容。</span>
+    </p>
+
+    <!-- 5a: Intrinsic Curvature -->
+    <div class="mb-14">
+      <h3 class="text-xl font-semibold mb-4 flex items-center gap-2">
+        <span class="bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-400 text-xs font-bold px-2 py-0.5 rounded">5a</span>
+        <span class="en">Intrinsic Curvature (Per-Pilus, Static)</span>
+        <span class="zh">固有曲率（逐纤毛、静态）</span>
+      </h3>
+      <p class="text-gray-600 dark:text-gray-400 mb-4">
+        <span class="en">The stress-free curvature $\kappa_\alpha^0$ defines the natural resting shape of each filament.
+        When deformed away from this shape, elastic restoring moments $m_\alpha = EI(\kappa_\alpha - \kappa_\alpha^0)$ arise.
+        The intrinsic curvature does not vary with time but can differ between pili.</span>
+        <span class="zh">无应力曲率 $\kappa_\alpha^0$ 定义每根纤毛的自然静息形状。
+        当偏离此形状时，弹性恢复力矩 $m_\alpha = EI(\kappa_\alpha - \kappa_\alpha^0)$ 产生。
+        固有曲率不随时间变化，但可为不同纤毛设置不同值。</span>
+      </p>
+      <div class="overflow-x-auto mb-4">
+        <table class="w-full text-sm border border-gray-200 dark:border-navy-700 rounded-lg overflow-hidden">
+          <thead class="bg-gray-100 dark:bg-navy-800 text-gray-700 dark:text-gray-300">
+            <tr>
+              <th class="px-4 py-3 text-left">Mode</th>
+              <th class="px-4 py-3 text-left"><span class="en">Behaviour</span><span class="zh">行为</span></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 dark:divide-navy-700 text-gray-600 dark:text-gray-400">
+            <tr><td class="px-4 py-2 font-mono text-xs"><code>frozen</code></td><td class="px-4 py-2"><span class="en">Retain intrinsic curvature from initial geometry (default)</span><span class="zh">保持初始几何的固有曲率（默认）</span></td></tr>
+            <tr><td class="px-4 py-2 font-mono text-xs"><code>zero</code></td><td class="px-4 py-2"><span class="en">Straight rest shape ($\kappa_\alpha^0 = 0$)</span><span class="zh">直线静息形状（$\kappa_\alpha^0 = 0$）</span></td></tr>
+            <tr><td class="px-4 py-2 font-mono text-xs"><code>constant</code></td><td class="px-4 py-2"><span class="en">User-specified $[\kappa_1^0, \kappa_2^0, \kappa_3^0]$ applied uniformly along the filament</span><span class="zh">用户指定的 $[\kappa_1^0, \kappa_2^0, \kappa_3^0]$ 沿纤毛均匀施加</span></td></tr>
+            <tr><td class="px-4 py-2 font-mono text-xs"><code>helix</code></td><td class="px-4 py-2"><span class="en">Helical curvature from $\kappa_{d2}$ and $\kappa_{d3}$ components</span><span class="zh">通过 $\kappa_{d2}$ 和 $\kappa_{d3}$ 分量设定螺旋曲率</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <pre><code class="language-matlab">% Example: Set pilus 1 to helical intrinsic curvature
+pili_config(1).intrinsic_curvature.type     = 'helix';
+pili_config(1).intrinsic_curvature.kappa_d2 = 0.5;   % [1/um]
+pili_config(1).intrinsic_curvature.kappa_d3 = 0.3;   % [1/um]</code></pre>
+    </div>
+
+    <!-- 5b: Active Moments -->
+    <div class="mb-14">
+      <h3 class="text-xl font-semibold mb-4 flex items-center gap-2">
+        <span class="bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-400 text-xs font-bold px-2 py-0.5 rounded">5b</span>
+        <span class="en">Active Moments (Per-Pilus, Time-Varying)</span>
+        <span class="zh">主动力矩（逐纤毛、时变）</span>
+      </h3>
+      <p class="text-gray-600 dark:text-gray-400 mb-4">
+        <span class="en">Active internal moments $\mathbf{M}_\text{act}(s, t)$ drive filament beating or rotation,
+        enabling simulation of motile cilia and flagella. These moments are subtracted from the RHS
+        <em>before</em> clamped boundary conditions are applied:</span>
+        <span class="zh">主动内力矩 $\mathbf{M}_\text{act}(s, t)$ 驱动纤毛的主动摆动或旋转，
+        可用于模拟运动型纤毛和鞭毛。这些力矩在施加固支边界条件<em>之前</em>从右端项中减去：</span>
+      </p>
+      <div class="bg-gray-50 dark:bg-navy-800 rounded-xl p-6 border border-gray-200 dark:border-navy-700 mb-4">
+        $$\mathbf{R} = \underbrace{-E_g\,\hat{\mathbf{g}}}_{\text{gravity}} + \underbrace{\mathbf{m}_\text{elastic}}_{\text{Kirchhoff}} - \underbrace{\mathbf{M}_\text{act}(t)}_{\text{active}} - \underbrace{\mathbf{B}\,\mathbf{A}^{-1}\,\mathbf{u}_\text{bg}}_{\text{background flow}}$$
+      </div>
+      <div class="overflow-x-auto mb-4">
+        <table class="w-full text-sm border border-gray-200 dark:border-navy-700 rounded-lg overflow-hidden">
+          <thead class="bg-gray-100 dark:bg-navy-800 text-gray-700 dark:text-gray-300">
+            <tr>
+              <th class="px-4 py-3 text-left">Mode</th>
+              <th class="px-4 py-3 text-left"><span class="en">Behaviour</span><span class="zh">行为</span></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 dark:divide-navy-700 text-gray-600 dark:text-gray-400">
+            <tr><td class="px-4 py-2 font-mono text-xs"><code>off</code></td><td class="px-4 py-2"><span class="en">No active moments (default)</span><span class="zh">无主动力矩（默认）</span></td></tr>
+            <tr><td class="px-4 py-2 font-mono text-xs"><code>traveling_wave</code></td><td class="px-4 py-2"><span class="en">Sinusoidal traveling wave: $A\,\mathbf{a}\cos(k_w s - \omega t)$ with configurable amplitude [N&middot;m], frequency [Hz], wavenumber, and per-component weights</span><span class="zh">正弦行波：$A\,\mathbf{a}\cos(k_w s - \omega t)$，可配置振幅 [N&middot;m]、频率 [Hz]、波数及各分量权重</span></td></tr>
+            <tr><td class="px-4 py-2 font-mono text-xs"><code>custom</code></td><td class="px-4 py-2"><span class="en">User-provided function handle <code>fun(t, k, N_k, d1, d2, d3, ...)</code></span><span class="zh">用户自定义函数句柄 <code>fun(t, k, N_k, d1, d2, d3, ...)</code></span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <pre><code class="language-matlab">% Example: Traveling-wave active moment on pilus 1
+pili_config(1).active_moment.type          = 'traveling_wave';
+pili_config(1).active_moment.amplitude_Nm  = 1e-18;   % [N·m]
+pili_config(1).active_moment.omega_Hz      = 50;      % [Hz]
+pili_config(1).active_moment.wavenumber    = 2*pi;    % [1/L_pili]
+pili_config(1).active_moment.a1            = 1;       % d1-weight
+pili_config(1).active_moment.a2            = 0;       % d2-weight</code></pre>
+      <p class="text-xs text-gray-500 dark:text-gray-500 mt-3">
+        <span class="en">Physical units (amplitude in N&middot;m, frequency in Hz) are automatically pre-converted to dimensionless at initialisation using $EI/L_\text{pili}$ and $T_0 = 8\pi\mu L_0^3/EI$.</span>
+        <span class="zh">物理单位（振幅 N&middot;m、频率 Hz）在初始化时自动使用 $EI/L_\text{pili}$ 和 $T_0 = 8\pi\mu L_0^3/EI$ 预转换为无量纲值。</span>
+      </p>
+    </div>
+
+    <!-- 5c: Background Flow -->
+    <div class="mb-14">
+      <h3 class="text-xl font-semibold mb-4 flex items-center gap-2">
+        <span class="bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-400 text-xs font-bold px-2 py-0.5 rounded">5c</span>
+        <span class="en">Background Flow (Global, Steady)</span>
+        <span class="zh">背景流场（全局、稳态）</span>
+      </h3>
+      <p class="text-gray-600 dark:text-gray-400 mb-4">
+        <span class="en">A time-invariant background flow $\mathbf{u}_\infty(\mathbf{x})$ can be imposed on the system.
+        It enters the coupled system as an additional RHS term computed from
+        the background velocities evaluated at all hydrodynamic points (body + pili):</span>
+        <span class="zh">可向系统施加时不变背景流 $\mathbf{u}_\infty(\mathbf{x})$。
+        它通过在所有流体力学评估点（胞体 + 纤毛）处计算的背景速度，以额外右端项的形式进入耦合系统：</span>
+      </p>
+      <div class="bg-gray-50 dark:bg-navy-800 rounded-xl p-6 border border-gray-200 dark:border-navy-700 mb-4">
+        $$\text{flow contribution} = \mathbf{B}\,\mathbf{A}^{-1}\,\mathbf{u}_\text{bg}$$
+      </div>
+      <p class="text-gray-600 dark:text-gray-400 mb-4 text-sm">
+        <span class="en">where $\mathbf{u}_\text{bg}$ contains both the translational velocities ($3N_\text{total}$ components)
+        and the twist projections (vorticity projected onto each pili segment's tangent vector).</span>
+        <span class="zh">其中 $\mathbf{u}_\text{bg}$ 包含平动速度（$3N_\text{total}$ 个分量）和扭转投影（涡度在各纤毛段切向量上的投影）。</span>
+      </p>
+      <div class="grid md:grid-cols-2 gap-4 text-sm mb-4">
+        <div class="bg-white dark:bg-navy-900 rounded-lg p-4 border border-gray-200 dark:border-navy-700">
+          <h4 class="font-semibold mb-2 text-teal-700 dark:text-teal-400">
+            <span class="en">Uniform Flow</span><span class="zh">均匀流</span>
+          </h4>
+          <p class="text-gray-600 dark:text-gray-400">
+            <span class="en">Spatially constant: $\mathbf{u}_\infty = U_\text{max}\,\hat{\mathbf{d}}$. Specify <code>U_max</code> [m/s] and <code>direction</code> $[d_x, d_y, d_z]$.</span>
+            <span class="zh">空间均匀：$\mathbf{u}_\infty = U_\text{max}\,\hat{\mathbf{d}}$。指定 <code>U_max</code> [m/s] 和 <code>direction</code> $[d_x, d_y, d_z]$。</span>
+          </p>
+        </div>
+        <div class="bg-white dark:bg-navy-900 rounded-lg p-4 border border-gray-200 dark:border-navy-700">
+          <h4 class="font-semibold mb-2 text-teal-700 dark:text-teal-400">
+            <span class="en">Shear Flow (shear_z)</span><span class="zh">剪切流 (shear_z)</span>
+          </h4>
+          <p class="text-gray-600 dark:text-gray-400">
+            <span class="en">Piecewise-linear shear: $u = U_\text{max}\min(1,\,\max(0,\,z/H))$ along a configurable <code>shear_axis</code>. Generates vorticity for pili twist.</span>
+            <span class="zh">分段线性剪切：$u = U_\text{max}\min(1,\,\max(0,\,z/H))$，沿可配置的 <code>shear_axis</code> 方向。为纤毛扭转产生涡度。</span>
+          </p>
+        </div>
+      </div>
+      <pre><code class="language-matlab">% Example: Piecewise-linear shear flow in z-direction
+cfg.background_flow.type           = 'shear_z';
+cfg.background_flow.U_max          = 10e-6;       % [m/s]
+cfg.background_flow.shear_axis     = [1 0 0];     % flow along x
+cfg.background_flow.shear_height_m = 20e-6;       % [m]</code></pre>
+      <p class="text-xs text-gray-500 dark:text-gray-500 mt-3">
+        <span class="en"><code>U_max</code> is pre-converted to dimensionless via $U_0 = EI/(8\pi\mu L_0^2)$.
+        The background flow does not affect the Brownian diffusion tensor.</span>
+        <span class="zh"><code>U_max</code> 通过 $U_0 = EI/(8\pi\mu L_0^2)$ 预转换为无量纲值。
+        背景流不影响布朗扩散张量。</span>
+      </p>
+    </div>
+
+    <!-- Updated R vector formula -->
+    <div class="bg-white dark:bg-navy-900 rounded-2xl shadow-lg p-6 md:p-8 border border-gray-200 dark:border-navy-700">
+      <h3 class="font-semibold text-lg mb-4">
+        <span class="en">Updated Coupled System (v5.0)</span><span class="zh">更新后的耦合系统（v5.0）</span>
+      </h3>
+      <p class="text-gray-600 dark:text-gray-400 mb-4 text-sm">
+        <span class="en">The full right-hand side of the coupled linear system now includes four contributions:</span>
+        <span class="zh">耦合线性系统的完整右端项现包含四项贡献：</span>
+      </p>
+      <div class="bg-gray-50 dark:bg-navy-800 rounded-xl p-6 border border-gray-200 dark:border-navy-700 mb-4">
+        $$-\mathbf{B}\,\mathbf{M}_\text{w}^{-1}\,\mathbf{Q}\;\dot{\mathbf{z}} = \underbrace{-E_g\,\hat{\mathbf{g}}}_{\text{gravity}} + \underbrace{\mathbf{m}(\kappa - \kappa^0)}_{\text{elastic}} - \underbrace{\mathbf{M}_\text{act}(t)}_{\text{active}} - \underbrace{\mathbf{B}\,\mathbf{A}^{-1}\,\mathbf{u}_\text{bg}}_{\text{flow}}$$
+      </div>
+      <p class="text-xs text-gray-500 dark:text-gray-500">
+        <span class="en">When all three features are set to default (<code>off</code>/<code>frozen</code>),
+        the system reduces to the original v4.x formulation identically.</span>
+        <span class="zh">当三项功能均设为默认值（<code>off</code>/<code>frozen</code>）时，
+        系统退化为与 v4.x 完全相同的原始形式。</span>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 6: ARCHITECTURE ==================== -->
 <section id="architecture" class="py-20 px-6 md:px-16 lg:px-24">
   <div class="max-w-6xl mx-auto">
     <h2 class="text-2xl md:text-3xl font-bold mb-2">
@@ -634,6 +861,8 @@ graph TD
 
     BROWN --> BLS["build_coupled_lin_sys.m"]
     ODE --> BLS
+    ODE --> AM["coupled_active_moment.m"]
+    ODE --> BF["coupled_background_flow.m"]
     BLS --> RG["reconstruct_geometry.m"]
     BLS --> BGR["build_global_resistance.m"]
 
@@ -674,7 +903,7 @@ graph TD
             <tr>
               <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">ODE Core</span><span class="zh">ODE 核心</span></td>
               <td class="px-4 py-2"><code>ode_coupled_rhs.m</code>, <code>build_coupled_lin_sys.m</code></td>
-              <td class="px-4 py-2"><span class="en">Deterministic RHS: linear system assembly + elastic moments + state-rate packing</span><span class="zh">确定性右端项：线性系统装配 + 弹性力矩 + 状态速率组装</span></td>
+              <td class="px-4 py-2"><span class="en">Deterministic RHS: linear system assembly + elastic moments + active moments + background flow + state-rate packing</span><span class="zh">确定性右端项：线性系统装配 + 弹性力矩 + 主动力矩 + 背景流 + 状态速率组装</span></td>
             </tr>
             <tr>
               <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">Brownian</span><span class="zh">布朗</span></td>
@@ -688,8 +917,8 @@ graph TD
             </tr>
             <tr>
               <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">Physics</span><span class="zh">物理</span></td>
-              <td class="px-4 py-2"><code>build_global_resistance.m</code>, <code>compute_pili_elastic_moments.m</code></td>
-              <td class="px-4 py-2"><span class="en">Hydrodynamic mobility/resistance; elastic restoring moments</span><span class="zh">流体动力学迁移率/阻力；弹性恢复力矩</span></td>
+              <td class="px-4 py-2"><code>build_global_resistance.m</code>, <code>compute_pili_elastic_moments.m</code>, <code>coupled_active_moment.m</code>, <code>coupled_background_flow.m</code></td>
+              <td class="px-4 py-2"><span class="en">Hydrodynamic mobility/resistance; elastic restoring moments; active internal moments (v5.0); background flow field (v5.0)</span><span class="zh">流体动力学迁移率/阻力；弹性恢复力矩；主动内力矩（v5.0）；背景流场（v5.0）</span></td>
             </tr>
             <tr>
               <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">Utilities</span><span class="zh">工具</span></td>
@@ -716,8 +945,8 @@ graph TD
       <button onclick="this.nextElementSibling.classList.toggle('open'); this.querySelector('svg').classList.toggle('rotate-180')"
         class="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 dark:hover:bg-navy-800 transition">
         <span class="font-semibold text-sm">
-          <span class="en">Project File Tree (40+ MATLAB files)</span>
-          <span class="zh">项目文件树（40+ MATLAB 文件）</span>
+          <span class="en">Project File Tree (42 MATLAB files)</span>
+          <span class="zh">项目文件树（42 个 MATLAB 文件）</span>
         </span>
         <svg class="w-5 h-5 text-gray-400 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
       </button>
@@ -732,6 +961,8 @@ graph TD
 ├── build_global_resistance.m        % RSM/RSS mobility matrices
 ├── reconstruct_geometry.m           % State → geometry
 ├── compute_pili_elastic_moments.m   % Kirchhoff elastic moments
+├── coupled_active_moment.m          % Per-pili active moments (v5.0)
+├── coupled_background_flow.m        % Background flow field   (v5.0)
 ├── compute_effective_body_brownian.m% Full-system Brownian (probing)
 ├── enforce_clamped_geometry.m       % Clamped BC projection
 ├── adaptive_basis_check.m           % Euler-angle singularity avoidance
@@ -825,7 +1056,15 @@ cfg.Temper       = 293.15;       % [K]
 cfg.dt_B         = cfg.dt / 2;
 cfg.fixman_midpoint = false;
 
-[results, params, output_dir] = run_simulation(cfg);</code></pre>
+% v5.0 — Background flow (default: off)
+cfg.background_flow.type = 'off';
+
+% v5.0 — Per-pili intrinsic curvature / active moment
+pili_config(1).intrinsic_curvature = 'frozen';
+pili_config(1).active_moment = struct('type', 'off');
+
+[cfg.Pili_Matrix, cfg.pili_ext] = parse_pili_config(pili_config);
+[results, params, output_dir]   = run_simulation(cfg);</code></pre>
       </div>
 
       <div id="tab-json" class="tab-panel">
@@ -899,6 +1138,138 @@ run('batch sweep/batch_run_from_json.m');</code></pre>
             <tr><td class="px-4 py-2 font-mono text-xs">fixman_midpoint</td><td class="px-4 py-2"><code>brownian.fixman_midpoint</code></td><td class="px-4 py-2"><code>false</code></td><td class="px-4 py-2"><span class="en">Enable Fixman midpoint drift correction (2&times; cost)</span><span class="zh">启用 Fixman 中点漂移修正（2 倍代价）</span></td></tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- v5.0 New Feature Parameters -->
+    <div class="mb-10">
+      <h3 class="font-semibold text-lg mb-4">
+        <span class="en">v5.0 Feature Parameters</span><span class="zh">v5.0 新功能参数</span>
+      </h3>
+      <div class="overflow-x-auto mb-6">
+        <table class="w-full text-sm border border-gray-200 dark:border-navy-700 rounded-lg overflow-hidden">
+          <thead class="bg-gray-100 dark:bg-navy-800 text-gray-700 dark:text-gray-300">
+            <tr>
+              <th class="px-4 py-3 text-left"><span class="en">Parameter</span><span class="zh">参数</span></th>
+              <th class="px-4 py-3 text-left"><span class="en">Scope</span><span class="zh">范围</span></th>
+              <th class="px-4 py-3 text-left"><span class="en">Default</span><span class="zh">默认值</span></th>
+              <th class="px-4 py-3 text-left"><span class="en">Description</span><span class="zh">说明</span></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 dark:divide-navy-700 text-gray-600 dark:text-gray-400">
+            <tr>
+              <td class="px-4 py-2 font-mono text-xs">background_flow.type</td>
+              <td class="px-4 py-2"><span class="en">Global</span><span class="zh">全局</span></td>
+              <td class="px-4 py-2"><code>'off'</code></td>
+              <td class="px-4 py-2"><code>'off'</code> | <code>'uniform'</code> | <code>'shear_z'</code></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-2 font-mono text-xs">background_flow.U_max</td>
+              <td class="px-4 py-2"><span class="en">Global</span><span class="zh">全局</span></td>
+              <td class="px-4 py-2">0</td>
+              <td class="px-4 py-2"><span class="en">Maximum flow speed [m/s]</span><span class="zh">最大流速 [m/s]</span></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-2 font-mono text-xs">background_flow.direction</td>
+              <td class="px-4 py-2"><span class="en">Global</span><span class="zh">全局</span></td>
+              <td class="px-4 py-2"><code>[1,0,0]</code></td>
+              <td class="px-4 py-2"><span class="en">Flow direction (uniform mode)</span><span class="zh">流动方向（均匀模式）</span></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-2 font-mono text-xs">background_flow.shear_height_m</td>
+              <td class="px-4 py-2"><span class="en">Global</span><span class="zh">全局</span></td>
+              <td class="px-4 py-2">&mdash;</td>
+              <td class="px-4 py-2"><span class="en">Shear layer height [m] (shear_z mode)</span><span class="zh">剪切层高度 [m]（shear_z 模式）</span></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-2 font-mono text-xs">intrinsic_curvature</td>
+              <td class="px-4 py-2"><span class="en">Per-pilus</span><span class="zh">逐纤毛</span></td>
+              <td class="px-4 py-2"><code>'frozen'</code></td>
+              <td class="px-4 py-2"><code>'frozen'</code> | <code>'zero'</code> | <code>'constant'</code> | <code>'helix'</code></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-2 font-mono text-xs">active_moment.type</td>
+              <td class="px-4 py-2"><span class="en">Per-pilus</span><span class="zh">逐纤毛</span></td>
+              <td class="px-4 py-2"><code>'off'</code></td>
+              <td class="px-4 py-2"><code>'off'</code> | <code>'traveling_wave'</code> | <code>'custom'</code></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-2 font-mono text-xs">active_moment.amplitude_Nm</td>
+              <td class="px-4 py-2"><span class="en">Per-pilus</span><span class="zh">逐纤毛</span></td>
+              <td class="px-4 py-2">0</td>
+              <td class="px-4 py-2"><span class="en">Moment amplitude [N&middot;m]</span><span class="zh">力矩振幅 [N&middot;m]</span></td>
+            </tr>
+            <tr>
+              <td class="px-4 py-2 font-mono text-xs">active_moment.omega_Hz</td>
+              <td class="px-4 py-2"><span class="en">Per-pilus</span><span class="zh">逐纤毛</span></td>
+              <td class="px-4 py-2">0</td>
+              <td class="px-4 py-2"><span class="en">Oscillation frequency [Hz]</span><span class="zh">振荡频率 [Hz]</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Inline + JSON config examples for v5.0 -->
+      <div class="mb-4">
+        <h4 class="font-semibold text-sm mb-3">
+          <span class="en">Inline Configuration Example (v5.0 features)</span>
+          <span class="zh">内联配置示例（v5.0 功能）</span>
+        </h4>
+        <pre><code class="language-matlab">% -------- Background Flow --------
+cfg.background_flow.type           = 'shear_z';
+cfg.background_flow.U_max          = 10e-6;       % [m/s]
+cfg.background_flow.shear_axis     = [1 0 0];
+cfg.background_flow.shear_height_m = 20e-6;       % [m]
+
+% -------- Per-pili: Intrinsic Curvature --------
+pili_config(1).intrinsic_curvature = 'frozen';     % keep initial shape
+pili_config(2).intrinsic_curvature.type     = 'helix';
+pili_config(2).intrinsic_curvature.kappa_d2 = 0.5; % [1/um]
+pili_config(2).intrinsic_curvature.kappa_d3 = 0.3; % [1/um]
+
+% -------- Per-pili: Active Moment --------
+pili_config(1).active_moment = struct('type', 'off');
+pili_config(2).active_moment.type          = 'traveling_wave';
+pili_config(2).active_moment.amplitude_Nm  = 1e-18;
+pili_config(2).active_moment.omega_Hz      = 50;
+pili_config(2).active_moment.wavenumber    = 2*pi;
+pili_config(2).active_moment.a1            = 1;
+pili_config(2).active_moment.a2            = 0;</code></pre>
+      </div>
+
+      <div>
+        <h4 class="font-semibold text-sm mb-3">
+          <span class="en">JSON Configuration Example (v5.0 features)</span>
+          <span class="zh">JSON 配置示例（v5.0 功能）</span>
+        </h4>
+        <pre><code class="language-json">{
+    "background_flow": {
+        "type": "shear_z",
+        "U_max": 10e-6,
+        "shear_axis": [1, 0, 0],
+        "shear_height_m": 20e-6
+    },
+    "pili": [
+        {
+            "type": "linear", "length_um": 3, "site": 1,
+            "intrinsic_curvature": "frozen",
+            "active_moment": { "type": "off" }
+        },
+        {
+            "type": "linear", "length_um": 4, "site": 2,
+            "intrinsic_curvature": {
+                "type": "helix", "kappa_d2": 0.5, "kappa_d3": 0.3
+            },
+            "active_moment": {
+                "type": "traveling_wave",
+                "amplitude_Nm": 1e-18,
+                "omega_Hz": 50,
+                "wavenumber": 6.2832,
+                "a1": 1, "a2": 0
+            }
+        }
+    ]
+}</code></pre>
       </div>
     </div>
 
@@ -1001,7 +1372,7 @@ run('batch sweep/batch_run_from_json.m');</code></pre>
 
 <!-- Footer -->
 <footer class="bg-navy-900 text-gray-500 text-center py-8 text-xs">
-  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v4.1.0 &mdash; 2026-04-03</p>
+  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v5.0.0 &mdash; 2026-04-03</p>
   <p class="mt-1">Built by Lucien &bull; MIT License</p>
 </footer>
 

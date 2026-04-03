@@ -1,4 +1,4 @@
-function Pili_Matrix = parse_pili_config(pili_cfg)
+function [Pili_Matrix, pili_ext] = parse_pili_config(pili_cfg)
 %PARSE_PILI_CONFIG  Convert named pili struct array to Pili_Matrix [8 x M]
 %
 %  Description:
@@ -6,8 +6,13 @@ function Pili_Matrix = parse_pili_config(pili_cfg)
 %    [8 x M] numeric Pili_Matrix expected by downstream functions such as
 %    pili_building and init_coupled_params.
 %
+%    Optionally returns a second output with per-pili extended fields
+%    (intrinsic_curvature, active_moment) that are not encoded in the
+%    numeric Pili_Matrix.
+%
 %  Syntax:
 %    Pili_Matrix = parse_pili_config(pili_cfg)
+%    [Pili_Matrix, pili_ext] = parse_pili_config(pili_cfg)
 %
 %  Input:
 %    pili_cfg - [1 x M] struct array.  Each element may contain:
@@ -18,17 +23,23 @@ function Pili_Matrix = parse_pili_config(pili_cfg)
 %      .deflection_x   - Deflection angle from X-axis [rad] (default: 0)
 %      .shape_params   - [1x3] shape parameters (default: [NaN NaN NaN])
 %      .site           - Attachment site index, 1-14
+%      .intrinsic_curvature - (Optional) 'frozen' | struct with .type etc.
+%      .active_moment       - (Optional) struct('type','off') | etc.
 %
 %  Output:
 %    Pili_Matrix - [8 x M] numeric matrix:
 %      Row 1: type, Row 2: length [um], Row 3: deflection Z [rad],
 %      Row 4: deflection X [rad], Rows 5-7: shape params, Row 8: site
+%    pili_ext    - [1 x M] struct array with .intrinsic_curvature and
+%                  .active_moment per pili (default: 'frozen' / 'off')
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
+%  Updated: 2026-04-03 — Added pili_ext second output for extended fields
 
 if isempty(pili_cfg)
     Pili_Matrix = zeros(8, 0);
+    pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {});
     return;
 end
 
@@ -117,6 +128,19 @@ for k = 1:M
         Pili_Matrix(8, k) = pc.site;
     else
         error('parse_pili_config:MissingSite', 'Pili %d: field ''site'' is required.', k);
+    end
+
+    % --- Extended fields (pass-through for init_coupled_params) ---
+    if isfield(pc, 'intrinsic_curvature') && ~isempty(pc.intrinsic_curvature)
+        pili_ext(k).intrinsic_curvature = pc.intrinsic_curvature;
+    else
+        pili_ext(k).intrinsic_curvature = 'frozen';
+    end
+
+    if isfield(pc, 'active_moment') && ~isempty(pc.active_moment)
+        pili_ext(k).active_moment = pc.active_moment;
+    else
+        pili_ext(k).active_moment = struct('type', 'off');
     end
 end
 

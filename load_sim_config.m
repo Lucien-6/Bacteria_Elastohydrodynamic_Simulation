@@ -27,6 +27,7 @@ function cfg = load_sim_config(json_path)
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
 %  Updated: 2026-03-17 — v3.2: Fixed dead code in get_json (islogical guard)
+%  Updated: 2026-04-03 — v5.0: background_flow, per-pili intrinsic_curvature / active_moment
 
 %% Read and decode JSON
 fid = fopen(json_path, 'r', 'n', 'UTF-8');
@@ -50,11 +51,13 @@ cfg.alpha_0    = get_json(jb, 'alpha_0',    0);
 % Pili — accept struct array (named) or raw matrix
 jp = get_json(j, 'pili', []);
 if isstruct(jp) && ~isempty(jp)
-    cfg.Pili_Matrix = parse_pili_config(jp);
+    [cfg.Pili_Matrix, cfg.pili_ext] = parse_pili_config(jp);
 elseif isnumeric(jp) && ~isempty(jp)
     cfg.Pili_Matrix = jp;
+    cfg.pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {});
 else
     cfg.Pili_Matrix = zeros(8, 0);
+    cfg.pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {});
 end
 
 % Material
@@ -102,6 +105,14 @@ cfg.flowfield_grid_spacing = get_json(jff, 'grid_spacing_um', 0.05);
 cfg.flowfield_grid_range   = get_json(jff, 'grid_range_um',   10.0);
 cfg.flowfield_quiver_skip  = get_json(jff, 'quiver_skip',     5);
 cfg.flowfield_chunk_size   = get_json(jff, 'chunk_size',      2000);
+
+% Background flow
+jbg = get_json(j, 'background_flow', struct());
+cfg.background_flow.type           = get_json(jbg, 'type', 'off');
+cfg.background_flow.U_max          = get_json(jbg, 'U_max', 0);
+cfg.background_flow.direction      = get_json(jbg, 'direction', [1, 0, 0]);
+cfg.background_flow.shear_axis     = get_json(jbg, 'shear_axis', [0, 0, 1]);
+cfg.background_flow.shear_height_m = get_json(jbg, 'shear_height_m', 0);
 
 %% Derive N_segments
 if size(cfg.Pili_Matrix, 2) > 0

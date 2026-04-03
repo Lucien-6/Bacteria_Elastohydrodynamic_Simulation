@@ -71,6 +71,9 @@ addParameter(p, 'alpha_0',    pi/2,   @isnumeric);
 addParameter(p, 'Temper',      293.15,  @isnumeric);
 addParameter(p, 'enable_brown', false,  @(x) islogical(x) || (isnumeric(x) && isscalar(x)));
 addParameter(p, 'fixman_midpoint', false, @(x) islogical(x) || (isnumeric(x) && isscalar(x)));
+addParameter(p, 'intrinsic_curvature', {}, @iscell);
+addParameter(p, 'active_moment', {}, @iscell);
+addParameter(p, 'background_flow', struct('type','off'), @isstruct);
 parse(p, varargin{:});
 
 %% Store dimensional parameters
@@ -279,6 +282,75 @@ if M_pili > 0
         kb0_k(:, 3) = dot(d2NC0, d1NCds0, 2);
         params.kb0{k} = kb0_k;
     end
+
+    %% Apply intrinsic curvature overrides (per-pili, static)
+    ic_input = p.Results.intrinsic_curvature;
+    for k = 1:M_pili
+        if k <= numel(ic_input) && ~isempty(ic_input{k})
+            ic_k = ic_input{k};
+            if ischar(ic_k) || isstring(ic_k)
+                ic_k = struct('type', char(ic_k));
+            end
+        else
+            ic_k = struct('type', 'frozen');
+        end
+
+        switch ic_k.type
+            case 'frozen'
+                % Keep kb0{k} computed from initial geometry (no change)
+            case 'zero'
+                params.kb0{k} = zeros(N_segments(k)+1, 3);
+            case 'constant'
+                kv = ic_k.kappa(:)';
+                params.kb0{k} = repmat(kv, N_segments(k)+1, 1);
+            case 'helix'
+                s_nodes = linspace(0, 1, N_segments(k)+1)';
+                hk1 = 0 * s_nodes;
+                hk2 = 0 * s_nodes + ic_k.kappa_d2;
+                hk3 = 0 * s_nodes + ic_k.kappa_d3;
+                params.kb0{k} = [hk1, hk2, hk3];
+            otherwise
+                error('init_coupled_params:BadIC', ...
+                    'Unknown intrinsic_curvature type ''%s'' for pili %d.', ic_k.type, k);
+        end
+    end
+
+    %% Configure active moments (per-pili, time-varying)
+    am_input = p.Results.active_moment;
+    params.am_cfg = cell(M_pili, 1);
+    for k = 1:M_pili
+        if k <= numel(am_input) && ~isempty(am_input{k})
+            am_k = am_input{k};
+            if ischar(am_k) || isstring(am_k)
+                am_k = struct('type', char(am_k));
+            end
+        else
+            am_k = struct('type', 'off');
+        end
+
+        switch am_k.type
+            case 'off'
+                params.am_cfg{k} = am_k;
+
+            case 'traveling_wave'
+                L_pili_phys = params.ell(k) * L_0;
+                am_k.amplitude_dimless = am_k.amplitude_Nm * L_pili_phys / EI;
+                am_k.omega_dimless     = am_k.omega_Hz * 2 * pi * T_0;
+                if ~isfield(am_k, 'wavenumber'), am_k.wavenumber = 2*pi; end
+                if ~isfield(am_k, 'd1_amp'), am_k.d1_amp = 1; end
+                if ~isfield(am_k, 'd2_amp'), am_k.d2_amp = 0; end
+                if ~isfield(am_k, 'd3_amp'), am_k.d3_amp = 0; end
+                params.am_cfg{k} = am_k;
+
+            case 'custom'
+                params.am_cfg{k} = am_k;
+
+            otherwise
+                error('init_coupled_params:BadAM', ...
+                    'Unknown active_moment type ''%s'' for pili %d.', am_k.type, k);
+        end
+    end
+
 else
     params.N_segments = [];
     params.r_local    = {};
@@ -288,6 +360,43 @@ else
     params.rot        = {};
     params.kb0        = {};
     params.pili_x0    = {};
+    params.am_cfg     = {};
+    ic_input          = {};
+end
+
+%% Configure background flow (global, steady)
+bg_input = p.Results.background_flow;
+if ~isfield(bg_input, 'type'), bg_input.type = 'off'; end
+
+params.bg_flow.type = bg_input.type;
+if ~strcmp(bg_input.type, 'off')
+    U_max_phys = bg_input.U_max;
+    params.bg_flow.U_max_dimless = U_max_phys / U_0;
+
+    if isfield(bg_input, 'direction')
+        d_vec = bg_input.direction(:);
+    else
+        d_vec = [1; 0; 0];
+    end
+    params.bg_flow.direction = d_vec / max(norm(d_vec), 1e-30);
+
+    if isfield(bg_input, 'shear_axis')
+        s_vec = bg_input.shear_axis(:);
+    else
+        s_vec = [0; 0; 1];
+    end
+    params.bg_flow.shear_axis = s_vec / max(norm(s_vec), 1e-30);
+
+    if isfield(bg_input, 'shear_height_m')
+        params.bg_flow.shear_height_dimless = bg_input.shear_height_m / L_0;
+    else
+        params.bg_flow.shear_height_dimless = 1.0;
+    end
+else
+    params.bg_flow.U_max_dimless        = 0;
+    params.bg_flow.direction            = [1; 0; 0];
+    params.bg_flow.shear_axis           = [0; 0; 1];
+    params.bg_flow.shear_height_dimless = 1.0;
 end
 
 %% Brownian motion configuration
@@ -358,6 +467,26 @@ if params.brown_enabled
         mat2str(params.brown_fixman_midpoint));
 end
 fprintf('\n');
+fprintf('-------------------------------------------------------------\n');
+fprintf('  Background flow : %s', params.bg_flow.type);
+if ~strcmp(params.bg_flow.type, 'off')
+    fprintf('  (U_max = %.2e m/s, U_dimless = %.2e)', ...
+        bg_input.U_max, params.bg_flow.U_max_dimless);
+end
+fprintf('\n');
+if M_pili > 0
+    for k = 1:M_pili
+        ic_k_type = 'frozen';
+        if k <= numel(ic_input) && ~isempty(ic_input{k})
+            if isstruct(ic_input{k}), ic_k_type = ic_input{k}.type;
+            elseif ischar(ic_input{k}), ic_k_type = ic_input{k};
+            end
+        end
+        am_k_type = params.am_cfg{k}.type;
+        fprintf('  Pili %d: intrinsic_curvature = %s, active_moment = %s\n', ...
+            k, ic_k_type, am_k_type);
+    end
+end
 fprintf('=============================================================\n\n');
 
 end

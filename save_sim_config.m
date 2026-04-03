@@ -41,6 +41,17 @@ for k = 1:M
         p_entry.shape_params = sp;
     end
     p_entry.site        = cfg.Pili_Matrix(8, k);
+
+    % Extended per-pili fields
+    if isfield(cfg, 'pili_ext') && k <= numel(cfg.pili_ext)
+        p_entry.intrinsic_curvature = cfg.pili_ext(k).intrinsic_curvature;
+        am_val = cfg.pili_ext(k).active_moment;
+        if isstruct(am_val) && isfield(am_val, 'fun')
+            am_val = rmfield(am_val, 'fun');
+        end
+        p_entry.active_moment = am_val;
+    end
+
     if isempty(pili_arr)
         pili_arr = p_entry;
     else
@@ -87,6 +98,13 @@ j.output.generate_animation = cfg.generate_animation;
 j.output.animation_fps      = cfg.animation_fps;
 j.output.animation_skip     = cfg.animation_skip;
 j.output.auto_confirm       = cfg.auto_confirm;
+
+% Background flow
+if isfield(cfg, 'background_flow')
+    j.background_flow = cfg.background_flow;
+else
+    j.background_flow.type = 'off';
+end
 
 j.flowfield.grid_spacing_um = cfg.flowfield_grid_spacing;
 j.flowfield.grid_range_um   = cfg.flowfield_grid_range;

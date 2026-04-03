@@ -9,6 +9,8 @@ function dZ = ode_coupled_rhs(t, Z, params)
 %           global mobility/resistance, Q/B matrix assembly, and
 %           clamped boundary conditions)
 %      8.   Compute elastic restoring moments for each pilus
+%      8b.  Subtract per-pili active internal moments (if enabled)
+%      8c.  Subtract background flow contribution (if enabled)
 %      9.   Solve  lin_sys * z_dot = R_global
 %     10.   Pack state rates into dZ
 %
@@ -31,6 +33,7 @@ function dZ = ode_coupled_rhs(t, Z, params)
 %  Updated: 2026-02-14 -- RSS rotlet segment coupling + vectorised assembly
 %           2026-02-14 -- BUG FIX: added rot_k in Q base-velocity mapping
 %           2026-03-31 -- Refactored: Steps 1-7 extracted to build_coupled_lin_sys
+%           2026-04-03 -- Added active moment, background flow, configurable kb0
 
 %% Extract frequently used parameters
 N_segs = params.N_segments;
@@ -39,7 +42,12 @@ Eg     = params.Eg;
 g_hat  = params.g_hat(:);
 
 %% Steps 1-7: Build coupled linear system (geometry + hydrodynamics + clamped BC)
-[lin_sys, geom] = build_coupled_lin_sys(Z, params);
+has_bg_flow = ~strcmp(params.bg_flow.type, 'off');
+if has_bg_flow
+    [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params);
+else
+    [lin_sys, geom] = build_coupled_lin_sys(Z, params);
+end
 
 %% Step 8: Compute elastic restoring moments (RHS)
 n_state  = 6 + 3 * sum(N_segs);
@@ -57,7 +65,32 @@ for k = 1:params.M_pili
         R_global(row_offset + 3*(j-1) + 2) = kappa2(j);
         R_global(row_offset + 3*(j-1) + 3) = kappa3(j);
     end
+
+    %% Step 8b: Subtract active internal moments (per-pili, time-varying)
+    if ~strcmp(params.am_cfg{k}.type, 'off')
+        d1_k  = geom.d1_basis{k};
+        d2_k  = geom.d2_basis{k};
+        d3_k  = geom.d3_basis{k};
+        d1N_k = compute_node_directors(d1_k, d2_k, d3_k, N_k, 1);
+        d2N_k = compute_node_directors(d1_k, d2_k, d3_k, N_k, 2);
+        d3N_k = compute_node_directors(d1_k, d2_k, d3_k, N_k, 3);
+        M_act = coupled_active_moment(t, k, N_k, d1_k, d2_k, d3_k, ...
+                                      d1N_k, d2N_k, d3N_k, params.am_cfg{k});
+        for j = 1:N_k
+            R_global(row_offset + 3*(j-1) + 1) = R_global(row_offset + 3*(j-1) + 1) - M_act(1, j);
+            R_global(row_offset + 3*(j-1) + 2) = R_global(row_offset + 3*(j-1) + 2) - M_act(2, j);
+            R_global(row_offset + 3*(j-1) + 3) = R_global(row_offset + 3*(j-1) + 3) - M_act(3, j);
+        end
+    end
+
     row_offset = row_offset + 3 * N_k;
+end
+
+%% Step 8c: Subtract background flow contribution
+if has_bg_flow
+    u_bg = coupled_background_flow(geom.X_all, geom, params);
+    back = apply_Ainv_u(u_bg, hydro);
+    R_global = R_global - back;
 end
 
 %% Apply clamped BC RHS zeros
@@ -94,4 +127,55 @@ end
 
 dZ = pack_state_rates(V, dqdt, pili_rates, N_segs);
 
+end
+
+
+%% ==================== Local Helper Functions ====================
+
+function back = apply_Ainv_u(u_bg, hydro)
+%APPLY_AINV_U  Compute B_global * Ainv * u_bg for background flow coupling
+    n_t = hydro.n_trans;
+    u_t = u_bg(1:n_t);
+    u_w = u_bg(n_t+1:end);
+
+    if ~isempty(hydro.A_twist_total)
+        Aw = hydro.A_twist_total * u_w;
+        if ~isempty(hydro.M_rotlet)
+            u_t = u_t - hydro.M_rotlet * Aw;
+        end
+        Au_t = hydro.M_weighted \ u_t;
+        Au   = [Au_t; Aw];
+    else
+        Au = hydro.M_weighted \ u_t;
+    end
+
+    back = hydro.B_global * Au;
+end
+
+
+function dN = compute_node_directors(d1, d2, d3, N_k, col)
+%COMPUTE_NODE_DIRECTORS  Interpolate segment directors to nodes via SVD
+    segBases = zeros(3, 3, N_k);
+    for i = 1:N_k
+        segBases(:,:,i) = [d1(i,:)', d2(i,:)', d3(i,:)'];
+    end
+
+    meanRots = zeros(3, 3, N_k+1);
+    meanRots(:,:,1) = 1.5*segBases(:,:,1) - 0.5*segBases(:,:,min(2,N_k));
+    if N_k >= 2
+        meanRots(:,:,2:end-1) = 0.5*(segBases(:,:,1:end-1) + segBases(:,:,2:end));
+    end
+    meanRots(:,:,end) = 1.5*segBases(:,:,end) - 0.5*segBases(:,:,max(1,end-1));
+
+    for i = 1:N_k+1
+        [U_svd, ~, V_svd] = svd(meanRots(:,:,i));
+        R_near = U_svd * V_svd';
+        if det(R_near) < 0
+            U_svd(:,end) = -U_svd(:,end);
+            R_near = U_svd * V_svd';
+        end
+        meanRots(:,:,i) = R_near;
+    end
+
+    dN = reshape(meanRots(:,col,:), [3, N_k+1])';
 end

@@ -3,7 +3,7 @@
 > **作者**: Lucien (lucien-6@qq.com)  
 > **创建日期**: 2026-02-06  
 > **更新日期**: 2026-04-03  
-> **版本**: 4.1.0  
+> **版本**: 5.0.0  
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
@@ -56,6 +56,9 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 
 - **刚体胞体**：胶囊几何体（半球端盖 + 圆柱中段），四元数参数化姿态（无万向锁）
 - **弹性纤毛**：Kirchhoff 不可伸长弹性杆 + Euler 角参数化（Walker 2020）
+- **内禀曲率**：per-pili 可配置静态固有曲率（`frozen`/`zero`/`constant`/`helix`）
+- **主动力矩**：per-pili 时变内部主动力矩（`off`/`traveling_wave`/`custom`），支持纤毛/鞭毛主动摆动模拟
+- **背景流场**：全局静态背景流（`off`/`uniform`/`shear_z`），与无量纲化方案自动兼容
 - **流体力学**：胞体 RSM 点力 + 纤毛 RSS Stokeslet 线段 + Rotlet 线段耦合（扭转—平移）
 - **布朗动力学**：胞体热涨落（全系统有效摩擦张量，每步动态计算包含纤毛水动力贡献的 6×6 扩散张量；可选 Fixman 中点修正）
 - **时间积分**：MATLAB `ode15s`（隐式刚性求解器）+ 固定 `dt_B` 布朗节点
@@ -164,6 +167,13 @@ output/MyCase/
 | `Temper` | `293.15` | 流体绝对温度 [K]（默认 20°C） |
 | `dt_B` | `dt/2` | 布朗时间步 [s]（`enable_brown = true` 时生效） |
 | `auto_confirm` | `false` | 无人值守模式（跳过所有交互对话框） |
+| `background_flow.type` | `'off'` | 背景流场类型：`'off'` / `'uniform'` / `'shear_z'` |
+| `background_flow.U_max` | `0` | 背景流最大速度 [m/s]（非 off 时需 > 0） |
+| `background_flow.direction` | `[1,0,0]` | 流向单位向量 |
+| `background_flow.shear_axis` | `[0,0,1]` | 剪切梯度方向单位向量 |
+| `background_flow.shear_height_m` | `0` | 剪切层高度 [m]（`shear_z` 模式） |
+| `pili_config(k).intrinsic_curvature` | `'frozen'` | Per-pili 内禀曲率模式 |
+| `pili_config(k).active_moment` | `struct('type','off')` | Per-pili 主动力矩配置 |
 | `flowfield_grid_spacing` | `0.05` | 流场网格间距 [μm] |
 | `flowfield_grid_range` | `10.0` | 流场网格范围 [μm] |
 | `flowfield_quiver_skip` | `5` | 流场箭头降采样倍率 |
@@ -205,6 +215,8 @@ graph TD
     D --> L
     D --> M[build_global_resistance.m]
     D --> N[compute_pili_elastic_moments.m]
+    D --> CBF[coupled_background_flow.m]
+    D --> CAM[coupled_active_moment.m]
     D --> P[pack_state_rates.m]
 
     V --> L
@@ -237,6 +249,7 @@ graph TD
 | 几何工具   | `reconstruct_geometry.m`, `pili_*.m`, `quat_*.m`                                                     | 状态 ↔ 空间坐标转换                          |
 | 流体力学   | `build_global_resistance.m`                                                                          | RSS 迁移率 + Rotlet 线段迁移率 + 扭转 RFT    |
 | 弹性力学   | `compute_pili_elastic_moments.m`                                                                     | Kirchhoff 弹性杆曲率                          |
+| 主动力学   | `coupled_active_moment.m`, `coupled_background_flow.m`                                               | Per-pili 时变主动力矩 + 全局背景流场          |
 | 布朗参数   | `compute_effective_body_brownian.m`, `build_coupled_lin_sys.m`                                        | 全系统有效摩擦张量 → Cholesky 扩散因子（每步动态） |
 | 布朗参考   | *(已删除 `compute_body_brownian_params.m`)*                                                          | 旧 body-only 实现已移除，功能由全系统方案取代  |
 | 边界条件   | `enforce_clamped_geometry.m`                                                                         | 固支运动学约束 + 几何投影                     |
@@ -299,6 +312,14 @@ graph TD
 | 弹性-重力数 | $Eg$          | $F_{\text{sink}} L_0^2 / EI$ |
 | 细长比      | $\varepsilon$ | $r_{\text{pili}} / L_0$      |
 | 泊松比      | $\sigma$      | 用户指定                     |
+
+### 5.3 新功能无量纲化
+
+| 物理量 | 无量纲化公式 |
+| ------ | ------------ |
+| 背景流速度 | $u_{\text{bg,dimless}} = u_{\text{bg,phys}} / U_0$ |
+| 主动力矩（积分后） | $M_{\text{dimless}} = M_{\text{phys}} \cdot L_{\text{pili}} / EI$ |
+| 内禀曲率 | 无量纲，与 $\kappa$ 同标度（曲率 × 弧长，$s \in [0,1]$） |
 
 ---
 
@@ -469,7 +490,7 @@ $\mathbf{B}_{\text{global}} \in \mathbb{R}^{n_{\text{dof}} \times n_{\text{force
 
 ## 11. 弹性恢复力矩（Kirchhoff 弹性杆）
 
-`compute_pili_elastic_moments.m` 计算离散曲率与固有曲率的偏差：
+`compute_pili_elastic_moments.m` 计算离散曲率与固有曲率的偏差。v5.0 起，固有曲率 $\kappa_{\alpha,0}$ 可通过 `intrinsic_curvature` 配置为 `'frozen'`（保持初始几何）、`'zero'`、`'constant'`（用户指定常数向量）或 `'helix'`（螺旋曲率）：
 
 $$
 \kappa_\alpha^{(j)} = \mathbf{d}_\alpha^{(j)} \cdot \mathbf{d}_3'^{(j)} - \kappa_{\alpha,0}^{(j)}, \quad \alpha = 1, 2
@@ -494,7 +515,7 @@ $$
 - $\mathbf{L} = -\mathbf{B} \cdot \mathbf{AQ}$
 - $\mathbf{AQ} = \begin{bmatrix} M_{\text{weighted}}^{-1} \cdot \mathbf{Q}_{\text{trans,corr}} \\ \tilde{A}_{\text{twist}} \cdot \mathbf{Q}_{\text{twist}} \end{bmatrix}$
 - $\mathbf{Q}_{\text{trans,corr}} = \mathbf{Q}_{\text{trans}} - M_{\text{rotlet}} \cdot \tilde{A}_{\text{twist}} \cdot \mathbf{Q}_{\text{twist}}$
-- $\mathbf{R} = [-Eg\,\hat{\mathbf{g}}; \; \mathbf{0}; \; \boldsymbol{\kappa}_1; \ldots; \boldsymbol{\kappa}_M]$
+- $\mathbf{R} = [-Eg\,\hat{\mathbf{g}}; \; \mathbf{0}; \; \boldsymbol{\kappa}_1 - \mathbf{M}_{\text{act},1}; \ldots; \boldsymbol{\kappa}_M - \mathbf{M}_{\text{act},M}] - \mathbf{B}\mathbf{A}^{-1}\mathbf{u}_{\text{bg}}$
 
 通过 LU 分解求解：`lin_sys \ R_global`。
 
@@ -534,7 +555,9 @@ $$
       5. 求解 AQ = [M_weighted\Q_trans_corr; A_twist*Q_twist]
       6. 构建 B_global（力/力矩平衡）
       7. 计算弹性力矩 κ（逐纤毛）
-      8. 组装线性系统 L = -B·AQ, R = [-Eg·ĝ; 0; κ]
+      7b. 减去 per-pili 主动力矩 M_act（如启用）
+      7c. 减去背景流贡献 B·Ainv·u_bg（如启用）
+      8. 组装线性系统 L = -B·AQ, R = [-Eg·ĝ; 0; κ - M_act] - B·Ainv·u_bg
       9. 施加固支边界条件（替换首段行）
      10. 求解 L·ż = R
      11. 提取 V, Ω → 计算 dq/dt = ½[0;Ω]⊗q
@@ -760,8 +783,11 @@ Coupled_Body_Pili/
 ├── enforce_clamped_geometry.m          % 固支几何投影（约束漂移修正）
 ├── adaptive_basis_check.m              % 逐纤毛自适应 Euler 角基底旋转
 │
-├── build_coupled_lin_sys.m              % 组装耦合线性系统（ode_coupled_rhs Steps 1-7 提取）
+├── build_coupled_lin_sys.m              % 组装耦合线性系统（ode_coupled_rhs Steps 1-7 提取；可选 hydro 输出）
 ├── compute_effective_body_brownian.m   % 全系统有效布朗参数：probing → 量纲转换 → Cholesky（每步动态）
+│
+├── coupled_background_flow.m           % (v5.0) 稳态背景流场评估（off/uniform/shear_z）
+├── coupled_active_moment.m             % (v5.0) Per-pili 时变主动力矩（off/traveling_wave/custom）
 │
 ├── capsule_body_building.m             % 胶囊体表面网格生成
 ├── pili_building.m                     % 纤毛结构初始化（刚度、曲率）
@@ -806,7 +832,7 @@ Coupled_Body_Pili/
 └── Cortez - 2018 - Regularized stokeslet segments.pdf
 ```
 
-总计：**40 个 MATLAB 源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（32 个核心模块 + 8 个 `batch sweep/` 脚本，无冗余代码，无未使用函数）。
+总计：**42 个 MATLAB 源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（34 个核心模块 + 8 个 `batch sweep/` 脚本，无冗余代码，无未使用函数）。
 
 ---
 
@@ -979,6 +1005,7 @@ Coupled_Body_Pili/
 | 55  | 删除 `batch_sweep_pili_site.m`（v3.3.4）：附着点扫描由 `batch_sweep_pili_length.m` 的 `site_list` 覆盖；MATLAB 源文件 38 个、批量扫描脚本 6 个 + JSON 运行器 | 2026-03-30 |
 | 56  | `batch_sweep_major_axis.m`（v3.3.5）：无纤毛胞体长半轴扫描改为 **0.4~1.6 μm、步长 0.2 μm**（7 工况）；首档为等轴球（`major_axis = minor_axis`） | 2026-03-30 |
 | 57  | 全系统有效摩擦张量布朗动力学（v4.0）：布朗扩散张量不再基于孤立胞体预计算，而是在每个布朗步通过 probing method 从完整体-纤毛耦合线性系统动态提取有效 6×6 迁移率（隐式 Schur 补缩并纤毛自由度），纤毛数量与长度自然抑制热扩散；新增 `build_coupled_lin_sys.m`（提取 `ode_coupled_rhs` Steps 1-7 为可复用子程序）和 `compute_effective_body_brownian.m`（探测 + 量纲转换 + Cholesky）；可选 Fixman 中点修正消除构型相关漂移；删除旧 body-only `compute_body_brownian_params.m`；修复 `main_coupled_simulation.m` 缺失 `fixman_midpoint` 参数 | 2026-03-31 |
+| 58  | 内禀曲率 + 主动力矩 + 背景流场三合一物理功能扩展（v5.0）：新增 `coupled_background_flow.m`（稳态背景流 off/uniform/shear_z）和 `coupled_active_moment.m`（per-pili 时变主动力矩 off/traveling_wave/custom）；`build_coupled_lin_sys` 新增可选 `hydro` 输出；`ode_coupled_rhs` 整合主动力矩减去和背景流 B·Ainv·u_bg 贡献；`init_coupled_params` 新增三组 Name-Value 配置（内禀曲率 frozen/zero/constant/helix、主动力矩、背景流）并自动无量纲化；`parse_pili_config` 新增 `pili_ext` 第二输出透传扩展字段；`load/save_sim_config` 解析/写入新 JSON 节；`validate_simulation_params` 新增完整参数验证规则；`main_coupled_simulation` 新增内联配置示例。所有新功能默认关闭，完全向后兼容 | 2026-04-03 |
 
 ---
 
