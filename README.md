@@ -2,8 +2,8 @@
 
 > **作者**: Lucien (lucien-6@qq.com)  
 > **创建日期**: 2026-02-06  
-> **更新日期**: 2026-03-31  
-> **版本**: 4.0.0  
+> **更新日期**: 2026-04-03  
+> **版本**: 4.1.0  
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
@@ -75,6 +75,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 - **输出目录保护**：检测已有仿真数据时弹出覆盖/重命名/中止对话框
 - **参数扫描套件**（`batch sweep/`）：6 个独立脚本分别扫描初始倾斜角（`batch_sweep_alpha`：**无纤毛**胞体）、胞体长半轴（`batch_sweep_major_axis`：**无纤毛**）、纤毛长度（含 `site_list` 附着点）、纤毛杨氏模量、胞体 `N_body`（球体无纤毛）、纤毛 `seg_per_um`，均采用 headless 无头模式批量调用 `run_simulation()`
 - **JSON 批量运行器**：`batch_run_from_json.m` 自动检索用户指定文件夹内全部 JSON 配置文件并依次执行，单工况失败自动跳过继续，运行结束输出对齐汇总表及批次日志
+- **布朗独立重复批处理**（`batch sweep/batch_repeat_brownian.m`）：同一工况、开启布朗运动时进行多次独立重复；结果保存在 `output/<case_name_base>/001/`、`002/`、…；默认关闭初始姿态预览、强制 `auto_confirm`；每次重复前设置可复现 RNG 种子
 
 ---
 
@@ -117,7 +118,7 @@ cfg.alpha_0      = pi/4;
 cfg.auto_confirm = true;     % 无人值守模式
 [results, params, output_dir] = run_simulation(cfg);
 
-% 参数扫描脚本参见 batch sweep/ 文件夹（6 个扫描脚本 + 1 个 JSON 批量运行器）
+% 参数扫描脚本参见 batch sweep/ 文件夹（6 个扫描脚本 + JSON 批量运行器 + batch_repeat_brownian 布朗重复）
 ```
 
 **输出**（保存至 `output/<case_name>/`）：
@@ -220,7 +221,7 @@ graph TD
     E --> U[pili_euler_angles.m]
     E --> S
 
-    BATCH["batch sweep/ 文件夹<br/>batch_sweep_alpha / major_axis / pili_length<br/>pili_E / N_body / seg_per_um<br/>batch_run_from_json"] --> RUN
+    BATCH["batch sweep/ 文件夹<br/>6× sweep + batch_run_from_json<br/>+ batch_repeat_brownian"] --> RUN
 ```
 
 ### 3.2 功能分层
@@ -243,7 +244,7 @@ graph TD
 | 几何生成   | `capsule_body_building.m`, `pili_building.m`, `pili_type_building.m`, `compute_curvature_binormal.m` | 胞体/纤毛离散化                               |
 | 流场可视化 | `compute_plot_flowfield.m`                                                                           | 末状态双平面流场评估与绘图（2×2 面板）        |
 | 进度显示   | `odetpbar.m`, `render_progress_bar.m`                                                                | ODE 段内进度条 + 通用文本进度条（动画/流场）  |
-| 批量扫描   | `batch sweep/batch_sweep_alpha.m`, `batch sweep/batch_sweep_major_axis.m`, `batch sweep/batch_sweep_pili_length.m`, `batch sweep/batch_sweep_pili_E.m`, `batch sweep/batch_sweep_N_body.m`, `batch sweep/batch_sweep_seg_per_um.m`, `batch sweep/batch_run_from_json.m` | 6 个独立参数扫描脚本（初始角·无纤毛/长半轴·无纤毛/纤毛长度·`site_list`/杨氏模量/N_body·球无纤毛/seg_per_um）+ JSON 批量运行器 |
+| 批量扫描   | `batch sweep/batch_sweep_alpha.m`, `batch sweep/batch_sweep_major_axis.m`, `batch sweep/batch_sweep_pili_length.m`, `batch sweep/batch_sweep_pili_E.m`, `batch sweep/batch_sweep_N_body.m`, `batch sweep/batch_sweep_seg_per_um.m`, `batch sweep/batch_run_from_json.m`, `batch sweep/batch_repeat_brownian.m` | 6 个独立参数扫描脚本（初始角·无纤毛/长半轴·无纤毛/纤毛长度·`site_list`/杨氏模量/N_body·球无纤毛/seg_per_um）+ JSON 批量运行器 + 布朗工况独立重复（`001`/`002`/… 子文件夹） |
 | 工具函数   | `skew_matrix.m`, `pack_state_rates.m`, `unpack_state.m`                                              | 线性代数辅助、状态打包                        |
 
 ---
@@ -790,7 +791,8 @@ Coupled_Body_Pili/
 │   ├── batch_sweep_pili_E.m            % 扫描纤毛杨氏模量（1e5~1e9 Pa，10 倍档）
 │   ├── batch_sweep_N_body.m            % 球体 R=0.4 μm、无纤毛，扫描 N_body（600~1600，步长 200）
 │   ├── batch_sweep_seg_per_um.m        % 扫描纤毛 seg_per_um（10~35，步长 5）
-│   └── batch_run_from_json.m           % JSON 批量运行器：检索文件夹→依次执行→失败跳过
+│   ├── batch_run_from_json.m           % JSON 批量运行器：检索文件夹→依次执行→失败跳过
+│   └── batch_repeat_brownian.m         % 布朗开启：同一工况独立重复 N 次 → output/<case>/001/…
 │
 ├── configs/                            % JSON 配置文件目录
 │   └── OnePili-P1-L3.json             % 单根纤毛、P1 附着点、3 μm 长度的参考工况配置
@@ -804,7 +806,7 @@ Coupled_Body_Pili/
 └── Cortez - 2018 - Regularized stokeslet segments.pdf
 ```
 
-总计：**38 个 MATLAB 源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（31 个核心模块 + 7 个 `batch sweep/` 脚本，无冗余代码，无未使用函数）。
+总计：**40 个 MATLAB 源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（32 个核心模块 + 8 个 `batch sweep/` 脚本，无冗余代码，无未使用函数）。
 
 ---
 

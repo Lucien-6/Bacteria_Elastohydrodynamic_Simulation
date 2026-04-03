@@ -1,8 +1,8 @@
 # User Guide — Coupled Body-Pili Simulation
 
 > **Author:** Lucien (lucien-6@qq.com)  
-> **Version:** 4.0.0  
-> **Updated:** 2026-03-31  
+> **Version:** 4.1.0  
+> **Updated:** 2026-04-03  
 
 This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
 
@@ -36,7 +36,7 @@ cfg.auto_confirm = true;
 [results, params, output_dir] = run_simulation(cfg);
 ```
 
-Use `batch sweep/` scripts or `batch_run_from_json.m` for unattended sweeps.
+Use `batch sweep/` scripts or `batch_run_from_json.m` for unattended sweeps. For **multiple independent runs of the same Brownian-on case** (outputs under `output/<case_name_base>/001/`, `002`, …), run `batch sweep/batch_repeat_brownian.m` (requires `enable_brown = true`; preview off by default).
 
 ---
 
@@ -66,6 +66,7 @@ Under `output/<case_name>/` (or timestamped folder):
 - **v3.3.4:** Removed `batch_sweep_pili_site.m`; use **`batch_sweep_pili_length.m`** with **`site_list`** for attachment-site studies.
 - **v3.3.5:** `batch_sweep_major_axis.m` sweeps **semi-major axis** from **0.4 to 1.6 µm** (step **0.2 µm**), body-only (no pili).
 - **v4.0.0:** Full-system effective friction Brownian dynamics — diffusion tensor dynamically computed per step from the coupled body-pili linear system via probing method; pili drag naturally suppresses thermal diffusion; optional Fixman midpoint correction (`fixman_midpoint` in JSON config); new `build_coupled_lin_sys.m` and `compute_effective_body_brownian.m`; deleted old body-only `compute_body_brownian_params.m`; fixed missing `fixman_midpoint` in inline config and `OnePili-P1-L3.json`.
+- **v4.1.0:** `batch_repeat_brownian.m` — batch **independent repeats** for the same Brownian-on configuration; results in `output/<case_name_base>/001/`, `002`, …; default `preview_initial = false`, `auto_confirm = true`; reproducible RNG seeds per repeat.
 
 Tunable via `cfg`: `flowfield_grid_spacing`, `flowfield_grid_range`, `flowfield_quiver_skip`, `flowfield_chunk_size`.
 

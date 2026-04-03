@@ -38,12 +38,12 @@ if ~isempty(config_file) && isfile(config_file)
     cfg = load_sim_config(config_file);
 else
     %% --- Inline parameter definitions ---
-    cfg.case_name = 'TwoPili-S29-L3-Brown';
+    cfg.case_name = 'TwoPili-S28-L3-Brown-New';
 
     % -------- Bacterial Body Geometry --------
     cfg.minor_axis = 0.4e-6;              % [m]   Semi-minor axis (body radius)
     cfg.major_axis = 1.25e-6;             % [m]   Semi-major axis (half body length)
-    cfg.N_body     = 1000;                % [-]   Number of body surface points
+    cfg.N_body     = 500;                % [-]   Number of body surface points
     cfg.alpha_0    = 0;                   % [rad] Initial tilt angle in XZ plane
 
     % -------- Pili Configuration (struct array) --------
@@ -58,7 +58,7 @@ else
     pili_config(2).length_um   = 3;
     pili_config(2).deflection_z = 0;
     pili_config(2).deflection_x = 0;
-    pili_config(2).site        = 9;
+    pili_config(2).site        = 8;
     cfg.Pili_Matrix = parse_pili_config(pili_config);
 
     % Legacy raw-matrix alternative (uncomment to use instead):
