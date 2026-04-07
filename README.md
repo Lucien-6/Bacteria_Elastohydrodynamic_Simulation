@@ -2,8 +2,8 @@
 
 > **作者**: Lucien (lucien-6@qq.com)  
 > **创建日期**: 2026-02-06  
-> **更新日期**: 2026-04-03  
-> **版本**: 5.0.0  
+> **更新日期**: 2026-04-07  
+> **版本**: 5.1.0  
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
@@ -79,6 +79,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 - **参数扫描套件**（`batch sweep/`）：6 个独立脚本分别扫描初始倾斜角（`batch_sweep_alpha`：**无纤毛**胞体）、胞体长半轴（`batch_sweep_major_axis`：**无纤毛**）、纤毛长度（含 `site_list` 附着点）、纤毛杨氏模量、胞体 `N_body`（球体无纤毛）、纤毛 `seg_per_um`，均采用 headless 无头模式批量调用 `run_simulation()`
 - **JSON 批量运行器**：`batch_run_from_json.m` 自动检索用户指定文件夹内全部 JSON 配置文件并依次执行，单工况失败自动跳过继续，运行结束输出对齐汇总表及批次日志
 - **布朗独立重复批处理**（`batch sweep/batch_repeat_brownian.m`）：同一工况、开启布朗运动时进行多次独立重复；结果保存在 `output/<case_name_base>/001/`、`002/`、…；默认关闭初始姿态预览、强制 `auto_confirm`；每次重复前设置可复现 RNG 种子
+- **批量结果后处理**（`post_processing/postprocess_cases.m`）：在父目录下多选含 `timeseries.csv` 的 Case 子文件夹，汇总沉降速度、最大水平位移、轨迹曲折度、MSD 拟合扩散系数等，导出 Excel 汇总表（Windows 下可选 COM 排版）；全英文交互界面
 
 ---
 
@@ -810,6 +811,9 @@ Coupled_Body_Pili/
 ├── odetpbar.m                          % ODE 段内进度条（ode15s OutputFcn）
 ├── render_progress_bar.m               % 通用文本进度条（动画渲染/流场计算）
 │
+├── post_processing/                    % 批量仿真结果后处理（Excel 汇总）
+│   └── postprocess_cases.m             % 多选 Case 文件夹 → 指标汇总 → .xlsx
+│
 ├── batch sweep/                        % 自动化参数扫描与批量运行脚本集
 │   ├── batch_sweep_alpha.m             % 无纤毛胞体，扫描初始倾斜角 alpha_0（0°~90°，7 工况）
 │   ├── batch_sweep_major_axis.m        % 无纤毛胞体，扫描长半轴（0.4~1.6 μm，步长 0.2 μm，7 工况）
@@ -832,7 +836,7 @@ Coupled_Body_Pili/
 └── Cortez - 2018 - Regularized stokeslet segments.pdf
 ```
 
-总计：**42 个 MATLAB 源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（34 个核心模块 + 8 个 `batch sweep/` 脚本，无冗余代码，无未使用函数）。
+总计：**43 个 MATLAB 源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（34 个核心模块 + 1 个 `post_processing/` 脚本 + 8 个 `batch sweep/` 脚本，无冗余代码，无未使用函数）。
 
 ---
 
@@ -1006,6 +1010,7 @@ Coupled_Body_Pili/
 | 56  | `batch_sweep_major_axis.m`（v3.3.5）：无纤毛胞体长半轴扫描改为 **0.4~1.6 μm、步长 0.2 μm**（7 工况）；首档为等轴球（`major_axis = minor_axis`） | 2026-03-30 |
 | 57  | 全系统有效摩擦张量布朗动力学（v4.0）：布朗扩散张量不再基于孤立胞体预计算，而是在每个布朗步通过 probing method 从完整体-纤毛耦合线性系统动态提取有效 6×6 迁移率（隐式 Schur 补缩并纤毛自由度），纤毛数量与长度自然抑制热扩散；新增 `build_coupled_lin_sys.m`（提取 `ode_coupled_rhs` Steps 1-7 为可复用子程序）和 `compute_effective_body_brownian.m`（探测 + 量纲转换 + Cholesky）；可选 Fixman 中点修正消除构型相关漂移；删除旧 body-only `compute_body_brownian_params.m`；修复 `main_coupled_simulation.m` 缺失 `fixman_midpoint` 参数 | 2026-03-31 |
 | 58  | 内禀曲率 + 主动力矩 + 背景流场三合一物理功能扩展（v5.0）：新增 `coupled_background_flow.m`（稳态背景流 off/uniform/shear_z）和 `coupled_active_moment.m`（per-pili 时变主动力矩 off/traveling_wave/custom）；`build_coupled_lin_sys` 新增可选 `hydro` 输出；`ode_coupled_rhs` 整合主动力矩减去和背景流 B·Ainv·u_bg 贡献；`init_coupled_params` 新增三组 Name-Value 配置（内禀曲率 frozen/zero/constant/helix、主动力矩、背景流）并自动无量纲化；`parse_pili_config` 新增 `pili_ext` 第二输出透传扩展字段；`load/save_sim_config` 解析/写入新 JSON 节；`validate_simulation_params` 新增完整参数验证规则；`main_coupled_simulation` 新增内联配置示例。所有新功能默认关闭，完全向后兼容 | 2026-04-03 |
+| 59  | 批量仿真结果后处理（v5.1）：新增 `post_processing/postprocess_cases.m`，父目录下多选含 `timeseries.csv` 的 Case 子文件夹，汇总沉降速度、最大水平位移、轨迹曲折度、MSD 拟合扩散系数等，导出 Excel；英文界面；Windows 下可选 Excel COM 排版；`run_simulation` 日志横幅版本号同步为 **5.1.0** | 2026-04-07 |
 
 ---
 
@@ -1058,7 +1063,7 @@ $$
 | ---- | ---- |
 | `CHANGELOG.md` | 版本变更记录（Keep a Changelog 风格） |
 | `USER_GUIDE.md` | 简明用户指南：快速上手、主要输出、`flowfield_panels.png` 与流场参数说明 |
-| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期 |
+| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.1.0**，**2026-04-07**） |
 
 长篇理论、公式与完整参数表仍以本文件为准。
 

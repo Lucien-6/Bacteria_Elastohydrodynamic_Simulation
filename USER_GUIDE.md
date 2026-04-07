@@ -1,8 +1,8 @@
 # User Guide — Coupled Body-Pili Simulation
 
 > **Author:** Lucien (lucien-6@qq.com)  
-> **Version:** 5.0.0  
-> **Updated:** 2026-04-03  
+> **Version:** 5.1.0  
+> **Updated:** 2026-04-07  
 
 This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
 
@@ -56,7 +56,20 @@ Under `output/<case_name>/` (or timestamped folder):
 
 ---
 
-## 4. Flow-field figure (`flowfield_panels.png`)
+## 4. Post-processing batch results (v5.1.0)
+
+After you have one or more completed runs (each Case folder must contain `timeseries.csv`, and ideally `config.json`), aggregate metrics into one Excel workbook:
+
+1. In MATLAB, `cd` to the project root and run `addpath('post_processing')`.
+2. Run `postprocess_cases()`.
+3. Choose the **parent directory** that contains your Case subfolders (e.g. `output/`). In the dialog, multi-select the cases to analyse.
+4. Pick a save path for the `.xlsx` summary file.
+
+The script computes per-case summaries (e.g. sinking velocity statistics, maximum horizontal displacement, 3-D tortuosity, MSD-based translational diffusion fit) and writes a **Summary** sheet. On **Windows**, Excel COM may apply table formatting if Excel is available; you can decline auto-open to avoid file-lock prompts. See `CHANGELOG.md` for details.
+
+---
+
+## 5. Flow-field figure (`flowfield_panels.png`)
 
 - **Layout:** 2×2 — 3D XZ / 3D YZ / 2D XZ / 2D YZ.
 - **2D panels:** Velocity magnitude on a `jet` scale + **normalized** direction arrows (equal length per arrow; magnitude is read from the color field).
@@ -68,12 +81,13 @@ Under `output/<case_name>/` (or timestamped folder):
 - **v4.0.0:** Full-system effective friction Brownian dynamics — diffusion tensor dynamically computed per step from the coupled body-pili linear system via probing method; pili drag naturally suppresses thermal diffusion; optional Fixman midpoint correction (`fixman_midpoint` in JSON config); new `build_coupled_lin_sys.m` and `compute_effective_body_brownian.m`; deleted old body-only `compute_body_brownian_params.m`; fixed missing `fixman_midpoint` in inline config and `OnePili-P1-L3.json`.
 - **v4.1.0:** `batch_repeat_brownian.m` — batch **independent repeats** for the same Brownian-on configuration; results in `output/<case_name_base>/001/`, `002`, …; default `preview_initial = false`, `auto_confirm = true`; reproducible RNG seeds per repeat.
 - **v5.0.0:** Three new physics features — **intrinsic curvature** (per-pili static, `frozen`/`zero`/`constant`/`helix`), **active moments** (per-pili time-varying, `off`/`traveling_wave`/`custom`), and **background flow** (global steady, `off`/`uniform`/`shear_z`). New files: `coupled_background_flow.m`, `coupled_active_moment.m`. All default to off — fully backward-compatible.
+- **v5.1.0:** **`post_processing/postprocess_cases.m`** — batch post-processing of multiple Case folders → Excel summary (metrics from `timeseries.csv` + metadata from `config.json`). English UI.
 
 Tunable via `cfg`: `flowfield_grid_spacing`, `flowfield_grid_range`, `flowfield_quiver_skip`, `flowfield_chunk_size`.
 
 ---
 
-## 5. New in v5.0: Intrinsic Curvature, Active Moments, Background Flow
+## 6. New in v5.0: Intrinsic Curvature, Active Moments, Background Flow
 
 All three features are configured in `main_coupled_simulation.m` (inline) or in JSON config.
 
@@ -106,13 +120,13 @@ Physical units are automatically converted to dimensionless at initialisation. S
 
 ---
 
-## 6. Version and changes
+## 7. Version and changes
 
 - Current version is printed at the start of `simulation.log` and listed at the top of `README.md` / this file.
 - See **`CHANGELOG.md`** for release notes.
 
 ---
 
-## 7. License
+## 8. License
 
 MIT License — see `README.md` (license section).

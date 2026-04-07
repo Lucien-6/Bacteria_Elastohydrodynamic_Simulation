@@ -99,7 +99,7 @@ tailwind.config = {
 <aside id="sidebar" class="no-print fixed top-0 left-0 h-full w-64 bg-navy-900 text-gray-300 z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 overflow-y-auto">
   <div class="p-6 border-b border-navy-700">
     <h2 class="text-white font-bold text-lg leading-tight">Coupled Body-Pili</h2>
-    <p class="text-xs text-teal-500 mt-1">v5.0.0 &mdash; Documentation</p>
+    <p class="text-xs text-teal-500 mt-1">v5.1.0 &mdash; Documentation</p>
   </div>
   <nav class="p-4 space-y-1 text-sm">
     <a href="#hero"         class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Home</span><span class="zh">首页</span></a>
@@ -108,6 +108,7 @@ tailwind.config = {
     <a href="#brownian"     class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Brownian Dynamics</span><span class="zh">布朗动力学</span></a>
     <a href="#newfeatures"  class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">New in v5.0</span><span class="zh">v5.0 新功能</span></a>
     <a href="#architecture" class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Code Architecture</span><span class="zh">代码架构</span></a>
+    <a href="#postprocessing" class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Post-processing (v5.1)</span><span class="zh">批量后处理 (v5.1)</span></a>
     <a href="#usage"        class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Quick Start &amp; Usage</span><span class="zh">快速上手</span></a>
     <a href="#references"   class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">References &amp; License</span><span class="zh">参考文献</span></a>
   </nav>
@@ -139,7 +140,7 @@ tailwind.config = {
 <section id="hero" class="hero-gradient text-white py-24 px-6 md:px-16 lg:px-24">
   <div class="max-w-4xl mx-auto text-center">
     <div class="inline-block bg-teal-600/30 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-3 py-1 rounded-full mb-6 tracking-wide">
-      VERSION 5.0.0 &bull; 2026-04-03
+      VERSION 5.1.0 &bull; 2026-04-07
     </div>
     <h1 class="text-3xl md:text-5xl font-extrabold leading-tight mb-4">
       <span class="en">Coupled Body-Pili<br>Elastohydrodynamic Simulation</span>
@@ -153,10 +154,11 @@ tailwind.config = {
       <span class="en">A MATLAB simulation framework for modelling capsule-shaped bacteria with elastic pili
       sinking in Stokes flow, featuring regularized Stokeslet methods, Kirchhoff elastic rods,
       full-system effective friction Brownian dynamics, adaptive Euler-angle singularity avoidance,
-      configurable intrinsic curvature, time-varying active moments, and steady background flow fields.</span>
+      configurable intrinsic curvature, time-varying active moments, steady background flow fields,
+      and <strong>v5.1</strong> batch post-processing of multiple Case folders to Excel summaries.</span>
       <span class="zh">一个基于 MATLAB 的仿真框架，用于模拟携带弹性纤毛的胶囊状细菌在 Stokes 流体中的沉降运动。
       融合正则化 Stokeslet 方法、Kirchhoff 弹性杆模型、全系统有效摩擦布朗动力学、自适应欧拉角奇点规避，
-      以及可配置的固有曲率、时变主动力矩和稳态背景流场。</span>
+      以及可配置的固有曲率、时变主动力矩和稳态背景流场；<strong>v5.1</strong> 起支持批量多 Case 后处理并导出 Excel 汇总表。</span>
     </p>
     <div class="flex flex-wrap justify-center gap-4">
       <a href="#usage" class="bg-teal-600 hover:bg-teal-700 text-white font-semibold px-6 py-3 rounded-lg transition shadow-lg">
@@ -347,6 +349,17 @@ tailwind.config = {
         <p class="text-xs text-gray-500 dark:text-gray-400">
           <span class="en">Global steady background flow: <code>uniform</code> or <code>shear_z</code>. Contributes to the RHS via $\mathbf{B}\,\mathbf{A}^{-1}\,\mathbf{u}_\text{bg}$.</span>
           <span class="zh">全局稳态背景流：<code>uniform</code> 或 <code>shear_z</code>。通过 $\mathbf{B}\,\mathbf{A}^{-1}\,\mathbf{u}_\text{bg}$ 贡献至右端项。</span>
+        </p>
+      </div>
+      <div class="info-card bg-white dark:bg-navy-900 rounded-xl p-5 border border-gray-200 dark:border-navy-700 shadow-sm ring-2 ring-teal-500/30">
+        <div class="text-2xl mb-2">📑</div>
+        <h4 class="font-semibold text-sm mb-1">
+          <span class="en">Batch Post-processing</span><span class="zh">批量后处理</span>
+          <span class="text-[10px] ml-1 bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-400 px-1.5 py-0.5 rounded font-bold">v5.1</span>
+        </h4>
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          <span class="en"><code>post_processing/postprocess_cases.m</code>: multi-select Case folders under a parent directory, read <code>timeseries.csv</code> + <code>config.json</code>, export kinematic metrics to one Excel workbook (optional Windows COM styling).</span>
+          <span class="zh"><code>post_processing/postprocess_cases.m</code>：在父目录下多选含 <code>timeseries.csv</code> 的 Case 子文件夹，读取 <code>config.json</code>，将运动学指标汇总导出至单个 Excel（Windows 下可选 COM 排版）。</span>
         </p>
       </div>
     </div>
@@ -872,6 +885,8 @@ graph TD
     RG --> QTR["quat_to_rotmat.m"]
 
     BATCH["batch sweep/ scripts"] --> RUN
+    PP["post_processing/postprocess_cases.m\nBatch post-processing"]
+    OUT -.->|"reads output/"| PP
       </pre>
     </div>
 
@@ -935,6 +950,11 @@ graph TD
               <td class="px-4 py-2"><code>batch_sweep_*.m</code>, <code>batch_run_from_json.m</code>, <code>batch_repeat_brownian.m</code></td>
               <td class="px-4 py-2"><span class="en">Headless sweeps, JSON batch runner, Brownian repeat batches</span><span class="zh">无界面扫描、JSON 批处理、布朗独立重复</span></td>
             </tr>
+            <tr>
+              <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">Post-processing</span><span class="zh">后处理</span></td>
+              <td class="px-4 py-2"><code>post_processing/postprocess_cases.m</code></td>
+              <td class="px-4 py-2"><span class="en">Aggregate metrics from completed runs (<code>timeseries.csv</code>, <code>config.json</code>) into an Excel summary (v5.1.0)</span><span class="zh">对已完成的仿真结果汇总指标（<code>timeseries.csv</code>、<code>config.json</code>）并导出 Excel（v5.1.0）</span></td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -945,8 +965,8 @@ graph TD
       <button onclick="this.nextElementSibling.classList.toggle('open'); this.querySelector('svg').classList.toggle('rotate-180')"
         class="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 dark:hover:bg-navy-800 transition">
         <span class="font-semibold text-sm">
-          <span class="en">Project File Tree (42 MATLAB files)</span>
-          <span class="zh">项目文件树（42 个 MATLAB 文件）</span>
+          <span class="en">Project File Tree (43 MATLAB files)</span>
+          <span class="zh">项目文件树（43 个 MATLAB 文件）</span>
         </span>
         <svg class="w-5 h-5 text-gray-400 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
       </button>
@@ -989,6 +1009,8 @@ graph TD
 ├── config_example.json              % Example JSON configuration
 ├── configs/
 │   └── OnePili-P1-L3.json          % Reference config
+├── post_processing/
+│   └── postprocess_cases.m          % Batch post-processing → Excel (v5.1)
 ├── batch sweep/
 │   ├── batch_sweep_alpha.m
 │   ├── batch_sweep_major_axis.m
@@ -1005,8 +1027,59 @@ graph TD
   </div>
 </section>
 
+<!-- ==================== SECTION: POST-PROCESSING (v5.1) ==================== -->
+<section id="postprocessing" class="py-20 px-6 md:px-16 lg:px-24 bg-gray-50 dark:bg-navy-800">
+  <div class="max-w-5xl mx-auto">
+    <h2 class="text-2xl md:text-3xl font-bold mb-2">
+      <span class="en">Batch Post-processing (v5.1.0)</span><span class="zh">批量后处理（v5.1.0）</span>
+    </h2>
+    <div class="w-16 h-1 bg-teal-600 rounded mb-8"></div>
+    <p class="text-gray-600 dark:text-gray-400 mb-6 leading-relaxed">
+      <span class="en">After simulations have written results under <code>output/&lt;case_name&gt;/</code>, you can aggregate multiple cases into one Excel workbook for comparison. The script scans <strong>first-level subfolders</strong> of a chosen parent directory (e.g. <code>output/</code>) and lists only folders that contain <code>timeseries.csv</code>. English UI; progress bar during processing.</span>
+      <span class="zh">仿真完成后，结果位于 <code>output/&lt;case_name&gt;/</code>。可将多个 Case 汇总到单个 Excel 工作簿以便对比。脚本在用户选择的<strong>父目录</strong>下扫描<strong>一级子文件夹</strong>（例如 <code>output/</code>），仅列出含 <code>timeseries.csv</code> 的文件夹。界面为英文；处理过程显示进度条。</span>
+    </p>
+    <div class="bg-white dark:bg-navy-900 rounded-xl p-6 border border-gray-200 dark:border-navy-700 mb-8">
+      <h3 class="font-semibold mb-3">
+        <span class="en">Workflow</span><span class="zh">流程</span>
+      </h3>
+      <ol class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-decimal list-inside">
+        <li><span class="en"><code>cd</code> to project root, then <code>addpath('post_processing')</code></span><span class="zh">在项目根目录 <code>cd</code>，然后 <code>addpath('post_processing')</code></span></li>
+        <li><span class="en">Run <code>postprocess_cases()</code></span><span class="zh">运行 <code>postprocess_cases()</code></span></li>
+        <li><span class="en">Select parent folder &rarr; multi-select case subfolders &rarr; choose save path for <code>.xlsx</code></span><span class="zh">选择父目录 &rarr; 多选 Case 子文件夹 &rarr; 指定 <code>.xlsx</code> 保存路径</span></li>
+      </ol>
+      <pre class="mt-4"><code class="language-matlab">addpath('post_processing');
+postprocess_cases();</code></pre>
+    </div>
+    <div class="grid md:grid-cols-2 gap-6 mb-6">
+      <div class="bg-white dark:bg-navy-900 rounded-xl p-5 border border-gray-200 dark:border-navy-700">
+        <h4 class="font-semibold text-sm mb-2 text-teal-700 dark:text-teal-400">
+          <span class="en">Inputs per case</span><span class="zh">每个 Case 的输入</span>
+        </h4>
+        <ul class="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+          <li><code>timeseries.csv</code> <span class="en">(required)</span><span class="zh">（必需）</span></li>
+          <li><code>config.json</code> <span class="en">(optional; metadata columns if present)</span><span class="zh">（可选；用于元数据列）</span></li>
+        </ul>
+      </div>
+      <div class="bg-white dark:bg-navy-900 rounded-xl p-5 border border-gray-200 dark:border-navy-700">
+        <h4 class="font-semibold text-sm mb-2 text-teal-700 dark:text-teal-400">
+          <span class="en">Example metrics</span><span class="zh">示例指标</span>
+        </h4>
+        <ul class="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+          <li><span class="en">Sinking velocity (mean / steady-state / std)</span><span class="zh">沉降速度（均值 / 稳态 / 标准差）</span></li>
+          <li><span class="en">Max horizontal displacement, 3-D tortuosity</span><span class="zh">最大水平位移、三维曲折度</span></li>
+          <li><span class="en">MSD fit: translational $D$ and drift speed, $R^2$</span><span class="zh">MSD 拟合：平移扩散系数与漂移速度、$R^2$</span></li>
+        </ul>
+      </div>
+    </div>
+    <p class="text-xs text-gray-500 dark:text-gray-500">
+      <span class="en"><strong>Windows:</strong> Microsoft Excel (COM) may apply table formatting; you can skip auto-open to avoid file-lock dialogs. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code> for details.</span>
+      <span class="zh"><strong>Windows：</strong>若安装 Microsoft Excel，可通过 COM 为表格套用格式；可选择不自动打开文件以避免占用锁定。详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
+    </p>
+  </div>
+</section>
+
 <!-- ==================== SECTION 6: USAGE ==================== -->
-<section id="usage" class="py-20 px-6 md:px-16 lg:px-24 bg-gray-50 dark:bg-navy-800">
+<section id="usage" class="py-20 px-6 md:px-16 lg:px-24">
   <div class="max-w-5xl mx-auto">
     <h2 class="text-2xl md:text-3xl font-bold mb-2">
       <span class="en">Quick Start &amp; Usage</span><span class="zh">快速上手与使用</span>
@@ -1372,7 +1445,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
 
 <!-- Footer -->
 <footer class="bg-navy-900 text-gray-500 text-center py-8 text-xs">
-  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v5.0.0 &mdash; 2026-04-03</p>
+  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v5.1.0 &mdash; 2026-04-07</p>
   <p class="mt-1">Built by Lucien &bull; MIT License</p>
 </footer>
 
