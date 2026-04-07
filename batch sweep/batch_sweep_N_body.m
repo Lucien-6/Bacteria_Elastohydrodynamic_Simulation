@@ -17,6 +17,7 @@
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-30
 %  Updated: 2026-03-30 — sphere R=0.4 um, no pili
+%           2026-04-07 — cfg_base.fixman_midpoint (run_simulation also defaults if omitted)
 
 close all force;
 clear; clc;
@@ -51,6 +52,7 @@ cfg_base.dt     = 0.1;
 cfg_base.enable_brown = false;
 cfg_base.Temper       = 293.15;
 cfg_base.dt_B         = cfg_base.dt / 2;
+cfg_base.fixman_midpoint  = false;
 
 cfg_base.preview_initial    = false;
 cfg_base.generate_animation = true;
@@ -66,7 +68,7 @@ cfg_base.flowfield_chunk_size   = 2000;
 
 %% ---- Define sweep values ----
 %  Integers >= 10
-N_body_values = 600:200:1600;
+N_body_values = 200:200:1600;
 n_runs        = numel(N_body_values);
 
 sweep_results = cell(n_runs, 1);

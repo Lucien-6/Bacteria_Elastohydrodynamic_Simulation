@@ -31,6 +31,10 @@ function params = init_coupled_params(varargin)
 %    'Temper'      Absolute temperature [K]            (default: 293.15)
 %    'enable_brown' Enable body Brownian motion        (default: false)
 %    'fixman_midpoint' Enable Fixman midpoint correction (default: false)
+%    'eps_body'      Optional RSM regularisation length [L0], dimensionless.
+%                    If empty (default), uses eps_body = h_mean/3 from the
+%                    surface mesh.  If set to a positive scalar, overrides
+%                    that default (for parameter studies).
 %
 %  Outputs:
 %    params - Structure with all simulation parameters
@@ -51,6 +55,7 @@ function params = init_coupled_params(varargin)
 %           2026-03-14 — v3.0: Body Brownian motion parameters (Temper, enable_brown)
 %           2026-03-31 — v4.0: Full-system effective friction (dynamic per-step),
 %                               removed body-only pre-computation, added fixman_midpoint
+%           2026-04-07 — Optional 'eps_body' override for RSM regularisation sweeps
 
 %% Parse inputs
 p = inputParser;
@@ -74,6 +79,7 @@ addParameter(p, 'fixman_midpoint', false, @(x) islogical(x) || (isnumeric(x) && 
 addParameter(p, 'intrinsic_curvature', {}, @iscell);
 addParameter(p, 'active_moment', {}, @iscell);
 addParameter(p, 'background_flow', struct('type','off'), @isstruct);
+addParameter(p, 'eps_body', [], @(x) isempty(x) || (isnumeric(x) && isscalar(x) && isfinite(x) && x > 0));
 parse(p, varargin{:});
 
 %% Store dimensional parameters
@@ -145,7 +151,11 @@ min_dists_body = sqrt(min(D2_body, [], 2));
 h_min  = min(min_dists_body);
 h_mean = mean(min_dists_body);
 
-params.eps_body   = h_mean / 3;                    % Empirically optimal (eps/ds_avg ~ 0.333)
+if isempty(p.Results.eps_body)
+    params.eps_body = h_mean / 3;                  % Default: eps/ds_avg ~ 0.333
+else
+    params.eps_body = p.Results.eps_body;
+end
 params.body_h_min  = h_min;
 params.body_h_mean = h_mean;
 
@@ -440,8 +450,8 @@ fprintf('  Mobility Method : RSM (body) + RSS (pili) + Rotlet  [Cortez 2018]\n')
 fprintf('  Regularisation Parameters\n');
 fprintf('  Body spacing : h_min = %.4f L0, h_mean = %.4f L0\n', ...
     params.body_h_min, params.body_h_mean);
-fprintf('  Body  : eps_body = %.4f L0 = %.1f nm (= h_mean/3, eps/ds ~ 0.333)\n', ...
-    params.eps_body, params.eps_body * L_0 * 1e9);
+fprintf('  Body  : eps_body = %.4f L0 = %.1f nm (eps/h_mean = %.4f)\n', ...
+    params.eps_body, params.eps_body * L_0 * 1e9, params.eps_body / params.body_h_mean);
 if M_pili > 0
     eps_pili_dim_print = params.epsilon * L_0;
     for k = 1:M_pili

@@ -15,6 +15,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-30
+%  Updated: 2026-04-07 — cfg_base.fixman_midpoint (explicit; run_simulation defaults if omitted)
 
 close all force;
 clear; clc;
@@ -50,6 +51,7 @@ cfg_base.dt     = 0.1;
 cfg_base.enable_brown = false;
 cfg_base.Temper       = 293.15;
 cfg_base.dt_B         = cfg_base.dt / 2;
+cfg_base.fixman_midpoint  = false;
 
 cfg_base.preview_initial    = false;
 cfg_base.generate_animation = true;

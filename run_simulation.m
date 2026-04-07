@@ -24,6 +24,8 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %  Created: 2026-03-17
 %  Updated: 2026-03-17 — Overwrite branch clears existing output files before rerun;
 %                         progress bar / ODE OutputFcn calls use persistent state (4-arg API).
+%           2026-04-07 — Optional cfg.eps_body overrides RSM regularisation (dimensionless L0);
+%                         cfg.fixman_midpoint optional (default false if missing).
 
 %% ---- Input parsing ----
 if ischar(cfg_or_path) || isstring(cfg_or_path)
@@ -59,7 +61,11 @@ dt                     = cfg.dt;
 enable_brown           = cfg.enable_brown;
 Temper                 = cfg.Temper;
 dt_B                   = cfg.dt_B;
-fixman_midpoint        = cfg.fixman_midpoint;
+if isfield(cfg, 'fixman_midpoint')
+    fixman_midpoint = logical(cfg.fixman_midpoint);
+else
+    fixman_midpoint = false;   % backward-compatible with cfg structs predating this field
+end
 preview_initial        = cfg.preview_initial;
 generate_animation     = cfg.generate_animation;
 animation_fps          = cfg.animation_fps;
@@ -82,6 +88,12 @@ if isfield(cfg, 'background_flow')
     background_flow_cfg = cfg.background_flow;
 else
     background_flow_cfg = struct('type', 'off');
+end
+
+if isfield(cfg, 'eps_body') && ~isempty(cfg.eps_body)
+    eps_body_cfg = cfg.eps_body;
+else
+    eps_body_cfg = [];
 end
 
 if size(Pili_Matrix, 2) > 0
@@ -254,7 +266,8 @@ params = init_coupled_params( ...
     'fixman_midpoint', fixman_midpoint, ...
     'intrinsic_curvature', intrinsic_curvature_cfg, ...
     'active_moment',       active_moment_cfg, ...
-    'background_flow',     background_flow_cfg);
+    'background_flow',     background_flow_cfg, ...
+    'eps_body',            eps_body_cfg);
 
 logf('[INIT] Building initial state vector...\n');
 Z0 = init_coupled_state(params);
@@ -271,6 +284,10 @@ logf('[INIT]   EI  = %.4e N*m^2  (bending stiffness)\n', params.scales.EI);
 logf('[INIT] Dimensionless parameters:\n');
 logf('[INIT]   Eg      = %.6f  (elastogravitational number)\n', params.Eg);
 logf('[INIT]   epsilon = %.4e  (slenderness r_pili / L_0)\n',  params.epsilon);
+if ~isempty(eps_body_cfg)
+    logf('[INIT]   eps_body (RSM override, L0): %.6f  (h_mean = %.6f)\n', ...
+        params.eps_body, params.body_h_mean);
+end
 for kk = 1:params.M_pili
     logf('[INIT]   Pili %d: ell = %.4f L_0, N_seg = %d, ds = %.4f L_0\n', ...
         kk, params.ell(kk), params.N_segments(kk), ...

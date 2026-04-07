@@ -23,6 +23,9 @@ j.body.minor_axis = cfg.minor_axis;
 j.body.major_axis = cfg.major_axis;
 j.body.N_body     = cfg.N_body;
 j.body.alpha_0    = cfg.alpha_0;
+if isfield(cfg, 'eps_body') && ~isempty(cfg.eps_body)
+    j.body.eps_body = cfg.eps_body;
+end
 
 % Pili: convert [8 x M] matrix back to struct array
 M = size(cfg.Pili_Matrix, 2);

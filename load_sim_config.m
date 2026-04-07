@@ -47,6 +47,7 @@ cfg.minor_axis = get_json(jb, 'minor_axis', 0.4e-6);
 cfg.major_axis = get_json(jb, 'major_axis', 1.25e-6);
 cfg.N_body     = get_json(jb, 'N_body',     1000);
 cfg.alpha_0    = get_json(jb, 'alpha_0',    0);
+cfg.eps_body   = get_json(jb, 'eps_body',   []);
 
 % Pili — accept struct array (named) or raw matrix
 jp = get_json(j, 'pili', []);
