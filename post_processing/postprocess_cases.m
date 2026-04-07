@@ -6,8 +6,8 @@ function postprocess_cases()
 %
 %   Workflow:
 %       1. User selects a parent directory containing one or more Case subfolders.
-%       2. Valid subfolders (those containing timeseries.csv) are shown in a
-%          multi-select list — user chooses which cases to process.
+%       2. Valid subfolders (those containing timeseries.csv) are listed in
+%          natural (human) name order; user multi-selects which cases to process.
 %       3. For each selected case the script:
 %            (a) Loads  timeseries.csv  and  config.json
 %            (b) Computes four kinematic metrics:
@@ -197,6 +197,12 @@ for k = 1:numel(d)
     end
 end
 
+% Natural order by folder name (e.g. Case2 before Case10) for list and export order
+if ~isempty(valid_names)
+    [valid_names, ord] = natural_sort_cellstr(valid_names);
+    valid_paths = valid_paths(ord);
+end
+
 if isempty(valid_names)
     errordlg( ...
         sprintf(['No valid Case folders found in:\n%s\n\n' ...
@@ -267,11 +273,13 @@ Z  = ts.Z_um(:);
 Vs = ts.Vsink_um_s(:);
 NT = numel(t);
 
-% (1) Sinking velocity statistics
-m.Vsink_Mean_um_s   = mean(Vs);
+% (1) Sinking velocity statistics  (mean & steady reported as -Vsink from CSV:
+%      e.g. raw dZ/dt < 0 for sinking in +Z frame -> positive summary magnitudes)
+m.Vsink_Mean_um_s   = -mean(Vs);
 m.Vsink_Std_um_s    = std(Vs);
-steady_idx          = max(1, round(0.9 * NT)) : NT;
-m.Vsink_Steady_um_s = mean(Vs(steady_idx));
+% Steady-state estimate: mean over the final 5% of samples (by index).
+steady_idx          = max(1, round(0.95 * NT)) : NT;
+m.Vsink_Steady_um_s = -mean(Vs(steady_idx));
 
 % (2) Maximum horizontal displacement from initial position
 horiz_disp          = sqrt((X - X(1)).^2 + (Y - Y(1)).^2);
@@ -433,7 +441,7 @@ cols = { ...
     'Rho_Bac',           'Bacterium Density',        'kg/m³', '0.0'; ...
     'Brownian_Enabled',  'Brownian Motion',          '—',     ''; ...
     'Vsink_Mean_um_s',   'V_sink Mean',              'µm/s',  '0.0000'; ...
-    'Vsink_Steady_um_s', 'V_sink Steady-State',      'µm/s',  '0.0000'; ...
+    'Vsink_Steady_um_s', 'V_sink Steady-State (last 5%)', 'µm/s',  '0.0000'; ...
     'Vsink_Std_um_s',    'V_sink Std Dev',           'µm/s',  '0.0000'; ...
     'Max_Horiz_Disp_um', 'Max Horiz. Displacement',  'µm',    '0.0000'; ...
     'Path_Length_um',    '3D Path Length',           'µm',    '0.0000'; ...
@@ -530,12 +538,6 @@ try
     ws = wb.Worksheets.Item('Summary');
     ws.Activate();
 
-    % ---- Freeze top 2 rows ----------------------------------------------
-    try
-        ws.Cells.Item(3, 1).Select();
-        xl.ActiveWindow.FreezePanes = true;
-    catch; end   % non-fatal in headless mode
-
     % ---- Row 1: header labels -------------------------------------------
     r1 = ws.Range(sprintf('A1:%s1', last_col));
     r1.Interior.Color      = C_HEADER_BG;
@@ -616,6 +618,23 @@ try
 
     % ---- Cap Source Folder column width to 50 pts -----------------------
     try ws.Columns.Item(2).ColumnWidth = 50; catch; end
+
+    % ---- Freeze top 2 rows (after layout — must run last before Save) --
+    % Invisible Excel often ignores FreezePanes unless the window is active;
+    % briefly show Excel so the freeze persists in the saved file.
+    was_visible = xl.Visible;
+    try
+        wb.Windows.Item(1).Activate();
+        ws.Activate();
+        xl.Visible = true;
+        xl.ActiveWindow.FreezePanes = false;
+        ws.Range('A3').Select();
+        xl.ActiveWindow.FreezePanes = true;
+    catch ME_fp
+        warning('postprocess_cases:freezePanes', ...
+            'Could not freeze header rows: %s', ME_fp.message);
+    end
+    xl.Visible = was_visible;
 
     % ---- Save and close -------------------------------------------------
     wb.Save();
@@ -700,6 +719,46 @@ if cond
     out = val_true;
 else
     out = val_false;
+end
+end
+
+
+%% =========================================================================
+%  HELPER: natural_sort_cellstr  —  sort folder names with numeric segments
+%% =========================================================================
+function [sorted, idx] = natural_sort_cellstr(c)
+if isempty(c)
+    sorted = {};
+    idx = [];
+    return
+end
+n = numel(c);
+keys = cell(n, 1);
+for i = 1:n
+    keys{i} = natural_sort_key(c{i});
+end
+[~, idx] = sort(keys);
+sorted = c(idx);
+end
+
+
+%% =========================================================================
+%  HELPER: natural_sort_key  —  char key for strcmp sort (digits padded)
+%% =========================================================================
+function k = natural_sort_key(s)
+if isstring(s)
+    s = char(s);
+end
+t = lower(s);
+parts = regexp(t, '\d+|\D+', 'match');
+k = '';
+for j = 1:numel(parts)
+    p = parts{j};
+    if ~isempty(p) && all(isstrprop(p, 'digit'))
+        k = [k sprintf('%012d', str2double(p))]; %#ok<AGROW>
+    else
+        k = [k p]; %#ok<AGROW>
+    end
 end
 end
 
