@@ -68,13 +68,13 @@ cfg_base = struct();
 cfg_base.case_name  = '';   % Overwritten per repeat; ignored here
 cfg_base.minor_axis = 0.4e-6;
 cfg_base.major_axis = 1.25e-6;
-cfg_base.N_body     = 512;
+cfg_base.N_body     = 250;
 cfg_base.alpha_0    = pi / 2;
 
 pili_cfg = struct('type', 'linear', 'length_um', 3, 'site', 1);
 cfg_base.Pili_Matrix = parse_pili_config(pili_cfg);
 
-cfg_base.seg_per_um = 15;
+cfg_base.seg_per_um = 10;
 cfg_base.E          = 3.279e8;
 cfg_base.r_pili     = 3e-9;
 cfg_base.sigma_p    = 0.2;

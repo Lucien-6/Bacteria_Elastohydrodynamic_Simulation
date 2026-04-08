@@ -4,7 +4,7 @@
     "body": {
         "minor_axis": 0.4e-6,
         "major_axis": 1.25e-6,
-        "N_body": 1000,
+        "N_body": 250,
         "alpha_0": 0
     },
 
@@ -15,7 +15,11 @@
             "deflection_z": 0,
             "deflection_x": 0,
             "shape_params": [],
-            "site": 1
+            "site": 1,
+            "intrinsic_curvature": "frozen",
+            "active_moment": {
+                "type": "off"
+            }
         }
     ],
 
@@ -38,11 +42,11 @@
         "delta_frac": 20,
         "tlim": 120,
         "dt": 0.1,
-        "seg_per_um": 15
+        "seg_per_um": 10
     },
 
     "brownian": {
-        "enable": true,
+        "enable": false,
         "temperature": 293.15,
         "dt_B_ratio": 0.5,
         "fixman_midpoint": false
@@ -61,5 +65,13 @@
         "grid_range_um": 10.0,
         "quiver_skip": 5,
         "chunk_size": 2000
+    },
+
+    "background_flow": {
+        "type": "off",
+        "U_max": 0,
+        "direction": [1, 0, 0],
+        "shear_axis": [0, 0, 1],
+        "shear_height_m": 0
     }
 }

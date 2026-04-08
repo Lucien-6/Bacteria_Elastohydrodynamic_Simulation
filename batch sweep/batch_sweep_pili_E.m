@@ -25,14 +25,14 @@ clear; clc;
 cfg_base.case_name  = '';
 cfg_base.minor_axis = 0.4e-6;
 cfg_base.major_axis = 1.25e-6;
-cfg_base.N_body     = 1000;
+cfg_base.N_body     = 250;
 cfg_base.alpha_0    = 0;
 
 pili_cfg(1).type      = 'linear';
 pili_cfg(1).length_um = 3;
 pili_cfg(1).site      = 1;
 cfg_base.Pili_Matrix  = parse_pili_config(pili_cfg);
-cfg_base.seg_per_um   = 15;
+cfg_base.seg_per_um   = 10;
 
 cfg_base.E       = 3.279e8;     % Overridden in the loop
 cfg_base.r_pili  = 3e-9;

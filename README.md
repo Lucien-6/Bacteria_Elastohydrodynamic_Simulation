@@ -50,7 +50,7 @@
 | 胞体表面（$N_{\text{body}}$ 个力点） | RSM 点力法                     | Cortez et al. (2005) |
 | 纤毛丝（每根 $N_k$ 段）              | RSS 精确线段积分 + Rotlet 线段 | Cortez (2018)        |
 
-RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则化 Stokeslet 核函数沿每段直线段进行精确积分，将正则化参数 $\varepsilon$ 与线段长度 $h$ 解耦。这使得纤毛仅需约 15 段/微米即可保持高精度，与逐点方法相比大幅降低了计算成本。
+RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则化 Stokeslet 核函数沿每段直线段进行精确积分，将正则化参数 $\varepsilon$ 与线段长度 $h$ 解耦。这使得纤毛仅需约 10 段/微米即可保持较高精度，与逐点方法相比大幅降低了计算成本。
 
 **核心特性：**
 
@@ -93,7 +93,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 
 cfg.case_name  = 'MyCase';
 cfg.alpha_0    = pi/4;
-cfg.N_body     = 1000;
+cfg.N_body     = 250;
 
 % 3. 定义纤毛配置（命名结构体，推荐）：
 pili_config(1).type      = 'linear';
@@ -112,6 +112,17 @@ main_coupled_simulation
 config_file = 'configs/my_case.json';    % 指向 JSON 配置文件
 % 运行即可，所有参数从 JSON 加载（参见 config_example.json 模板）
 ```
+
+**JSON 与程序架构（`load_sim_config.m` / `save_sim_config.m`）**
+
+- **顶层节**：`case_name`，`body`，`pili`（纤毛结构体数组或原始 `[8×M]` 矩阵），`material`，`fluid`，`simulation`，`brownian`，`output`，`flowfield`，`background_flow`（v5.0）。
+- **`body`**：`minor_axis`，`major_axis`，`N_body`，`alpha_0`；可选 **`eps_body`**（无量纲 RSM 胞体正则化长度 \( \varepsilon/L_0 \)，覆盖 `init_coupled_params` 默认 `h_mean/3`）。
+- **`pili[]`**：每根纤毛至少含 `type`，`length_um`，`site`；可选 `deflection_z`，`deflection_x`，`shape_params`；v5.0 可选 **`intrinsic_curvature`**（字符串或对象）、**`active_moment`**（对象，如 `traveling_wave` 时用 `amplitude_Nm`，`omega_Hz`，`wavenumber`，`d1_amp` / `d2_amp` / `d3_amp` 等，与 `init_coupled_params` 一致）。
+- **`simulation`**：`T_obs`，`AbsTol`，`RelTol`，`delta_frac`（内部得到 `cfg.delta = π/delta_frac`），`tlim`，`dt`，`seg_per_um`。
+- **`brownian`**：`enable` → `cfg.enable_brown`，`temperature` → `cfg.Temper`，`dt_B_ratio` → `cfg.dt_B = dt * dt_B_ratio`，`fixman_midpoint`。
+- **`flowfield`**：`grid_spacing_um` → `cfg.flowfield_grid_spacing`，`grid_range_um` → `cfg.flowfield_grid_range`，`quiver_skip`，`chunk_size`。
+- **`background_flow`**：`type`（`off` / `uniform` / `shear_z`），`U_max` [m/s]，`direction`，`shear_axis`，`shear_height_m`（`shear_z` 且非 `off` 时需大于 0，见 `validate_simulation_params`）。
+- 完整键名与默认值以 **`config_example.json`** 与 **`load_sim_config.m`** 为准；运行结束后 **`output/&lt;case_name&gt;/config.json`** 与 `save_sim_config` 写出格式一致。
 
 ### 2.3 方式三：编程式调用 / 批量扫描
 
@@ -139,17 +150,19 @@ output/MyCase/
 └── simulation.log            % 完整运行日志
 ```
 
-**用户可配置参数**（位于 `main_coupled_simulation.m` 或 JSON 配置文件）：
+**用户可配置参数**（`main_coupled_simulation.m` 内联 **或** JSON；下表为进入 `run_simulation(cfg)` 后的 **扁平 `cfg` 名**。JSON 嵌套键名见上一节及 `config_example.json`。**`load_sim_config` 缺省与内联主脚本缺省可以不同**——以所选用途为准。）
 
-| 参数 | 默认值 | 说明 |
+| 参数 | 默认值（`load_sim_config`） | 说明 |
 | ---- | ------ | ---- |
-| `case_name` | `'Test'` | 案例名称（作为输出文件夹名；为空则使用时间戳） |
+| `case_name` | `''`（空则输出目录可用时间戳） | 案例名称（作为输出文件夹名） |
 | `minor_axis` | `0.4e-6` | 胞体椭球短半轴（体宽半径）[m] |
 | `major_axis` | `1.25e-6` | 胞体椭球长半轴（体长半径）[m] |
 | `alpha_0` | `0` | XZ 平面内初始胞体倾斜角 [rad] |
-| `N_body` | `1000` | 胞体表面力点数 |
-| `seg_per_um` | `15` | 纤毛每微米段数（RSS 精确积分） |
-| `Pili_Matrix` | 单根直线 | 纤毛配置矩阵 [8 × M]（可用 `parse_pili_config` 从结构体生成） |
+| `N_body` | `250` | 胞体表面力点数 |
+| `eps_body` | `[]`（空则用 `h_mean/3`） | 可选：胞体 RSM 正则化长度（无量纲 \(L_0\)） |
+| `seg_per_um` | `10` | 纤毛每微米段数（RSS 精确积分） |
+| `dt` | `0.1` | 输出时间步 [s] |
+| `Pili_Matrix` | 无纤毛时为空矩阵 | 纤毛配置矩阵 [8 × M]（可用 `parse_pili_config` 从结构体生成） |
 | `E` | `1.768e7` | 杨氏模量 [Pa] |
 | `r_pili` | `3e-9` | 纤毛半径 [m] |
 | `sigma_p` | `0.2` | 泊松比 |
@@ -167,6 +180,7 @@ output/MyCase/
 | `enable_brown` | `false` | 启用胞体布朗运动 |
 | `Temper` | `293.15` | 流体绝对温度 [K]（默认 20°C） |
 | `dt_B` | `dt/2` | 布朗时间步 [s]（`enable_brown = true` 时生效） |
+| `fixman_midpoint` | `false` | Fixman 中点漂移修正（布朗，2× 代价） |
 | `auto_confirm` | `false` | 无人值守模式（跳过所有交互对话框） |
 | `background_flow.type` | `'off'` | 背景流场类型：`'off'` / `'uniform'` / `'shear_z'` |
 | `background_flow.U_max` | `0` | 背景流最大速度 [m/s]（非 off 时需 > 0） |
@@ -269,7 +283,7 @@ graph TD
 
 模拟具有弹性纤毛的细菌在 Stokes 流中重力沉降：
 
-- **胞体**：刚性胶囊体（两个半球端盖 + 圆柱中段），离散为 $N_{\text{body}}$ 个表面力点（默认 1000）
+- **胞体**：刚性胶囊体（两个半球端盖 + 圆柱中段），离散为 $N_{\text{body}}$ 个表面力点（默认 250）
 - **纤毛**：$M$ 根不可伸长的 Kirchhoff 弹性杆，每根含 $N_k$ 段（$N_k + 1$ 个节点）
 - **流体**：Stokes 流（零雷诺数）；所有流体力学相互作用通过 RSS（纤毛）+ RSM（胞体）实现
 
@@ -442,7 +456,7 @@ $$
 \varepsilon_j = \begin{cases} h_{\text{body}}^{\text{mean}} / 3 & \text{胞体表面点} \\ r_{\text{pili}} / L_0 & \text{纤毛节点} \end{cases}
 $$
 
-**胞体**（RSM，力源在封闭曲面上）：$h_{\text{body}}^{\text{mean}}$ 为胞体表面所有点最近邻距离的均值（平均网格间距 $\Delta s_{\text{avg}}$），$h_{\text{mean}}/3$ 对应比值 $\varepsilon/\Delta s_{\text{avg}} \approx 0.333$，为针对当前胶囊几何（$a/b = 3.125$，$N_{\text{body}} = 1000$）数值调试所得的经验最优值，在阻力矩阵精度与数值稳定性之间取得最佳平衡。$\varepsilon \to 0$ 的极限存在（退化为奇异 BEM），故 $\varepsilon$ 为纯数值参数，应通过与解析解（如 Stokes 球阻力）对比验证。
+**胞体**（RSM，力源在封闭曲面上）：$h_{\text{body}}^{\text{mean}}$ 为胞体表面所有点最近邻距离的均值（平均网格间距 $\Delta s_{\text{avg}}$），$h_{\text{mean}}/3$ 对应比值 $\varepsilon/\Delta s_{\text{avg}} \approx 0.333$，为针对当前胶囊几何（$a/b = 3.125$，$N_{\text{body}} = 250$）数值调试所得的经验最优值，在阻力矩阵精度与数值稳定性之间取得最佳平衡。$\varepsilon \to 0$ 的极限存在（退化为奇异 BEM），故 $\varepsilon$ 为纯数值参数，应通过与解析解（如 Stokes 球阻力）对比验证。
 
 **纤毛**（RSS，力源在一维曲线上）：$\varepsilon = r_{\text{pili}}/L_0$ 是**物理参数**，代表力作用区域的空间延展半径（纤毛横截面半径）。Cortez et al. (2005) 明确指出，当力作用于曲线时 $\varepsilon \to 0$ 的极限不存在（速度场发散），因此 $\varepsilon$ 不可趋向零，而应取纤毛的物理横截面半径。细长比 $\varepsilon/\ell = r_{\text{pili}}/L_{\text{pili}} \approx 10^{-3}$ 远小于 1，满足细长体假设；段长与正则化参数之比 $\Delta s/\varepsilon = \Delta s \cdot L_0 / r_{\text{pili}} \approx 22$，RSS 精确积分在此范围内精度充分。
 

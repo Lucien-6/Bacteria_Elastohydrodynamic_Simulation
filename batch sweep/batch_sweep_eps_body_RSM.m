@@ -32,7 +32,7 @@ addpath(proj_root);
 %% ---- Geometry and fixed numerics ----
 R_sphere = 0.4e-6;   % Sphere radius [m] (semi-axes)
 
-N_body   = 1000;     % Surface discretisation (edit to match your study)
+N_body   = 250;      % Surface discretisation (edit to match your study)
 
 %% ---- Base configuration (no pili, no Brownian) ----
 cfg_base = struct();
@@ -43,7 +43,7 @@ cfg_base.N_body     = N_body;
 cfg_base.alpha_0    = 0;
 
 cfg_base.Pili_Matrix  = zeros(8, 0);
-cfg_base.seg_per_um   = 15;
+cfg_base.seg_per_um   = 10;
 
 cfg_base.E       = 3.279e8;
 cfg_base.r_pili  = 3e-9;

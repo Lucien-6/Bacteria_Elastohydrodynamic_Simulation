@@ -11,7 +11,7 @@ function params = init_coupled_params(varargin)
 %    params = init_coupled_params('Name', Value, ...)
 %
 %  Name-Value Pairs:
-%    'N_body'      Number of body surface points      (default: 1000)
+%    'N_body'      Number of body surface points      (default: 250)
 %    'minor_axis'  Semi-minor axis [m]                 (default: 0.4e-6)
 %    'major_axis'  Semi-major axis [m]                 (default: 1.25e-6)
 %    'mu'          Dynamic viscosity [Pa*s]            (default: 1e-3)
@@ -22,7 +22,7 @@ function params = init_coupled_params(varargin)
 %    'rho_fluid'   Fluid density [kg/m^3]              (default: 998.232)
 %    'N_segments'  Segment counts [M x 1]              (default: 300)
 %    'Pili_Matrix' Pili parameter matrix [8 x M]       (default: single pole)
-%    'seg_per_um'  Segments per micron                 (default: 15)
+%    'seg_per_um'  Segments per micron                 (default: 10)
 %    'delta'       Euler-angle singularity threshold   (default: pi/20)
 %    'alpha_0'     Initial body tilt angle [rad]       (default: pi/2)
 %                  Angle of body long axis (body X) from +X in XZ plane
@@ -56,10 +56,11 @@ function params = init_coupled_params(varargin)
 %           2026-03-31 — v4.0: Full-system effective friction (dynamic per-step),
 %                               removed body-only pre-computation, added fixman_midpoint
 %           2026-04-07 — Optional 'eps_body' override for RSM regularisation sweeps
+%           2026-04-08 — Default N_body 1000→250, seg_per_um 15→10 (project-wide)
 
 %% Parse inputs
 p = inputParser;
-addParameter(p, 'N_body',      1000,   @isnumeric);
+addParameter(p, 'N_body',      250,    @isnumeric);
 addParameter(p, 'minor_axis',  0.4e-6, @isnumeric);
 addParameter(p, 'major_axis',  1.25e-6, @isnumeric);
 addParameter(p, 'mu',          1e-3,   @isnumeric);
@@ -70,7 +71,7 @@ addParameter(p, 'rho_bac',     1180.0, @isnumeric);
 addParameter(p, 'rho_fluid',   998.232, @isnumeric);
 addParameter(p, 'N_segments',  300,    @isnumeric);
 addParameter(p, 'Pili_Matrix', [1; 3; 0; 0; NaN; NaN; NaN; 1], @isnumeric);
-addParameter(p, 'seg_per_um',  15,     @isnumeric);
+addParameter(p, 'seg_per_um',  10,     @isnumeric);
 addParameter(p, 'delta',       pi/20,  @isnumeric);
 addParameter(p, 'alpha_0',    pi/2,   @isnumeric);
 addParameter(p, 'Temper',      293.15,  @isnumeric);

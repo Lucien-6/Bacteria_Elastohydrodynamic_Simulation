@@ -24,9 +24,11 @@ This guide is a short entry point. **Full theory, parameters, and file map:** se
 
 ### Option B — JSON configuration
 
-1. Copy `config_example.json` or use a file under `configs/`.
+1. Copy **`config_example.json`** (full template aligned with `load_sim_config.m` / `save_sim_config.m`) or use a file under **`configs/`** (e.g. `OnePili-P1-L3.json`).
 2. In `main_coupled_simulation.m`, set `config_file` to your JSON path.
 3. Run.
+
+JSON must include the same **top-level sections** the loader expects: `case_name`, `body`, `pili`, `material`, `fluid`, `simulation`, `brownian`, `output`, `flowfield`, and **`background_flow`** (v5.0; use `"type": "off"` to disable). Optional per-pilus fields: **`intrinsic_curvature`**, **`active_moment`**. Optional **`body.eps_body`** for RSM regularisation override. See **`README.md`** §2.2 for the cfg ↔ JSON mapping table.
 
 ### Option C — Programmatic / batch
 
@@ -92,7 +94,7 @@ Tunable via `cfg`: `flowfield_grid_spacing`, `flowfield_grid_range`, `flowfield_
 
 ## 6. New in v5.0: Intrinsic Curvature, Active Moments, Background Flow
 
-All three features are configured in `main_coupled_simulation.m` (inline) or in JSON config.
+All three features are configured in `main_coupled_simulation.m` (inline) or in JSON config. **`config_example.json`** includes a `background_flow` block and per-pilus `intrinsic_curvature` / `active_moment` defaults.
 
 ### Background flow
 
@@ -104,6 +106,18 @@ cfg.background_flow.type           = 'off';       % 'off' | 'uniform' | 'shear_z
 % cfg.background_flow.shear_height_m = 3e-6;      % [m]
 ```
 
+Equivalent JSON (minimal, flow off):
+
+```json
+"background_flow": {
+    "type": "off",
+    "U_max": 0,
+    "direction": [1, 0, 0],
+    "shear_axis": [0, 0, 1],
+    "shear_height_m": 0
+}
+```
+
 ### Per-pili intrinsic curvature
 
 ```matlab
@@ -111,13 +125,18 @@ pili_config(1).intrinsic_curvature = 'frozen';     % Keep initial geometry (defa
 % pili_config(2).intrinsic_curvature = struct('type','constant','kappa',[0,0.5,0]);
 ```
 
+In JSON, under each `pili[]` entry: `"intrinsic_curvature": "frozen"` or an object with `"type": "helix"`, `kappa_d2`, `kappa_d3`, etc. (see `init_coupled_params`).
+
 ### Per-pili active moment
 
 ```matlab
 pili_config(1).active_moment = struct('type', 'off');     % Default
 % pili_config(2).active_moment = struct('type','traveling_wave', ...
-%     'amplitude_Nm', 1e-18, 'omega_Hz', 10, 'wavenumber', 2*pi);
+%     'amplitude_Nm', 1e-18, 'omega_Hz', 10, 'wavenumber', 2*pi, ...
+%     'd1_amp', 1, 'd2_amp', 0, 'd3_amp', 0);
 ```
+
+In JSON, use `"active_moment": { "type": "off" }` or a `traveling_wave` object with **`amplitude_Nm`**, **`omega_Hz`**, **`wavenumber`**, **`d1_amp`** / **`d2_amp`** / **`d3_amp`** (same names as MATLAB).
 
 Physical units are automatically converted to dimensionless at initialisation. See `CHANGELOG.md` for full details.
 

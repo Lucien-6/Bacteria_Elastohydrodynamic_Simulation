@@ -16,8 +16,8 @@ function cfg = load_sim_config(json_path)
 %
 %  Output:
 %    cfg - Flat struct with fields matching workspace variables in main:
-%      case_name, minor_axis, major_axis, N_body, alpha_0,
-%      Pili_Matrix, seg_per_um, E, r_pili, sigma_p,
+%      case_name, minor_axis, major_axis, N_body, alpha_0, eps_body,
+%      Pili_Matrix, pili_ext, seg_per_um, E, r_pili, sigma_p,
 %      mu, rho_bac, rho_fluid, T_obs, AbsTol, RelTol,
 %      delta, tlim, dt, enable_brown, Temper, dt_B, fixman_midpoint,
 %      preview_initial, generate_animation, animation_fps, animation_skip,
@@ -28,6 +28,8 @@ function cfg = load_sim_config(json_path)
 %  Created: 2026-03-17
 %  Updated: 2026-03-17 — v3.2: Fixed dead code in get_json (islogical guard)
 %  Updated: 2026-04-03 — v5.0: background_flow, per-pili intrinsic_curvature / active_moment
+%  Updated: 2026-04-08 — Doc: header lists eps_body, pili_ext (matches implementation)
+%  Updated: 2026-04-08 — Default N_body 1000→250, seg_per_um 15→10
 
 %% Read and decode JSON
 fid = fopen(json_path, 'r', 'n', 'UTF-8');
@@ -45,7 +47,7 @@ cfg.case_name  = get_json(j, 'case_name', '');
 jb = get_json(j, 'body', struct());
 cfg.minor_axis = get_json(jb, 'minor_axis', 0.4e-6);
 cfg.major_axis = get_json(jb, 'major_axis', 1.25e-6);
-cfg.N_body     = get_json(jb, 'N_body',     1000);
+cfg.N_body     = get_json(jb, 'N_body',     250);
 cfg.alpha_0    = get_json(jb, 'alpha_0',    0);
 cfg.eps_body   = get_json(jb, 'eps_body',   []);
 
@@ -82,7 +84,7 @@ delta_frac     = get_json(js, 'delta_frac', 20);
 cfg.delta      = pi / delta_frac;
 cfg.tlim       = get_json(js, 'tlim',       120);
 cfg.dt         = get_json(js, 'dt',         0.1);
-cfg.seg_per_um = get_json(js, 'seg_per_um', 15);
+cfg.seg_per_um = get_json(js, 'seg_per_um', 10);
 
 % Brownian
 jbr = get_json(j, 'brownian', struct());
