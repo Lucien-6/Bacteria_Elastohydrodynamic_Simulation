@@ -42,6 +42,7 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 %           2026-03-17 — Configurable grid/quiver/chunk via flow_opts argument;
 %                        v3.2: progress bar call updated to 4-arg persistent interface
 %           2026-03-30 — 2D quiver: single dark arrows (no white underlay); 50% larger
+%           2026-04-08 — Close figure after PNG export (batch-friendly).
 
 %% ---- Configuration ----
 if nargin < 6 || isempty(flow_opts), flow_opts = struct(); end
@@ -602,6 +603,7 @@ drawnow;
 %  ======================================================================
 png_file = fullfile(output_dir, 'flowfield_panels.png');
 exportgraphics(fig_flow, png_file, 'Resolution', 600);
+close(fig_flow);
 logf('[FLOW] Flow field panel saved: %s (600 dpi)\n', png_file);
 
 end

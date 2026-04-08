@@ -42,7 +42,7 @@ cfg_base.mu        = 1e-3;
 cfg_base.rho_bac   = 1180.0;
 cfg_base.rho_fluid = 998.232;
 
-cfg_base.T_obs  = 200.0;
+cfg_base.T_obs  = 300.0;
 cfg_base.AbsTol = 1e-4;
 cfg_base.RelTol = 1e-4;
 cfg_base.delta  = pi / 20;

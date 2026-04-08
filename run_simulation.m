@@ -26,6 +26,7 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %                         progress bar / ODE OutputFcn calls use persistent state (4-arg API).
 %           2026-04-07 — Optional cfg.eps_body overrides RSM regularisation (dimensionless L0);
 %                         cfg.fixman_midpoint optional (default false if missing).
+%           2026-04-08 — Close summary/flow-field figures after PNG export (batch-friendly).
 
 %% ---- Input parsing ----
 if ischar(cfg_or_path) || isstring(cfg_or_path)
@@ -173,7 +174,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 5.1.0\n');
+logf('  Version 5.1.1\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -1127,6 +1128,7 @@ end
 % Save figure
 png_file = fullfile(output_dir, 'summary_plot.png');
 exportgraphics(fig_summary, png_file, 'Resolution', 600);
+close(fig_summary);
 logf('[PLOT] Summary figure saved: %s\n', png_file);
 
 %% =====================================================================

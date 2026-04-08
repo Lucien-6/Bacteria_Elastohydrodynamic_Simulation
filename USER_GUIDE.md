@@ -1,8 +1,8 @@
 # User Guide — Coupled Body-Pili Simulation
 
 > **Author:** Lucien (lucien-6@qq.com)  
-> **Version:** 5.1.0  
-> **Updated:** 2026-04-07  
+> **Version:** 5.1.1  
+> **Updated:** 2026-04-08  
 
 This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
 
@@ -38,6 +38,8 @@ cfg.auto_confirm = true;
 
 Use `batch sweep/` scripts or `batch_run_from_json.m` for unattended sweeps. For **multiple independent runs of the same Brownian-on case** (outputs under `output/<case_name_base>/001/`, `002`, …), run `batch sweep/batch_repeat_brownian.m` (requires `enable_brown = true`; preview off by default).
 
+**v5.1.1:** After each run, MATLAB **closes** the summary and flow-field figure windows once `summary_plot.png` and `flowfield_panels.png` are saved, so long batches do not leave hundreds of figures open.
+
 ---
 
 ## 3. Main outputs
@@ -56,7 +58,7 @@ Under `output/<case_name>/` (or timestamped folder):
 
 ---
 
-## 4. Post-processing batch results (v5.1.0)
+## 4. Post-processing batch results (v5.1)
 
 After you have one or more completed runs (each Case folder must contain `timeseries.csv`, and ideally `config.json`), aggregate metrics into one Excel workbook:
 
@@ -82,6 +84,7 @@ The script computes per-case summaries (e.g. sinking velocity statistics, maximu
 - **v4.1.0:** `batch_repeat_brownian.m` — batch **independent repeats** for the same Brownian-on configuration; results in `output/<case_name_base>/001/`, `002`, …; default `preview_initial = false`, `auto_confirm = true`; reproducible RNG seeds per repeat.
 - **v5.0.0:** Three new physics features — **intrinsic curvature** (per-pili static, `frozen`/`zero`/`constant`/`helix`), **active moments** (per-pili time-varying, `off`/`traveling_wave`/`custom`), and **background flow** (global steady, `off`/`uniform`/`shear_z`). New files: `coupled_background_flow.m`, `coupled_active_moment.m`. All default to off — fully backward-compatible.
 - **v5.1.0:** **`post_processing/postprocess_cases.m`** — batch post-processing of multiple Case folders → Excel summary (metrics from `timeseries.csv` + metadata from `config.json`). English UI.
+- **v5.1.1:** Summary and flow-field figures are **`close`d** after PNG export (`run_simulation.m`, `compute_plot_flowfield.m`) to keep batch runs from opening many windows.
 
 Tunable via `cfg`: `flowfield_grid_spacing`, `flowfield_grid_range`, `flowfield_quiver_skip`, `flowfield_chunk_size`.
 
