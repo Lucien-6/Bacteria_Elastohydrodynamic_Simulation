@@ -27,6 +27,11 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %           2026-04-07 — Optional cfg.eps_body overrides RSM regularisation (dimensionless L0);
 %                         cfg.fixman_midpoint optional (default false if missing).
 %           2026-04-08 — Close summary/flow-field figures after PNG export (batch-friendly).
+%           2026-04-09 — Optional cfg.compute_flowfield (default true) skips final flow-field
+%                         panel for faster benchmarks / batch runs.
+%           2026-04-10 — Brownian twister seed: default MMddHHmmss, optional cfg.brown_rng_seed;
+%                         seed stored in config.json, results, and brownian_rng_seed.txt.
+%                         Log banner Version 5.2.0.
 
 %% ---- Input parsing ----
 if ischar(cfg_or_path) || isstring(cfg_or_path)
@@ -77,6 +82,12 @@ flowfield_grid_range   = cfg.flowfield_grid_range;
 flowfield_quiver_skip  = cfg.flowfield_quiver_skip;
 flowfield_chunk_size   = cfg.flowfield_chunk_size;
 
+if isfield(cfg, 'compute_flowfield')
+    compute_flowfield = logical(cfg.compute_flowfield);
+else
+    compute_flowfield = true;   % backward-compatible default
+end
+
 % New feature fields (defaults for backward compatibility)
 if isfield(cfg, 'pili_ext') && ~isempty(cfg.pili_ext)
     intrinsic_curvature_cfg = {cfg.pili_ext.intrinsic_curvature};
@@ -95,6 +106,20 @@ if isfield(cfg, 'eps_body') && ~isempty(cfg.eps_body)
     eps_body_cfg = cfg.eps_body;
 else
     eps_body_cfg = [];
+end
+
+% ---- Brownian RNG (twister): must run before save_sim_config and ODE integration ----
+brown_rng_seed_used = NaN;
+if enable_brown
+    if isfield(cfg, 'brown_rng_seed') && isscalar(cfg.brown_rng_seed) ...
+            && isnumeric(cfg.brown_rng_seed) && isfinite(cfg.brown_rng_seed) ...
+            && cfg.brown_rng_seed > 0
+        brown_rng_seed_used = round(double(cfg.brown_rng_seed));
+    else
+        brown_rng_seed_used = brown_rng_seed_from_clock();
+    end
+    rng(brown_rng_seed_used, 'twister');
+    cfg.brown_rng_seed = brown_rng_seed_used;
 end
 
 if size(Pili_Matrix, 2) > 0
@@ -174,7 +199,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 5.1.1\n');
+logf('  Version 5.2.0\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -186,6 +211,18 @@ logf('================================================================\n\n');
 config_json_path = fullfile(output_dir, 'config.json');
 save_sim_config(cfg, config_json_path);
 logf('[CONFIG] Configuration saved: %s\n', config_json_path);
+
+if enable_brown
+    seed_txt = fullfile(output_dir, 'brownian_rng_seed.txt');
+    fid_seed = fopen(seed_txt, 'w');
+    if fid_seed ~= -1
+        fprintf(fid_seed, '%d\n', brown_rng_seed_used);
+        fprintf(fid_seed, ...
+            'Twister seed used for Brownian kicks. Re-run with the same seed via cfg.brown_rng_seed or JSON brownian.rng_seed.\n');
+        fclose(fid_seed);
+        logf('[CONFIG] Brownian RNG seed file: %s\n', seed_txt);
+    end
+end
 
 % --- Log all parameters ---
 logf('[PARAMS] Body: a = %.2f um, b = %.2f um, N_body = %d, alpha_0 = %.4f rad (%.1f deg)\n', ...
@@ -210,6 +247,10 @@ logf('[PARAMS] Flowfield: grid = %.2f um, range = %.1f um, quiver_skip = %d\n', 
     flowfield_grid_spacing, flowfield_grid_range, flowfield_quiver_skip);
 logf('[PARAMS] Brownian: enable = %s, Temper = %.2f K, dt_B = %.4f s, fixman = %s\n', ...
     mat2str(enable_brown), Temper, dt_B, mat2str(fixman_midpoint));
+if enable_brown
+    logf('[PARAMS] Brownian RNG: seed = %d (twister), saved for reproducibility\n', ...
+        brown_rng_seed_used);
+end
 logf('[PARAMS] Auto-confirm: %s\n', mat2str(auto_confirm));
 if isempty(strtrim(case_name))
     logf('[PARAMS] Case name: (auto — timestamp)\n');
@@ -269,6 +310,10 @@ params = init_coupled_params( ...
     'active_moment',       active_moment_cfg, ...
     'background_flow',     background_flow_cfg, ...
     'eps_body',            eps_body_cfg);
+
+if enable_brown
+    params.brown_rng_seed = brown_rng_seed_used;
+end
 
 logf('[INIT] Building initial state vector...\n');
 Z0 = init_coupled_state(params);
@@ -497,6 +542,10 @@ for k = 1:M_pili
     results.X_pili{k}(:, :, 1) = geom0.X_pili{k};
 end
 
+if enable_brown
+    results.brown_rng_seed = brown_rng_seed_used;
+end
+
 % --- Integration loop ---
 clear odetpbar;                    % Reset persistent vars from prior runs
 tic_total        = tic;
@@ -521,7 +570,6 @@ if params.brown_enabled
     end
     brown_kick_count    = 0;
     brown_log_interval  = 100;
-    % rng(42, 'twister');   % Uncomment to fix RNG seed for debugging
 else
     dt_B_dimless = Inf;
     T_brown_next = Inf;
@@ -1404,15 +1452,20 @@ end
 %  FLOW FIELD VISUALISATION (XZ Plane at Final State)
 %  =====================================================================
 
-logf('\n[FLOW] Computing XZ-plane flow field at final state...\n');
-t_flow_start = tic;
-flow_opts.grid_spacing_um = flowfield_grid_spacing;
-flow_opts.grid_range_um   = flowfield_grid_range;
-flow_opts.quiver_skip     = flowfield_quiver_skip;
-flow_opts.chunk_size      = flowfield_chunk_size;
-compute_plot_flowfield(last_Z, params, output_dir, run_id, logf, flow_opts);
-t_flow_elapsed = toc(t_flow_start);
-logf('[FLOW] Flow field visualisation completed in %s\n\n', format_duration(t_flow_elapsed));
+if compute_flowfield
+    logf('\n[FLOW] Computing XZ-plane flow field at final state...\n');
+    t_flow_start = tic;
+    flow_opts.grid_spacing_um = flowfield_grid_spacing;
+    flow_opts.grid_range_um   = flowfield_grid_range;
+    flow_opts.quiver_skip     = flowfield_quiver_skip;
+    flow_opts.chunk_size      = flowfield_chunk_size;
+    compute_plot_flowfield(last_Z, params, output_dir, run_id, logf, flow_opts);
+    t_flow_elapsed = toc(t_flow_start);
+    logf('[FLOW] Flow field visualisation completed in %s\n\n', format_duration(t_flow_elapsed));
+else
+    t_flow_elapsed = 0;
+    logf('\n[FLOW] Skipped (cfg.compute_flowfield = false).\n\n');
+end
 
 %% =====================================================================
 %  FINAL SUMMARY
@@ -1452,7 +1505,11 @@ end
 if generate_animation
     logf('    Video : bacteria_3d_motion.mp4\n');
 end
-logf('    Flow  : flowfield_panels.png\n');
+if compute_flowfield
+    logf('    Flow  : flowfield_panels.png\n');
+else
+    logf('    Flow  : (skipped)\n');
+end
 logf('    Log   : simulation.log\n');
 logf('  ------------------------------------------------\n');
 logf('  results fields added:\n');

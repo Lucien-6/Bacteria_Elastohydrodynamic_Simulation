@@ -15,6 +15,7 @@ function save_sim_config(cfg, json_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
+%  Updated: 2026-04-10 — brownian.rng_seed when Brownian enabled (reproducibility)
 
 %% Build nested structure matching config_example.json layout
 j.case_name = cfg.case_name;
@@ -94,6 +95,11 @@ if isfield(cfg, 'fixman_midpoint')
     j.brownian.fixman_midpoint = cfg.fixman_midpoint;
 else
     j.brownian.fixman_midpoint = false;
+end
+if logical(cfg.enable_brown) && isfield(cfg, 'brown_rng_seed') ...
+        && isscalar(cfg.brown_rng_seed) && isnumeric(cfg.brown_rng_seed) ...
+        && isfinite(cfg.brown_rng_seed) && cfg.brown_rng_seed > 0
+    j.brownian.rng_seed = cfg.brown_rng_seed;
 end
 
 j.output.preview_initial    = cfg.preview_initial;

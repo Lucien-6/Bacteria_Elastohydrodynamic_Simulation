@@ -2,8 +2,8 @@
 
 > **作者**: Lucien (lucien-6@qq.com)  
 > **创建日期**: 2026-02-06  
-> **更新日期**: 2026-04-08  
-> **版本**: 5.1.1  
+> **更新日期**: 2026-04-10  
+> **版本**: 5.2.0  
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
@@ -61,6 +61,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 - **背景流场**：全局静态背景流（`off`/`uniform`/`shear_z`），与无量纲化方案自动兼容
 - **流体力学**：胞体 RSM 点力 + 纤毛 RSS Stokeslet 线段 + Rotlet 线段耦合（扭转—平移）
 - **布朗动力学**：胞体热涨落（全系统有效摩擦张量，每步动态计算包含纤毛水动力贡献的 6×6 扩散张量；可选 Fixman 中点修正）
+- **布朗随机种子（v5.2.0）**：默认本地时间 `MMddHHmmss` 整数 twister 种子；可选 `cfg.brown_rng_seed` / JSON `brownian.rng_seed`；种子写入 `config.json`、`brownian_rng_seed.txt`、日志与 `simulation_results.mat`
 - **时间积分**：MATLAB `ode15s`（隐式刚性求解器）+ 固定 `dt_B` 布朗节点
 - **自适应基底**：逐纤毛 Euler 角基底旋转以规避奇异性
 - **固支边界条件**：双重施加（运动学速率约束 + 几何投影）
@@ -78,7 +79,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 - **输出目录保护**：检测已有仿真数据时弹出覆盖/重命名/中止对话框
 - **参数扫描套件**（`batch sweep/`）：6 个独立脚本分别扫描初始倾斜角（`batch_sweep_alpha`：**无纤毛**胞体）、胞体长半轴（`batch_sweep_major_axis`：**无纤毛**）、纤毛长度（含 `site_list` 附着点）、纤毛杨氏模量、胞体 `N_body`（球体无纤毛）、纤毛 `seg_per_um`，均采用 headless 无头模式批量调用 `run_simulation()`
 - **JSON 批量运行器**：`batch_run_from_json.m` 自动检索用户指定文件夹内全部 JSON 配置文件并依次执行，单工况失败自动跳过继续，运行结束输出对齐汇总表及批次日志
-- **布朗独立重复批处理**（`batch sweep/batch_repeat_brownian.m`）：同一工况、开启布朗运动时进行多次独立重复；结果保存在 `output/<case_name_base>/001/`、`002/`、…；默认关闭初始姿态预览、强制 `auto_confirm`；每次重复前设置可复现 RNG 种子
+- **布朗独立重复批处理**（`batch sweep/batch_repeat_brownian.m`）：同一工况、开启布朗运动时进行多次独立重复；结果保存在 `output/<case_name_base>/001/`、`002/`、…；默认关闭初始姿态预览、强制 `auto_confirm`；每次重复通过 **`cfg.brown_rng_seed = rng_seed_base + k`** 与核心仿真内统一设种（v5.2.0）
 - **批量结果后处理**（`post_processing/postprocess_cases.m`）：在父目录下多选含 `timeseries.csv` 的 Case 子文件夹，汇总沉降速度、最大水平位移、轨迹曲折度、MSD 拟合扩散系数等，导出 Excel 汇总表（Windows 下可选 COM 排版）；全英文交互界面
 
 ---
@@ -119,7 +120,7 @@ config_file = 'configs/my_case.json';    % 指向 JSON 配置文件
 - **`body`**：`minor_axis`，`major_axis`，`N_body`，`alpha_0`；可选 **`eps_body`**（无量纲 RSM 胞体正则化长度 \( \varepsilon/L_0 \)，覆盖 `init_coupled_params` 默认 `h_mean/3`）。
 - **`pili[]`**：每根纤毛至少含 `type`，`length_um`，`site`；可选 `deflection_z`，`deflection_x`，`shape_params`；v5.0 可选 **`intrinsic_curvature`**（字符串或对象）、**`active_moment`**（对象，如 `traveling_wave` 时用 `amplitude_Nm`，`omega_Hz`，`wavenumber`，`d1_amp` / `d2_amp` / `d3_amp` 等，与 `init_coupled_params` 一致）。
 - **`simulation`**：`T_obs`，`AbsTol`，`RelTol`，`delta_frac`（内部得到 `cfg.delta = π/delta_frac`），`tlim`，`dt`，`seg_per_um`。
-- **`brownian`**：`enable` → `cfg.enable_brown`，`temperature` → `cfg.Temper`，`dt_B_ratio` → `cfg.dt_B = dt * dt_B_ratio`，`fixman_midpoint`。
+- **`brownian`**：`enable` → `cfg.enable_brown`，`temperature` → `cfg.Temper`，`dt_B_ratio` → `cfg.dt_B = dt * dt_B_ratio`，`fixman_midpoint`；可选 **`rng_seed`** → `cfg.brown_rng_seed`（v5.2.0：正整数固定 twister 种子；省略或非正则用运行时刻 **`MMddHHmmss`** 整数默认种子）。
 - **`flowfield`**：`grid_spacing_um` → `cfg.flowfield_grid_spacing`，`grid_range_um` → `cfg.flowfield_grid_range`，`quiver_skip`，`chunk_size`。
 - **`background_flow`**：`type`（`off` / `uniform` / `shear_z`），`U_max` [m/s]，`direction`，`shear_axis`，`shear_height_m`（`shear_z` 且非 `off` 时需大于 0，见 `validate_simulation_params`）。
 - 完整键名与默认值以 **`config_example.json`** 与 **`load_sim_config.m`** 为准；运行结束后 **`output/&lt;case_name&gt;/config.json`** 与 `save_sim_config` 写出格式一致。
@@ -147,6 +148,7 @@ output/MyCase/
 ├── initial_pose.png          % 初始姿态预览图（600 dpi，预览开启时）
 ├── bacteria_3d_motion.mp4    % 3D 运动动画（三面板 1×3，动态尺寸，动画开启时）
 ├── flowfield_panels.png      % 双平面流场 2×2 面板图（600 dpi）
+├── brownian_rng_seed.txt     % 布朗开启时：twister 种子一行 + 复现说明（v5.2.0）
 └── simulation.log            % 完整运行日志
 ```
 
@@ -181,6 +183,7 @@ output/MyCase/
 | `Temper` | `293.15` | 流体绝对温度 [K]（默认 20°C） |
 | `dt_B` | `dt/2` | 布朗时间步 [s]（`enable_brown = true` 时生效） |
 | `fixman_midpoint` | `false` | Fixman 中点漂移修正（布朗，2× 代价） |
+| `brown_rng_seed` | （未设） | v5.2.0：布朗 twister 种子；正标量=用户固定；未设则运行时用 **`MMddHHmmss`** 整数；写入 `config.json` / `results` / `brownian_rng_seed.txt` |
 | `auto_confirm` | `false` | 无人值守模式（跳过所有交互对话框） |
 | `background_flow.type` | `'off'` | 背景流场类型：`'off'` / `'uniform'` / `'shear_z'` |
 | `background_flow.U_max` | `0` | 背景流最大速度 [m/s]（非 off 时需 > 0） |
@@ -656,6 +659,7 @@ $$
 | `Temper`           | `293.15` | 流体绝对温度 [K]（默认 20°C）                 |
 | `dt_B`             | `dt/2`   | 布朗时间步 [s]（应远小于最短弛豫时间）         |
 | `fixman_midpoint`  | `false`  | 启用 Fixman 中点修正（2x 计算成本）           |
+| `brown_rng_seed`（v5.2.0） | — | 可选；正整数则固定 `rng(...,'twister')`；未指定则默认 **`MMddHHmmss`**（`brown_rng_seed_from_clock`）；与 `config.json` / `results.brown_rng_seed` / `brownian_rng_seed.txt` 一致 |
 
 **启用布朗运动时**，有效扩散张量在每个布朗步从全系统耦合线性系统动态计算（无预计算阶段）。旧的 body-only 实现 `compute_body_brownian_params.m` 已删除，功能完全由 `compute_effective_body_brownian.m` 取代。
 
@@ -690,6 +694,7 @@ $$
 | `bacteria_3d_motion.mp4` | MPEG-4 质量 100 | 3D 动画，三面板 1×3 布局（3D + XZ + YZ 投影），动态图像尺寸，含光滑胞体表面 + 着色纤毛 + CM 轨迹 |
 | `flowfield_panels.png`   | PNG 600 dpi     | 双平面流场 2×2 面板图：XZ + YZ，3D 表面视图 + 2D 着色图；jet 色图 + 单层深灰归一化箭头（v3.3.1 起无白边） |
 | `simulation.log`         | 纯文本          | 带时间戳的完整双通道运行日志                                                         |
+| `brownian_rng_seed.txt`（v5.2.0） | 纯文本 | 仅 **`enable_brown = true`**：twister 种子整数一行 + 复现说明（与 `config.json` 中 `brownian.rng_seed` 一致） |
 
 **图形窗口（v5.1.1）**：`summary_plot.png` 与 `flowfield_panels.png` 在写入磁盘后，对应 MATLAB figure 会立即 `close`，避免连续批量调用 `run_simulation` 时堆积可见图窗、拖慢交互与内存占用。动画渲染仍使用不可见图窗并在写完后关闭（既有行为）。
 
@@ -707,6 +712,7 @@ $$
 | `X_pili_um`  | μm   | cell `{M × 1}` | 各纤毛节点坐标 `[Nseg+1 × 3 × NT]`      |
 | `F_sink_pN`  | pN   | 标量           | 净沉降力（重力浮力差）                  |
 | `units`      | —    | struct         | 单位及特征尺度元数据                    |
+| `brown_rng_seed`（v5.2.0） | — | 标量 | 仅布朗开启时：`rng` twister 种子（与 `config.json` / `brownian_rng_seed.txt` 一致） |
 
 **`timeseries.csv` 列说明：**
 
@@ -802,6 +808,7 @@ Coupled_Body_Pili/
 │
 ├── build_coupled_lin_sys.m              % 组装耦合线性系统（ode_coupled_rhs Steps 1-7 提取；可选 hydro 输出）
 ├── compute_effective_body_brownian.m   % 全系统有效布朗参数：probing → 量纲转换 → Cholesky（每步动态）
+├── brown_rng_seed_from_clock.m         % (v5.2.0) 默认布朗 twister 种子：本地时间 MMddHHmmss 整数
 │
 ├── coupled_background_flow.m           % (v5.0) 稳态背景流场评估（off/uniform/shear_z）
 ├── coupled_active_moment.m             % (v5.0) Per-pili 时变主动力矩（off/traveling_wave/custom）
@@ -1028,6 +1035,7 @@ Coupled_Body_Pili/
 | 58  | 内禀曲率 + 主动力矩 + 背景流场三合一物理功能扩展（v5.0）：新增 `coupled_background_flow.m`（稳态背景流 off/uniform/shear_z）和 `coupled_active_moment.m`（per-pili 时变主动力矩 off/traveling_wave/custom）；`build_coupled_lin_sys` 新增可选 `hydro` 输出；`ode_coupled_rhs` 整合主动力矩减去和背景流 B·Ainv·u_bg 贡献；`init_coupled_params` 新增三组 Name-Value 配置（内禀曲率 frozen/zero/constant/helix、主动力矩、背景流）并自动无量纲化；`parse_pili_config` 新增 `pili_ext` 第二输出透传扩展字段；`load/save_sim_config` 解析/写入新 JSON 节；`validate_simulation_params` 新增完整参数验证规则；`main_coupled_simulation` 新增内联配置示例。所有新功能默认关闭，完全向后兼容 | 2026-04-03 |
 | 59  | 批量仿真结果后处理（v5.1）：新增 `post_processing/postprocess_cases.m`，父目录下多选含 `timeseries.csv` 的 Case 子文件夹，汇总沉降速度、最大水平位移、轨迹曲折度、MSD 拟合扩散系数等，导出 Excel；英文界面；Windows 下可选 Excel COM 排版；`run_simulation` 日志横幅版本号同步为 **5.1.0** | 2026-04-07 |
 | 60  | 批量友好图窗管理（v5.1.1）：`exportgraphics` 保存 `summary_plot.png` / `flowfield_panels.png` 后立即 `close` 对应 figure（`run_simulation.m`、`compute_plot_flowfield.m`），避免大批量仿真堆积 MATLAB 图窗；日志横幅版本号 **5.1.1** | 2026-04-08 |
+| 61  | 布朗 twister 种子策略（v5.2.0）：默认 **`MMddHHmmss`** 整数（`brown_rng_seed_from_clock`）；可选 **`cfg.brown_rng_seed`** / JSON **`brownian.rng_seed`**；种子写入 `config.json`、`brownian_rng_seed.txt`、`simulation.log`、`results`/`params`；`batch_repeat_brownian` 改为 **`cfg.brown_rng_seed = rng_seed_base + k`**；日志横幅 **5.2.0** | 2026-04-10 |
 
 ---
 
@@ -1080,7 +1088,7 @@ $$
 | ---- | ---- |
 | `CHANGELOG.md` | 版本变更记录（Keep a Changelog 风格） |
 | `USER_GUIDE.md` | 简明用户指南：快速上手、主要输出、`flowfield_panels.png` 与流场参数说明 |
-| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.1.1**，**2026-04-08**） |
+| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.2.0**，**2026-04-10**） |
 
 长篇理论、公式与完整参数表仍以本文件为准。
 

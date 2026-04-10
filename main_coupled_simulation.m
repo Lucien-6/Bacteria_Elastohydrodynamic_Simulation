@@ -118,6 +118,7 @@ else
     cfg.Temper           = 293.15;        % [K]   Fluid temperature (20 deg C)
     cfg.dt_B             = cfg.dt / 2;    % [s]   Brownian time step
     cfg.fixman_midpoint  = false;         % true = Fixman midpoint drift correction (2x cost)
+    % Optional: cfg.brown_rng_seed = positive integer for fixed twister seed; omit = MMddHHmmss at run start
 
     % -------- Preview & Animation --------
     cfg.preview_initial    = true;

@@ -1,8 +1,8 @@
 # User Guide — Coupled Body-Pili Simulation
 
 > **Author:** Lucien (lucien-6@qq.com)  
-> **Version:** 5.1.1  
-> **Updated:** 2026-04-08  
+> **Version:** 5.2.0  
+> **Updated:** 2026-04-10  
 
 This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
 
@@ -38,9 +38,11 @@ cfg.auto_confirm = true;
 [results, params, output_dir] = run_simulation(cfg);
 ```
 
-Use `batch sweep/` scripts or `batch_run_from_json.m` for unattended sweeps. For **multiple independent runs of the same Brownian-on case** (outputs under `output/<case_name_base>/001/`, `002`, …), run `batch sweep/batch_repeat_brownian.m` (requires `enable_brown = true`; preview off by default).
+Use `batch sweep/` scripts or `batch_run_from_json.m` for unattended sweeps. For **multiple independent runs of the same Brownian-on case** (outputs under `output/<case_name_base>/001/`, `002`, …), run `batch sweep/batch_repeat_brownian.m` (requires `enable_brown = true`; preview off by default). Each repeat sets **`cfg.brown_rng_seed = rng_seed_base + k`** (v5.2.0); `run_simulation` applies `rng(...,'twister')` internally.
 
 **v5.1.1:** After each run, MATLAB **closes** the summary and flow-field figure windows once `summary_plot.png` and `flowfield_panels.png` are saved, so long batches do not leave hundreds of figures open.
+
+**v5.2.0:** **Brownian RNG** — default twister seed is **local wall-clock `MMddHHmmss`** as an integer (`brown_rng_seed_from_clock.m`); set **`cfg.brown_rng_seed`** or JSON **`brownian.rng_seed`** to fix a seed. When Brownian is on, the realised seed is saved in **`config.json`**, **`brownian_rng_seed.txt`**, **`simulation.log`**, and **`results.brown_rng_seed`** / **`params.brown_rng_seed`** in `simulation_results.mat`.
 
 ---
 
@@ -57,6 +59,7 @@ Under `output/<case_name>/` (or timestamped folder):
 | `flowfield_panels.png` | 2×2 flow-field panels (600 dpi) |
 | `bacteria_3d_motion.mp4` | Optional animation |
 | `simulation.log` | Text log |
+| `brownian_rng_seed.txt` | v5.2.0: Brownian twister seed + one-line reproduce hint (only if `enable_brown`) |
 
 ---
 
@@ -87,6 +90,7 @@ The script computes per-case summaries (e.g. sinking velocity statistics, maximu
 - **v5.0.0:** Three new physics features — **intrinsic curvature** (per-pili static, `frozen`/`zero`/`constant`/`helix`), **active moments** (per-pili time-varying, `off`/`traveling_wave`/`custom`), and **background flow** (global steady, `off`/`uniform`/`shear_z`). New files: `coupled_background_flow.m`, `coupled_active_moment.m`. All default to off — fully backward-compatible.
 - **v5.1.0:** **`post_processing/postprocess_cases.m`** — batch post-processing of multiple Case folders → Excel summary (metrics from `timeseries.csv` + metadata from `config.json`). English UI.
 - **v5.1.1:** Summary and flow-field figures are **`close`d** after PNG export (`run_simulation.m`, `compute_plot_flowfield.m`) to keep batch runs from opening many windows.
+- **v5.2.0:** **Brownian twister seed** — default **`MMddHHmmss`** integer; optional **`cfg.brown_rng_seed`** / JSON **`brownian.rng_seed`**; seed persisted in `config.json`, `brownian_rng_seed.txt`, log, and `simulation_results.mat`; `batch_repeat_brownian` uses **`cfg.brown_rng_seed = rng_seed_base + k`**.
 
 Tunable via `cfg`: `flowfield_grid_spacing`, `flowfield_grid_range`, `flowfield_quiver_skip`, `flowfield_chunk_size`.
 

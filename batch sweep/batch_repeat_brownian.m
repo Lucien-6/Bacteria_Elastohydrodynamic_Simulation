@@ -21,7 +21,7 @@
 %      2. Run this script from the Coupled_Body_Pili project directory
 %         (same as other batch scripts).
 %      3. Optional: rng_seed_base controls reproducible seeds:
-%            rng(rng_seed_base + k) before repeat k.
+%            cfg.brown_rng_seed = rng_seed_base + k for repeat k (run_simulation sets rng).
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-03
@@ -46,13 +46,13 @@ end
 
 % --- Root folder name under output/ (required).  Repeats go to:
 %     output/<case_name_base>/001, 002, ...
-case_name_base = 'BrownRepeat_Example';
+case_name_base = 'Sphere-Brown';
 
 % --- Number of independent repeats (>= 1)
-n_repeats = 5;
+n_repeats = 50;
 
 % --- RNG: seed for repeat k is rng_seed_base + k (reproducible batch runs)
-rng_seed_base = 202604031;
+rng_seed_base = 202604091;
 
 % --- Configuration source (choose one):
 %     A)  Set config_json to a path to load via load_sim_config (recommended)
@@ -67,11 +67,11 @@ config_json = '';   % e.g. fullfile('configs', 'OnePili-P1-L3.json')  (after cd 
 cfg_base = struct();
 cfg_base.case_name  = '';   % Overwritten per repeat; ignored here
 cfg_base.minor_axis = 0.4e-6;
-cfg_base.major_axis = 1.25e-6;
+cfg_base.major_axis = 0.4e-6;
 cfg_base.N_body     = 250;
 cfg_base.alpha_0    = pi / 2;
 
-pili_cfg = struct('type', 'linear', 'length_um', 3, 'site', 1);
+pili_cfg = struct([]);
 cfg_base.Pili_Matrix = parse_pili_config(pili_cfg);
 
 cfg_base.seg_per_um = 10;
@@ -83,7 +83,7 @@ cfg_base.mu        = 1e-3;
 cfg_base.rho_bac   = 1180.0;
 cfg_base.rho_fluid = 998.232;
 
-cfg_base.T_obs  = 50.0;
+cfg_base.T_obs  = 200.0;
 cfg_base.AbsTol = 1e-4;
 cfg_base.RelTol = 1e-4;
 cfg_base.delta  = pi / 20;
@@ -158,7 +158,7 @@ sep = repmat('=', 1, 60);
 fprintf('\n%s\n', sep);
 fprintf('  Batch repeat (Brownian): %d independent runs\n', n_repeats);
 fprintf('  Output root: %s\n', out_root);
-fprintf('  RNG seeds: rng(rng_seed_base + k), k = 1..%d  (base = %d)\n', ...
+fprintf('  Brownian seeds: cfg.brown_rng_seed = rng_seed_base + k, k = 1..%d  (base = %d)\n', ...
     n_repeats, rng_seed_base);
 fprintf('%s\n\n', sep);
 
@@ -185,8 +185,8 @@ for k = 1:n_repeats
     cfg_k = cfg;
     cfg_k.case_name = fullfile(case_name_base, sub);
 
-    % Independent, reproducible RNG stream for this repeat
-    rng(rng_seed_base + k, 'twister');
+    % Independent, reproducible twister seed for this repeat (see run_simulation.m)
+    cfg_k.brown_rng_seed = rng_seed_base + k;
 
     t_run = tic;
     try

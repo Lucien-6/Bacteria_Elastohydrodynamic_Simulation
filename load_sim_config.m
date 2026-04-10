@@ -19,7 +19,7 @@ function cfg = load_sim_config(json_path)
 %      case_name, minor_axis, major_axis, N_body, alpha_0, eps_body,
 %      Pili_Matrix, pili_ext, seg_per_um, E, r_pili, sigma_p,
 %      mu, rho_bac, rho_fluid, T_obs, AbsTol, RelTol,
-%      delta, tlim, dt, enable_brown, Temper, dt_B, fixman_midpoint,
+%      delta, tlim, dt, enable_brown, Temper, dt_B, fixman_midpoint, brown_rng_seed,
 %      preview_initial, generate_animation, animation_fps, animation_skip,
 %      auto_confirm, flowfield_grid_spacing, flowfield_grid_range,
 %      flowfield_quiver_skip, flowfield_chunk_size
@@ -30,6 +30,7 @@ function cfg = load_sim_config(json_path)
 %  Updated: 2026-04-03 — v5.0: background_flow, per-pili intrinsic_curvature / active_moment
 %  Updated: 2026-04-08 — Doc: header lists eps_body, pili_ext (matches implementation)
 %  Updated: 2026-04-08 — Default N_body 1000→250, seg_per_um 15→10
+%  Updated: 2026-04-10 — brownian.rng_seed (optional; omit or NaN = time-based default)
 
 %% Read and decode JSON
 fid = fopen(json_path, 'r', 'n', 'UTF-8');
@@ -93,6 +94,18 @@ cfg.Temper           = get_json(jbr, 'temperature', 293.15);
 dt_B_ratio           = get_json(jbr, 'dt_B_ratio', 0.5);
 cfg.dt_B             = cfg.dt * dt_B_ratio;
 cfg.fixman_midpoint  = logical(get_json(jbr, 'fixman_midpoint', false));
+
+% Optional: positive scalar = fixed twister seed; omit / NaN / nonpositive = time-based default
+if isfield(jbr, 'rng_seed')
+    v = jbr.rng_seed;
+    if isempty(v) || ~isnumeric(v) || ~isscalar(v) || ~isfinite(v) || v <= 0
+        cfg.brown_rng_seed = NaN;
+    else
+        cfg.brown_rng_seed = double(v);
+    end
+else
+    cfg.brown_rng_seed = NaN;
+end
 
 % Output / visualisation
 jo = get_json(j, 'output', struct());
