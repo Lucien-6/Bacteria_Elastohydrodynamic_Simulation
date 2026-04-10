@@ -20,11 +20,14 @@
 %         cfg_base block below.
 %      2. Run this script from the Coupled_Body_Pili project directory
 %         (same as other batch scripts).
-%      3. Optional: rng_seed_base controls reproducible seeds:
-%            cfg.brown_rng_seed = rng_seed_base + k for repeat k (run_simulation sets rng).
+%      3. Brownian seed mode (see brown_rng_seed_mode below):
+%            'fixed'   — cfg.brown_rng_seed = rng_seed_base + k (reproducible batch).
+%            'default' — omit cfg.brown_rng_seed each run; run_simulation uses local
+%                        time MMddHHmmss (brown_rng_seed_from_clock), same as a single run.
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-03
+%  Updated: 2026-04-10 — brown_rng_seed_mode: 'default' vs 'fixed'
 
 close all force;
 clear; clc;
@@ -51,7 +54,13 @@ case_name_base = 'Sphere-Brown';
 % --- Number of independent repeats (>= 1)
 n_repeats = 50;
 
-% --- RNG: seed for repeat k is rng_seed_base + k (reproducible batch runs)
+% --- RNG (Brownian twister; see run_simulation.m):
+%     'fixed'   — per repeat: cfg.brown_rng_seed = rng_seed_base + k (reproducible).
+%     'default' — do not set cfg.brown_rng_seed; each run picks MMddHHmmss at start
+%                 (same policy as main_coupled_simulation without brown_rng_seed).
+brown_rng_seed_mode = 'default';   % 'default' | 'fixed'
+
+% --- Used only when brown_rng_seed_mode == 'fixed'
 rng_seed_base = 202604091;
 
 % --- Configuration source (choose one):
@@ -119,6 +128,12 @@ if n_repeats < 1 || floor(n_repeats) ~= n_repeats
         'n_repeats must be a positive integer (>= 1).');
 end
 
+if ~(strcmpi(brown_rng_seed_mode, 'fixed') || strcmpi(brown_rng_seed_mode, 'default'))
+    error('batch_repeat_brownian:InvalidSeedMode', ...
+        'brown_rng_seed_mode must be ''default'' or ''fixed''.');
+end
+brown_rng_seed_mode = lower(brown_rng_seed_mode);
+
 if ~isempty(strtrim(config_json))
     if ~isfile(config_json)
         error('batch_repeat_brownian:ConfigNotFound', ...
@@ -158,15 +173,22 @@ sep = repmat('=', 1, 60);
 fprintf('\n%s\n', sep);
 fprintf('  Batch repeat (Brownian): %d independent runs\n', n_repeats);
 fprintf('  Output root: %s\n', out_root);
-fprintf('  Brownian seeds: cfg.brown_rng_seed = rng_seed_base + k, k = 1..%d  (base = %d)\n', ...
-    n_repeats, rng_seed_base);
+if strcmpi(brown_rng_seed_mode, 'fixed')
+    fprintf('  Brownian seeds: FIXED — cfg.brown_rng_seed = rng_seed_base + k  (base = %d, k = 1..%d)\n', ...
+        rng_seed_base, n_repeats);
+else
+    fprintf('  Brownian seeds: DEFAULT — time-based MMddHHmmss per run (no cfg.brown_rng_seed)\n');
+end
 fprintf('%s\n\n', sep);
 
 if fid_sum ~= -1
     fprintf(fid_sum, 'batch_repeat_brownian\n');
     fprintf(fid_sum, 'case_name_base: %s\n', case_name_base);
     fprintf(fid_sum, 'n_repeats: %d\n', n_repeats);
-    fprintf(fid_sum, 'rng_seed_base: %d\n', rng_seed_base);
+    fprintf(fid_sum, 'brown_rng_seed_mode: %s\n', brown_rng_seed_mode);
+    if strcmpi(brown_rng_seed_mode, 'fixed')
+        fprintf(fid_sum, 'rng_seed_base: %d\n', rng_seed_base);
+    end
     fprintf(fid_sum, 'started: %s\n\n', log_ts);
 end
 
@@ -185,9 +207,16 @@ for k = 1:n_repeats
     cfg_k = cfg;
     cfg_k.case_name = fullfile(case_name_base, sub);
 
-    % Independent, reproducible twister seed for this repeat (see run_simulation.m)
-    cfg_k.brown_rng_seed = rng_seed_base + k;
+    if strcmpi(brown_rng_seed_mode, 'fixed')
+        cfg_k.brown_rng_seed = rng_seed_base + k;
+    else
+        % Default policy: let run_simulation use brown_rng_seed_from_clock (MMddHHmmss).
+        if isfield(cfg_k, 'brown_rng_seed')
+            cfg_k = rmfield(cfg_k, 'brown_rng_seed');
+        end
+    end
 
+    res_k = [];
     t_run = tic;
     try
         [res_k, ~, dir_k] = run_simulation(cfg_k);
@@ -212,8 +241,16 @@ for k = 1:n_repeats
     end
 
     if fid_sum ~= -1
-        fprintf(fid_sum, '%s  seed=%d  status=%s  wall=%.2f s\n', ...
-            sub, rng_seed_base + k, run_status(k), run_wall(k));
+        if strcmpi(brown_rng_seed_mode, 'fixed')
+            fprintf(fid_sum, '%s  seed=%d  status=%s  wall=%.2f s\n', ...
+                sub, rng_seed_base + k, run_status(k), run_wall(k));
+        elseif run_status(k) == "OK" && ~isempty(res_k) && isfield(res_k, 'brown_rng_seed')
+            fprintf(fid_sum, '%s  seed=%d  (default/time)  status=%s  wall=%.2f s\n', ...
+                sub, res_k.brown_rng_seed, run_status(k), run_wall(k));
+        else
+            fprintf(fid_sum, '%s  seed=n/a  status=%s  wall=%.2f s\n', ...
+                sub, run_status(k), run_wall(k));
+        end
         if run_status(k) == "FAILED"
             fprintf(fid_sum, '  error: %s\n', run_errmsg(k));
         elseif strlength(run_outdir(k)) > 0
