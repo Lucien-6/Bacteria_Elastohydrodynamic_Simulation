@@ -31,7 +31,7 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %                         panel for faster benchmarks / batch runs.
 %           2026-04-10 — Brownian twister seed: default MMddHHmmss, optional cfg.brown_rng_seed;
 %                         seed stored in config.json, results, and brownian_rng_seed.txt.
-%                         Log banner Version 5.2.0.
+%                         Log banner Version 5.2.1.
 
 %% ---- Input parsing ----
 if ischar(cfg_or_path) || isstring(cfg_or_path)
@@ -199,7 +199,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 5.2.0\n');
+logf('  Version 5.2.1\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);

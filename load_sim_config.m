@@ -30,6 +30,7 @@ function cfg = load_sim_config(json_path)
 %  Updated: 2026-04-03 — v5.0: background_flow, per-pili intrinsic_curvature / active_moment
 %  Updated: 2026-04-08 — Doc: header lists eps_body, pili_ext (matches implementation)
 %  Updated: 2026-04-08 — Default N_body 1000→250, seg_per_um 15→10
+%  Updated: 2026-04-10 — Default N_body 250→200, default tlim 120→360
 %  Updated: 2026-04-10 — brownian.rng_seed (optional; omit or NaN = time-based default)
 
 %% Read and decode JSON
@@ -48,7 +49,7 @@ cfg.case_name  = get_json(j, 'case_name', '');
 jb = get_json(j, 'body', struct());
 cfg.minor_axis = get_json(jb, 'minor_axis', 0.4e-6);
 cfg.major_axis = get_json(jb, 'major_axis', 1.25e-6);
-cfg.N_body     = get_json(jb, 'N_body',     250);
+cfg.N_body     = get_json(jb, 'N_body',     200);
 cfg.alpha_0    = get_json(jb, 'alpha_0',    0);
 cfg.eps_body   = get_json(jb, 'eps_body',   []);
 
@@ -83,7 +84,7 @@ cfg.AbsTol     = get_json(js, 'AbsTol',     1e-4);
 cfg.RelTol     = get_json(js, 'RelTol',     1e-4);
 delta_frac     = get_json(js, 'delta_frac', 20);
 cfg.delta      = pi / delta_frac;
-cfg.tlim       = get_json(js, 'tlim',       120);
+cfg.tlim       = get_json(js, 'tlim',       360);
 cfg.dt         = get_json(js, 'dt',         0.1);
 cfg.seg_per_um = get_json(js, 'seg_per_um', 10);
 

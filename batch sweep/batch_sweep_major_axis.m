@@ -26,7 +26,7 @@ clear; clc;
 cfg_base.case_name  = '';           % Will be auto-set per run below
 cfg_base.minor_axis = 0.4e-6;
 cfg_base.major_axis = 1.25e-6;     % Overridden in the loop
-cfg_base.N_body     = 250;
+cfg_base.N_body     = 200;
 cfg_base.alpha_0    = 0;
 
 cfg_base.Pili_Matrix  = zeros(8, 0);   % No pili (body only)
@@ -44,7 +44,7 @@ cfg_base.T_obs  = 200.0;
 cfg_base.AbsTol = 1e-4;
 cfg_base.RelTol = 1e-4;
 cfg_base.delta  = pi / 20;
-cfg_base.tlim   = 120;
+cfg_base.tlim   = 360;
 cfg_base.dt     = 0.1;
 
 cfg_base.enable_brown = false;

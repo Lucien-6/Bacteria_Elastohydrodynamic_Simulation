@@ -4,7 +4,7 @@
     "body": {
         "minor_axis": 0.4e-6,
         "major_axis": 1.25e-6,
-        "N_body": 250,
+        "N_body": 200,
         "alpha_0": 0
     },
 
@@ -40,7 +40,7 @@
         "AbsTol": 1e-4,
         "RelTol": 1e-4,
         "delta_frac": 20,
-        "tlim": 120,
+        "tlim": 360,
         "dt": 0.1,
         "seg_per_um": 10
     },

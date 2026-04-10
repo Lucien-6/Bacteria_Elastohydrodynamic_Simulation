@@ -11,7 +11,7 @@ function params = init_coupled_params(varargin)
 %    params = init_coupled_params('Name', Value, ...)
 %
 %  Name-Value Pairs:
-%    'N_body'      Number of body surface points      (default: 250)
+%    'N_body'      Number of body surface points      (default: 200)
 %    'minor_axis'  Semi-minor axis [m]                 (default: 0.4e-6)
 %    'major_axis'  Semi-major axis [m]                 (default: 1.25e-6)
 %    'mu'          Dynamic viscosity [Pa*s]            (default: 1e-3)
@@ -57,10 +57,11 @@ function params = init_coupled_params(varargin)
 %                               removed body-only pre-computation, added fixman_midpoint
 %           2026-04-07 — Optional 'eps_body' override for RSM regularisation sweeps
 %           2026-04-08 — Default N_body 1000→250, seg_per_um 15→10 (project-wide)
+%           2026-04-10 — Default N_body 250→200 (project-wide)
 
 %% Parse inputs
 p = inputParser;
-addParameter(p, 'N_body',      250,    @isnumeric);
+addParameter(p, 'N_body',      200,    @isnumeric);
 addParameter(p, 'minor_axis',  0.4e-6, @isnumeric);
 addParameter(p, 'major_axis',  1.25e-6, @isnumeric);
 addParameter(p, 'mu',          1e-3,   @isnumeric);

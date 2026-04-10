@@ -28,7 +28,7 @@ R_sphere = 0.4e-6;   % Sphere radius [m]
 cfg_base.case_name  = '';
 cfg_base.minor_axis = R_sphere;
 cfg_base.major_axis = R_sphere;
-cfg_base.N_body     = 250;           % Overridden each run
+cfg_base.N_body     = 200;           % Overridden each run
 cfg_base.alpha_0    = 0;
 
 cfg_base.Pili_Matrix  = zeros(8, 0); % No pili
@@ -46,7 +46,7 @@ cfg_base.T_obs  = 200.0;
 cfg_base.AbsTol = 1e-4;
 cfg_base.RelTol = 1e-4;
 cfg_base.delta  = pi / 20;
-cfg_base.tlim   = 120;
+cfg_base.tlim   = 360;
 cfg_base.dt     = 0.1;
 
 cfg_base.enable_brown = false;

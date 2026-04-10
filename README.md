@@ -3,7 +3,7 @@
 > **作者**: Lucien (lucien-6@qq.com)  
 > **创建日期**: 2026-02-06  
 > **更新日期**: 2026-04-10  
-> **版本**: 5.2.0  
+> **版本**: 5.2.1  
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
@@ -94,7 +94,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 
 cfg.case_name  = 'MyCase';
 cfg.alpha_0    = pi/4;
-cfg.N_body     = 250;
+cfg.N_body     = 200;
 
 % 3. 定义纤毛配置（命名结构体，推荐）：
 pili_config(1).type      = 'linear';
@@ -160,7 +160,7 @@ output/MyCase/
 | `minor_axis` | `0.4e-6` | 胞体椭球短半轴（体宽半径）[m] |
 | `major_axis` | `1.25e-6` | 胞体椭球长半轴（体长半径）[m] |
 | `alpha_0` | `0` | XZ 平面内初始胞体倾斜角 [rad] |
-| `N_body` | `250` | 胞体表面力点数 |
+| `N_body` | `200` | 胞体表面力点数 |
 | `eps_body` | `[]`（空则用 `h_mean/3`） | 可选：胞体 RSM 正则化长度（无量纲 \(L_0\)） |
 | `seg_per_um` | `10` | 纤毛每微米段数（RSS 精确积分） |
 | `dt` | `0.1` | 输出时间步 [s] |
@@ -174,7 +174,7 @@ output/MyCase/
 | `T_obs` | `30.0` | 总观测时间 [s] |
 | `AbsTol` / `RelTol` | `1e-4` | ODE 求解器容差 |
 | `delta` | `pi/20` | Euler 角奇异性阈值 [rad] |
-| `tlim` | `120` | ODE 段超时限制 [s] |
+| `tlim` | `360` | ODE 段超时限制 [s] |
 | `preview_initial` | `true` | 积分前显示初始姿态预览 |
 | `generate_animation` | `true` | 生成 MP4 动画 |
 | `animation_fps` | `30` | 动画帧率 |
@@ -286,7 +286,7 @@ graph TD
 
 模拟具有弹性纤毛的细菌在 Stokes 流中重力沉降：
 
-- **胞体**：刚性胶囊体（两个半球端盖 + 圆柱中段），离散为 $N_{\text{body}}$ 个表面力点（默认 250）
+- **胞体**：刚性胶囊体（两个半球端盖 + 圆柱中段），离散为 $N_{\text{body}}$ 个表面力点（默认 200）
 - **纤毛**：$M$ 根不可伸长的 Kirchhoff 弹性杆，每根含 $N_k$ 段（$N_k + 1$ 个节点）
 - **流体**：Stokes 流（零雷诺数）；所有流体力学相互作用通过 RSS（纤毛）+ RSM（胞体）实现
 
@@ -459,7 +459,7 @@ $$
 \varepsilon_j = \begin{cases} h_{\text{body}}^{\text{mean}} / 3 & \text{胞体表面点} \\ r_{\text{pili}} / L_0 & \text{纤毛节点} \end{cases}
 $$
 
-**胞体**（RSM，力源在封闭曲面上）：$h_{\text{body}}^{\text{mean}}$ 为胞体表面所有点最近邻距离的均值（平均网格间距 $\Delta s_{\text{avg}}$），$h_{\text{mean}}/3$ 对应比值 $\varepsilon/\Delta s_{\text{avg}} \approx 0.333$，为针对当前胶囊几何（$a/b = 3.125$，$N_{\text{body}} = 250$）数值调试所得的经验最优值，在阻力矩阵精度与数值稳定性之间取得最佳平衡。$\varepsilon \to 0$ 的极限存在（退化为奇异 BEM），故 $\varepsilon$ 为纯数值参数，应通过与解析解（如 Stokes 球阻力）对比验证。
+**胞体**（RSM，力源在封闭曲面上）：$h_{\text{body}}^{\text{mean}}$ 为胞体表面所有点最近邻距离的均值（平均网格间距 $\Delta s_{\text{avg}}$），$h_{\text{mean}}/3$ 对应比值 $\varepsilon/\Delta s_{\text{avg}} \approx 0.333$，为针对当前胶囊几何（$a/b = 3.125$，$N_{\text{body}} = 200$）数值调试所得的经验最优值，在阻力矩阵精度与数值稳定性之间取得最佳平衡。$\varepsilon \to 0$ 的极限存在（退化为奇异 BEM），故 $\varepsilon$ 为纯数值参数，应通过与解析解（如 Stokes 球阻力）对比验证。
 
 **纤毛**（RSS，力源在一维曲线上）：$\varepsilon = r_{\text{pili}}/L_0$ 是**物理参数**，代表力作用区域的空间延展半径（纤毛横截面半径）。Cortez et al. (2005) 明确指出，当力作用于曲线时 $\varepsilon \to 0$ 的极限不存在（速度场发散），因此 $\varepsilon$ 不可趋向零，而应取纤毛的物理横截面半径。细长比 $\varepsilon/\ell = r_{\text{pili}}/L_{\text{pili}} \approx 10^{-3}$ 远小于 1，满足细长体假设；段长与正则化参数之比 $\Delta s/\varepsilon = \Delta s \cdot L_0 / r_{\text{pili}} \approx 22$，RSS 精确积分在此范围内精度充分。
 
@@ -1036,6 +1036,7 @@ Coupled_Body_Pili/
 | 59  | 批量仿真结果后处理（v5.1）：新增 `post_processing/postprocess_cases.m`，父目录下多选含 `timeseries.csv` 的 Case 子文件夹，汇总沉降速度、最大水平位移、轨迹曲折度、MSD 拟合扩散系数等，导出 Excel；英文界面；Windows 下可选 Excel COM 排版；`run_simulation` 日志横幅版本号同步为 **5.1.0** | 2026-04-07 |
 | 60  | 批量友好图窗管理（v5.1.1）：`exportgraphics` 保存 `summary_plot.png` / `flowfield_panels.png` 后立即 `close` 对应 figure（`run_simulation.m`、`compute_plot_flowfield.m`），避免大批量仿真堆积 MATLAB 图窗；日志横幅版本号 **5.1.1** | 2026-04-08 |
 | 61  | 布朗 twister 种子策略（v5.2.0）：默认 **`MMddHHmmss`** 整数（`brown_rng_seed_from_clock`）；可选 **`cfg.brown_rng_seed`** / JSON **`brownian.rng_seed`**；种子写入 `config.json`、`brownian_rng_seed.txt`、`simulation.log`、`results`/`params`；`batch_repeat_brownian` 改为 **`cfg.brown_rng_seed = rng_seed_base + k`**；日志横幅 **5.2.0** | 2026-04-10 |
+| 62  | 默认离散与 ODE 限时（v5.2.1）：**`N_body` = 200**（原 250）、**`tlim` = 360 s**（原 120 s）；`load_sim_config` / `init_coupled_params` / 主脚本与批量模板同步；日志横幅 **5.2.1** | 2026-04-10 |
 
 ---
 
@@ -1088,7 +1089,7 @@ $$
 | ---- | ---- |
 | `CHANGELOG.md` | 版本变更记录（Keep a Changelog 风格） |
 | `USER_GUIDE.md` | 简明用户指南：快速上手、主要输出、`flowfield_panels.png` 与流场参数说明 |
-| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.2.0**，**2026-04-10**） |
+| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.2.1**，**2026-04-10**） |
 
 长篇理论、公式与完整参数表仍以本文件为准。
 

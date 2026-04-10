@@ -21,6 +21,7 @@
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
 %  Updated: 2026-04-08 — Default N_body 250, seg_per_um 10 (inline cfg)
+%  Updated: 2026-04-10 — Default N_body 200, tlim 360
 
 close all force;
 clear; clc;
@@ -44,7 +45,7 @@ else
     % -------- Bacterial Body Geometry --------
     cfg.minor_axis = 0.4e-6;              % [m]   Semi-minor axis (body radius)
     cfg.major_axis = 1.25e-6;             % [m]   Semi-major axis (half body length)
-    cfg.N_body     = 250;                % [-]   Number of body surface points
+    cfg.N_body     = 200;                % [-]   Number of body surface points
     cfg.alpha_0    = 0;                   % [rad] Initial tilt angle in XZ plane
 
     % -------- Pili Configuration (struct array) --------
@@ -110,7 +111,7 @@ else
     cfg.AbsTol = 1e-4;                    % ODE absolute tolerance
     cfg.RelTol = 1e-4;                    % ODE relative tolerance
     cfg.delta  = pi / 20;                 % [rad] Euler angle singularity threshold
-    cfg.tlim   = 120;                     % [s]   ODE timeout limit
+    cfg.tlim   = 360;                     % [s]   ODE timeout limit
     cfg.dt     = 1e-1;                    % [s]   Output time step
 
     % -------- Brownian Motion --------
