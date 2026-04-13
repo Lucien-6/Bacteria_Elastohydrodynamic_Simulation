@@ -32,7 +32,7 @@ function params = init_coupled_params(varargin)
 %    'enable_brown' Enable body Brownian motion        (default: false)
 %    'fixman_midpoint' Enable Fixman midpoint correction (default: false)
 %    'eps_body'      Optional RSM regularisation length [L0], dimensionless.
-%                    If empty (default), uses eps_body = h_mean/3 from the
+%                    If empty (default), uses eps_body = h_mean/2.6667 from the
 %                    surface mesh.  If set to a positive scalar, overrides
 %                    that default (for parameter studies).
 %
@@ -52,12 +52,14 @@ function params = init_coupled_params(varargin)
 %  Updated: 2026-02-14 — Pure RSS mode (removed RSM fallback)
 %           2026-03-01 — eps_body: h_min/2 → h_mean/6 (Cortez 2005 optimal ratio)
 %           2026-03-01 — eps_body: h_mean/6 → h_mean/3 (empirically optimal)
+%           2026-04-13 — eps_body: h_mean/3 → h_mean/2.6667 (batch sweep optimum)
 %           2026-03-14 — v3.0: Body Brownian motion parameters (Temper, enable_brown)
 %           2026-03-31 — v4.0: Full-system effective friction (dynamic per-step),
 %                               removed body-only pre-computation, added fixman_midpoint
 %           2026-04-07 — Optional 'eps_body' override for RSM regularisation sweeps
 %           2026-04-08 — Default N_body 1000→250, seg_per_um 15→10 (project-wide)
 %           2026-04-10 — Default N_body 250→200 (project-wide)
+%           2026-04-13 — Default eps_body: h_mean/3 → h_mean/2.6667 (batch sweep)
 
 %% Parse inputs
 p = inputParser;
@@ -154,7 +156,8 @@ h_min  = min(min_dists_body);
 h_mean = mean(min_dists_body);
 
 if isempty(p.Results.eps_body)
-    params.eps_body = h_mean / 3;                  % Default: eps/ds_avg ~ 0.333
+    % Default from batch_sweep_N_body_eps_RSM (Stokes sphere): eps/ds_avg ~ 0.375
+    params.eps_body = h_mean / 2.6667;
 else
     params.eps_body = p.Results.eps_body;
 end

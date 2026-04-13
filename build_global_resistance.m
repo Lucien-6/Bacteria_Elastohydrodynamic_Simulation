@@ -22,8 +22,8 @@ function [M_weighted, A_twist_cells, M_rotlet] = build_global_resistance(X_all, 
 %      coupling between torsion and translation that RFT neglects.
 %
 %    Adaptive epsilon strategy:
-%      Body points  :  eps_body = h_mean / 3   (mean nearest-neighbour / 3,
-%                      empirically optimal; see init_coupled_params.m)
+%      Body points  :  eps_body = h_mean / 2.6667 (default; batch sweep optimum;
+%                      see init_coupled_params.m)
 %      Pili points  :  eps_pili = r_pili / L_0
 %      Pair rule    :  eps_ij = eps_j  (force-point-determined)
 %

@@ -1,8 +1,8 @@
 # User Guide — Coupled Body-Pili Simulation
 
 > **Author:** Lucien (lucien-6@qq.com)  
-> **Version:** 5.2.1  
-> **Updated:** 2026-04-10  
+> **Version:** 5.3.0  
+> **Updated:** 2026-04-13  
 
 This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
 
@@ -38,11 +38,13 @@ cfg.auto_confirm = true;
 [results, params, output_dir] = run_simulation(cfg);
 ```
 
-Use `batch sweep/` scripts or `batch_run_from_json.m` for unattended sweeps. For **multiple independent runs of the same Brownian-on case** (outputs under `output/<case_name_base>/001/`, `002`, …), run `batch sweep/batch_repeat_brownian.m` (requires `enable_brown = true`; preview off by default). Set **`brown_rng_seed_mode`**: `'default'` (omit per-run seed; same **MMddHHmmss** time default as a single run) or `'fixed'` (**`cfg.brown_rng_seed = rng_seed_base + k`**, reproducible batch).
+Use `batch sweep/` scripts or `batch_run_from_json.m` for unattended sweeps. The folder includes **eight** sweep drivers (e.g. `batch_sweep_alpha`, `batch_sweep_eps_body_RSM`, `batch_sweep_N_body_eps_RSM`, …) plus **`batch_run_from_json`** and **`batch_repeat_brownian`**. For **multiple independent runs of the same Brownian-on case** (outputs under `output/<case_name_base>/001/`, `002`, …), run `batch sweep/batch_repeat_brownian.m` (requires `enable_brown = true`; preview off by default). Set **`brown_rng_seed_mode`**: `'default'` (omit per-run seed; same **MMddHHmmss** time default as a single run) or `'fixed'` (**`cfg.brown_rng_seed = rng_seed_base + k`**, reproducible batch).
 
 **v5.1.1:** After each run, MATLAB **closes** the summary and flow-field figure windows once `summary_plot.png` and `flowfield_panels.png` are saved, so long batches do not leave hundreds of figures open.
 
 **v5.2.0:** **Brownian RNG** — default twister seed is **local wall-clock `MMddHHmmss`** as an integer (`brown_rng_seed_from_clock.m`); set **`cfg.brown_rng_seed`** or JSON **`brownian.rng_seed`** to fix a seed. When Brownian is on, the realised seed is saved in **`config.json`**, **`brownian_rng_seed.txt`**, **`simulation.log`**, and **`results.brown_rng_seed`** / **`params.brown_rng_seed`** in `simulation_results.mat`.
+
+**v5.3.0:** **Body RSM default** — if **`body.eps_body`** is omitted, the simulator uses **`eps_body = h_mean / 2.6667`** (see `README.md` §8.5). **`batch_sweep_N_body_eps_RSM.m`** performs a nested **`N_body` × `k`** sweep (`eps_body = k·h_mean`) vs Stokes settling and writes CSV/MAT summaries under `batch sweep/`.
 
 ---
 

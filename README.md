@@ -2,8 +2,8 @@
 
 > **作者**: Lucien (lucien-6@qq.com)  
 > **创建日期**: 2026-02-06  
-> **更新日期**: 2026-04-10  
-> **版本**: 5.2.1  
+> **更新日期**: 2026-04-13  
+> **版本**: 5.3.0  
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
@@ -61,6 +61,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 - **背景流场**：全局静态背景流（`off`/`uniform`/`shear_z`），与无量纲化方案自动兼容
 - **流体力学**：胞体 RSM 点力 + 纤毛 RSS Stokeslet 线段 + Rotlet 线段耦合（扭转—平移）
 - **布朗动力学**：胞体热涨落（全系统有效摩擦张量，每步动态计算包含纤毛水动力贡献的 6×6 扩散张量；可选 Fixman 中点修正）
+- **胞体 RSM 默认正则化（v5.3.0）**：未指定 `eps_body` 时默认 **`eps_body = h_mean/2.6667`**（\(\varepsilon/\Delta s \approx 0.375\)），由 `batch_sweep_N_body_eps_RSM` 与 Stokes 球解析沉降对比标定；可选 `cfg.eps_body` 覆盖
 - **布朗随机种子（v5.2.0）**：默认本地时间 `MMddHHmmss` 整数 twister 种子；可选 `cfg.brown_rng_seed` / JSON `brownian.rng_seed`；种子写入 `config.json`、`brownian_rng_seed.txt`、日志与 `simulation_results.mat`
 - **时间积分**：MATLAB `ode15s`（隐式刚性求解器）+ 固定 `dt_B` 布朗节点
 - **自适应基底**：逐纤毛 Euler 角基底旋转以规避奇异性
@@ -77,7 +78,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 - **函数化封装**：`run_simulation()` 将全部仿真逻辑封装为可编程调用的函数
 - **进度反馈**：动画渲染和流场计算配备实时文本进度条（含 ETA）
 - **输出目录保护**：检测已有仿真数据时弹出覆盖/重命名/中止对话框
-- **参数扫描套件**（`batch sweep/`）：6 个独立脚本分别扫描初始倾斜角（`batch_sweep_alpha`：**无纤毛**胞体）、胞体长半轴（`batch_sweep_major_axis`：**无纤毛**）、纤毛长度（含 `site_list` 附着点）、纤毛杨氏模量、胞体 `N_body`（球体无纤毛）、纤毛 `seg_per_um`，均采用 headless 无头模式批量调用 `run_simulation()`
+- **参数扫描套件**（`batch sweep/`）：8 个独立扫描脚本分别扫描初始倾斜角（`batch_sweep_alpha`：**无纤毛**胞体）、胞体长半轴（`batch_sweep_major_axis`：**无纤毛**）、纤毛长度（含 `site_list` 附着点）、纤毛杨氏模量、胞体 `N_body`（球体无纤毛）、纤毛 `seg_per_um`、胞体 RSM **`eps_body`**（`batch_sweep_eps_body_RSM`）、**`N_body` × `eps_body`** 嵌套标定（`batch_sweep_N_body_eps_RSM`），均采用 headless 无头模式批量调用 `run_simulation()`
 - **JSON 批量运行器**：`batch_run_from_json.m` 自动检索用户指定文件夹内全部 JSON 配置文件并依次执行，单工况失败自动跳过继续，运行结束输出对齐汇总表及批次日志
 - **布朗独立重复批处理**（`batch sweep/batch_repeat_brownian.m`）：同一工况、开启布朗运动时进行多次独立重复；结果保存在 `output/<case_name_base>/001/`、`002/`、…；默认关闭初始姿态预览、强制 `auto_confirm`；**`brown_rng_seed_mode`**：`default` = 每次运行不指定种子，与单次模拟相同采用 **`MMddHHmmss`** 默认；`fixed` = **`cfg.brown_rng_seed = rng_seed_base + k`** 可复现批量（v5.2.0）
 - **批量结果后处理**（`post_processing/postprocess_cases.m`）：在父目录下多选含 `timeseries.csv` 的 Case 子文件夹，汇总沉降速度、最大水平位移、轨迹曲折度、MSD 拟合扩散系数等，导出 Excel 汇总表（Windows 下可选 COM 排版）；全英文交互界面
@@ -117,7 +118,7 @@ config_file = 'configs/my_case.json';    % 指向 JSON 配置文件
 **JSON 与程序架构（`load_sim_config.m` / `save_sim_config.m`）**
 
 - **顶层节**：`case_name`，`body`，`pili`（纤毛结构体数组或原始 `[8×M]` 矩阵），`material`，`fluid`，`simulation`，`brownian`，`output`，`flowfield`，`background_flow`（v5.0）。
-- **`body`**：`minor_axis`，`major_axis`，`N_body`，`alpha_0`；可选 **`eps_body`**（无量纲 RSM 胞体正则化长度 \( \varepsilon/L_0 \)，覆盖 `init_coupled_params` 默认 `h_mean/3`）。
+- **`body`**：`minor_axis`，`major_axis`，`N_body`，`alpha_0`；可选 **`eps_body`**（无量纲 RSM 胞体正则化长度 \( \varepsilon/L_0 \)，覆盖 `init_coupled_params` 默认 `h_mean/2.6667`）。
 - **`pili[]`**：每根纤毛至少含 `type`，`length_um`，`site`；可选 `deflection_z`，`deflection_x`，`shape_params`；v5.0 可选 **`intrinsic_curvature`**（字符串或对象）、**`active_moment`**（对象，如 `traveling_wave` 时用 `amplitude_Nm`，`omega_Hz`，`wavenumber`，`d1_amp` / `d2_amp` / `d3_amp` 等，与 `init_coupled_params` 一致）。
 - **`simulation`**：`T_obs`，`AbsTol`，`RelTol`，`delta_frac`（内部得到 `cfg.delta = π/delta_frac`），`tlim`，`dt`，`seg_per_um`。
 - **`brownian`**：`enable` → `cfg.enable_brown`，`temperature` → `cfg.Temper`，`dt_B_ratio` → `cfg.dt_B = dt * dt_B_ratio`，`fixman_midpoint`；可选 **`rng_seed`** → `cfg.brown_rng_seed`（v5.2.0：正整数固定 twister 种子；省略或非正则用运行时刻 **`MMddHHmmss`** 整数默认种子）。
@@ -134,7 +135,7 @@ cfg.alpha_0      = pi/4;
 cfg.auto_confirm = true;     % 无人值守模式
 [results, params, output_dir] = run_simulation(cfg);
 
-% 参数扫描脚本参见 batch sweep/ 文件夹（6 个扫描脚本 + JSON 批量运行器 + batch_repeat_brownian 布朗重复）
+% 参数扫描脚本参见 batch sweep/ 文件夹（8 个扫描脚本 + JSON 批量运行器 + batch_repeat_brownian 布朗重复）
 ```
 
 **输出**（保存至 `output/<case_name>/`）：
@@ -161,7 +162,7 @@ output/MyCase/
 | `major_axis` | `1.25e-6` | 胞体椭球长半轴（体长半径）[m] |
 | `alpha_0` | `0` | XZ 平面内初始胞体倾斜角 [rad] |
 | `N_body` | `200` | 胞体表面力点数 |
-| `eps_body` | `[]`（空则用 `h_mean/3`） | 可选：胞体 RSM 正则化长度（无量纲 \(L_0\)） |
+| `eps_body` | `[]`（空则用 `h_mean/2.6667`） | 可选：胞体 RSM 正则化长度（无量纲 \(L_0\)） |
 | `seg_per_um` | `10` | 纤毛每微米段数（RSS 精确积分） |
 | `dt` | `0.1` | 输出时间步 [s] |
 | `Pili_Matrix` | 无纤毛时为空矩阵 | 纤毛配置矩阵 [8 × M]（可用 `parse_pili_config` 从结构体生成） |
@@ -251,7 +252,7 @@ graph TD
     E --> U[pili_euler_angles.m]
     E --> S
 
-    BATCH["batch sweep/ 文件夹<br/>6× sweep + batch_run_from_json<br/>+ batch_repeat_brownian"] --> RUN
+    BATCH["batch sweep/ 文件夹<br/>8× sweep + batch_run_from_json<br/>+ batch_repeat_brownian"] --> RUN
 ```
 
 ### 3.2 功能分层
@@ -275,7 +276,7 @@ graph TD
 | 几何生成   | `capsule_body_building.m`, `pili_building.m`, `pili_type_building.m`, `compute_curvature_binormal.m` | 胞体/纤毛离散化                               |
 | 流场可视化 | `compute_plot_flowfield.m`                                                                           | 末状态双平面流场评估与绘图（2×2 面板）        |
 | 进度显示   | `odetpbar.m`, `render_progress_bar.m`                                                                | ODE 段内进度条 + 通用文本进度条（动画/流场）  |
-| 批量扫描   | `batch sweep/batch_sweep_alpha.m`, `batch sweep/batch_sweep_major_axis.m`, `batch sweep/batch_sweep_pili_length.m`, `batch sweep/batch_sweep_pili_E.m`, `batch sweep/batch_sweep_N_body.m`, `batch sweep/batch_sweep_seg_per_um.m`, `batch sweep/batch_run_from_json.m`, `batch sweep/batch_repeat_brownian.m` | 6 个独立参数扫描脚本（初始角·无纤毛/长半轴·无纤毛/纤毛长度·`site_list`/杨氏模量/N_body·球无纤毛/seg_per_um）+ JSON 批量运行器 + 布朗工况独立重复（`001`/`002`/… 子文件夹） |
+| 批量扫描   | `batch sweep/batch_sweep_alpha.m`, `batch sweep/batch_sweep_major_axis.m`, `batch sweep/batch_sweep_pili_length.m`, `batch sweep/batch_sweep_pili_E.m`, `batch sweep/batch_sweep_N_body.m`, `batch sweep/batch_sweep_seg_per_um.m`, `batch sweep/batch_sweep_eps_body_RSM.m`, `batch sweep/batch_sweep_N_body_eps_RSM.m`, `batch sweep/batch_run_from_json.m`, `batch sweep/batch_repeat_brownian.m` | 8 个独立参数扫描脚本（初始角·无纤毛/长半轴·无纤毛/纤毛长度·`site_list`/杨氏模量/N_body·球无纤毛/seg_per_um/RSM·`eps_body`/嵌套 `N_body`×`eps_body`）+ JSON 批量运行器 + 布朗工况独立重复（`001`/`002`/… 子文件夹） |
 | 工具函数   | `skew_matrix.m`, `pack_state_rates.m`, `unpack_state.m`                                              | 线性代数辅助、状态打包                        |
 
 ---
@@ -456,10 +457,10 @@ $$
 ### 8.5 正则化参数
 
 $$
-\varepsilon_j = \begin{cases} h_{\text{body}}^{\text{mean}} / 3 & \text{胞体表面点} \\ r_{\text{pili}} / L_0 & \text{纤毛节点} \end{cases}
+\varepsilon_j = \begin{cases} h_{\text{body}}^{\text{mean}} / 2.6667 & \text{胞体表面点} \\ r_{\text{pili}} / L_0 & \text{纤毛节点} \end{cases}
 $$
 
-**胞体**（RSM，力源在封闭曲面上）：$h_{\text{body}}^{\text{mean}}$ 为胞体表面所有点最近邻距离的均值（平均网格间距 $\Delta s_{\text{avg}}$），$h_{\text{mean}}/3$ 对应比值 $\varepsilon/\Delta s_{\text{avg}} \approx 0.333$，为针对当前胶囊几何（$a/b = 3.125$，$N_{\text{body}} = 200$）数值调试所得的经验最优值，在阻力矩阵精度与数值稳定性之间取得最佳平衡。$\varepsilon \to 0$ 的极限存在（退化为奇异 BEM），故 $\varepsilon$ 为纯数值参数，应通过与解析解（如 Stokes 球阻力）对比验证。
+**胞体**（RSM，力源在封闭曲面上）：$h_{\text{body}}^{\text{mean}}$ 为胞体表面所有点最近邻距离的均值（平均网格间距 $\Delta s_{\text{avg}}$），默认取 $h_{\text{mean}}/2.6667$，对应比值 $\varepsilon/\Delta s_{\text{avg}} \approx 0.375$。该比值由 `batch_sweep_N_body_eps_RSM` 扫描不同 $N_{\text{body}}$ 下 $\varepsilon = k\,h_{\text{mean}}$，并与 Stokes 球解析沉降速度对比得到，在阻力矩阵精度与数值稳定性之间优于此前的 $h_{\text{mean}}/3$。$\varepsilon \to 0$ 的极限存在（退化为奇异 BEM），故 $\varepsilon$ 为纯数值参数，应通过与解析解（如 Stokes 球阻力）对比验证。
 
 **纤毛**（RSS，力源在一维曲线上）：$\varepsilon = r_{\text{pili}}/L_0$ 是**物理参数**，代表力作用区域的空间延展半径（纤毛横截面半径）。Cortez et al. (2005) 明确指出，当力作用于曲线时 $\varepsilon \to 0$ 的极限不存在（速度场发散），因此 $\varepsilon$ 不可趋向零，而应取纤毛的物理横截面半径。细长比 $\varepsilon/\ell = r_{\text{pili}}/L_{\text{pili}} \approx 10^{-3}$ 远小于 1，满足细长体假设；段长与正则化参数之比 $\Delta s/\varepsilon = \Delta s \cdot L_0 / r_{\text{pili}} \approx 22$，RSS 精确积分在此范围内精度充分。
 
@@ -844,6 +845,8 @@ Coupled_Body_Pili/
 │   ├── batch_sweep_pili_E.m            % 扫描纤毛杨氏模量（1e5~1e9 Pa，10 倍档）
 │   ├── batch_sweep_N_body.m            % 球体 R=0.4 μm、无纤毛，扫描 N_body（600~1600，步长 200）
 │   ├── batch_sweep_seg_per_um.m        % 扫描纤毛 seg_per_um（10~35，步长 5）
+│   ├── batch_sweep_eps_body_RSM.m      % 球体无纤毛，扫描 eps_body = k·h_mean（固定 N_body）
+│   ├── batch_sweep_N_body_eps_RSM.m    % 球体无纤毛，嵌套扫描 N_body × k（eps_body 标定 vs Stokes）
 │   ├── batch_run_from_json.m           % JSON 批量运行器：检索文件夹→依次执行→失败跳过
 │   └── batch_repeat_brownian.m         % 布朗开启：同一工况独立重复 N 次 → output/<case>/001/…
 │
@@ -859,7 +862,7 @@ Coupled_Body_Pili/
 └── Cortez - 2018 - Regularized stokeslet segments.pdf
 ```
 
-总计：**43 个 MATLAB 源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（34 个核心模块 + 1 个 `post_processing/` 脚本 + 8 个 `batch sweep/` 脚本，无冗余代码，无未使用函数）。
+总计：**46 个 MATLAB 源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（34 个核心模块 + 1 个 `post_processing/` 脚本 + 10 个 `batch sweep/` 与批量脚本，无冗余代码，无未使用函数）。
 
 ---
 
@@ -970,6 +973,8 @@ Coupled_Body_Pili/
 | 30  | `load_sim_config.m` `get_json` 死代码 (v3.1→v3.2) | 2026-03-17 | `isnumeric(default) && islogical(default)` 恒为 `false`（`islogical` 为 `true` 时 `isnumeric` 必为 `false`），`logical(v)` 转换永远不执行；移除 `isnumeric(default) &&` |
 | 31  | `main_coupled_simulation.m` 案例名拼写错误 (v3.1→v3.2) | 2026-03-17 | `'Brwon-Test-Soft'` → `'Brown-Test-Soft'` |
 | 32  | `render_progress_bar.m` 进度条无法原地更新 (v3.1→v3.2) | 2026-03-17 | `prev_len_container` 数值数组按值传递，函数内修改不回传至调用方，`\b` 退格数始终为 0，进度信息逐行堆叠而非原地刷新；改用 `persistent prev_msg_len` 管理状态（与 `odetpbar.m` 同模式），`current==1` 时重置 |
+| 33  | 胞体默认 `eps_body` 由 `h_mean/3` 调整为 `h_mean/2.6667` | 2026-04-13 | 经 `batch_sweep_N_body_eps_RSM` 多 $N_{\text{body}}$ 扫描，以 Stokes 球沉降速度与解析解误差最小为准则，$\varepsilon/\Delta s \approx 0.375$ 优于 $1/3$ |
+| 34  | 发布 **5.3.0**（2026-04-13） | 2026-04-13 | 新增 `batch_sweep_N_body_eps_RSM.m`；`run_simulation` 日志横幅与 `README` / `USER_GUIDE` / `CHANGELOG` / `requirements.txt` / `docs/index.html` 版本与日期同步 |
 
 ### 22.3 功能历史
 
@@ -1037,6 +1042,7 @@ Coupled_Body_Pili/
 | 60  | 批量友好图窗管理（v5.1.1）：`exportgraphics` 保存 `summary_plot.png` / `flowfield_panels.png` 后立即 `close` 对应 figure（`run_simulation.m`、`compute_plot_flowfield.m`），避免大批量仿真堆积 MATLAB 图窗；日志横幅版本号 **5.1.1** | 2026-04-08 |
 | 61  | 布朗 twister 种子策略（v5.2.0）：默认 **`MMddHHmmss`** 整数（`brown_rng_seed_from_clock`）；可选 **`cfg.brown_rng_seed`** / JSON **`brownian.rng_seed`**；种子写入 `config.json`、`brownian_rng_seed.txt`、`simulation.log`、`results`/`params`；`batch_repeat_brownian` 改为 **`cfg.brown_rng_seed = rng_seed_base + k`**；日志横幅 **5.2.0** | 2026-04-10 |
 | 62  | 默认离散与 ODE 限时（v5.2.1）：**`N_body` = 200**（原 250）、**`tlim` = 360 s**（原 120 s）；`load_sim_config` / `init_coupled_params` / 主脚本与批量模板同步；日志横幅 **5.2.1** | 2026-04-10 |
+| 63  | 发布 **5.3.0**（2026-04-13）：胞体默认 RSM 正则化 `h_mean/2.6667`（`batch_sweep_N_body_eps_RSM` 标定）；新增 `batch_sweep_N_body_eps_RSM.m`；`init_coupled_params` / `build_global_resistance` / README §8.5；日志横幅 **`5.3.0`**；`README` / `USER_GUIDE` / `CHANGELOG` / `requirements.txt` / `docs/index.html` 版本与日期同步 | 2026-04-13 |
 
 ---
 
@@ -1089,7 +1095,7 @@ $$
 | ---- | ---- |
 | `CHANGELOG.md` | 版本变更记录（Keep a Changelog 风格） |
 | `USER_GUIDE.md` | 简明用户指南：快速上手、主要输出、`flowfield_panels.png` 与流场参数说明 |
-| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.2.1**，**2026-04-10**） |
+| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.3.0**，**2026-04-13**） |
 
 长篇理论、公式与完整参数表仍以本文件为准。
 

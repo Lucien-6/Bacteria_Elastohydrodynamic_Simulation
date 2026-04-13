@@ -8,6 +8,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.3.0] — 2026-04-13
+
+### Added
+
+- **`batch sweep/batch_sweep_N_body_eps_RSM.m`**: Nested sweep of **`N_body`** and **`eps_body = k · h_mean`** (RSM regularisation) on a sphere with no pili; compares steady **`V_sink`** to analytic Stokes settling speed; writes `batch_sweep_N_body_eps_RSM_grid.csv`, `batch_sweep_N_body_eps_RSM_summary.csv`, and `.mat` results.
+
+### Changed
+
+- **Default body RSM regularisation** (`init_coupled_params.m`): **`eps_body`** default is now **`h_mean / 2.6667`** (was **`h_mean / 3`**), i.e. \(\varepsilon/\Delta s_{\mathrm{avg}} \approx 0.375\), from the above sweep vs Stokes reference.
+- **`build_global_resistance.m`**: Header comment aligned with the new default ratio.
+
+### Documentation
+
+- **`README.md`** (§8.5, JSON/`eps_body` notes, feature history), **`USER_GUIDE.md`**, **`requirements.txt`**, **`docs/index.html`**, **`run_simulation.m`**: Version **5.3.0**, date **2026-04-13**.
+
+---
+
 ## [5.2.1] — 2026-04-10
 
 ### Changed
