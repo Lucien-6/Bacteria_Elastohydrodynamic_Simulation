@@ -169,7 +169,7 @@ for iN = 1:n_N
         if ~isempty(res_i) && isfield(res_i, 'V_sink')
             Vs = res_i.V_sink(:);
             nt = numel(Vs);
-            steady_V_grid(iN, ik) = mean(Vs(round(0.9 * nt):end));
+            steady_V_grid(iN, ik) = mean(Vs(max(1, round(0.95 * nt)):end));
         end
 
         rows_grid(run_id, :) = [Nb, h_m, k, eps_body_i, steady_V_grid(iN, ik), ...

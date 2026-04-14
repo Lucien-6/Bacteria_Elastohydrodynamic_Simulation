@@ -204,26 +204,7 @@ for k = 1:M
     d2_k = geom.d2_basis{k};
     d3_k = geom.d3_basis{k};
 
-    segBases = zeros(3, 3, N_k);
-    for j = 1:N_k
-        segBases(:,:,j) = [d1_k(j,:)', d2_k(j,:)', d3_k(j,:)'];
-    end
-
-    meanRots = zeros(3, 3, N_k+1);
-    meanRots(:,:,1) = 1.5*segBases(:,:,1) - 0.5*segBases(:,:,2);
-    if N_k >= 2
-        meanRots(:,:,2:end-1) = 0.5*(segBases(:,:,1:end-1) + segBases(:,:,2:end));
-    end
-    meanRots(:,:,end) = 1.5*segBases(:,:,end) - 0.5*segBases(:,:,max(1,end-1));
-
-    for j = 1:N_k+1
-        [U_svd, ~, V_svd] = svd(meanRots(:,:,j));
-        meanRots(:,:,j) = U_svd * V_svd';
-    end
-
-    d1N = reshape(meanRots(:,1,:), [3, N_k+1])';
-    d2N = reshape(meanRots(:,2,:), [3, N_k+1])';
-    d3N = reshape(meanRots(:,3,:), [3, N_k+1])';
+    [d1N, d2N, d3N] = compute_node_directors(d1_k, d2_k, d3_k, N_k);
 
     B_k   = zeros(3*N_k, 3*(N_k+1) + 3*N_k);
     inter = (d3_k(2:end,:) + 2*d3_k(1:end-1,:)) / (6*Nk2) + ...

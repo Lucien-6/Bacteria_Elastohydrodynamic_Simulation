@@ -109,7 +109,7 @@ for ii = 1:n_runs
     if ~isempty(sweep_results{ii})
         Vs = sweep_results{ii}.V_sink;
         fprintf('  E = %.3e Pa  |  Steady V_sink = %.4e um/s\n', ...
-            E_values(ii), mean(Vs(round(0.9 * numel(Vs)):end)));
+            E_values(ii), mean(Vs(max(1, round(0.95 * numel(Vs))):end)));
     else
         fprintf('  E = %.3e Pa  |  ABORTED\n', E_values(ii));
     end

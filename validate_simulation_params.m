@@ -228,6 +228,15 @@ if isfield(cfg, 'pili_ext') && M_pili > 0
                 if ~isfield(am_val, 'omega_Hz') || am_val.omega_Hz <= 0
                     errs{end+1} = sprintf('Pili %d: active_moment.omega_Hz must be > 0.', kk);
                 end
+                if isfield(am_val, 'wavenumber') && am_val.wavenumber < 0
+                    warns{end+1} = sprintf(['Pili %d: active_moment.wavenumber = %.4g is negative. ' ...
+                        'Wave propagates in -s direction (from tip to root).'], kk, am_val.wavenumber);
+                end
+                if isfield(am_val, 'd3_amp') && am_val.d3_amp ~= 0
+                    warns{end+1} = sprintf(['Pili %d: active_moment.d3_amp = %.4g (non-zero). ' ...
+                        'This drives torsion rather than bending, which is unusual for standard pili beating.'], ...
+                        kk, am_val.d3_amp);
+                end
             end
         end
     end

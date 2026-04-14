@@ -150,7 +150,7 @@ for ii = 1:n_total
             blog('  [WARN] Run %d returned empty results.\n', ii);
         else
             Vs              = res_i.V_sink;
-            V_steady        = mean(Vs(round(0.9 * numel(Vs)):end));
+            V_steady        = mean(Vs(max(1, round(0.95 * numel(Vs))):end));
             run_status(ii)  = "OK";
             run_Vsink(ii)   = V_steady;
             run_outdir(ii)  = string(dir_i);

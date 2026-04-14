@@ -876,8 +876,8 @@ logf('[POST] Physical unit conversion complete.\n');
 logf('[POST] Sinking force     : %.4f pN\n',   results.F_sink_pN);
 logf('[POST] Final Z position  : %.4e um\n',    results.X_cm_um(3, end));
 logf('[POST] Mean V_sink       : %.4e um/s\n',  mean(V_sink_all));
-logf('[POST] Steady V_sink     : %.4e um/s (last 10%%)\n', ...
-    mean(V_sink_all(round(0.9*NT):end)));
+logf('[POST] Steady V_sink     : %.4e um/s (last 5%%)\n', ...
+    mean(V_sink_all(max(1, round(0.95*NT)):end)));
 logf('[POST] Initial tilt      : %.4f rad (%.2f deg)\n', ...
     tilt_angle_vec(1), rad2deg(tilt_angle_vec(1)));
 logf('[POST] Final tilt        : %.4f rad (%.2f deg)\n', ...
@@ -1534,7 +1534,7 @@ logf('  Output directory : %s\n',    output_dir);
 logf('  Physical time    : %.2f s\n', T_obs);
 logf('  Sinking force    : %.4f pN\n', results.F_sink_pN);
 logf('  Steady V_sink    : %.4e um/s\n', ...
-    mean(V_sink_all(round(0.9*NT):end)));
+    mean(V_sink_all(max(1, round(0.95*NT)):end)));
 logf('  Basis rotations  : %d\n',    basis_changes);
 logf('  Max |q| drift    : %.2e\n',  max(abs(sqrt(sum(results.q.^2,1))-1)));
 logf('  ------------------------------------------------\n');

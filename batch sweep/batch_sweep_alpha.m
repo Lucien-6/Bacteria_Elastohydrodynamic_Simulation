@@ -102,7 +102,7 @@ for ii = 1:n_runs
     if ~isempty(sweep_results{ii})
         Vs = sweep_results{ii}.V_sink;
         fprintf('  alpha_0 = %5.1f deg  |  Steady V_sink = %.4e um/s\n', ...
-            rad2deg(alpha_values(ii)), mean(Vs(round(0.9*numel(Vs)):end)));
+            rad2deg(alpha_values(ii)), mean(Vs(max(1, round(0.95*numel(Vs))):end)));
     else
         fprintf('  alpha_0 = %5.1f deg  |  ABORTED\n', rad2deg(alpha_values(ii)));
     end

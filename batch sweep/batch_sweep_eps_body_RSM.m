@@ -118,7 +118,7 @@ for ii = 1:n_runs
     if ~isempty(res_i) && isfield(res_i, 'V_sink')
         Vs = res_i.V_sink(:);
         nt = numel(Vs);
-        steady_V(ii) = mean(Vs(round(0.9 * nt):end));
+        steady_V(ii) = mean(Vs(max(1, round(0.95 * nt)):end));
     end
 end
 

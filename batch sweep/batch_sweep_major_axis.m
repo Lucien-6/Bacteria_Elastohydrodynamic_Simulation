@@ -104,7 +104,7 @@ for ii = 1:n_runs
     if ~isempty(sweep_results{ii})
         Vs = sweep_results{ii}.V_sink;
         fprintf('  major_axis = %5.2f um  |  Steady V_sink = %.4e um/s\n', ...
-            major_values(ii) * 1e6, mean(Vs(round(0.9 * numel(Vs)):end)));
+            major_values(ii) * 1e6, mean(Vs(max(1, round(0.95 * numel(Vs))):end)));
     else
         fprintf('  major_axis = %5.2f um  |  ABORTED\n', major_values(ii) * 1e6);
     end

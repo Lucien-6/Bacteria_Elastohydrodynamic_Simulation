@@ -106,7 +106,7 @@ for ii = 1:n_runs
     if ~isempty(sweep_results{ii})
         Vs = sweep_results{ii}.V_sink;
         fprintf('  N_body = %6d  |  Steady V_sink = %.4e um/s\n', ...
-            N_body_values(ii), mean(Vs(round(0.9 * numel(Vs)):end)));
+            N_body_values(ii), mean(Vs(max(1, round(0.95 * numel(Vs))):end)));
     else
         fprintf('  N_body = %6d  |  ABORTED\n', N_body_values(ii));
     end

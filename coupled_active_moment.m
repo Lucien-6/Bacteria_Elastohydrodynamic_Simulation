@@ -34,7 +34,11 @@ function M_active = coupled_active_moment(t, k, N_k, d1, d2, d3, d1N, d2N, d3N, 
 %               .amplitude_dimless - Dimensionless amplitude (pre-converted)
 %               .omega_dimless     - Dimensionless angular frequency
 %               .wavenumber        - Spatial wavenumber (on s in [0,1])
-%               .d1_amp, .d2_amp, .d3_amp - Relative component weights
+%               .d1_amp  - Weight for d1 (normal) bending component
+%               .d2_amp  - Weight for d2 (binormal) bending component
+%               .d3_amp  - Weight for d3 (tangent) torsional component
+%                          Non-zero d3_amp drives twist rather than bending;
+%                          typically zero for standard flagellar/pili beating.
 %             For 'custom':
 %               .fun - Function handle: fun(t, k, N_k, d1, d2, d3, d1N, d2N, d3N)
 %

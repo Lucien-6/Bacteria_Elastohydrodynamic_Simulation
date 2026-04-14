@@ -60,27 +60,18 @@ for k = 1:params.M_pili
     [kappa1, kappa2, kappa3] = compute_pili_elastic_moments( ...
         geom.d1_basis{k}, geom.d2_basis{k}, geom.d3_basis{k}, ...
         N_k, sigma, params.kb0{k});
-    for j = 1:N_k
-        R_global(row_offset + 3*(j-1) + 1) = kappa1(j);
-        R_global(row_offset + 3*(j-1) + 2) = kappa2(j);
-        R_global(row_offset + 3*(j-1) + 3) = kappa3(j);
-    end
+    idx_k = row_offset + (1:3*N_k)';
+    R_global(idx_k) = reshape([kappa1'; kappa2'; kappa3'], [], 1);
 
     %% Step 8b: Subtract active internal moments (per-pili, time-varying)
     if ~strcmp(params.am_cfg{k}.type, 'off')
         d1_k  = geom.d1_basis{k};
         d2_k  = geom.d2_basis{k};
         d3_k  = geom.d3_basis{k};
-        d1N_k = compute_node_directors(d1_k, d2_k, d3_k, N_k, 1);
-        d2N_k = compute_node_directors(d1_k, d2_k, d3_k, N_k, 2);
-        d3N_k = compute_node_directors(d1_k, d2_k, d3_k, N_k, 3);
+        [d1N_k, d2N_k, d3N_k] = compute_node_directors(d1_k, d2_k, d3_k, N_k);
         M_act = coupled_active_moment(t, k, N_k, d1_k, d2_k, d3_k, ...
                                       d1N_k, d2N_k, d3N_k, params.am_cfg{k});
-        for j = 1:N_k
-            R_global(row_offset + 3*(j-1) + 1) = R_global(row_offset + 3*(j-1) + 1) - M_act(1, j);
-            R_global(row_offset + 3*(j-1) + 2) = R_global(row_offset + 3*(j-1) + 2) - M_act(2, j);
-            R_global(row_offset + 3*(j-1) + 3) = R_global(row_offset + 3*(j-1) + 3) - M_act(3, j);
-        end
+        R_global(idx_k) = R_global(idx_k) - M_act(:);
     end
 
     row_offset = row_offset + 3 * N_k;
@@ -150,32 +141,4 @@ function back = apply_Ainv_u(u_bg, hydro)
     end
 
     back = hydro.B_global * Au;
-end
-
-
-function dN = compute_node_directors(d1, d2, d3, N_k, col)
-%COMPUTE_NODE_DIRECTORS  Interpolate segment directors to nodes via SVD
-    segBases = zeros(3, 3, N_k);
-    for i = 1:N_k
-        segBases(:,:,i) = [d1(i,:)', d2(i,:)', d3(i,:)'];
-    end
-
-    meanRots = zeros(3, 3, N_k+1);
-    meanRots(:,:,1) = 1.5*segBases(:,:,1) - 0.5*segBases(:,:,min(2,N_k));
-    if N_k >= 2
-        meanRots(:,:,2:end-1) = 0.5*(segBases(:,:,1:end-1) + segBases(:,:,2:end));
-    end
-    meanRots(:,:,end) = 1.5*segBases(:,:,end) - 0.5*segBases(:,:,max(1,end-1));
-
-    for i = 1:N_k+1
-        [U_svd, ~, V_svd] = svd(meanRots(:,:,i));
-        R_near = U_svd * V_svd';
-        if det(R_near) < 0
-            U_svd(:,end) = -U_svd(:,end);
-            R_near = U_svd * V_svd';
-        end
-        meanRots(:,:,i) = R_near;
-    end
-
-    dN = reshape(meanRots(:,col,:), [3, N_k+1])';
 end
