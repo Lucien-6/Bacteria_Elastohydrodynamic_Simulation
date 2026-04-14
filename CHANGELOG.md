@@ -12,7 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- **`run_simulation.m` — MP4 animation (`bacteria_3d_motion.mp4`)**: When Brownian motion produces a very wide horizontal bounding box, the computed figure width could exceed **Windows MPEG-4 / H.264** encoder limits or cause **`getframe`** to return inconsistent frame sizes, leading to `VideoWriter` errors (invalid `Quality` / `FrameRate` / frame dimensions). The animation stage now **scales width and height proportionally** to fit within a **3840×2160** codec-safe box (preserving the intended aspect ratio), uses **`figure(...,'Units','pixels')`**, and captures frames with **`getframe(fig, [1,1,w,h])`** from the figure `Position`.
+- **`run_simulation.m` — MP4 animation (`bacteria_3d_motion.mp4`)**: Two failure modes fixed:
+  1. **Large Brownian trajectories** push computed figure width beyond Windows MPEG-4 / H.264 encoder limits. Logical figure size is now **proportionally scaled** to fit within a **3840 x 2160** codec-safe box.
+  2. **Hi-DPI / display scaling** (e.g. 125%): `getframe` returns **physical pixels** (e.g. 2250 x 1366) larger than the logical `Position` (1800 x 1200). The codec limit was checked against logical pixels only, which was ineffective. Fix: after creating the figure, a **probe `getframe`** measures the actual physical size; if it exceeds codec limits, the figure `Position` is **shrunk** and re-probed. `VideoWriter` is opened **after** the physical frame size is known. In the render loop, `getframe(fig)` is called **without a rect** (avoids logical/physical coordinate mismatch). A fallback **`normalize_anim_frame_cdata`** (`imresize` or `interp2`) catches any residual per-frame size drift.
 
 ### Documentation
 
@@ -54,7 +56,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **Brownian RNG seed policy** (`run_simulation.m`, `brown_rng_seed_from_clock.m`): When `enable_brown` is true, MATLAB’s global generator is initialised with **`rng(seed, 'twister')`**. Default seed is **local wall-clock time** encoded as integer **`MMddHHmmss`** (via `brown_rng_seed_from_clock`). Optional **`cfg.brown_rng_seed`** (positive scalar) or JSON **`brownian.rng_seed`** forces a user-defined reproducible seed.
+- **Brownian RNG seed policy** (`run_simulation.m`, `brown_rng_seed_from_clock.m`): When `enable_brown` is true, MATLAB's global generator is initialised with **`rng(seed, 'twister')`**. Default seed is **local wall-clock time** encoded as integer **`MMddHHmmss`** (via `brown_rng_seed_from_clock`). Optional **`cfg.brown_rng_seed`** (positive scalar) or JSON **`brownian.rng_seed`** forces a user-defined reproducible seed.
 - **Seed persistence**: The realised seed is written to **`output/<case>/config.json`** (`brownian.rng_seed`), **`brownian_rng_seed.txt`**, **`simulation.log`** (`[PARAMS] Brownian RNG`), **`results.brown_rng_seed`**, and **`params.brown_rng_seed`** in `simulation_results.mat`.
 - **`load_sim_config.m` / `save_sim_config.m`**: Parse and emit optional **`brownian.rng_seed`** ↔ flat **`cfg.brown_rng_seed`**.
 
@@ -88,7 +90,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **`post_processing/postprocess_cases.m`**: Batch post-processing of **multiple** simulation result folders under a chosen parent directory (non-recursive: only first-level subfolders containing `timeseries.csv`). Reads each case’s `timeseries.csv` and `config.json`, computes summary metrics (sinking velocity statistics, maximum horizontal displacement, 3-D trajectory tortuosity, translational diffusion coefficient via MSD fit `6D·τ + V²·τ²`), and exports a **Summary** sheet to Excel (`.xlsx`). On Windows, optional COM formatting (bold headers, borders, row shading) and optional user prompt before opening the file. English UI dialogs; progress via `waitbar` and console output.
+- **`post_processing/postprocess_cases.m`**: Batch post-processing of **multiple** simulation result folders under a chosen parent directory (non-recursive: only first-level subfolders containing `timeseries.csv`). Reads each case's `timeseries.csv` and `config.json`, computes summary metrics (sinking velocity statistics, maximum horizontal displacement, 3-D trajectory tortuosity, translational diffusion coefficient via MSD fit `6D·τ + V²·τ²`), and exports a **Summary** sheet to Excel (`.xlsx`). On Windows, optional COM formatting (bold headers, borders, row shading) and optional user prompt before opening the file. English UI dialogs; progress via `waitbar` and console output.
 
 ### Changed
 
@@ -234,7 +236,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- **All `batch_sweep_*.m` drivers** (excluding `batch_run_from_json.m`): `case_name` tokens joined with **`-`**; **`enable_brown = false`**; **`T_obs = 200`**; **`generate_animation = true`**, **`animation_skip = 5`**; default pili Young’s modulus **`E = 3.279e8` Pa**.
+- **All `batch_sweep_*.m` drivers** (excluding `batch_run_from_json.m`): `case_name` tokens joined with **`-`**; **`enable_brown = false`**; **`T_obs = 200`**; **`generate_animation = true`**, **`animation_skip = 5`**; default pili Young's modulus **`E = 3.279e8` Pa**.
 - **`batch_sweep_pili_length.m`**: user-defined **`site_list`** for arbitrary per-pilus attachment sites (equal length per run).
 - **`batch_sweep_pili_E.m`**: E sweep **`1e5`–`1e9` Pa**, tenfold per step (`10.^(5:9)`).
 - **`validate_simulation_params.m`**: allow **`major_axis == minor_axis`** (sphere); error only when **`major_axis < minor_axis`**.

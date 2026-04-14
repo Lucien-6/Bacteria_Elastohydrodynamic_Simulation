@@ -33,6 +33,7 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %                         seed stored in config.json, results, and brownian_rng_seed.txt.
 %           2026-04-14 — Animation (v5.3.1): MPEG-4-safe figure size (proportional fit in
 %                         3840×2160), fixed-pixel getframe rect; log banner Version 5.3.1.
+%                         Hi-DPI: normalize_anim_frame_cdata → exact [h×w] for VideoWriter.
 
 %% ---- Input parsing ----
 if ischar(cfg_or_path) || isstring(cfg_or_path)
@@ -1289,15 +1290,8 @@ if generate_animation
         anim_fig_w = anim_fig_w_new;
         anim_fig_h = anim_fig_h_new;
     end
-    logf('[ANIM] Figure size: %d x %d px  (1x3 layout: 3D + XZ + YZ)\n', ...
+    logf('[ANIM] Figure size (logical): %d x %d px  (1x3 layout: 3D + XZ + YZ)\n', ...
         anim_fig_w, anim_fig_h);
-
-    % Setup video writer
-    mp4_file = fullfile(output_dir, 'bacteria_3d_motion.mp4');
-    vid = VideoWriter(mp4_file, 'MPEG-4');
-    vid.FrameRate = animation_fps;
-    vid.Quality   = 100;
-    open(vid);
 
     % Create (invisible) animation figure — 3-panel layout
     fig_anim = figure('Units', 'pixels', 'Position', [50, 50, anim_fig_w, anim_fig_h], ...
@@ -1346,6 +1340,42 @@ if generate_animation
 
     drawnow;
     add_gravity_indicator_outside(fig_anim, ax_3d, 13, 2.5);
+
+    % --- Probe actual physical pixel size and enforce codec limits --------
+    % On HiDPI / display scaling (e.g. 125%), getframe returns physical pixels
+    % larger than the logical Position (e.g. 2250×1366 vs 1800×1200).  The codec
+    % limit must be checked against the PHYSICAL size, not the logical one.
+    probe_frame = getframe(fig_anim);
+    [phys_h, phys_w, ~] = size(probe_frame.cdata);
+    logf('[ANIM] Probe frame: %d x %d physical px (logical %d x %d)\n', ...
+        phys_w, phys_h, anim_fig_w, anim_fig_h);
+
+    if phys_w > anim_max_w || phys_h > anim_max_h
+        shrink = min(anim_max_w / phys_w, anim_max_h / phys_h);
+        new_log_w = 2 * floor(anim_fig_w * shrink / 2);
+        new_log_h = 2 * floor(anim_fig_h * shrink / 2);
+        new_log_w = max(new_log_w, 400);
+        new_log_h = max(new_log_h, 300);
+        logf('[ANIM] Physical size exceeds codec limit [%d x %d] — shrinking figure to %d x %d logical.\n', ...
+            anim_max_w, anim_max_h, new_log_w, new_log_h);
+        set(fig_anim, 'Position', [50, 50, new_log_w, new_log_h]);
+        anim_fig_w = new_log_w;
+        anim_fig_h = new_log_h;
+        drawnow;
+        probe_frame = getframe(fig_anim);
+        [phys_h, phys_w, ~] = size(probe_frame.cdata);
+        logf('[ANIM] Re-probe: %d x %d physical px\n', phys_w, phys_h);
+    end
+
+    vid_h = phys_h;
+    vid_w = phys_w;
+
+    % Now open VideoWriter — frame size is known
+    mp4_file = fullfile(output_dir, 'bacteria_3d_motion.mp4');
+    vid = VideoWriter(mp4_file, 'MPEG-4');
+    vid.FrameRate = animation_fps;
+    vid.Quality   = 100;
+    open(vid);
 
     ax_all = [ax_3d, ax_xz, ax_yz];
 
@@ -1449,9 +1479,12 @@ if generate_animation
 
         drawnow;
 
-        % Capture frame — use explicit pixel rect so every frame matches (HiDPI-safe)
-        fp = get(fig_anim, 'Position');
-        frame = getframe(fig_anim, [1, 1, fp(3), fp(4)]);
+        % Capture frame (no rect — let MATLAB return natural physical pixels)
+        frame = getframe(fig_anim);
+        [fh, fw, ~] = size(frame.cdata);
+        if fh ~= vid_h || fw ~= vid_w
+            frame.cdata = normalize_anim_frame_cdata(frame.cdata, vid_h, vid_w);
+        end
         writeVideo(vid, frame);
 
         % In-place progress bar (console only)
@@ -1552,6 +1585,38 @@ function dual_log(fid, varargin)
     msg = sprintf(varargin{:});
     fprintf('%s', msg);           % Console
     fprintf(fid, '%s', msg);      % File
+end
+
+function cdata = normalize_anim_frame_cdata(cdata, nh, nw)
+%NORMALIZE_ANIM_FRAME_CDATA  Resize RGB(A) frame to exact [nh x nw] for VideoWriter.
+%  On Windows Hi-DPI, getframe often returns physical pixels larger than figure Position;
+%  without this, writeVideo fails ("frames must be WxH").
+    if isempty(cdata)
+        error('run_simulation:EmptyAnimFrame', 'getframe returned empty cdata');
+    end
+    [h0, w0, ~] = size(cdata);
+    if h0 == nh && w0 == nw
+        return;
+    end
+    if exist('imresize', 'file') == 2
+        cdata = imresize(cdata, [nh, nw]);
+        return;
+    end
+    nc = size(cdata, 3);
+    x = single(1:w0);
+    y = single(1:h0);
+    [Xi, Yi] = meshgrid(linspace(1, w0, nw), linspace(1, h0, nh));
+    out = zeros(nh, nw, nc, 'uint8');
+    for k = 1:nc
+        Zi = interp2(x, y, single(cdata(:, :, k)), Xi, Yi, 'linear', 0);
+        out(:, :, k) = im2uint8_mat(Zi);
+    end
+    cdata = out;
+end
+
+function u8 = im2uint8_mat(Z)
+    Z = max(0, min(255, round(Z)));
+    u8 = uint8(Z);
 end
 
 function str = format_duration(seconds)
