@@ -8,6 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.3.1] — 2026-04-14
+
+### Fixed
+
+- **`run_simulation.m` — MP4 animation (`bacteria_3d_motion.mp4`)**: When Brownian motion produces a very wide horizontal bounding box, the computed figure width could exceed **Windows MPEG-4 / H.264** encoder limits or cause **`getframe`** to return inconsistent frame sizes, leading to `VideoWriter` errors (invalid `Quality` / `FrameRate` / frame dimensions). The animation stage now **scales width and height proportionally** to fit within a **3840×2160** codec-safe box (preserving the intended aspect ratio), uses **`figure(...,'Units','pixels')`**, and captures frames with **`getframe(fig, [1,1,w,h])`** from the figure `Position`.
+
+### Documentation
+
+- **`README.md`**, **`USER_GUIDE.md`**, **`requirements.txt`**, **`docs/index.html`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**: Version **5.3.1**, date **2026-04-14**.
+
+---
+
 ## [5.3.0] — 2026-04-13
 
 ### Added

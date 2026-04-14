@@ -1,8 +1,8 @@
 # User Guide — Coupled Body-Pili Simulation
 
 > **Author:** Lucien (lucien-6@qq.com)  
-> **Version:** 5.3.0  
-> **Updated:** 2026-04-13  
+> **Version:** 5.3.1  
+> **Updated:** 2026-04-14  
 
 This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
 
@@ -45,6 +45,8 @@ Use `batch sweep/` scripts or `batch_run_from_json.m` for unattended sweeps. The
 **v5.2.0:** **Brownian RNG** — default twister seed is **local wall-clock `MMddHHmmss`** as an integer (`brown_rng_seed_from_clock.m`); set **`cfg.brown_rng_seed`** or JSON **`brownian.rng_seed`** to fix a seed. When Brownian is on, the realised seed is saved in **`config.json`**, **`brownian_rng_seed.txt`**, **`simulation.log`**, and **`results.brown_rng_seed`** / **`params.brown_rng_seed`** in `simulation_results.mat`.
 
 **v5.3.0:** **Body RSM default** — if **`body.eps_body`** is omitted, the simulator uses **`eps_body = h_mean / 2.6667`** (see `README.md` §8.5). **`batch_sweep_N_body_eps_RSM.m`** performs a nested **`N_body` × `k`** sweep (`eps_body = k·h_mean`) vs Stokes settling and writes CSV/MAT summaries under `batch sweep/`.
+
+**v5.3.1:** **MP4 animation** — figure pixel size is **scaled to fit** within **3840×2160** (same aspect ratio as the ideal layout) so **`VideoWriter`** does not fail on large Brownian trajectories; **`getframe`** uses a **fixed pixel rectangle** from the figure position for consistent frame sizes.
 
 ---
 

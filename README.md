@@ -2,8 +2,8 @@
 
 > **作者**: Lucien (lucien-6@qq.com)  
 > **创建日期**: 2026-02-06  
-> **更新日期**: 2026-04-13  
-> **版本**: 5.3.0  
+> **更新日期**: 2026-04-14  
+> **版本**: 5.3.1  
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
@@ -69,7 +69,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 - **输出**：双通道日志、`.mat` 数据、PNG 图像、3D MP4 动画、JSON 配置快照；静态总览与流场 PNG 导出后自动 `close` 图窗，避免大批量仿真堆积窗口（v5.1.1）
 - **可视化**：参数化光滑胞体表面（半透明，Gouraud 着色）+ 逐纤毛着色折线，含时间梯度
 - **流场可视化**：末状态双平面流场图（XZ + YZ，各含 3D 表面视图与 2D 着色图；速度大小 jet 着色 + 单层深灰归一化方向箭头，无白色衬底；箭头几何尺寸较 v3.3 基准放大 50%；胞体内部遮罩）
-- **动画布局**：三面板 1×3（3D + XZ 投影 + YZ 投影），动态图像尺寸
+- **动画布局**：三面板 1×3（3D + XZ 投影 + YZ 投影），动态图像尺寸；**v5.3.1** 起在 **3840×2160** 内等比缩放并固定像素抓帧，避免 Windows 上 MPEG-4 因帧过大或帧尺寸不一致而失败（布朗大水平漂移时）
 - **初始姿态**：用户可配置 `alpha_0`（胞体在 XZ 平面内的倾斜角）
 - **外部配置**：支持 JSON 配置文件，运行时自动保存配置快照至输出目录（可追溯复现）
 - **参数验证**：启动前自动执行参数合理性预检（错误聚合 + 警告分级）
@@ -692,7 +692,7 @@ $$
 | `config.json`            | JSON            | 配置参数快照（可直接作为输入复用以精确复现运行）                                     |
 | `summary_plot.png`       | PNG 600 dpi     | 静态总览：CM 轨迹、沉降速度、倾斜角、快照三视图                                      |
 | `initial_pose.png`       | PNG 600 dpi     | 初始姿态预览三视图（`preview_initial = true` 时生成）                                |
-| `bacteria_3d_motion.mp4` | MPEG-4 质量 100 | 3D 动画，三面板 1×3 布局（3D + XZ + YZ 投影），动态图像尺寸，含光滑胞体表面 + 着色纤毛 + CM 轨迹 |
+| `bacteria_3d_motion.mp4` | MPEG-4 质量 100 | 3D 动画，三面板 1×3 布局（3D + XZ + YZ 投影），动态图像尺寸（**v5.3.1**：编码器安全框内等比缩放 + 固定 `getframe` 矩形），含光滑胞体表面 + 着色纤毛 + CM 轨迹 |
 | `flowfield_panels.png`   | PNG 600 dpi     | 双平面流场 2×2 面板图：XZ + YZ，3D 表面视图 + 2D 着色图；jet 色图 + 单层深灰归一化箭头（v3.3.1 起无白边） |
 | `simulation.log`         | 纯文本          | 带时间戳的完整双通道运行日志                                                         |
 | `brownian_rng_seed.txt`（v5.2.0） | 纯文本 | 仅 **`enable_brown = true`**：twister 种子整数一行 + 复现说明（与 `config.json` 中 `brownian.rng_seed` 一致） |
@@ -1043,6 +1043,7 @@ Coupled_Body_Pili/
 | 61  | 布朗 twister 种子策略（v5.2.0）：默认 **`MMddHHmmss`** 整数（`brown_rng_seed_from_clock`）；可选 **`cfg.brown_rng_seed`** / JSON **`brownian.rng_seed`**；种子写入 `config.json`、`brownian_rng_seed.txt`、`simulation.log`、`results`/`params`；`batch_repeat_brownian` 改为 **`cfg.brown_rng_seed = rng_seed_base + k`**；日志横幅 **5.2.0** | 2026-04-10 |
 | 62  | 默认离散与 ODE 限时（v5.2.1）：**`N_body` = 200**（原 250）、**`tlim` = 360 s**（原 120 s）；`load_sim_config` / `init_coupled_params` / 主脚本与批量模板同步；日志横幅 **5.2.1** | 2026-04-10 |
 | 63  | 发布 **5.3.0**（2026-04-13）：胞体默认 RSM 正则化 `h_mean/2.6667`（`batch_sweep_N_body_eps_RSM` 标定）；新增 `batch_sweep_N_body_eps_RSM.m`；`init_coupled_params` / `build_global_resistance` / README §8.5；日志横幅 **`5.3.0`**；`README` / `USER_GUIDE` / `CHANGELOG` / `requirements.txt` / `docs/index.html` 版本与日期同步 | 2026-04-13 |
+| 64  | **5.3.1**（2026-04-14）：`bacteria_3d_motion.mp4` 生成 — 图窗像素在 **3840×2160** 内等比缩放（保留原宽高比），`getframe` 使用图窗 `Position` 固定矩形，避免 Windows MPEG-4 编码器报帧尺寸超限或帧间尺寸不一致；日志横幅 **`5.3.1`**；文档与 `requirements.txt` 同步 | 2026-04-14 |
 
 ---
 
@@ -1095,7 +1096,7 @@ $$
 | ---- | ---- |
 | `CHANGELOG.md` | 版本变更记录（Keep a Changelog 风格） |
 | `USER_GUIDE.md` | 简明用户指南：快速上手、主要输出、`flowfield_panels.png` 与流场参数说明 |
-| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.3.0**，**2026-04-13**） |
+| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.3.1**，**2026-04-14**） |
 
 长篇理论、公式与完整参数表仍以本文件为准。
 

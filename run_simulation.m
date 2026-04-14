@@ -31,7 +31,8 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %                         panel for faster benchmarks / batch runs.
 %           2026-04-10 — Brownian twister seed: default MMddHHmmss, optional cfg.brown_rng_seed;
 %                         seed stored in config.json, results, and brownian_rng_seed.txt.
-%                         Log banner Version 5.3.0.
+%           2026-04-14 — Animation (v5.3.1): MPEG-4-safe figure size (proportional fit in
+%                         3840×2160), fixed-pixel getframe rect; log banner Version 5.3.1.
 
 %% ---- Input parsing ----
 if ischar(cfg_or_path) || isstring(cfg_or_path)
@@ -199,7 +200,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 5.3.0\n');
+logf('  Version 5.3.1\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -1266,11 +1267,28 @@ if generate_animation
                   * abs(sind(el_v)) + diff(ax_lim_z) * abs(cosd(el_v));
     axes_fill_w = 0.70;   % approx fraction of figure width used by axes
     axes_fill_h = 0.78;   % approx fraction of figure height used by axes
-    anim_fig_h   = 1440;
-    fig_w_target = round(anim_fig_h * (proj_w_data / proj_h_data) ...
-                         * (axes_fill_h / axes_fill_w));
-    anim_fig_h   = 1200;
-    anim_fig_w   = 2 * ceil(max(round(fig_w_target * 2), 1800) / 2);   % 1x3, even for H.264
+    % Ideal figure size from data projection (single-panel reference)
+    anim_fig_h_ref = 1440;
+    fig_w_single   = round(anim_fig_h_ref * (proj_w_data / proj_h_data) ...
+                           * (axes_fill_h / axes_fill_w));
+    % 1×3 panel layout: triple the single-panel width; enforce minimum and H.264 even
+    anim_fig_w = 2 * ceil(max(round(fig_w_single * 2), 1800) / 2);
+    anim_fig_h = 1200;
+
+    % --- Fit within codec-safe bounding box while preserving aspect ratio ----
+    anim_max_w = 3840;   % safe upper bound for H.264 width  (even)
+    anim_max_h = 2160;   % safe upper bound for H.264 height (even)
+    ideal_ar   = anim_fig_w / anim_fig_h;   % target aspect ratio
+    if anim_fig_w > anim_max_w || anim_fig_h > anim_max_h
+        scale = min(anim_max_w / anim_fig_w, anim_max_h / anim_fig_h);
+        anim_fig_w_new = 2 * ceil(max(round(anim_fig_w * scale), 1800) / 2);
+        anim_fig_h_new = 2 * round(anim_fig_w_new / ideal_ar / 2);
+        anim_fig_h_new = max(anim_fig_h_new, 480);
+        logf('[ANIM] Ideal size %d x %d exceeds codec limit [%d x %d] — rescaled to %d x %d.\n', ...
+            anim_fig_w, anim_fig_h, anim_max_w, anim_max_h, anim_fig_w_new, anim_fig_h_new);
+        anim_fig_w = anim_fig_w_new;
+        anim_fig_h = anim_fig_h_new;
+    end
     logf('[ANIM] Figure size: %d x %d px  (1x3 layout: 3D + XZ + YZ)\n', ...
         anim_fig_w, anim_fig_h);
 
@@ -1282,8 +1300,8 @@ if generate_animation
     open(vid);
 
     % Create (invisible) animation figure — 3-panel layout
-    fig_anim = figure('Position', [50, 50, anim_fig_w, anim_fig_h], 'Color', 'w', ...
-                      'Visible', 'off');
+    fig_anim = figure('Units', 'pixels', 'Position', [50, 50, anim_fig_w, anim_fig_h], ...
+                      'Color', 'w', 'Visible', 'off');
     set(fig_anim, 'DefaultAxesFontName',  'Arial', ...
                   'DefaultAxesFontSize',  11, ...
                   'DefaultAxesLineWidth', 0.8);
@@ -1431,8 +1449,9 @@ if generate_animation
 
         drawnow;
 
-        % Capture frame
-        frame = getframe(fig_anim);
+        % Capture frame — use explicit pixel rect so every frame matches (HiDPI-safe)
+        fp = get(fig_anim, 'Position');
+        frame = getframe(fig_anim, [1, 1, fp(3), fp(4)]);
         writeVideo(vid, frame);
 
         % In-place progress bar (console only)

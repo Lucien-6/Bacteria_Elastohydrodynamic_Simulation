@@ -49,7 +49,7 @@ end
 
 % --- Root folder name under output/ (required).  Repeats go to:
 %     output/<case_name_base>/001, 002, ...
-case_name_base = 'Sphere-Brown';
+case_name_base = 'NoPili-Brown';
 
 % --- Number of independent repeats (>= 1)
 n_repeats = 50;
@@ -76,7 +76,7 @@ config_json = '';   % e.g. fullfile('configs', 'OnePili-P1-L3.json')  (after cd 
 cfg_base = struct();
 cfg_base.case_name  = '';   % Overwritten per repeat; ignored here
 cfg_base.minor_axis = 0.4e-6;
-cfg_base.major_axis = 0.4e-6;
+cfg_base.major_axis = 1.25e-6;
 cfg_base.N_body     = 200;
 cfg_base.alpha_0    = pi / 2;
 

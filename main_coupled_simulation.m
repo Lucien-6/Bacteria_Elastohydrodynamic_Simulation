@@ -22,7 +22,7 @@
 %  Created: 2026-02-06
 %  Updated: 2026-04-08 — Default N_body 250, seg_per_um 10 (inline cfg)
 %  Updated: 2026-04-10 — Default N_body 200, tlim 360
-%  Updated: 2026-04-13 — Release 5.3.0 (see README / CHANGELOG)
+%  Updated: 2026-04-14 — Release 5.3.1 (see README / CHANGELOG)
 
 close all force;
 clear; clc;
