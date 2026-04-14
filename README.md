@@ -3,7 +3,7 @@
 > **作者**: Lucien (lucien-6@qq.com)  
 > **创建日期**: 2026-02-06  
 > **更新日期**: 2026-04-14  
-> **版本**: 5.3.1  
+> **版本**: 5.3.2  
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
@@ -70,6 +70,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 - **可视化**：参数化光滑胞体表面（半透明，Gouraud 着色）+ 逐纤毛着色折线，含时间梯度
 - **流场可视化**：末状态双平面流场图（XZ + YZ，各含 3D 表面视图与 2D 着色图；速度大小 jet 着色 + 单层深灰归一化方向箭头，无白色衬底；箭头几何尺寸较 v3.3 基准放大 50%；胞体内部遮罩）
 - **动画布局**：三面板 1×3（3D + XZ 投影 + YZ 投影），动态图像尺寸；**v5.3.1** 起在 **3840×2160** 内等比缩放并固定像素抓帧，避免 Windows 上 MPEG-4 因帧过大或帧尺寸不一致而失败（布朗大水平漂移时）
+- **节点 Director 插值（v5.3.2）**：`compute_node_directors.m` 统一段标架→节点标架的 SVD 极分解投影，含 `det<0` 反射修正，`ode_coupled_rhs.m` 与 `build_coupled_lin_sys.m` 共用
 - **初始姿态**：用户可配置 `alpha_0`（胞体在 XZ 平面内的倾斜角）
 - **外部配置**：支持 JSON 配置文件，运行时自动保存配置快照至输出目录（可追溯复现）
 - **参数验证**：启动前自动执行参数合理性预检（错误聚合 + 警告分级）
@@ -236,7 +237,10 @@ graph TD
     D --> N[compute_pili_elastic_moments.m]
     D --> CBF[coupled_background_flow.m]
     D --> CAM[coupled_active_moment.m]
+    D --> CND[compute_node_directors.m]
     D --> P[pack_state_rates.m]
+
+    W2 --> CND
 
     V --> L
     V --> D
@@ -268,6 +272,7 @@ graph TD
 | 几何工具   | `reconstruct_geometry.m`, `pili_*.m`, `quat_*.m`                                                     | 状态 ↔ 空间坐标转换                          |
 | 流体力学   | `build_global_resistance.m`                                                                          | RSS 迁移率 + Rotlet 线段迁移率 + 扭转 RFT    |
 | 弹性力学   | `compute_pili_elastic_moments.m`                                                                     | Kirchhoff 弹性杆曲率                          |
+| 节点标架   | `compute_node_directors.m`                                                                           | 段 Director → 节点 Director 插值（SVD 极分解） |
 | 主动力学   | `coupled_active_moment.m`, `coupled_background_flow.m`                                               | Per-pili 时变主动力矩 + 全局背景流场          |
 | 布朗参数   | `compute_effective_body_brownian.m`, `build_coupled_lin_sys.m`                                        | 全系统有效摩擦张量 → Cholesky 扩散因子（每步动态） |
 | 布朗参考   | *(已删除 `compute_body_brownian_params.m`)*                                                          | 旧 body-only 实现已移除，功能由全系统方案取代  |
@@ -803,6 +808,7 @@ Coupled_Body_Pili/
 ├── reconstruct_geometry.m              % 状态向量 → 实验室坐标系坐标
 ├── build_global_resistance.m           % RSS 迁移率 + Rotlet 线段 + 扭转 RFT
 ├── compute_pili_elastic_moments.m      % Kirchhoff 弹性杆弹性曲率偏差
+├── compute_node_directors.m            % 节点 Director 插值（段均值 + SVD 极分解投影，共享工具函数）
 │
 ├── enforce_clamped_geometry.m          % 固支几何投影（约束漂移修正）
 ├── adaptive_basis_check.m              % 逐纤毛自适应 Euler 角基底旋转
@@ -862,7 +868,7 @@ Coupled_Body_Pili/
 └── Cortez - 2018 - Regularized stokeslet segments.pdf
 ```
 
-总计：**46 个 MATLAB 源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（34 个核心模块 + 1 个 `post_processing/` 脚本 + 10 个 `batch sweep/` 与批量脚本，无冗余代码，无未使用函数）。
+总计：**47 个 MATLAB 源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（35 个核心模块 + 1 个 `post_processing/` 脚本 + 10 个 `batch sweep/` 与批量脚本，无冗余代码，无未使用函数）。
 
 ---
 
@@ -975,6 +981,7 @@ Coupled_Body_Pili/
 | 32  | `render_progress_bar.m` 进度条无法原地更新 (v3.1→v3.2) | 2026-03-17 | `prev_len_container` 数值数组按值传递，函数内修改不回传至调用方，`\b` 退格数始终为 0，进度信息逐行堆叠而非原地刷新；改用 `persistent prev_msg_len` 管理状态（与 `odetpbar.m` 同模式），`current==1` 时重置 |
 | 33  | 胞体默认 `eps_body` 由 `h_mean/3` 调整为 `h_mean/2.6667` | 2026-04-13 | 经 `batch_sweep_N_body_eps_RSM` 多 $N_{\text{body}}$ 扫描，以 Stokes 球沉降速度与解析解误差最小为准则，$\varepsilon/\Delta s \approx 0.375$ 优于 $1/3$ |
 | 34  | 发布 **5.3.0**（2026-04-13） | 2026-04-13 | 新增 `batch_sweep_N_body_eps_RSM.m`；`run_simulation` 日志横幅与 `README` / `USER_GUIDE` / `CHANGELOG` / `requirements.txt` / `docs/index.html` 版本与日期同步 |
+| 35  | `build_coupled_lin_sys.m` 节点 Director 插值缺少 `det<0` SVD 修正 + 单段纤毛越界 | 2026-04-14 | 内联实现的 SVD 极分解缺少 `det(R)<0` 检查，可能返回不当旋转（反射而非旋转）；`N_k=1` 时边界外推索引越界。提取为独立共享函数 `compute_node_directors.m`，含完整 `det<0` 修正与 `min(2,N_k)` 安全防护，同时消除与 `ode_coupled_rhs.m` 的代码重复 |
 
 ### 22.3 功能历史
 
@@ -1044,6 +1051,7 @@ Coupled_Body_Pili/
 | 62  | 默认离散与 ODE 限时（v5.2.1）：**`N_body` = 200**（原 250）、**`tlim` = 360 s**（原 120 s）；`load_sim_config` / `init_coupled_params` / 主脚本与批量模板同步；日志横幅 **5.2.1** | 2026-04-10 |
 | 63  | 发布 **5.3.0**（2026-04-13）：胞体默认 RSM 正则化 `h_mean/2.6667`（`batch_sweep_N_body_eps_RSM` 标定）；新增 `batch_sweep_N_body_eps_RSM.m`；`init_coupled_params` / `build_global_resistance` / README §8.5；日志横幅 **`5.3.0`**；`README` / `USER_GUIDE` / `CHANGELOG` / `requirements.txt` / `docs/index.html` 版本与日期同步 | 2026-04-13 |
 | 64  | **5.3.1**（2026-04-14）：`bacteria_3d_motion.mp4` 生成 — 图窗像素在 **3840×2160** 内等比缩放（保留原宽高比），`getframe` 使用图窗 `Position` 固定矩形，避免 Windows MPEG-4 编码器报帧尺寸超限或帧间尺寸不一致；日志横幅 **`5.3.1`**；文档与 `requirements.txt` 同步 | 2026-04-14 |
+| 65  | **5.3.2**（2026-04-14）：新增共享工具函数 `compute_node_directors.m`（段 Director → 节点 Director 插值 + SVD 极分解投影 + `det<0` 修正）；修复 `build_coupled_lin_sys.m` 节点 Director 缺 `det<0` 检查与 `N_k=1` 越界；`ode_coupled_rhs.m` 向量化弹性/主动力矩写入 `R_global`；`validate_simulation_params.m` 增 `wavenumber`/`d3_amp` 警告；`coupled_active_moment.m` 补充 `d3_amp` 物理含义文档 | 2026-04-14 |
 
 ---
 
@@ -1096,7 +1104,7 @@ $$
 | ---- | ---- |
 | `CHANGELOG.md` | 版本变更记录（Keep a Changelog 风格） |
 | `USER_GUIDE.md` | 简明用户指南：快速上手、主要输出、`flowfield_panels.png` 与流场参数说明 |
-| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.3.1**，**2026-04-14**） |
+| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.3.2**，**2026-04-14**） |
 
 长篇理论、公式与完整参数表仍以本文件为准。
 

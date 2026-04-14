@@ -34,6 +34,8 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %           2026-04-14 — Animation (v5.3.1): MPEG-4-safe figure size (proportional fit in
 %                         3840×2160), fixed-pixel getframe rect; log banner Version 5.3.1.
 %                         Hi-DPI: normalize_anim_frame_cdata → exact [h×w] for VideoWriter.
+%           2026-04-14 — v5.3.2: compute_node_directors shared utility (SVD det<0 fix);
+%                         ode_coupled_rhs vectorised R_global writes; validation warnings.
 
 %% ---- Input parsing ----
 if ischar(cfg_or_path) || isstring(cfg_or_path)
@@ -201,7 +203,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 5.3.1\n');
+logf('  Version 5.3.2\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);

@@ -1,7 +1,7 @@
 # User Guide — Coupled Body-Pili Simulation
 
 > **Author:** Lucien (lucien-6@qq.com)  
-> **Version:** 5.3.1  
+> **Version:** 5.3.2  
 > **Updated:** 2026-04-14  
 
 This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
@@ -95,6 +95,7 @@ The script computes per-case summaries (e.g. sinking velocity statistics, maximu
 - **v5.1.0:** **`post_processing/postprocess_cases.m`** — batch post-processing of multiple Case folders → Excel summary (metrics from `timeseries.csv` + metadata from `config.json`). English UI.
 - **v5.1.1:** Summary and flow-field figures are **`close`d** after PNG export (`run_simulation.m`, `compute_plot_flowfield.m`) to keep batch runs from opening many windows.
 - **v5.2.0:** **Brownian twister seed** — default **`MMddHHmmss`** integer; optional **`cfg.brown_rng_seed`** / JSON **`brownian.rng_seed`**; seed persisted in `config.json`, `brownian_rng_seed.txt`, log, and `simulation_results.mat`; `batch_repeat_brownian` uses **`cfg.brown_rng_seed = rng_seed_base + k`**.
+- **v5.3.2:** **Node director interpolation** — new shared utility `compute_node_directors.m` (segment directors → node directors via SVD polar decomposition with `det < 0` reflection fix). Fixes a correctness bug in `build_coupled_lin_sys.m` (missing `det < 0` check, single-segment index out-of-bounds). `ode_coupled_rhs.m` elastic/active moment writes vectorised for better performance. `validate_simulation_params.m` adds warnings for negative `wavenumber` and non-zero `d3_amp` in traveling-wave active moments.
 
 Tunable via `cfg`: `flowfield_grid_spacing`, `flowfield_grid_range`, `flowfield_quiver_skip`, `flowfield_chunk_size`.
 

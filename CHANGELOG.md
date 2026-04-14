@@ -8,6 +8,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.3.2] — 2026-04-14
+
+### Added
+
+- **`compute_node_directors.m`** (NEW): Standalone utility that interpolates per-segment director frames to per-node directors. Internal nodes use neighbour averaging; boundary nodes use linear extrapolation with `min(2, N_k)` safety for single-segment pili. All averaged frames are projected onto the nearest proper rotation via **SVD polar decomposition** with an explicit `det < 0` correction to prevent reflections. Shared by `ode_coupled_rhs.m` (active moment evaluation) and `build_coupled_lin_sys.m` (geometry reconstruction).
+
+### Fixed
+
+- **`build_coupled_lin_sys.m` — node director interpolation**: The inline implementation lacked the `det(R) < 0` SVD fix, so polar decomposition could silently return an improper rotation (reflection) instead of the nearest proper rotation. Also had a potential index-out-of-bounds for single-segment pili (`N_k = 1`) in the boundary extrapolation. Both issues fixed by replacing inline code with a call to the new shared `compute_node_directors.m`.
+
+### Changed
+
+- **`ode_coupled_rhs.m`**: (1) Elastic-moment assignment to `R_global` and active-moment subtraction **vectorised** (replaced per-element `for` loops with `reshape` + array indexing). (2) Local `compute_node_directors` helper removed; calls shared `compute_node_directors.m` instead — eliminates code duplication with `build_coupled_lin_sys.m`.
+- **`validate_simulation_params.m`**: Added warnings for `traveling_wave` active moment parameters: negative `wavenumber` (wave propagates tip → root) and non-zero `d3_amp` (drives torsion rather than bending, unusual for standard pili).
+
+### Documentation
+
+- **`coupled_active_moment.m`**: Clarified `d3_amp` physical meaning — non-zero value drives twist (torsional component), not bending; typically zero for standard flagellar/pili beating.
+- **`README.md`**, **`USER_GUIDE.md`**, **`requirements.txt`**, **`docs/index.html`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**: Version **5.3.2**, date **2026-04-14**.
+
+---
+
 ## [5.3.1] — 2026-04-14
 
 ### Fixed
