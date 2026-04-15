@@ -1,4 +1,4 @@
-function R = quat_to_rotmat(q)
+﻿function R = quat_to_rotmat(q)
 %QUAT_TO_ROTMAT  Convert unit quaternion to 3x3 rotation matrix
 %
 %  Description:
@@ -22,7 +22,6 @@ function R = quat_to_rotmat(q)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-11 — Standardised formatting
 
 q0 = q(1);  q1 = q(2);  q2 = q(3);  q3 = q(4);
 

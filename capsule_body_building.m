@@ -1,4 +1,4 @@
-function [Capsule_str, NBody] = capsule_body_building(NBody, minor_axis, major_axis)
+﻿function [Capsule_str, NBody] = capsule_body_building(NBody, minor_axis, major_axis)
 %CAPSULE_BODY_BUILDING  Construct capsule-shaped bacterial body surface mesh
 %
 %  Description:
@@ -34,7 +34,6 @@ function [Capsule_str, NBody] = capsule_body_building(NBody, minor_axis, major_a
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2024-10-24
-%  Updated: 2026-02-11 — Removed legacy force-point (shift) code for RSM
 
 %% Compute surface point allocation between sphere caps and cylinder
 SA  = 4 * pi * minor_axis^2;                       % Total sphere surface area

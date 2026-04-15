@@ -1,4 +1,4 @@
-%% batch_sweep_N_body.m
+﻿%% batch_sweep_N_body.m
 %  Automated Parameter Sweep: Body Surface Discretisation Count N_body
 %
 %  Description:
@@ -16,8 +16,6 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-30
-%  Updated: 2026-03-30 — sphere R=0.4 um, no pili
-%           2026-04-07 — cfg_base.fixman_midpoint (run_simulation also defaults if omitted)
 
 close all force;
 clear; clc;

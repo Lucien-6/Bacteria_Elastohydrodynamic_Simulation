@@ -1,4 +1,4 @@
-function [M_weighted, A_twist_cells, M_rotlet] = build_global_resistance(X_all, params, geom)
+﻿function [M_weighted, A_twist_cells, M_rotlet] = build_global_resistance(X_all, params, geom)
 %BUILD_GLOBAL_RESISTANCE  Global hydrodynamic mobility and torsional resistance
 %
 %  Description:
@@ -57,7 +57,6 @@ function [M_weighted, A_twist_cells, M_rotlet] = build_global_resistance(X_all, 
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-14 — Pure RSS + Rotlet (RSM removed for pili)
 
 N_total = size(X_all, 1);
 N_body  = params.N_body;

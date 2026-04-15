@@ -1,4 +1,4 @@
-%% batch_run_from_json.m
+﻿%% batch_run_from_json.m
 %  Automated Batch Runner: Execute All JSON Config Files in a Folder
 %
 %  Description:

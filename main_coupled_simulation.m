@@ -20,9 +20,6 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-04-08 — Default N_body 250, seg_per_um 10 (inline cfg)
-%  Updated: 2026-04-10 — Default N_body 200, tlim 360
-%  Updated: 2026-04-14 — Release 5.4.0 (see README / CHANGELOG)
 
 close all force;
 clear; clc;
@@ -41,7 +38,7 @@ if ~isempty(config_file) && isfile(config_file)
     cfg = load_sim_config(config_file);
 else
     %% --- Inline parameter definitions ---
-    cfg.case_name = 'OnePili-Active-Test';
+    cfg.case_name = 'TwoPili-Active-Test';
 
     % -------- Bacterial Body Geometry --------
     cfg.minor_axis = 0.4e-6;              % [m]   Semi-minor axis (body radius)
@@ -54,29 +51,32 @@ else
     %  For a bare body with NO pili, use: pili_config = struct([]);
     pili_config(1).type        = 'linear';
     pili_config(1).length_um   = 3;
-    pili_config(1).deflection_z = 0;
-    pili_config(1).deflection_x = 0;
-    pili_config(1).site        = 1;
+    pili_config(1).deflection_z = pi/2;
+    pili_config(1).deflection_x = pi/2;
+    pili_config(1).site        = 3;
+    pili_config(2).type        = 'linear';
+    pili_config(2).length_um   = 3;
+    pili_config(2).deflection_z = pi/2;
+    pili_config(2).deflection_x = pi/2;
+    pili_config(2).site        = 5;
 
     % -------- Per-pili: Intrinsic Curvature --------
     %  Options: 'frozen' (default, keep initial geometry), 'zero',
     %           struct('type','constant','kappa',[k1 k2 k3]),
     %           struct('type','helix','kappa_d2',val,'kappa_d3',val)
     pili_config(1).intrinsic_curvature = 'frozen';
+    pili_config(2).intrinsic_curvature = 'frozen';
     
     % -------- Per-pili: Active Moment --------
     %  Options: struct('type','off')  (default)
-    % pili_config(1).active_moment = struct('type','traveling_wave', ...
-    %               'amplitude_Nm', 1e-19, 'omega_Hz', 20, ...
-    %               'wavenumber', 2*pi, ... 
-    %               'd1_amp', 1, 'd2_amp', 0, 'd3_amp', 0);
-    %  Breaststroke (Chlamydomonas-like asymmetric beat):
-    pili_config(1).active_moment = struct('type','breaststroke', ...
-                  'amplitude_Nm', 5e-20, 'omega_Hz', 1, ...
-                  'wavenumber', 2*pi, ...
-                  'd1_amp', 1, 'd2_amp', 0, 'd3_amp', 0, ...
-                  'envelope_slope', 0.5, ...
-                  'C2_ratio', 0.2, 'C2_phase', pi/4, 'mean_curv', 0.5);
+    pili_config(1).active_moment = struct('type','traveling_wave', ...
+                  'amplitude_Nm', 1e-19, 'omega_Hz', 5, ...
+                  'wavenumber', 2*pi, 'phase_rad', 0, ...
+                  'd1_amp', 1, 'd2_amp', 0, 'd3_amp', 0);
+    pili_config(2).active_moment = struct('type','traveling_wave', ...
+                  'amplitude_Nm', 1e-19, 'omega_Hz', 5, ...
+                  'wavenumber', 2*pi, 'phase_rad', 0, ...
+                  'd1_amp', 1, 'd2_amp', 0, 'd3_amp', 0);
     %  Custom:     struct('type','custom', 'fun', @my_moment_func)
     % pili_config(1).active_moment = struct('type', 'off');
 

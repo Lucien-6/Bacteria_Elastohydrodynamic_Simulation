@@ -16,7 +16,6 @@ function M_active = coupled_active_moment(t, k, N_k, d1, d2, d3, d1N, d2N, d3N, 
 %    Supported modes:
 %      'off'             - Zero active moments (default)
 %      'traveling_wave'  - Sinusoidal traveling wave along the pilus
-%      'breaststroke'    - Two-harmonic asymmetric beat (Chlamydomonas-like)
 %      'custom'          - User-provided function handle
 %
 %  Syntax:
@@ -30,26 +29,18 @@ function M_active = coupled_active_moment(t, k, N_k, d1, d2, d3, d1N, d2N, d3N, 
 %    d1,d2,d3   - [N_k x 3] Segment directors (rot_k basis)
 %    d1N,d2N,d3N - [(N_k+1) x 3] Nodal directors (rot_k basis)
 %    am_cfg - Active moment configuration struct with fields:
-%               .type  - 'off' | 'traveling_wave' | 'breaststroke' | 'custom'
+%               .type  - 'off' | 'traveling_wave' | 'custom'
 %             For 'traveling_wave':
 %               .amplitude_dimless - Dimensionless amplitude (pre-converted)
 %               .omega_dimless     - Dimensionless angular frequency
 %               .wavenumber        - Spatial wavenumber (on s in [0,1])
+%               .phase_rad         - Optional phase offset [rad] in cos(kw*s - w*t + phase_rad)
+%                                    (default 0); shifts temporal phase of the wave
 %               .d1_amp  - Weight for d1 (normal) bending component
 %               .d2_amp  - Weight for d2 (binormal) bending component
 %               .d3_amp  - Weight for d3 (tangent) torsional component
 %                          Non-zero d3_amp drives twist rather than bending;
 %                          typically zero for standard flagellar/pili beating.
-%             For 'breaststroke' (all traveling_wave fields plus):
-%               .envelope_slope - Linear envelope beta in [0,1];
-%                                 E(s) = (1-beta) + beta*s.
-%                                 0 = uniform, 1 = base-to-tip linear ramp.
-%               .C2_ratio       - Second harmonic amplitude ratio (>=0).
-%               .C2_phase       - Second harmonic phase offset [rad].
-%               .mean_curv      - Static curvature offset (dimensionless).
-%               Moment density: A*a_i*E(s)*[cos(Phi)+C2*cos(2*Phi+ph2)+C0]
-%               where Phi = k*s - w*t. Exact antiderivatives for the linear
-%               envelope ensure the same precision as traveling_wave.
 %             For 'custom':
 %               .fun - Function handle: fun(t, k, N_k, d1, d2, d3, d1N, d2N, d3N)
 %
@@ -78,12 +69,17 @@ switch am_cfg.type
         a1   = am_cfg.d1_amp;
         a2   = am_cfg.d2_amp;
         a3   = am_cfg.d3_amp;
+        if isfield(am_cfg, 'phase_rad') && ~isempty(am_cfg.phase_rad)
+            phi_rad = am_cfg.phase_rad;
+        else
+            phi_rad = 0;
+        end
 
         s = (0 : 1/N_k : 1)';
 
-        % Antiderivatives of A * a_i * cos(kw*s - w*t):
-        %   integral = (A * a_i / kw) * sin(kw*s - w*t)
-        phase = @(s_val) kw * s_val - w * t;
+        % Antiderivatives of A * a_i * cos(kw*s - w*t + phi_rad):
+        %   integral = (A * a_i / kw) * sin(kw*s - w*t + phi_rad)
+        phase = @(s_val) kw * s_val - w * t + phi_rad;
 
         if abs(kw) > 1e-15
             inv_kw = 1.0 / kw;
@@ -91,58 +87,14 @@ switch am_cfg.type
             d2_anti = @(s_val) A * a2 * inv_kw * sin(phase(s_val));
             d3_anti = @(s_val) A * a3 * inv_kw * sin(phase(s_val));
         else
-            d1_anti = @(s_val) A * a1 * s_val .* cos(-w * t);
-            d2_anti = @(s_val) A * a2 * s_val .* cos(-w * t);
-            d3_anti = @(s_val) A * a3 * s_val .* cos(-w * t);
+            d1_anti = @(s_val) A * a1 * s_val .* cos(phi_rad - w * t);
+            d2_anti = @(s_val) A * a2 * s_val .* cos(phi_rad - w * t);
+            d3_anti = @(s_val) A * a3 * s_val .* cos(phi_rad - w * t);
         end
 
         seg_d1 = d1_anti(s(2:end)) - d1_anti(s(1:end-1));
         seg_d2 = d2_anti(s(2:end)) - d2_anti(s(1:end-1));
         seg_d3 = d3_anti(s(2:end)) - d3_anti(s(1:end-1));
-
-        seg_moments = seg_d1 .* d1 + seg_d2 .* d2 + seg_d3 .* d3;
-
-        integrated_moments = cumsum(seg_moments, 1, 'reverse');
-
-        M_active = [dot(d1N(1:end-1,:), integrated_moments, 2), ...
-                    dot(d2N(1:end-1,:), integrated_moments, 2), ...
-                    dot(d3N(1:end-1,:), integrated_moments, 2)]';
-
-    case 'breaststroke'
-        A    = am_cfg.amplitude_dimless;
-        w    = am_cfg.omega_dimless;
-        kw   = am_cfg.wavenumber;
-        a1   = am_cfg.d1_amp;
-        a2   = am_cfg.d2_amp;
-        a3   = am_cfg.d3_amp;
-        beta = am_cfg.envelope_slope;
-        C2   = am_cfg.C2_ratio;
-        ph2  = am_cfg.C2_phase;
-        C0   = am_cfg.mean_curv;
-
-        s = (0 : 1/N_k : 1)';
-        E_s = (1 - beta) + beta * s;
-
-        if abs(kw) > 1e-15
-            phase1 = kw * s - w * t;
-            phase2 = 2 * phase1 + ph2;
-            inv_k  = 1.0 / kw;
-
-            F_fund  = E_s .* inv_k .* sin(phase1) ...
-                    + beta * (inv_k * inv_k) .* cos(phase1);
-            F_harm2 = E_s .* (C2 * 0.5 * inv_k) .* sin(phase2) ...
-                    + beta * (C2 * 0.25 * inv_k * inv_k) .* cos(phase2);
-            F_mean  = C0 * ((1 - beta) * s + 0.5 * beta * s.^2);
-
-            F_total = F_fund + F_harm2 + F_mean;
-        else
-            temporal = cos(-w * t) + C2 * cos(-2 * w * t + ph2) + C0;
-            F_total  = ((1 - beta) * s + 0.5 * beta * s.^2) * temporal;
-        end
-
-        seg_d1 = A * a1 * diff(F_total);
-        seg_d2 = A * a2 * diff(F_total);
-        seg_d3 = A * a3 * diff(F_total);
 
         seg_moments = seg_d1 .* d1 + seg_d2 .* d2 + seg_d3 .* d3;
 

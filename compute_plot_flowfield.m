@@ -1,4 +1,4 @@
-function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_opts)
+﻿function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_opts)
 %COMPUTE_PLOT_FLOWFIELD  Compute and plot flow field panels at final state
 %
 %  Description:
@@ -38,11 +38,6 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-06
-%  Updated: 2026-03-14 — 2x2 panel layout (3D + 2D, XZ + YZ)
-%           2026-03-17 — Configurable grid/quiver/chunk via flow_opts argument;
-%                        v3.2: progress bar call updated to 4-arg persistent interface
-%           2026-03-30 — 2D quiver: single dark arrows (no white underlay); 50% larger
-%           2026-04-08 — Close figure after PNG export (batch-friendly).
 
 %% ---- Configuration ----
 if nargin < 6 || isempty(flow_opts), flow_opts = struct(); end

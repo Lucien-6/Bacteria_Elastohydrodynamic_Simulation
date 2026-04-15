@@ -1,4 +1,4 @@
-%% batch_sweep_pili_length.m
+﻿%% batch_sweep_pili_length.m
 %  Automated Parameter Sweep: Pilus Length (single or multiple pili)
 %
 %  Description:
@@ -19,8 +19,6 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-18
-%  Updated: 2026-03-30 — site_list for arbitrary per-pilus attachment sites
-%           2026-04-07 — cfg_base.fixman_midpoint
 
 close all force;
 clear; clc;

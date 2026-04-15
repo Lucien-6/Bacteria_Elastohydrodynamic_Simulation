@@ -1,4 +1,4 @@
-%% batch_repeat_brownian.m
+﻿%% batch_repeat_brownian.m
 %  Independent repeated simulations: same configuration, Brownian motion ON
 %
 %  Description:
@@ -27,7 +27,6 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-03
-%  Updated: 2026-04-10 — brown_rng_seed_mode: 'default' vs 'fixed'
 
 close all force;
 clear; clc;

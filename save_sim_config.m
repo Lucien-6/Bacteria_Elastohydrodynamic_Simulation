@@ -1,4 +1,4 @@
-function save_sim_config(cfg, json_path)
+﻿function save_sim_config(cfg, json_path)
 %SAVE_SIM_CONFIG  Save current simulation configuration to a JSON file
 %
 %  Description:
@@ -15,7 +15,6 @@ function save_sim_config(cfg, json_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Updated: 2026-04-10 — brownian.rng_seed when Brownian enabled (reproducibility)
 
 %% Build nested structure matching config_example.json layout
 j.case_name = cfg.case_name;

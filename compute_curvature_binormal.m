@@ -1,4 +1,4 @@
-function kb = compute_curvature_binormal(x)
+﻿function kb = compute_curvature_binormal(x)
 %COMPUTE_CURVATURE_BINORMAL  Discrete curvature binormal vectors for an elastic rod
 %
 %  Description:
@@ -31,7 +31,6 @@ function kb = compute_curvature_binormal(x)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-01-23
-%  Updated: 2026-02-11 — Renamed to snake_case; standardized formatting
 
 %% Input validation
 if size(x, 1) ~= 3

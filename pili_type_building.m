@@ -1,4 +1,4 @@
-function Pili_str = pili_type_building(PM, Ntail)
+﻿function Pili_str = pili_type_building(PM, Ntail)
 %PILI_TYPE_BUILDING  Generate single-pilus 3D morphology coordinates
 %
 %  Description:
@@ -34,7 +34,6 @@ function Pili_str = pili_type_building(PM, Ntail)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2024-10-10
-%  Updated: 2026-02-11 — Removed legacy force-point fields for RSM
 
 %% Extract common parameters
 Pili_Type = PM(1);   % Morphology type

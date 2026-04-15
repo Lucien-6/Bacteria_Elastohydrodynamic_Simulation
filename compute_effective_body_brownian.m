@@ -1,4 +1,4 @@
-function [L_eff, D_eff, M_eff_dim] = compute_effective_body_brownian(Z, params)
+﻿function [L_eff, D_eff, M_eff_dim] = compute_effective_body_brownian(Z, params)
 %COMPUTE_EFFECTIVE_BODY_BROWNIAN  Full-system effective 6x6 body Brownian parameters
 %
 %  Description:

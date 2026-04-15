@@ -1,4 +1,4 @@
-function cfg = load_sim_config(json_path)
+﻿function cfg = load_sim_config(json_path)
 %LOAD_SIM_CONFIG  Load simulation configuration from a JSON file
 %
 %  Description:
@@ -26,12 +26,6 @@ function cfg = load_sim_config(json_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Updated: 2026-03-17 — v3.2: Fixed dead code in get_json (islogical guard)
-%  Updated: 2026-04-03 — v5.0: background_flow, per-pili intrinsic_curvature / active_moment
-%  Updated: 2026-04-08 — Doc: header lists eps_body, pili_ext (matches implementation)
-%  Updated: 2026-04-08 — Default N_body 1000→250, seg_per_um 15→10
-%  Updated: 2026-04-10 — Default N_body 250→200, default tlim 120→360
-%  Updated: 2026-04-10 — brownian.rng_seed (optional; omit or NaN = time-based default)
 
 %% Read and decode JSON
 fid = fopen(json_path, 'r', 'n', 'UTF-8');

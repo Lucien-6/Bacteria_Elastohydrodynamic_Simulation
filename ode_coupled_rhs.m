@@ -1,4 +1,4 @@
-function dZ = ode_coupled_rhs(t, Z, params)
+﻿function dZ = ode_coupled_rhs(t, Z, params)
 %ODE_COUPLED_RHS  Core ODE right-hand side for coupled body-pili system
 %
 %  Description:
@@ -30,10 +30,6 @@ function dZ = ode_coupled_rhs(t, Z, params)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-14 -- RSS rotlet segment coupling + vectorised assembly
-%           2026-02-14 -- BUG FIX: added rot_k in Q base-velocity mapping
-%           2026-03-31 -- Refactored: Steps 1-7 extracted to build_coupled_lin_sys
-%           2026-04-03 -- Added active moment, background flow, configurable kb0
 
 %% Extract frequently used parameters
 N_segs = params.N_segments;

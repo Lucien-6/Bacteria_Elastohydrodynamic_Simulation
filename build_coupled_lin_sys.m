@@ -17,6 +17,7 @@ function [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params)
 %
 %  Syntax:
 %    [lin_sys, geom] = build_coupled_lin_sys(Z, params)
+%    [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params)
 %
 %  Inputs:
 %    Z      - [n x 1] Global state vector

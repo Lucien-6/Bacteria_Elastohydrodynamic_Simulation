@@ -1,4 +1,4 @@
-function Z = enforce_clamped_geometry(Z, params)
+﻿function Z = enforce_clamped_geometry(Z, params)
 %ENFORCE_CLAMPED_GEOMETRY  Project first-segment Euler angles to match body
 %
 %  Description:
@@ -30,7 +30,6 @@ function Z = enforce_clamped_geometry(Z, params)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-07
-%  Updated: 2026-02-11 — Standardised formatting
 
 M = params.M_pili;
 if M == 0

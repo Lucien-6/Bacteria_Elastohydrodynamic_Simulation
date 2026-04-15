@@ -1,4 +1,4 @@
-function status = odetpbar(t, y, flag)
+﻿function status = odetpbar(t, y, flag)
 %ODETPBAR  Professional ODE integration progress bar (OutputFcn for ode15s)
 %
 %  Description:
@@ -36,7 +36,6 @@ function status = odetpbar(t, y, flag)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-12 — Professional formatting with ETA; self-contained
 
 persistent tf tstart prev_len last_upd;
 

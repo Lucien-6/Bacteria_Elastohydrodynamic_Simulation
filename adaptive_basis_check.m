@@ -1,4 +1,4 @@
-function [Z_new, params_new, rotated_flags] = adaptive_basis_check(Z, params)
+﻿function [Z_new, params_new, rotated_flags] = adaptive_basis_check(Z, params)
 %ADAPTIVE_BASIS_CHECK  Check and update Euler angle bases for all pili
 %
 %  Description:
@@ -27,8 +27,6 @@ function [Z_new, params_new, rotated_flags] = adaptive_basis_check(Z, params)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-13 -- Added degenerate v_opt averaging guard;
-%                         added post-rotation safety check
 
 %% Initialise
 delta  = params.delta;

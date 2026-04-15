@@ -1,4 +1,4 @@
-function [d1, d2, d3] = pili_directors(theta, phi, psi)
+﻿function [d1, d2, d3] = pili_directors(theta, phi, psi)
 %PILI_DIRECTORS  Material frame directors from Euler angles
 %
 %  Description:
@@ -28,7 +28,6 @@ function [d1, d2, d3] = pili_directors(theta, phi, psi)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-11 — Standardised formatting
 
 THETA = theta(:);   PHI = phi(:);   PSI = psi(:);
 

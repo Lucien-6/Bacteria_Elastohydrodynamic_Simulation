@@ -1,4 +1,4 @@
-function Z0 = init_coupled_state(params)
+﻿function Z0 = init_coupled_state(params)
 %INIT_COUPLED_STATE  Initialise the global state vector Z0
 %
 %  Description:
@@ -27,9 +27,6 @@ function Z0 = init_coupled_state(params)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-13 -- Added enforce_clamped_geometry on Z0 to fix
-%                         initial psi mismatch when alpha_0 != 0;
-%                         added director consistency verification
 
 %% Body initial state
 X_cm_0 = [0; 0; 0];

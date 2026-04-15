@@ -1,4 +1,4 @@
-function [X_cm, q, pili_angles] = unpack_state(Z, N_segments)
+﻿function [X_cm, q, pili_angles] = unpack_state(Z, N_segments)
 %UNPACK_STATE  Extract body state and pili Euler angles from state vector
 %
 %  Description:
@@ -25,7 +25,6 @@ function [X_cm, q, pili_angles] = unpack_state(Z, N_segments)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-11 — Standardised formatting
 
 X_cm = Z(1:3);
 q    = Z(4:7);

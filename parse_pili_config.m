@@ -1,4 +1,4 @@
-function [Pili_Matrix, pili_ext] = parse_pili_config(pili_cfg)
+﻿function [Pili_Matrix, pili_ext] = parse_pili_config(pili_cfg)
 %PARSE_PILI_CONFIG  Convert named pili struct array to Pili_Matrix [8 x M]
 %
 %  Description:
@@ -35,7 +35,6 @@ function [Pili_Matrix, pili_ext] = parse_pili_config(pili_cfg)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Updated: 2026-04-03 — Added pili_ext second output for extended fields
 
 if isempty(pili_cfg)
     Pili_Matrix = zeros(8, 0);

@@ -1,32 +1,44 @@
 function postprocess_cases()
-% POSTPROCESS_CASES  Batch post-processing of coupled body-pili simulation results.
+%POSTPROCESS_CASES  Batch post-processing of coupled body-pili simulation results
 %
-%   Usage:
-%       postprocess_cases()
+%  Description:
+%    Interactively selects case folders, computes kinematic metrics from
+%    each simulation's timeseries.csv and config.json, and exports results
+%    to a professionally formatted Excel workbook.
 %
-%   Workflow:
-%       1. User selects a parent directory containing one or more Case subfolders.
-%       2. Valid subfolders (those containing timeseries.csv) are listed in
-%          natural (human) name order; user multi-selects which cases to process.
-%       3. For each selected case the script:
-%            (a) Loads  timeseries.csv  and  config.json
-%            (b) Computes four kinematic metrics:
-%                  - Sinking velocity statistics
-%                  - Maximum horizontal displacement
-%                  - 3-D trajectory tortuosity
-%                  - Translational diffusion coefficient  (MSD fit)
-%       4. All results are exported to a professionally formatted Excel workbook.
+%  Workflow:
+%    1. User selects a parent directory containing one or more Case subfolders.
+%    2. Valid subfolders (those containing timeseries.csv) are listed in
+%       natural (human) name order; user multi-selects which cases to process.
+%    3. For each selected case the script:
+%         (a) Loads  timeseries.csv  and  config.json
+%         (b) Computes four kinematic metrics:
+%               - Sinking velocity statistics
+%               - Maximum horizontal displacement
+%               - 3-D trajectory tortuosity
+%               - Translational diffusion coefficient  (MSD fit)
+%    4. All results are exported to a professionally formatted Excel workbook.
 %
-%   Data source per case folder  (non-recursive — subfolders are ignored):
-%       timeseries.csv  ->  t_s, X_um, Y_um, Z_um,
-%                           Vx_um_s, Vy_um_s, Vz_um_s,
-%                           Vsink_um_s, tilt_rad, tilt_deg
-%       config.json     ->  nested JSON  (same structure as config_example.json)
+%  Data source per case folder  (non-recursive — subfolders are ignored):
+%    timeseries.csv  ->  t_s, X_um, Y_um, Z_um,
+%                        Vx_um_s, Vy_um_s, Vz_um_s,
+%                        Vsink_um_s, tilt_rad, tilt_deg
+%    config.json     ->  nested JSON  (same structure as config_example.json)
 %
-%   Requirements: MATLAB R2018b+, Microsoft Excel installed (for COM formatting).
+%  Syntax:
+%    postprocess_cases()
 %
-%   Author : Lucien  <lucien-6@qq.com>
-%   Date   : 2026-04-07
+%  Inputs:
+%    (none — interactive folder/case selection via GUI dialogs)
+%
+%  Outputs:
+%    (none — results written to Excel workbook; path printed to console)
+%
+%  Requirements:
+%    MATLAB R2018b+, Microsoft Excel installed (for COM formatting).
+%
+%  Author:  Lucien (lucien-6@qq.com)
+%  Created: 2026-04-07
 
 %% ---- Banner ------------------------------------------------------------
 sep = repmat('=', 1, 64);

@@ -1,4 +1,4 @@
-function r = quat_multiply(p, q)
+﻿function r = quat_multiply(p, q)
 %QUAT_MULTIPLY  Hamilton product of two quaternions
 %
 %  Description:
@@ -23,7 +23,6 @@ function r = quat_multiply(p, q)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-11 — Standardised formatting
 
 p0 = p(1);  pv = p(2:4);
 q0 = q(1);  qv = q(2:4);

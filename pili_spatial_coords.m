@@ -1,4 +1,4 @@
-function X = pili_spatial_coords(x_root, theta, phi, rot_k, ell_k, N_k)
+﻿function X = pili_spatial_coords(x_root, theta, phi, rot_k, ell_k, N_k)
 %PILI_SPATIAL_COORDS  Pili node positions in lab frame from Euler angles
 %
 %  Description:
@@ -26,7 +26,6 @@ function X = pili_spatial_coords(x_root, theta, phi, rot_k, ell_k, N_k)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-11 — Standardised formatting
 
 ds = ell_k / N_k;
 

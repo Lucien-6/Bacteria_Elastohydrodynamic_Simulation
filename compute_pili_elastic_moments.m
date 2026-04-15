@@ -1,4 +1,4 @@
-function [kappa1, kappa2, kappa3] = compute_pili_elastic_moments( ...
+﻿function [kappa1, kappa2, kappa3] = compute_pili_elastic_moments( ...
         d1, d2, d3, N_k, sigma, kb0_k)
 %COMPUTE_PILI_ELASTIC_MOMENTS  Elastic curvature deviation for one pilus
 %
@@ -35,7 +35,6 @@ function [kappa1, kappa2, kappa3] = compute_pili_elastic_moments( ...
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-11 — Standardised formatting
 
 %% Approximate directors at nodes (Walker's crude method)
 d1NC = [d1; d1(end,:)];

@@ -8,6 +8,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.4.3] — 2026-04-15
+
+### Changed
+
+- **Header comment cleanup (all 47 `.m` files)**: Removed all `%  Updated:` history lines from file headers. Header comments now end with `Author:` / `Created:` only, keeping the source tree concise and relying on `CHANGELOG.md` for change history.
+
+### Fixed
+
+- **`build_coupled_lin_sys.m`**: Syntax comment now lists both 2-output and 3-output calling forms (`[lin_sys, geom]` and `[lin_sys, geom, hydro]`), matching the actual function signature.
+- **`brown_rng_seed_from_clock.m`**: Added standard `Description:` / `Syntax:` / `Inputs:` / `Outputs:` header sections (previously had only a brief one-liner).
+- **`post_processing/postprocess_cases.m`**: Standardised header comment to project style (`%POSTPROCESS_CASES`, two-space indent, `Syntax:` / `Inputs:` / `Outputs:` sections, `Author:` / `Created:`; was using inconsistent `% POSTPROCESS_CASES` + `Date:` format).
+
+---
+
+## [5.4.2] — 2026-04-15
+
+### Added
+
+- **`traveling_wave` active moment**: optional **`phase_rad`** [rad] (default 0) — constant phase added to \(\Phi = k_w s - \omega t\) in `coupled_active_moment.m`; set in `init_coupled_params` per pilus. JSON / `validate_simulation_params` accept a finite scalar.
+
+---
+
+## [5.4.1] — 2026-04-15
+
+### Removed
+
+- **`breaststroke` active moment mode** from `coupled_active_moment.m`, `init_coupled_params.m`, and `validate_simulation_params.m`. Per-pili active moments remain: `off`, `traveling_wave`, and `custom`. Second-pilus example in `config_example.json` now uses `traveling_wave`.
+
+### Documentation
+
+- **`README.md`**, **`USER_GUIDE.md`**, **`docs/index.html`**, **`run_simulation.m`**: Dropped references to `breaststroke`.
+
+---
+
 ## [5.4.0] — 2026-04-14
 
 ### Added

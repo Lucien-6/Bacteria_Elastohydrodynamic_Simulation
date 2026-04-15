@@ -1,4 +1,4 @@
-function dZ = pack_state_rates(V, dqdt, pili_rates, N_segments)
+﻿function dZ = pack_state_rates(V, dqdt, pili_rates, N_segments)
 %PACK_STATE_RATES  Assemble global state rate vector
 %
 %  Description:
@@ -23,7 +23,6 @@ function dZ = pack_state_rates(V, dqdt, pili_rates, N_segments)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-11 — Standardised formatting
 
 n_total = 7 + 3 * sum(N_segments);
 dZ = zeros(n_total, 1);

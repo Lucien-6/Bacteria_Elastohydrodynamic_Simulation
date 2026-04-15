@@ -22,24 +22,6 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Updated: 2026-03-17 — Overwrite branch clears existing output files before rerun;
-%                         progress bar / ODE OutputFcn calls use persistent state (4-arg API).
-%           2026-04-07 — Optional cfg.eps_body overrides RSM regularisation (dimensionless L0);
-%                         cfg.fixman_midpoint optional (default false if missing).
-%           2026-04-08 — Close summary/flow-field figures after PNG export (batch-friendly).
-%           2026-04-09 — Optional cfg.compute_flowfield (default true) skips final flow-field
-%                         panel for faster benchmarks / batch runs.
-%           2026-04-10 — Brownian twister seed: default MMddHHmmss, optional cfg.brown_rng_seed;
-%                         seed stored in config.json, results, and brownian_rng_seed.txt.
-%           2026-04-14 — Animation (v5.3.1): MPEG-4-safe figure size (proportional fit in
-%                         3840×2160), fixed-pixel getframe rect; log banner Version 5.3.1.
-%                         Hi-DPI: normalize_anim_frame_cdata → exact [h×w] for VideoWriter.
-%           2026-04-14 — v5.3.2: compute_node_directors shared utility (SVD det<0 fix);
-%                         ode_coupled_rhs vectorised R_global writes; validation warnings.
-%           2026-04-14 — v5.4.0: breaststroke active moment mode (two-harmonic asymmetric
-%                         beat with linear envelope); log banner Version 5.4.0.
-%           2026-04-15 — Empty `case_name` / collision rename: run ID uses hyphens,
-%                         e.g. `run-yyyyMMdd-HHmmss`, `MyCase-yyyyMMdd-HHmmss` (not underscores).
 
 %% ---- Input parsing ----
 if ischar(cfg_or_path) || isstring(cfg_or_path)
@@ -207,7 +189,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 5.4.0\n');
+logf('  Version 5.4.3\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);

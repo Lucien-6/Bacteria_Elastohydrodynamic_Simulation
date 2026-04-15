@@ -1,4 +1,4 @@
-function Pili = pili_building(Pili_Matrix, seg_per_um, major_axis, minor_axis, dis, E, r_pili)
+﻿function Pili = pili_building(Pili_Matrix, seg_per_um, major_axis, minor_axis, dis, E, r_pili)
 %PILI_BUILDING  Initialize pili structures for discrete elastic rod simulation
 %
 %  Description:
@@ -51,7 +51,6 @@ function Pili = pili_building(Pili_Matrix, seg_per_um, major_axis, minor_axis, d
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-01-23
-%  Updated: 2026-02-11 — Renamed to snake_case; standardized formatting
 
 %% Input validation
 if nargin < 7

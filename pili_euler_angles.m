@@ -1,4 +1,4 @@
-function [theta, phi, psi] = pili_euler_angles(d1, d2, d3)
+﻿function [theta, phi, psi] = pili_euler_angles(d1, d2, d3)
 %PILI_EULER_ANGLES  Recover Euler angles from director vectors
 %
 %  Description:
@@ -24,7 +24,6 @@ function [theta, phi, psi] = pili_euler_angles(d1, d2, d3)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-11 — Standardised formatting
 
 cos_theta = max(-1, min(1, d3(:, 3)));
 theta = acos(cos_theta);

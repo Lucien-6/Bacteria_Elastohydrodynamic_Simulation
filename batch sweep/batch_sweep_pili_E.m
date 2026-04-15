@@ -1,4 +1,4 @@
-%% batch_sweep_pili_E.m
+﻿%% batch_sweep_pili_E.m
 %  Automated Parameter Sweep: Pilus Young's Modulus
 %
 %  Description:
@@ -15,8 +15,6 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-18
-%  Updated: 2026-03-30 — E sweep 1e5:10:1e9 Pa
-%           2026-04-07 — cfg_base.fixman_midpoint
 
 close all force;
 clear; clc;

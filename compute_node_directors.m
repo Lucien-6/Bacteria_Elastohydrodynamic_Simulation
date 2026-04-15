@@ -1,4 +1,4 @@
-function [d1N, d2N, d3N] = compute_node_directors(d1, d2, d3, N_k)
+﻿function [d1N, d2N, d3N] = compute_node_directors(d1, d2, d3, N_k)
 %COMPUTE_NODE_DIRECTORS  Interpolate segment directors to node directors via SVD
 %
 %  Description:

@@ -1,4 +1,4 @@
-function geom = reconstruct_geometry(Z, params)
+﻿function geom = reconstruct_geometry(Z, params)
 %RECONSTRUCT_GEOMETRY  Rebuild all spatial positions from state vector
 %
 %  Description:
@@ -28,7 +28,6 @@ function geom = reconstruct_geometry(Z, params)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-02-11 — Standardised formatting
 
 %% Unpack state
 [X_cm, q, pili_angles] = unpack_state(Z, params.N_segments);

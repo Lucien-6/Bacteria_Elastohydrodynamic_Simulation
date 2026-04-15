@@ -1,4 +1,4 @@
-%% batch_sweep_seg_per_um.m
+﻿%% batch_sweep_seg_per_um.m
 %  Automated Parameter Sweep: Pili Segments per Micron (seg_per_um)
 %
 %  Description:
@@ -15,7 +15,6 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-30
-%  Updated: 2026-04-07 — cfg_base.fixman_midpoint (explicit; run_simulation defaults if omitted)
 
 close all force;
 clear; clc;

@@ -1,4 +1,4 @@
-%% batch_sweep_major_axis.m
+﻿%% batch_sweep_major_axis.m
 %  Automated Parameter Sweep: Bacterial Body Major Axis Length
 %
 %  Description:
@@ -16,8 +16,6 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-18
-%  Updated: 2026-03-30 — body-only (no pili)
-%           2026-04-07 — cfg_base.fixman_midpoint
 
 close all force;
 clear; clc;

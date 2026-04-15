@@ -1,4 +1,4 @@
-function u_bg = coupled_background_flow(X_all, geom, params)
+﻿function u_bg = coupled_background_flow(X_all, geom, params)
 %COUPLED_BACKGROUND_FLOW  Evaluate steady background flow at all hydro points
 %
 %  Description:

@@ -1,4 +1,4 @@
-function render_progress_bar(tag, current, total, tstart)
+﻿function render_progress_bar(tag, current, total, tstart)
 %RENDER_PROGRESS_BAR  Generic in-place text progress bar for long loops
 %
 %  Description:
@@ -25,8 +25,6 @@ function render_progress_bar(tag, current, total, tstart)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Updated: 2026-03-17 — v3.2: Fixed pass-by-value bug; replaced prev_len_container
-%                         parameter with persistent prev_msg_len (same pattern as odetpbar)
 
 persistent prev_msg_len last_upd_time;
 
