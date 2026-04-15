@@ -3,7 +3,7 @@
 > **作者**: Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期**: 2026-02-06  
 > **更新日期**: 2026-04-15  
-> **版本**: 5.4.3  
+> **版本**: 5.4.4  
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
@@ -87,7 +87,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 - **多格式输出**：双通道日志、`.mat` 数据、PNG 图像、3D MP4 动画、JSON 配置快照；静态总览与流场 PNG 导出后自动 `close` 图窗，避免大批量仿真堆积窗口（v5.1.1）
 - **三维可视化**：参数化光滑胞体表面（半透明，Gouraud 着色）+ 逐纤毛着色折线，含时间梯度
 - **流场可视化**：末状态双平面流场图（XZ + YZ，各含 3D 表面视图与 2D 着色图；速度大小 jet 着色 + 单层深灰归一化方向箭头，无白色衬底；箭头几何尺寸较 v3.3 基准放大 50%；胞体内部遮罩）
-- **动画布局**：三面板 1×3（3D + XZ 投影 + YZ 投影），动态图像尺寸；**v5.3.1** 起在 **3840×2160** 内等比缩放并固定像素抓帧，避免 Windows 上 MPEG-4 因帧过大或帧尺寸不一致而失败（布朗大水平漂移时）
+- **动画布局**：三面板 1×3（3D + XZ 投影 + YZ 投影），动态图像尺寸；**v5.3.1 / v5.4.4** 起先探测 `getframe` 的实际物理像素，再在 **3840×2160** 编码器安全框内钳制输出尺寸；若 HiDPI 缩放下抓帧仍偏大，则写入前自动缩放，避免 Windows 上 MPEG-4 因帧过大或帧尺寸不一致而失败
 
 #### 配置与工程
 
@@ -753,7 +753,7 @@ $$
 | `config.json`                   | JSON            | 配置参数快照（可直接作为输入复用以精确复现运行）                                                                                   |
 | `summary_plot.png`              | PNG 600 dpi     | 静态总览：CM 轨迹、沉降速度、倾斜角、快照三视图                                                                                  |
 | `initial_pose.png`              | PNG 600 dpi     | 初始姿态预览三视图（`preview_initial = true` 时生成）                                                                    |
-| `bacteria_3d_motion.mp4`        | MPEG-4 质量 100   | 3D 动画，三面板 1×3 布局（3D + XZ + YZ 投影），动态图像尺寸（**v5.3.1**：编码器安全框内等比缩放 + 固定 `getframe` 矩形），含光滑胞体表面 + 着色纤毛 + CM 轨迹 |
+| `bacteria_3d_motion.mp4`        | MPEG-4 质量 100   | 3D 动画，三面板 1×3 布局（3D + XZ + YZ 投影），动态图像尺寸（**v5.3.1 / v5.4.4**：先探测物理抓帧尺寸，再在编码器安全框内钳制并在必要时缩放写入），含光滑胞体表面 + 着色纤毛 + CM 轨迹 |
 | `flowfield_panels.png`          | PNG 600 dpi     | 双平面流场 2×2 面板图：XZ + YZ，3D 表面视图 + 2D 着色图；jet 色图 + 单层深灰归一化箭头（v3.3.1 起无白边）                                     |
 | `simulation.log`                | 纯文本             | 带时间戳的完整双通道运行日志                                                                                             |
 | `brownian_rng_seed.txt`（v5.2.0） | 纯文本             | 仅 **`enable_brown = true`**：twister 种子整数一行 + 复现说明（与 `config.json` 中 `brownian.rng_seed` 一致）                |
@@ -1158,6 +1158,7 @@ Coupled_Body_Pili/
 | 66  | **5.4.1**（2026-04-15）：移除主动力矩 **`breaststroke`** 模式；保留 `off` / `traveling_wave` / `custom`；`config_example.json` 第二根纤毛示例改为 `traveling_wave`；文档与日志横幅同步 **5.4.1**（v5.4.0 曾引入 `breaststroke`，见 `CHANGELOG`）                                                                                                                                                                                                                                                                                                                         | 2026-04-15 |
 | 67  | **5.4.2**（2026-04-15）：`traveling_wave` 主动力矩新增可选 **`phase_rad`** [rad]（默认 0），用于调节 $`\Phi=k_w s-\omega t+\phi`$ 的时间相位；`coupled_active_moment` / `init_coupled_params` / `validate_simulation_params` / `config_example.json` 同步                                                                                                                                                                                                                                                                                                       | 2026-04-15 |
 | 68  | **5.4.3**（2026-04-15）：全部 47 个 `.m` 文件头注释移除 `Updated:` 历史行，统一以 `Author:` / `Created:` 结尾；`build_coupled_lin_sys.m` Syntax 补写 3-输出调用形式；`brown_rng_seed_from_clock.m` 补全标准化头注释；`postprocess_cases.m` 头注释统一项目规范风格                                                                                                                                                                                                                                                                                                                   | 2026-04-15 |
+| 69  | **5.4.4**（2026-04-15）：修复 `run_simulation.m` 的 MP4 导出在 Windows HiDPI / 显示缩放下仍可能超过 MPEG-4 编码器限制的问题；动画流程现在先探测 `getframe` 实际物理像素尺寸，再把编码输出尺寸钳制到合法偶数分辨率；若抓帧仍偏大，则写入前自动缩放 `frame.cdata`。同时将 `main_coupled_simulation.m` 的内联示例调整为单纤毛高频主动摆动案例（`OnePili-Active-HighFre-Test`） | 2026-04-15 |
 
 
 ---
@@ -1212,7 +1213,7 @@ $$
 | ------------------ | --------------------------------------------------------------------- |
 | `CHANGELOG.md`     | 版本变更记录（Keep a Changelog 风格）                                           |
 | `USER_GUIDE.md`    | 简明用户指南：快速上手、主要输出、`flowfield_panels.png` 与流场参数说明                       |
-| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.4.3**，**2026-04-15**） |
+| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.4.4**，**2026-04-15**） |
 
 
 长篇理论、公式与完整参数表仍以本文件为准。

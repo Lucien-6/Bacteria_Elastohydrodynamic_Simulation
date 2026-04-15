@@ -38,7 +38,7 @@ if ~isempty(config_file) && isfile(config_file)
     cfg = load_sim_config(config_file);
 else
     %% --- Inline parameter definitions ---
-    cfg.case_name = 'TwoPili-Active-Test';
+    cfg.case_name = 'OnePili-Active-HighFre-Test';
 
     % -------- Bacterial Body Geometry --------
     cfg.minor_axis = 0.4e-6;              % [m]   Semi-minor axis (body radius)
@@ -51,32 +51,23 @@ else
     %  For a bare body with NO pili, use: pili_config = struct([]);
     pili_config(1).type        = 'linear';
     pili_config(1).length_um   = 3;
-    pili_config(1).deflection_z = pi/2;
-    pili_config(1).deflection_x = pi/2;
-    pili_config(1).site        = 3;
-    pili_config(2).type        = 'linear';
-    pili_config(2).length_um   = 3;
-    pili_config(2).deflection_z = pi/2;
-    pili_config(2).deflection_x = pi/2;
-    pili_config(2).site        = 5;
+    pili_config(1).deflection_z = 0;
+    pili_config(1).deflection_x = 0;
+    pili_config(1).site        = 1;
 
     % -------- Per-pili: Intrinsic Curvature --------
     %  Options: 'frozen' (default, keep initial geometry), 'zero',
     %           struct('type','constant','kappa',[k1 k2 k3]),
     %           struct('type','helix','kappa_d2',val,'kappa_d3',val)
     pili_config(1).intrinsic_curvature = 'frozen';
-    pili_config(2).intrinsic_curvature = 'frozen';
     
     % -------- Per-pili: Active Moment --------
     %  Options: struct('type','off')  (default)
     pili_config(1).active_moment = struct('type','traveling_wave', ...
-                  'amplitude_Nm', 1e-19, 'omega_Hz', 5, ...
+                  'amplitude_Nm', 5e-19, 'omega_Hz', 100, ...
                   'wavenumber', 2*pi, 'phase_rad', 0, ...
                   'd1_amp', 1, 'd2_amp', 0, 'd3_amp', 0);
-    pili_config(2).active_moment = struct('type','traveling_wave', ...
-                  'amplitude_Nm', 1e-19, 'omega_Hz', 5, ...
-                  'wavenumber', 2*pi, 'phase_rad', 0, ...
-                  'd1_amp', 1, 'd2_amp', 0, 'd3_amp', 0);
+
     %  Custom:     struct('type','custom', 'fun', @my_moment_func)
     % pili_config(1).active_moment = struct('type', 'off');
 

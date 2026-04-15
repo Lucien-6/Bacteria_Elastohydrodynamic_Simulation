@@ -189,7 +189,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 5.4.3\n');
+logf('  Version 5.4.4\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -1355,8 +1355,15 @@ if generate_animation
         logf('[ANIM] Re-probe: %d x %d physical px\n', phys_w, phys_h);
     end
 
-    vid_h = phys_h;
-    vid_w = phys_w;
+    % Hi-DPI scaling can keep the captured physical frame larger than the logical
+    % figure even after resizing. Clamp the encoded frame size to a codec-safe,
+    % even-valued box and resize captured frames on the fly if needed.
+    [vid_h, vid_w] = fit_anim_frame_size(phys_h, phys_w, anim_max_h, anim_max_w);
+    if vid_w ~= phys_w || vid_h ~= phys_h
+        logf(['[ANIM] Captured frame still exceeds MPEG-4 constraints; ', ...
+              'encoding will use %d x %d px and resize frames as needed.\n'], ...
+              vid_w, vid_h);
+    end
 
     % Now open VideoWriter — frame size is known
     mp4_file = fullfile(output_dir, 'bacteria_3d_motion.mp4');
@@ -1600,6 +1607,22 @@ function cdata = normalize_anim_frame_cdata(cdata, nh, nw)
         out(:, :, k) = im2uint8_mat(Zi);
     end
     cdata = out;
+end
+
+function [out_h, out_w] = fit_anim_frame_size(h0, w0, max_h, max_w)
+%FIT_ANIM_FRAME_SIZE  Return an even-sized frame within codec limits.
+    if h0 <= 0 || w0 <= 0
+        error('run_simulation:InvalidAnimFrameSize', ...
+              'Invalid animation frame size [%d x %d].', w0, h0);
+    end
+
+    scale = min([1, max_w / w0, max_h / h0]);
+    out_w = max(2, 2 * floor((w0 * scale) / 2));
+    out_h = max(2, 2 * floor((h0 * scale) / 2));
+
+    % Enforce bounds again after even rounding.
+    out_w = min(out_w, 2 * floor(max_w / 2));
+    out_h = min(out_h, 2 * floor(max_h / 2));
 end
 
 function u8 = im2uint8_mat(Z)

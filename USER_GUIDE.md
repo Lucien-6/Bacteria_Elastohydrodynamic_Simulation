@@ -1,7 +1,7 @@
 # User Guide — Coupled Body-Pili Simulation
 
 > **Author:** Lucien (lucien-6@qq.com)  
-> **Version:** 5.4.3  
+> **Version:** 5.4.4  
 > **Updated:** 2026-04-15  
 
 This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
@@ -19,7 +19,7 @@ This guide is a short entry point. **Full theory, parameters, and file map:** se
 ### Option A — Inline parameters (default)
 
 1. Open `main_coupled_simulation.m`.
-2. Edit the `cfg` block (case name, geometry, pili, time span, etc.).
+2. Edit the `cfg` block (case name, geometry, pili, time span, etc.). The current inline template is a one-pilus high-frequency active-wave example (`OnePili-Active-HighFre-Test`).
 3. Run the script.
 
 ### Option B — JSON configuration
@@ -46,7 +46,7 @@ Use `batch sweep/` scripts or `batch_run_from_json.m` for unattended sweeps. The
 
 **v5.3.0:** **Body RSM default** — if **`body.eps_body`** is omitted, the simulator uses **`eps_body = h_mean / 2.6667`** (see `README.md` §8.5). **`batch_sweep_N_body_eps_RSM.m`** performs a nested **`N_body` × `k`** sweep (`eps_body = k·h_mean`) vs Stokes settling and writes CSV/MAT summaries under `batch sweep/`.
 
-**v5.3.1:** **MP4 animation** — figure pixel size is **scaled to fit** within **3840×2160** (same aspect ratio as the ideal layout) so **`VideoWriter`** does not fail on large Brownian trajectories; **`getframe`** uses a **fixed pixel rectangle** from the figure position for consistent frame sizes.
+**v5.3.1 / v5.4.4:** **MP4 animation** — the exporter now probes the **actual physical pixel size** returned by **`getframe`**, clamps the encoded frame size to a codec-safe **3840×2160** even-valued box, and resizes frames on write if Windows HiDPI scaling still returns oversized captures. This avoids **`VideoWriter`** failures caused by frame dimensions that remain too large after logical figure resizing.
 
 ---
 
@@ -98,6 +98,8 @@ The script computes per-case summaries (e.g. sinking velocity statistics, maximu
 - **v5.3.2:** **Node director interpolation** — new shared utility `compute_node_directors.m` (segment directors → node directors via SVD polar decomposition with `det < 0` reflection fix). Fixes a correctness bug in `build_coupled_lin_sys.m` (missing `det < 0` check, single-segment index out-of-bounds). `ode_coupled_rhs.m` elastic/active moment writes vectorised for better performance. `validate_simulation_params.m` adds warnings for negative `wavenumber` and non-zero `d3_amp` in traveling-wave active moments.
 
 - **v5.4.3:** **Header comment cleanup** — all 47 `.m` files: removed `Updated:` history lines; headers now end with `Author:` / `Created:` only. `build_coupled_lin_sys.m` Syntax comment fixed (3-output form). `brown_rng_seed_from_clock.m` and `postprocess_cases.m` header comments standardised.
+
+- **v5.4.4:** **HiDPI animation export hardening** — `run_simulation.m` now clamps the encoded MP4 frame size to a legal even-valued MPEG-4 box after probing `getframe` output, then rescales oversized frames before `writeVideo` if needed. The inline example in `main_coupled_simulation.m` now defaults to a single-pilus high-frequency active case.
 
 Tunable via `cfg`: `flowfield_grid_spacing`, `flowfield_grid_range`, `flowfield_quiver_skip`, `flowfield_chunk_size`.
 

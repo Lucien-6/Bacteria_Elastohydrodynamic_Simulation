@@ -8,6 +8,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.4.4] — 2026-04-15
+
+### Changed
+
+- **`main_coupled_simulation.m`**: Inline example case updated to **`OnePili-Active-HighFre-Test`** with a single pilus at site 1 and a higher-frequency `traveling_wave` active moment, giving a simpler active-motion demonstration template.
+
+### Fixed
+
+- **`run_simulation.m` — MP4 animation export (`bacteria_3d_motion.mp4`)**: Hardened Windows HiDPI / display-scaling handling. After the figure is resized and probed, the encoded frame size is now clamped to a codec-safe, even-valued MPEG-4 box (`<= 3840 x 2160`). If `getframe` still returns oversized physical frames, `frame.cdata` is resized before `writeVideo`, preventing failures where logical figure shrinking alone did not reduce the captured physical pixel dimensions enough.
+
+### Documentation
+
+- **`README.md`**, **`USER_GUIDE.md`**, **`requirements.txt`**, **`docs/index.html`**, **`run_simulation.m`**: Version **5.4.4**, date **2026-04-15**; animation export notes updated to match the current HiDPI-safe implementation.
+
+---
+
 ## [5.4.3] — 2026-04-15
 
 ### Changed
