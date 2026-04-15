@@ -1,6 +1,6 @@
 # 细菌胞体-纤毛耦合弹性流体动力学仿真
 
-> **作者**: Lucien (lucien-6@qq.com)  
+> **作者**: Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期**: 2026-02-06  
 > **更新日期**: 2026-04-15  
 > **版本**: 5.4.3  
@@ -34,8 +34,8 @@
 22. [验证总结](#22-验证总结)
 23. [参考文献](#23-参考文献)
 24. [附录 A：关键标度推导](#附录-a关键标度推导)
-24. [配套文档与变更日志](#24-配套文档与变更日志)
-25. [许可证](#25-许可证)
+25. [配套文档与变更日志](#24-配套文档与变更日志)
+26. [许可证](#25-许可证)
 
 ---
 
@@ -45,10 +45,12 @@
 
 **流体力学方法：**
 
-| 组件                                 | 方法                           | 参考文献             |
-| ------------------------------------ | ------------------------------ | -------------------- |
-| 胞体表面（$N_{\text{body}}$ 个力点） | RSM 点力法                     | Cortez et al. (2005) |
-| 纤毛丝（每根 $N_k$ 段）              | RSS 精确线段积分 + Rotlet 线段 | Cortez (2018)        |
+
+| 组件                          | 方法                     | 参考文献                 |
+| --------------------------- | ---------------------- | -------------------- |
+| 胞体表面（$N_{\text{body}}$ 个力点） | RSM 点力法                | Cortez et al. (2005) |
+| 纤毛丝（每根 $N_k$ 段）             | RSS 精确线段积分 + Rotlet 线段 | Cortez (2018)        |
+
 
 RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则化 Stokeslet 核函数沿每段直线段进行精确积分，将正则化参数 $\varepsilon$ 与线段长度 $h$ 解耦。这使得纤毛仅需约 10 段/微米即可保持较高精度，与逐点方法相比大幅降低了计算成本。
 
@@ -66,7 +68,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 #### 流体力学
 
 - **混合 RSM-RSS 方法**：胞体 RSM 点力 + 纤毛 RSS Stokeslet 线段 + Rotlet 线段耦合（扭转—平移）
-- **胞体 RSM 默认正则化（v5.3.0）**：未指定 `eps_body` 时默认 **`eps_body = h_mean/2.6667`**（\(\varepsilon/\Delta s \approx 0.375\)），由 `batch_sweep_N_body_eps_RSM` 与 Stokes 球解析沉降对比标定；可选 `cfg.eps_body` 覆盖
+- **胞体 RSM 默认正则化（v5.3.0）**：未指定 `eps_body` 时默认 **`eps_body = h_mean/2.6667`**（$\varepsilon/\Delta s \approx 0.375$），由 `batch_sweep_N_body_eps_RSM` 与 Stokes 球解析沉降对比标定；可选 `cfg.eps_body` 覆盖
 - **节点 Director 插值（v5.3.2）**：`compute_node_directors.m` 统一段标架→节点标架的 SVD 极分解投影，含 `det<0` 反射修正，`ode_coupled_rhs.m` 与 `build_coupled_lin_sys.m` 共用
 
 #### 布朗动力学
@@ -99,7 +101,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 
 #### 批量扫描与后处理
 
-- **参数扫描套件**（`batch sweep/`）：8 个独立扫描脚本分别扫描初始倾斜角（`batch_sweep_alpha`：**无纤毛**胞体）、胞体长半轴（`batch_sweep_major_axis`：**无纤毛**）、纤毛长度（含 `site_list` 附着点）、纤毛杨氏模量、胞体 `N_body`（球体无纤毛）、纤毛 `seg_per_um`、胞体 RSM **`eps_body`**（`batch_sweep_eps_body_RSM`）、**`N_body` × `eps_body`** 嵌套标定（`batch_sweep_N_body_eps_RSM`），均采用 headless 无头模式批量调用 `run_simulation()`
+- **参数扫描套件**（`batch sweep/`）：8 个独立扫描脚本分别扫描初始倾斜角（`batch_sweep_alpha`：**无纤毛**胞体）、胞体长半轴（`batch_sweep_major_axis`：**无纤毛**）、纤毛长度（含 `site_list` 附着点）、纤毛杨氏模量、胞体 `N_body`（球体无纤毛）、纤毛 `seg_per_um`、胞体 RSM **`eps_body`**（`batch_sweep_eps_body_RSM`）、**`N_body`** × **`eps_body`** 嵌套标定（`batch_sweep_N_body_eps_RSM`），均采用 headless 无头模式批量调用 `run_simulation()`
 - **JSON 批量运行器**：`batch_run_from_json.m` 自动检索用户指定文件夹内全部 JSON 配置文件并依次执行，单工况失败自动跳过继续，运行结束输出对齐汇总表及批次日志
 - **布朗独立重复批处理**（`batch sweep/batch_repeat_brownian.m`）：同一工况、开启布朗运动时进行多次独立重复；结果保存在 `output/<case_name_base>/001/`、`002/`、…；默认关闭初始姿态预览、强制 `auto_confirm`；**`brown_rng_seed_mode`**：`default` = 每次运行不指定种子，与单次模拟相同采用 **`MMddHHmmss`** 默认；`fixed` = **`cfg.brown_rng_seed = rng_seed_base + k`** 可复现批量（v5.2.0）
 - **批量结果后处理**（`post_processing/postprocess_cases.m`）：在父目录下多选含 `timeseries.csv` 的 Case 子文件夹，汇总沉降速度、最大水平位移、轨迹曲折度、MSD 拟合扩散系数等，导出 Excel 汇总表（Windows 下可选 COM 排版）；全英文交互界面
@@ -139,13 +141,13 @@ config_file = 'configs/my_case.json';    % 指向 JSON 配置文件
 **JSON 与程序架构（`load_sim_config.m` / `save_sim_config.m`）**
 
 - **顶层节**：`case_name`，`body`，`pili`（纤毛结构体数组或原始 `[8×M]` 矩阵），`material`，`fluid`，`simulation`，`brownian`，`output`，`flowfield`，`background_flow`（v5.0）。
-- **`body`**：`minor_axis`，`major_axis`，`N_body`，`alpha_0`；可选 **`eps_body`**（无量纲 RSM 胞体正则化长度 \( \varepsilon/L_0 \)，覆盖 `init_coupled_params` 默认 `h_mean/2.6667`）。
+- **`body`**：`minor_axis`，`major_axis`，`N_body`，`alpha_0`；可选 **`eps_body`**（无量纲 RSM 胞体正则化长度 $\varepsilon/L_0$，覆盖 `init_coupled_params` 默认 `h_mean/2.6667`）。
 - **`pili[]`**：每根纤毛至少含 `type`，`length_um`，`site`；可选 `deflection_z`，`deflection_x`，`shape_params`；v5.0 可选 **`intrinsic_curvature`**（字符串或对象）、**`active_moment`**（对象；`traveling_wave` 时含 `amplitude_Nm`，`omega_Hz`，`wavenumber`，可选 `phase_rad`，`d1_amp` / `d2_amp` / `d3_amp` 等；与 `init_coupled_params` 一致）。
 - **`simulation`**：`T_obs`，`AbsTol`，`RelTol`，`delta_frac`（内部得到 `cfg.delta = π/delta_frac`），`tlim`，`dt`，`seg_per_um`。
 - **`brownian`**：`enable` → `cfg.enable_brown`，`temperature` → `cfg.Temper`，`dt_B_ratio` → `cfg.dt_B = dt * dt_B_ratio`，`fixman_midpoint`；可选 **`rng_seed`** → `cfg.brown_rng_seed`（v5.2.0：正整数固定 twister 种子；省略或非正则用运行时刻 **`MMddHHmmss`** 整数默认种子）。
 - **`flowfield`**：`grid_spacing_um` → `cfg.flowfield_grid_spacing`，`grid_range_um` → `cfg.flowfield_grid_range`，`quiver_skip`，`chunk_size`。
 - **`background_flow`**：`type`（`off` / `uniform` / `shear_z`），`U_max` [m/s]，`direction`，`shear_axis`，`shear_height_m`（`shear_z` 且非 `off` 时需大于 0，见 `validate_simulation_params`）。
-- 完整键名与默认值以 **`config_example.json`** 与 **`load_sim_config.m`** 为准；运行结束后 **`output/&lt;case_name&gt;/config.json`** 与 `save_sim_config` 写出格式一致。
+- 完整键名与默认值以 **`config_example.json`** 与 **`load_sim_config.m`** 为准；运行结束后 **`output/<case_name>/config.json`** 与 `save_sim_config` 写出格式一致。
 
 ### 2.3 方式三：编程式调用 / 批量扫描
 
@@ -176,50 +178,52 @@ output/MyCase/
 
 ### 2.4 参数参考
 
-**用户可配置参数**（`main_coupled_simulation.m` 内联 **或** JSON；下表为进入 `run_simulation(cfg)` 后的 **扁平 `cfg` 名**。JSON 嵌套键名见上一节及 `config_example.json`。**`load_sim_config` 缺省与内联主脚本缺省可以不同**——以所选用途为准。）
+**用户可配置参数**（`main_coupled_simulation.m` 内联 **或** JSON；下表为进入 `run_simulation(cfg)` 后的 **扁平 `cfg` 名**。JSON 嵌套键名见上一节及 `config_example.json`。`**load_sim_config` 缺省与内联主脚本缺省可以不同**——以所选用途为准。）
 
-| 参数 | 默认值（`load_sim_config`） | 说明 |
-| ---- | ------ | ---- |
-| `case_name` | `''`（空则输出目录可用时间戳） | 案例名称（作为输出文件夹名） |
-| `minor_axis` | `0.4e-6` | 胞体椭球短半轴（体宽半径）[m] |
-| `major_axis` | `1.25e-6` | 胞体椭球长半轴（体长半径）[m] |
-| `alpha_0` | `0` | XZ 平面内初始胞体倾斜角 [rad] |
-| `N_body` | `200` | 胞体表面力点数 |
-| `eps_body` | `[]`（空则用 `h_mean/2.6667`） | 可选：胞体 RSM 正则化长度（无量纲 \(L_0\)） |
-| `seg_per_um` | `10` | 纤毛每微米段数（RSS 精确积分） |
-| `dt` | `0.1` | 输出时间步 [s] |
-| `Pili_Matrix` | 无纤毛时为空矩阵 | 纤毛配置矩阵 [8 × M]（可用 `parse_pili_config` 从结构体生成） |
-| `E` | `1.768e7` | 杨氏模量 [Pa] |
-| `r_pili` | `3e-9` | 纤毛半径 [m] |
-| `sigma_p` | `0.2` | 泊松比 |
-| `mu` | `1e-3` | 流体动力粘度 [Pa·s] |
-| `rho_bac` | `1180.0` | 细菌密度 [kg/m³] |
-| `rho_fluid` | `998.232` | 流体密度 [kg/m³] |
-| `T_obs` | `30.0` | 总观测时间 [s] |
-| `AbsTol` / `RelTol` | `1e-4` | ODE 求解器容差 |
-| `delta` | `pi/20` | Euler 角奇异性阈值 [rad] |
-| `tlim` | `360` | ODE 段超时限制 [s] |
-| `preview_initial` | `true` | 积分前显示初始姿态预览 |
-| `generate_animation` | `true` | 生成 MP4 动画 |
-| `animation_fps` | `30` | 动画帧率 |
-| `animation_skip` | `1` | 动画帧跳步间隔 |
-| `enable_brown` | `false` | 启用胞体布朗运动 |
-| `Temper` | `293.15` | 流体绝对温度 [K]（默认 20°C） |
-| `dt_B` | `dt/2` | 布朗时间步 [s]（`enable_brown = true` 时生效） |
-| `fixman_midpoint` | `false` | Fixman 中点漂移修正（布朗，2× 代价） |
-| `brown_rng_seed` | （未设） | v5.2.0：布朗 twister 种子；正标量=用户固定；未设则运行时用 **`MMddHHmmss`** 整数；写入 `config.json` / `results` / `brownian_rng_seed.txt` |
-| `auto_confirm` | `false` | 无人值守模式（跳过所有交互对话框） |
-| `background_flow.type` | `'off'` | 背景流场类型：`'off'` / `'uniform'` / `'shear_z'` |
-| `background_flow.U_max` | `0` | 背景流最大速度 [m/s]（非 off 时需 > 0） |
-| `background_flow.direction` | `[1,0,0]` | 流向单位向量 |
-| `background_flow.shear_axis` | `[0,0,1]` | 剪切梯度方向单位向量 |
-| `background_flow.shear_height_m` | `0` | 剪切层高度 [m]（`shear_z` 模式） |
-| `pili_config(k).intrinsic_curvature` | `'frozen'` | Per-pili 内禀曲率模式 |
-| `pili_config(k).active_moment` | `struct('type','off')` | Per-pili 主动力矩配置 |
-| `flowfield_grid_spacing` | `0.05` | 流场网格间距 [μm] |
-| `flowfield_grid_range` | `10.0` | 流场网格范围 [μm] |
-| `flowfield_quiver_skip` | `5` | 流场箭头降采样倍率 |
-| `flowfield_chunk_size` | `2000` | 流场评估分块大小 |
+
+| 参数                                   | 默认值（`load_sim_config`）    | 说明                                                                                                               |
+| ------------------------------------ | ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `case_name`                          | `''`（空则输出目录可用时间戳）         | 案例名称（作为输出文件夹名）                                                                                                   |
+| `minor_axis`                         | `0.4e-6`                  | 胞体椭球短半轴（体宽半径）[m]                                                                                                 |
+| `major_axis`                         | `1.25e-6`                 | 胞体椭球长半轴（体长半径）[m]                                                                                                 |
+| `alpha_0`                            | `0`                       | XZ 平面内初始胞体倾斜角 [rad]                                                                                              |
+| `N_body`                             | `200`                     | 胞体表面力点数                                                                                                          |
+| `eps_body`                           | `[]`（空则用 `h_mean/2.6667`） | 可选：胞体 RSM 正则化长度（无量纲 L_0）                                                                                         |
+| `seg_per_um`                         | `10`                      | 纤毛每微米段数（RSS 精确积分）                                                                                                |
+| `dt`                                 | `0.1`                     | 输出时间步 [s]                                                                                                        |
+| `Pili_Matrix`                        | 无纤毛时为空矩阵                  | 纤毛配置矩阵 [8 × M]（可用 `parse_pili_config` 从结构体生成）                                                                    |
+| `E`                                  | `1.768e7`                 | 杨氏模量 [Pa]                                                                                                        |
+| `r_pili`                             | `3e-9`                    | 纤毛半径 [m]                                                                                                         |
+| `sigma_p`                            | `0.2`                     | 泊松比                                                                                                              |
+| `mu`                                 | `1e-3`                    | 流体动力粘度 [Pa·s]                                                                                                    |
+| `rho_bac`                            | `1180.0`                  | 细菌密度 [kg/m³]                                                                                                     |
+| `rho_fluid`                          | `998.232`                 | 流体密度 [kg/m³]                                                                                                     |
+| `T_obs`                              | `30.0`                    | 总观测时间 [s]                                                                                                        |
+| `AbsTol` / `RelTol`                  | `1e-4`                    | ODE 求解器容差                                                                                                        |
+| `delta`                              | `pi/20`                   | Euler 角奇异性阈值 [rad]                                                                                               |
+| `tlim`                               | `360`                     | ODE 段超时限制 [s]                                                                                                    |
+| `preview_initial`                    | `true`                    | 积分前显示初始姿态预览                                                                                                      |
+| `generate_animation`                 | `true`                    | 生成 MP4 动画                                                                                                        |
+| `animation_fps`                      | `30`                      | 动画帧率                                                                                                             |
+| `animation_skip`                     | `1`                       | 动画帧跳步间隔                                                                                                          |
+| `enable_brown`                       | `false`                   | 启用胞体布朗运动                                                                                                         |
+| `Temper`                             | `293.15`                  | 流体绝对温度 [K]（默认 20°C）                                                                                              |
+| `dt_B`                               | `dt/2`                    | 布朗时间步 [s]（`enable_brown = true` 时生效）                                                                             |
+| `fixman_midpoint`                    | `false`                   | Fixman 中点漂移修正（布朗，2× 代价）                                                                                          |
+| `brown_rng_seed`                     | （未设）                      | v5.2.0：布朗 twister 种子；正标量=用户固定；未设则运行时用 **`MMddHHmmss`** 整数；写入 `config.json` / `results` / `brownian_rng_seed.txt` |
+| `auto_confirm`                       | `false`                   | 无人值守模式（跳过所有交互对话框）                                                                                                |
+| `background_flow.type`               | `'off'`                   | 背景流场类型：`'off'` / `'uniform'` / `'shear_z'`                                                                       |
+| `background_flow.U_max`              | `0`                       | 背景流最大速度 [m/s]（非 off 时需 > 0）                                                                                      |
+| `background_flow.direction`          | `[1,0,0]`                 | 流向单位向量                                                                                                           |
+| `background_flow.shear_axis`         | `[0,0,1]`                 | 剪切梯度方向单位向量                                                                                                       |
+| `background_flow.shear_height_m`     | `0`                       | 剪切层高度 [m]（`shear_z` 模式）                                                                                          |
+| `pili_config(k).intrinsic_curvature` | `'frozen'`                | Per-pili 内禀曲率模式                                                                                                  |
+| `pili_config(k).active_moment`       | `struct('type','off')`    | Per-pili 主动力矩配置                                                                                                  |
+| `flowfield_grid_spacing`             | `0.05`                    | 流场网格间距 [μm]                                                                                                      |
+| `flowfield_grid_range`               | `10.0`                    | 流场网格范围 [μm]                                                                                                      |
+| `flowfield_quiver_skip`              | `5`                       | 流场箭头降采样倍率                                                                                                        |
+| `flowfield_chunk_size`               | `2000`                    | 流场评估分块大小                                                                                                         |
+
 
 ---
 
@@ -281,30 +285,34 @@ graph TD
     BATCH["batch sweep/ 文件夹<br/>8× sweep + batch_run_from_json<br/>+ batch_repeat_brownian"] --> RUN
 ```
 
+
+
 ### 3.2 功能分层
 
-| 层级       | 文件                                                                                                 | 职责                                          |
-| ---------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| 入口脚本   | `main_coupled_simulation.m`                                                                          | cfg 结构体定义、配置来源选择、调用 `run_simulation` |
-| 仿真引擎   | `run_simulation.m`                                                                                   | 积分循环、布朗积分、后处理、输出（可编程调用）|
-| 配置管理   | `load_sim_config.m`, `save_sim_config.m`, `parse_pili_config.m`                                      | JSON 读写、纤毛结构体→矩阵转换               |
-| 参数验证   | `validate_simulation_params.m`                                                                       | 启动前参数合理性预检（错误聚合 + 警告分级）   |
-| 初始化     | `init_coupled_params.m`, `init_coupled_state.m`                                                      | 特征尺度、几何构建、布朗参数、初始状态        |
-| 核心计算   | `ode_coupled_rhs.m`                                                                                  | Q、A、B 矩阵组装，线性系统求解               |
-| 几何工具   | `reconstruct_geometry.m`, `pili_*.m`, `quat_*.m`                                                     | 状态 ↔ 空间坐标转换                          |
-| 流体力学   | `build_global_resistance.m`                                                                          | RSS 迁移率 + Rotlet 线段迁移率 + 扭转 RFT    |
-| 弹性力学   | `compute_pili_elastic_moments.m`                                                                     | Kirchhoff 弹性杆曲率                          |
-| 节点标架   | `compute_node_directors.m`                                                                           | 段 Director → 节点 Director 插值（SVD 极分解） |
-| 主动力学   | `coupled_active_moment.m`, `coupled_background_flow.m`                                               | Per-pili 时变主动力矩 + 全局背景流场          |
-| 布朗参数   | `compute_effective_body_brownian.m`, `build_coupled_lin_sys.m`                                        | 全系统有效摩擦张量 → Cholesky 扩散因子（每步动态） |
-| 布朗参考   | *(已删除 `compute_body_brownian_params.m`)*                                                          | 旧 body-only 实现已移除，功能由全系统方案取代  |
-| 边界条件   | `enforce_clamped_geometry.m`                                                                         | 固支运动学约束 + 几何投影                     |
-| 数值稳定性 | `adaptive_basis_check.m`                                                                             | Euler 角奇异性规避                            |
-| 几何生成   | `capsule_body_building.m`, `pili_building.m`, `pili_type_building.m`, `compute_curvature_binormal.m` | 胞体/纤毛离散化                               |
-| 流场可视化 | `compute_plot_flowfield.m`                                                                           | 末状态双平面流场评估与绘图（2×2 面板）        |
-| 进度显示   | `odetpbar.m`, `render_progress_bar.m`                                                                | ODE 段内进度条 + 通用文本进度条（动画/流场）  |
-| 批量扫描   | `batch sweep/batch_sweep_alpha.m`, `batch sweep/batch_sweep_major_axis.m`, `batch sweep/batch_sweep_pili_length.m`, `batch sweep/batch_sweep_pili_E.m`, `batch sweep/batch_sweep_N_body.m`, `batch sweep/batch_sweep_seg_per_um.m`, `batch sweep/batch_sweep_eps_body_RSM.m`, `batch sweep/batch_sweep_N_body_eps_RSM.m`, `batch sweep/batch_run_from_json.m`, `batch sweep/batch_repeat_brownian.m` | 8 个独立参数扫描脚本（初始角·无纤毛/长半轴·无纤毛/纤毛长度·`site_list`/杨氏模量/N_body·球无纤毛/seg_per_um/RSM·`eps_body`/嵌套 `N_body`×`eps_body`）+ JSON 批量运行器 + 布朗工况独立重复（`001`/`002`/… 子文件夹） |
-| 工具函数   | `skew_matrix.m`, `pack_state_rates.m`, `unpack_state.m`                                              | 线性代数辅助、状态打包                        |
+
+| 层级    | 文件                                                                                                                                                                                                                                                                                                                                                                                                   | 职责                                                                                                                                                         |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 入口脚本  | `main_coupled_simulation.m`                                                                                                                                                                                                                                                                                                                                                                          | cfg 结构体定义、配置来源选择、调用 `run_simulation`                                                                                                                       |
+| 仿真引擎  | `run_simulation.m`                                                                                                                                                                                                                                                                                                                                                                                   | 积分循环、布朗积分、后处理、输出（可编程调用）                                                                                                                                    |
+| 配置管理  | `load_sim_config.m`, `save_sim_config.m`, `parse_pili_config.m`                                                                                                                                                                                                                                                                                                                                      | JSON 读写、纤毛结构体→矩阵转换                                                                                                                                         |
+| 参数验证  | `validate_simulation_params.m`                                                                                                                                                                                                                                                                                                                                                                       | 启动前参数合理性预检（错误聚合 + 警告分级）                                                                                                                                    |
+| 初始化   | `init_coupled_params.m`, `init_coupled_state.m`                                                                                                                                                                                                                                                                                                                                                      | 特征尺度、几何构建、布朗参数、初始状态                                                                                                                                        |
+| 核心计算  | `ode_coupled_rhs.m`                                                                                                                                                                                                                                                                                                                                                                                  | Q、A、B 矩阵组装，线性系统求解                                                                                                                                          |
+| 几何工具  | `reconstruct_geometry.m`, `pili_*.m`, `quat_*.m`                                                                                                                                                                                                                                                                                                                                                     | 状态 ↔ 空间坐标转换                                                                                                                                                |
+| 流体力学  | `build_global_resistance.m`                                                                                                                                                                                                                                                                                                                                                                          | RSS 迁移率 + Rotlet 线段迁移率 + 扭转 RFT                                                                                                                            |
+| 弹性力学  | `compute_pili_elastic_moments.m`                                                                                                                                                                                                                                                                                                                                                                     | Kirchhoff 弹性杆曲率                                                                                                                                            |
+| 节点标架  | `compute_node_directors.m`                                                                                                                                                                                                                                                                                                                                                                           | 段 Director → 节点 Director 插值（SVD 极分解）                                                                                                                       |
+| 主动力学  | `coupled_active_moment.m`, `coupled_background_flow.m`                                                                                                                                                                                                                                                                                                                                               | Per-pili 时变主动力矩 + 全局背景流场                                                                                                                                   |
+| 布朗参数  | `compute_effective_body_brownian.m`, `build_coupled_lin_sys.m`                                                                                                                                                                                                                                                                                                                                       | 全系统有效摩擦张量 → Cholesky 扩散因子（每步动态）                                                                                                                            |
+| 布朗参考  | *(已删除 `compute_body_brownian_params.m`)*                                                                                                                                                                                                                                                                                                                                                             | 旧 body-only 实现已移除，功能由全系统方案取代                                                                                                                               |
+| 边界条件  | `enforce_clamped_geometry.m`                                                                                                                                                                                                                                                                                                                                                                         | 固支运动学约束 + 几何投影                                                                                                                                             |
+| 数值稳定性 | `adaptive_basis_check.m`                                                                                                                                                                                                                                                                                                                                                                             | Euler 角奇异性规避                                                                                                                                               |
+| 几何生成  | `capsule_body_building.m`, `pili_building.m`, `pili_type_building.m`, `compute_curvature_binormal.m`                                                                                                                                                                                                                                                                                                 | 胞体/纤毛离散化                                                                                                                                                   |
+| 流场可视化 | `compute_plot_flowfield.m`                                                                                                                                                                                                                                                                                                                                                                           | 末状态双平面流场评估与绘图（2×2 面板）                                                                                                                                      |
+| 进度显示  | `odetpbar.m`, `render_progress_bar.m`                                                                                                                                                                                                                                                                                                                                                                | ODE 段内进度条 + 通用文本进度条（动画/流场）                                                                                                                                 |
+| 批量扫描  | `batch sweep/batch_sweep_alpha.m`, `batch sweep/batch_sweep_major_axis.m`, `batch sweep/batch_sweep_pili_length.m`, `batch sweep/batch_sweep_pili_E.m`, `batch sweep/batch_sweep_N_body.m`, `batch sweep/batch_sweep_seg_per_um.m`, `batch sweep/batch_sweep_eps_body_RSM.m`, `batch sweep/batch_sweep_N_body_eps_RSM.m`, `batch sweep/batch_run_from_json.m`, `batch sweep/batch_repeat_brownian.m` | 8 个独立参数扫描脚本（初始角·无纤毛/长半轴·无纤毛/纤毛长度·`site_list`/杨氏模量/N_body·球无纤毛/seg_per_um/RSM·`eps_body`/嵌套 `N_body`×`eps_body`）+ JSON 批量运行器 + 布朗工况独立重复（`001`/`002`/… 子文件夹） |
+| 工具函数  | `skew_matrix.m`, `pack_state_rates.m`, `unpack_state.m`                                                                                                                                                                                                                                                                                                                                              | 线性代数辅助、状态打包                                                                                                                                                |
+
 
 ---
 
@@ -320,14 +328,16 @@ graph TD
 
 ### 4.2 方法来源
 
-| 组件                       | 来源                           | 方法                                                 |
-| -------------------------- | ------------------------------ | ---------------------------------------------------- |
-| 胞体形状、表面点、附着位点 | 母项目 `Stokes Brown Flexible` | `capsule_body_building`, `pili_building`             |
-| 纤毛弹性杆模型             | Walker (2020)                  | Kirchhoff 弹性杆 + Euler 角参数化                    |
-| 流体力学（平移）           | Cortez (2005, 2018)            | 胞体：RSM 点力；纤毛：RSS 精确线段积分 + Rotlet 线段 |
-| 流体力学（扭转）           | Walker (2020)                  | 阻力理论 (RFT)                                     |
-| 胞体姿态                   | 本项目                         | 四元数参数化（规避万向锁）                           |
-| 时间积分                   | Walker (2020)                  | MATLAB `ode15s` 隐式求解器                           |
+
+| 组件            | 来源                          | 方法                                       |
+| ------------- | --------------------------- | ---------------------------------------- |
+| 胞体形状、表面点、附着位点 | 母项目 `Stokes Brown Flexible` | `capsule_body_building`, `pili_building` |
+| 纤毛弹性杆模型       | Walker (2020)               | Kirchhoff 弹性杆 + Euler 角参数化               |
+| 流体力学（平移）      | Cortez (2005, 2018)         | 胞体：RSM 点力；纤毛：RSS 精确线段积分 + Rotlet 线段      |
+| 流体力学（扭转）      | Walker (2020)               | 阻力理论 (RFT)                               |
+| 胞体姿态          | 本项目                         | 四元数参数化（规避万向锁）                            |
+| 时间积分          | Walker (2020)               | MATLAB `ode15s` 隐式求解器                    |
+
 
 ### 4.3 核心耦合机制
 
@@ -343,29 +353,35 @@ graph TD
 
 所有量均以胞体半长轴 $a$（`major_axis`）进行无量纲化：
 
-| 尺度     | 符号  | 定义                                |
-| -------- | ----- | ----------------------------------- |
-| 长度     | $L_0$ | $a$                                 |
+
+| 尺度   | 符号    | 定义                                  |
+| ---- | ----- | ----------------------------------- |
+| 长度   | $L_0$ | $a$                                 |
 | 弯曲刚度 | $EI$  | $E \cdot \pi r_{\text{pili}}^4 / 4$ |
-| 时间     | $T_0$ | $8\pi\mu L_0^4 / EI$                |
-| 速度     | $U_0$ | $L_0 / T_0$                         |
-| 力       | $F_0$ | $EI / L_0^2$                        |
+| 时间   | $T_0$ | $8\pi\mu L_0^4 / EI$                |
+| 速度   | $U_0$ | $L_0 / T_0$                         |
+| 力    | $F_0$ | $EI / L_0^2$                        |
+
 
 ### 5.2 关键无量纲参数
 
-| 参数        | 符号          | 定义                         |
-| ----------- | ------------- | ---------------------------- |
+
+| 参数     | 符号            | 定义                           |
+| ------ | ------------- | ---------------------------- |
 | 弹性-重力数 | $Eg$          | $F_{\text{sink}} L_0^2 / EI$ |
-| 细长比      | $\varepsilon$ | $r_{\text{pili}} / L_0$      |
-| 泊松比      | $\sigma$      | 用户指定                     |
+| 细长比    | $\varepsilon$ | $r_{\text{pili}} / L_0$      |
+| 泊松比    | $\sigma$      | 用户指定                         |
+
 
 ### 5.3 新功能无量纲化
 
-| 物理量 | 无量纲化公式 |
-| ------ | ------------ |
-| 背景流速度 | $u_{\text{bg,dimless}} = u_{\text{bg,phys}} / U_0$ |
+
+| 物理量       | 无量纲化公式                                                            |
+| --------- | ----------------------------------------------------------------- |
+| 背景流速度     | $u_{\text{bg,dimless}} = u_{\text{bg,phys}} / U_0$                |
 | 主动力矩（积分后） | $M_{\text{dimless}} = M_{\text{phys}} \cdot L_{\text{pili}} / EI$ |
-| 内禀曲率 | 无量纲，与 $\kappa$ 同标度（曲率 × 弧长，$s \in [0,1]$） |
+| 内禀曲率      | 无量纲，与 $\kappa$ 同标度（曲率 × 弧长，$s \in [0,1]$）                         |
+
 
 ---
 
@@ -374,7 +390,7 @@ graph TD
 ### 6.1 布局
 
 $$
-\mathbf{Z} = \underbrace{[\mathbf{X}_{\text{cm}}(3), \; \mathbf{q}(4)]}_{7} \; \underbrace{[\boldsymbol{\theta}_1, \boldsymbol{\phi}_1, \boldsymbol{\psi}_1]}_{3N_1} \; \cdots \; \underbrace{[\boldsymbol{\theta}_M, \boldsymbol{\phi}_M, \boldsymbol{\psi}_M]}_{3N_M}
+\mathbf{Z} = \underbrace{[\mathbf{X}_{\text{cm}}(3),\; \mathbf{q}(4)]}_{7}\; \underbrace{[\boldsymbol{\theta}_1, \boldsymbol{\phi}_1, \boldsymbol{\psi}_1]}_{3N_1}\; \cdots\; \underbrace{[\boldsymbol{\theta}_M, \boldsymbol{\phi}_M, \boldsymbol{\psi}_M]}_{3N_M}
 $$
 
 总自由度数：$n = 7 + 3\sum_{k=1}^M N_k$
@@ -382,7 +398,7 @@ $$
 ### 6.2 速率向量（约化）
 
 $$
-\dot{\mathbf{z}} = [\mathbf{V}(3), \; \boldsymbol{\Omega}(3), \; \dot{\boldsymbol{\theta}}_1, \dot{\boldsymbol{\phi}}_1, \dot{\boldsymbol{\psi}}_1, \; \ldots]
+\dot{\mathbf{z}} = [\mathbf{V}(3),  \boldsymbol{\Omega}(3),  \dot{\boldsymbol{\theta}}_1, \dot{\boldsymbol{\phi}}_1, \dot{\boldsymbol{\psi}}_1,  \ldots]
 $$
 
 自由度数：$n_{\text{dof}} = 6 + 3\sum_k N_k$
@@ -414,7 +430,7 @@ $$
 ### 8.1 RSM 核函数 (Cortez 2005) — 胞体表面
 
 $$
-S_{ij}^{\varepsilon} = \frac{(|\mathbf{r}|^2 + 2\varepsilon_{ij}^2)\,\mathbf{I} + \mathbf{r}\mathbf{r}^T}{(|\mathbf{r}|^2 + \varepsilon_{ij}^2)^{3/2}}
+S_{ij}^{\varepsilon} = \frac{(|\mathbf{r}|^2 + 2\varepsilon_{ij}^2)\mathbf{I} + \mathbf{r}\mathbf{r}^T}{(|\mathbf{r}|^2 + \varepsilon_{ij}^2)^{3/2}}
 $$
 
 仅应用于迁移率矩阵中胞体表面对应的列。
@@ -424,11 +440,11 @@ $$
 对于线段 $\mathbf{y}(\alpha) = \mathbf{y}_0 - \alpha\mathbf{v}$（$\mathbf{v} = \mathbf{y}_0 - \mathbf{y}_1$，$L = |\mathbf{v}|$），力密度从 $\mathbf{f}_0$ 到 $\mathbf{f}_1$ 线性变化：
 
 $$
-\mathbf{u}(\hat{\mathbf{x}}) = \mathbf{M}_1\,\mathbf{f}_0 + \mathbf{M}_2\,\mathbf{f}_1
+\mathbf{u}(\hat{\mathbf{x}}) = \mathbf{M}_1\mathbf{f}_0 + \mathbf{M}_2\mathbf{f}_1
 $$
 
 $$
-\mathbf{M}_2 = L\left[(T_{1,-1} + \varepsilon^2 T_{1,-3})\mathbf{I} + T_{1,-3}\,\mathbf{x}_0\mathbf{x}_0^T + T_{2,-3}(\mathbf{x}_0\mathbf{v}^T + \mathbf{v}\mathbf{x}_0^T) + T_{3,-3}\,\mathbf{v}\mathbf{v}^T\right]
+\mathbf{M}_2 = L\left[(T_{1,-1} + \varepsilon^2 T_{1,-3})\mathbf{I} + T_{1,-3}\mathbf{x}_0\mathbf{x}_0^T + T_{2,-3}(\mathbf{x}_0\mathbf{v}^T + \mathbf{v}\mathbf{x}_0^T) + T_{3,-3}\mathbf{v}\mathbf{v}^T\right]
 $$
 
 $$
@@ -445,15 +461,17 @@ $T_{n,q}$ 值通过递推关系计算（Cortez 2018, Eq. 7），起始于：
 ### 8.3 全局迁移率矩阵
 
 $$
-M_{\text{weighted}} = \begin{pmatrix} M_{BB} & M_{BP} \\ M_{PB} & M_{PP} \end{pmatrix}
+M_{\text{weighted}} = \begin{pmatrix} M_{BB} & M_{BP}  M_{PB} & M_{PP} \end{pmatrix}
 $$
 
-| 分块     | 评估点 | 力源 | 方法     | $\varepsilon$         |
-| -------- | ------ | ---- | -------- | --------------------- |
-| $M_{BB}$ | 胞体   | 胞体 | RSM 点力 | $h_{\text{mean}}/3$   |
-| $M_{PB}$ | 纤毛   | 胞体 | RSM 点力 | $h_{\text{mean}}/3$   |
-| $M_{BP}$ | 胞体   | 纤毛 | RSS 线段 | $r_{\text{pili}}/L_0$ |
-| $M_{PP}$ | 纤毛   | 纤毛 | RSS 线段 | $r_{\text{pili}}/L_0$ |
+
+| 分块       | 评估点 | 力源  | 方法     | $\varepsilon$         |
+| -------- | --- | --- | ------ | --------------------- |
+| $M_{BB}$ | 胞体  | 胞体  | RSM 点力 | $h_{\text{mean}}/3$   |
+| $M_{PB}$ | 纤毛  | 胞体  | RSM 点力 | $h_{\text{mean}}/3$   |
+| $M_{BP}$ | 胞体  | 纤毛  | RSS 线段 | $r_{\text{pili}}/L_0$ |
+| $M_{PP}$ | 纤毛  | 纤毛  | RSS 线段 | $r_{\text{pili}}/L_0$ |
+
 
 **配对规则**：$\varepsilon_{ij} = \varepsilon_j$（由力源点决定）。
 
@@ -464,7 +482,7 @@ $$
 捕获纤毛上扭矩密度到所有评估点平移速度的流体力学耦合（Cortez 2018, Sec. 2.4）：
 
 $$
-\mathbf{u}(\hat{\mathbf{x}}) = -L\left[c_a\,[\mathbf{x}_0]_\times + c_b\,[\mathbf{v}]_\times\right]\boldsymbol{\tau}
+\mathbf{u}(\hat{\mathbf{x}}) = -L\left[c_a[\mathbf{x}_0]_\times + c_b[\mathbf{v}]_\times\right]\boldsymbol{\tau}
 $$
 
 其中 $c_a = 2T_{0,-3} + 3\varepsilon^2 T_{0,-5}$，$c_b = 2T_{1,-3} + 3\varepsilon^2 T_{1,-5}$。
@@ -487,7 +505,7 @@ $$
 \varepsilon_j = \begin{cases} h_{\text{body}}^{\text{mean}} / 2.6667 & \text{胞体表面点} \\ r_{\text{pili}} / L_0 & \text{纤毛节点} \end{cases}
 $$
 
-**胞体**（RSM，力源在封闭曲面上）：$h_{\text{body}}^{\text{mean}}$ 为胞体表面所有点最近邻距离的均值（平均网格间距 $\Delta s_{\text{avg}}$），默认取 $h_{\text{mean}}/2.6667$，对应比值 $\varepsilon/\Delta s_{\text{avg}} \approx 0.375$。该比值由 `batch_sweep_N_body_eps_RSM` 扫描不同 $N_{\text{body}}$ 下 $\varepsilon = k\,h_{\text{mean}}$，并与 Stokes 球解析沉降速度对比得到，在阻力矩阵精度与数值稳定性之间优于此前的 $h_{\text{mean}}/3$。$\varepsilon \to 0$ 的极限存在（退化为奇异 BEM），故 $\varepsilon$ 为纯数值参数，应通过与解析解（如 Stokes 球阻力）对比验证。
+**胞体**（RSM，力源在封闭曲面上）：$h_{\text{body}}^{\text{mean}}$ 为胞体表面所有点最近邻距离的均值（平均网格间距 $\Delta s_{\text{avg}}$），默认取 $h_{\text{mean}}/2.6667$，对应比值 $\varepsilon/\Delta s_{\text{avg}} \approx 0.375$。该比值由 `batch_sweep_N_body_eps_RSM` 扫描不同 $N_{\text{body}}$ 下 $\varepsilon = kh_{\text{mean}}$，并与 Stokes 球解析沉降速度对比得到，在阻力矩阵精度与数值稳定性之间优于此前的 $h_{\text{mean}}/3$。$\varepsilon \to 0$ 的极限存在（退化为奇异 BEM），故 $\varepsilon$ 为纯数值参数，应通过与解析解（如 Stokes 球阻力）对比验证。
 
 **纤毛**（RSS，力源在一维曲线上）：$\varepsilon = r_{\text{pili}}/L_0$ 是**物理参数**，代表力作用区域的空间延展半径（纤毛横截面半径）。Cortez et al. (2005) 明确指出，当力作用于曲线时 $\varepsilon \to 0$ 的极限不存在（速度场发散），因此 $\varepsilon$ 不可趋向零，而应取纤毛的物理横截面半径。细长比 $\varepsilon/\ell = r_{\text{pili}}/L_{\text{pili}} \approx 10^{-3}$ 远小于 1，满足细长体假设；段长与正则化参数之比 $\Delta s/\varepsilon = \Delta s \cdot L_0 / r_{\text{pili}} \approx 22$，RSS 精确积分在此范围内精度充分。
 
@@ -502,7 +520,7 @@ $\mathbf{A}_{\text{trans}} = M_{\text{weighted}}^{-1}$ — 通过 LU 分解计�
 逐纤毛扭转阻力（阻力理论）：
 
 $$
-\tilde{A}_k = \frac{\ell_k\,\varepsilon_k^2}{2}\,\hat{A}_k, \quad [\hat{A}_k]_{3(j-1)+1:3j, \, j} = \mathbf{d}_3^{(j)}
+\tilde{A}_k = \frac{\ell_k\varepsilon_k^2}{2}\hat{A}_k, \quad [\hat{A}_k]_{3(j-1)+1:3j,\; j} = \mathbf{d}_3^{(j)}
 $$
 
 ---
@@ -516,6 +534,7 @@ $\mathbf{Q}_{\text{global}} \in \mathbb{R}^{n_{\text{vel}} \times n_{\text{dof}}
 - **扭转速率**：$\psi$ 速率通过 $\cos\theta$ 与 $\theta$ 速率耦合（Euler 角运动学）
 
 平移子块：$\mathbf{Q}_{\text{trans}} = \mathbf{Q}[1:3N_{\text{total}}, :]$
+
 扭转子块：$\mathbf{Q}_{\text{twist}} = \mathbf{Q}[3N_{\text{total}}+1:\text{end}, :]$
 
 ---
@@ -524,11 +543,13 @@ $\mathbf{Q}_{\text{global}} \in \mathbb{R}^{n_{\text{vel}} \times n_{\text{dof}}
 
 $\mathbf{B}_{\text{global}} \in \mathbb{R}^{n_{\text{dof}} \times n_{\text{force}}}$ 将分布力/力矩映射至速率向量方程：
 
-| 行  | 方程                                     | 右端项                  |
-| --- | ---------------------------------------- | ----------------------- |
-| 1–3 | 力平衡                                   | $-Eg\,\hat{\mathbf{g}}$ |
-| 4–6 | 力矩平衡                                 | 0（无外力矩）           |
-| 7+  | 纤毛力矩平衡（每根 $N_k$ 段 × 3 个分量） | 弹性曲率 $\kappa$       |
+
+| 行   | 方程                         | 右端项                   |
+| --- | -------------------------- | --------------------- |
+| 1–3 | 力平衡                        | $-Eg\hat{\mathbf{g}}$ |
+| 4–6 | 力矩平衡                       | 0（无外力矩）               |
+| 7+  | 纤毛力矩平衡（每根 $N_k$ 段 × 3 个分量） | 弹性曲率 $\kappa$         |
+
 
 胞体和纤毛的力贡献使用梯形求积权重。纤毛力矩平衡遵循 Walker (2020) 的公式，采用 $\ell_k^3$ 标度。
 
@@ -553,15 +574,15 @@ $$
 每个 ODE 时间步的核心方程：
 
 $$
-\mathbf{L}\,\dot{\mathbf{z}} = \mathbf{R}
+\mathbf{L}\dot{\mathbf{z}} = \mathbf{R}
 $$
 
 其中：
 
 - $\mathbf{L} = -\mathbf{B} \cdot \mathbf{AQ}$
-- $\mathbf{AQ} = \begin{bmatrix} M_{\text{weighted}}^{-1} \cdot \mathbf{Q}_{\text{trans,corr}} \\ \tilde{A}_{\text{twist}} \cdot \mathbf{Q}_{\text{twist}} \end{bmatrix}$
+- $\mathbf{AQ} = \begin{bmatrix} M_{\text{weighted}}^{-1} \cdot \mathbf{Q}_{\text{trans,corr}} \\\\ \tilde{A}_{\text{twist}} \cdot \mathbf{Q}_{\text{twist}} \end{bmatrix}$
 - $\mathbf{Q}_{\text{trans,corr}} = \mathbf{Q}_{\text{trans}} - M_{\text{rotlet}} \cdot \tilde{A}_{\text{twist}} \cdot \mathbf{Q}_{\text{twist}}$
-- $\mathbf{R} = [-Eg\,\hat{\mathbf{g}}; \; \mathbf{0}; \; \boldsymbol{\kappa}_1 - \mathbf{M}_{\text{act},1}; \ldots; \boldsymbol{\kappa}_M - \mathbf{M}_{\text{act},M}] - \mathbf{B}\mathbf{A}^{-1}\mathbf{u}_{\text{bg}}$
+- $\mathbf{R} = [-Eg\hat{\mathbf{g}};\; \mathbf{0};\; \boldsymbol{\kappa}_1 - \mathbf{M}_{\text{act},1}; \ldots; \boldsymbol{\kappa}_M - \mathbf{M}_{\text{act},M}] - \mathbf{B}\mathbf{A}^{-1}\mathbf{u}_{\text{bg}}$
 
 通过 LU 分解求解：`lin_sys \ R_global`。
 
@@ -574,12 +595,12 @@ $$
 1. **速率层面**（在 `ode_coupled_rhs.m` 步骤 7 中）：将每根纤毛力矩平衡块的前 3 行替换为：
 
 $$
-[\dot{\theta}_1,\; \dot{\phi}_1,\; \dot{\psi}_1]^T = J_e \cdot \boldsymbol{\Omega}
+[\dot{\theta}_1, \dot{\phi}_1, \dot{\psi}_1]^T = J_e \cdot \boldsymbol{\Omega}
 $$
 
 其中 $J_e \in \mathbb{R}^{3 \times 3}$ 为自适应基底下 Euler 角速率到角速度的雅可比矩阵，将胞体角速度 $\boldsymbol{\Omega}$ 映射为根节点的三个 Euler 角速率。
 
-2. **位置层面**（在 `enforce_clamped_geometry.m` 中）：每个 ODE 步后，几何投影修正纤毛—胞体连接处的约束漂移。
+1. **位置层面**（在 `enforce_clamped_geometry.m` 中）：每个 ODE 步后，几何投影修正纤毛—胞体连接处的约束漂移。
 
 ---
 
@@ -630,10 +651,10 @@ $$
 过阻尼 Langevin 方程（Stokes 流极限）：
 
 $$
-\boldsymbol{\Xi}_{\text{eff}} \dot{\mathbf{U}} = \mathbf{F}_{\text{det}} + \sqrt{2k_BT\,\boldsymbol{\Xi}_{\text{eff}}}\;\boldsymbol{\eta}(t)
+\boldsymbol{\Xi}_{\text{eff}} \dot{\mathbf{U}} = \mathbf{F}_{\text{det}} + \sqrt{2k_BT\boldsymbol{\Xi}_{\text{eff}}}\boldsymbol{\eta}(t)
 $$
 
-其中 $\boldsymbol{\Xi}_{\text{eff}} \in \mathbb{R}^{6\times 6}$ 为包含纤毛水动力贡献的**有效胞体摩擦张量**，$\mathbf{U} = [\mathbf{V};\,\boldsymbol{\Omega}]$ 为胞体广义速度，$\boldsymbol{\eta}$ 为 6D 高斯白噪声。完整 6×6 框架自然包含平移-旋转耦合。
+其中 $\boldsymbol{\Xi}_{\text{eff}} \in \mathbb{R}^{6\times 6}$ 为包含纤毛水动力贡献的**有效胞体摩擦张量**，$\mathbf{U} = [\mathbf{V};\boldsymbol{\Omega}]$ 为胞体广义速度，$\boldsymbol{\eta}$ 为 6D 高斯白噪声。完整 6×6 框架自然包含平移-旋转耦合。
 
 ### 16.3 有效摩擦张量的动态计算
 
@@ -643,13 +664,13 @@ $$
 2. **探测（Probing）**：用 6 个单位力/力矩探测向量求解线性系统，提取胞体响应
 
 $$
-\mathbf{M}_{\text{eff}}^{*}(:, i) = (\texttt{lin\_sys} \backslash (-\mathbf{e}_i))(1{:}6), \quad i = 1, \ldots, 6
+\mathbf{M}_{\text{eff}}^{*}(:, i) = (\texttt{linsys} \backslash (-\mathbf{e}_i))(1{:}6), \quad i = 1, \ldots, 6
 $$
 
-3. **隐式 Schur 补**：$\mathbf{M}_{\text{eff}}^{*} = [\boldsymbol{\Xi}_{\text{gen}}^{-1}]_{BB}$，等价于 $(\boldsymbol{\Xi}_{BB} - \boldsymbol{\Xi}_{BP}\boldsymbol{\Xi}_{PP}^{-1}\boldsymbol{\Xi}_{PB})^{-1}$
-4. **量纲转换**：$M_{\text{eff,dim}}(j,i) = M_{\text{eff}}^{*}(j,i) / (S_j \cdot S_i)$，其中 $S = [\sqrt{8\pi\mu L_0}\;\mathbf{1}_3;\;\sqrt{8\pi\mu L_0^3}\;\mathbf{1}_3]$
-5. **扩散张量**：$D_{\text{eff}} = k_BT \cdot M_{\text{eff,dim}}$
-6. **Cholesky 分解**：$L_{\text{eff}} = \text{chol}(2D_{\text{eff}}, \text{'lower'})$
+1. **隐式 Schur 补**：$\mathbf{M}_{\text{eff}}^{\ast} = [\boldsymbol{\Xi}_{\text{gen}}^{-1}]_{BB}$，等价于 $(\boldsymbol{\Xi}_{BB} - \boldsymbol{\Xi}_{BP}\boldsymbol{\Xi}_{PP}^{-1}\boldsymbol{\Xi}_{PB})^{-1}$
+2. **量纲转换**：$M_{\text{eff,dim}}(j,i) = M_{\text{eff}}^{*}(j,i) / (S_j \cdot S_i)$，其中 $S = [\sqrt{8\pi\mu L_0}\mathbf{1}_3;\sqrt{8\pi\mu L_0^3}\mathbf{1}_3]$
+3. **扩散张量**：$D_{\text{eff}} = k_BT \cdot M_{\text{eff,dim}}$
+4. **Cholesky 分解**：$L_{\text{eff}} = \text{chol}(2D_{\text{eff}}, \text{'lower'})$
 
 物理含义：当胞体受到单位力/力矩时，纤毛被动通过流体拖曳（force-free，受 clamped BC 约束），总阻力自然包含纤毛贡献。
 
@@ -661,7 +682,7 @@ $$
 \delta\mathbf{U}_{\text{dim}} = L_{\text{eff}} \cdot \boldsymbol{\eta} \cdot \sqrt{\text{dt}_B}, \quad \boldsymbol{\eta} \sim \mathcal{N}(\mathbf{0}, \mathbf{I}_6)
 $$
 
-其中 $\delta\mathbf{U} = [\delta\mathbf{X}(\text{m});\;\delta\boldsymbol{\Theta}(\text{rad})]$。平移部分无量纲化后叠加到质心位置；旋转部分转换为四元数增量后左乘合成。每次扰动后重新施加固支几何投影。
+其中 $\delta\mathbf{U} = [\delta\mathbf{X}(\text{m});\delta\boldsymbol{\Theta}(\text{rad})]$。平移部分无量纲化后叠加到质心位置；旋转部分转换为四元数增量后左乘合成。每次扰动后重新施加固支几何投影。
 
 ### 16.5 Fixman 中点修正（可选）
 
@@ -681,13 +702,15 @@ $$
 
 ### 16.7 用户配置
 
-| 参数               | 默认值   | 说明                                           |
-| ------------------ | -------- | ---------------------------------------------- |
-| `enable_brown`     | `false`  | 启用/禁用胞体布朗运动                         |
-| `Temper`           | `293.15` | 流体绝对温度 [K]（默认 20°C）                 |
-| `dt_B`             | `dt/2`   | 布朗时间步 [s]（应远小于最短弛豫时间）         |
-| `fixman_midpoint`  | `false`  | 启用 Fixman 中点修正（2x 计算成本）           |
-| `brown_rng_seed`（v5.2.0） | — | 可选；正整数则固定 `rng(...,'twister')`；未指定则默认 **`MMddHHmmss`**（`brown_rng_seed_from_clock`）；与 `config.json` / `results.brown_rng_seed` / `brownian_rng_seed.txt` 一致 |
+
+| 参数                       | 默认值      | 说明                                                                                                                                                          |
+| ------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enable_brown`           | `false`  | 启用/禁用胞体布朗运动                                                                                                                                                 |
+| `Temper`                 | `293.15` | 流体绝对温度 [K]（默认 20°C）                                                                                                                                         |
+| `dt_B`                   | `dt/2`   | 布朗时间步 [s]（应远小于最短弛豫时间）                                                                                                                                       |
+| `fixman_midpoint`        | `false`  | 启用 Fixman 中点修正（2x 计算成本）                                                                                                                                     |
+| `brown_rng_seed`（v5.2.0） | —        | 可选；正整数则固定 `rng(...,'twister')`；未指定则默认 **`MMddHHmmss`**（`brown_rng_seed_from_clock`）；与 `config.json` / `results.brown_rng_seed` / `brownian_rng_seed.txt` 一致 |
+
 
 **启用布朗运动时**，有效扩散张量在每个布朗步从全系统耦合线性系统动态计算（无预计算阶段）。旧的 body-only 实现 `compute_body_brownian_params.m` 已删除，功能完全由 `compute_effective_body_brownian.m` 取代。
 
@@ -702,66 +725,76 @@ $$
 
 **覆盖保护**（v3.1）：当输出目录已包含仿真数据文件（`.mat`、`.csv`、`.log`、`.mp4`、`.png`）时，弹出三选一对话框：
 
-| 选项 | 行为 |
-| ---- | ---- |
-| Overwrite | 清空目录内所有文件，重新运行 |
-| Rename | 为当前运行追加时间戳创建新目录（`<name>_YYYYMMDD_HHmmss`），原目录保留不变 |
-| Abort | 终止仿真，返回空结果 |
+
+| 选项        | 行为                                                |
+| --------- | ------------------------------------------------- |
+| Overwrite | 清空目录内所有文件，重新运行                                    |
+| Rename    | 为当前运行追加时间戳创建新目录（`<name>_YYYYMMDD_HHmmss`），原目录保留不变 |
+| Abort     | 终止仿真，返回空结果                                        |
+
 
 `auto_confirm = true`（无人值守模式）下默认执行 Rename 操作。
 
 ### 17.2 输出文件
 
-| 文件                     | 格式            | 内容                                                  |
-| ------------------------ | --------------- | ----------------------------------------------------- |
-| `simulation_results.mat` | MAT v7.3 (HDF5) | `results` + `params` 完整结构体                                                      |
-| `timeseries.csv`         | 纯文本          | 10 列标量时间序列（见下表）                                                          |
-| `config.json`            | JSON            | 配置参数快照（可直接作为输入复用以精确复现运行）                                     |
-| `summary_plot.png`       | PNG 600 dpi     | 静态总览：CM 轨迹、沉降速度、倾斜角、快照三视图                                      |
-| `initial_pose.png`       | PNG 600 dpi     | 初始姿态预览三视图（`preview_initial = true` 时生成）                                |
-| `bacteria_3d_motion.mp4` | MPEG-4 质量 100 | 3D 动画，三面板 1×3 布局（3D + XZ + YZ 投影），动态图像尺寸（**v5.3.1**：编码器安全框内等比缩放 + 固定 `getframe` 矩形），含光滑胞体表面 + 着色纤毛 + CM 轨迹 |
-| `flowfield_panels.png`   | PNG 600 dpi     | 双平面流场 2×2 面板图：XZ + YZ，3D 表面视图 + 2D 着色图；jet 色图 + 单层深灰归一化箭头（v3.3.1 起无白边） |
-| `simulation.log`         | 纯文本          | 带时间戳的完整双通道运行日志                                                         |
-| `brownian_rng_seed.txt`（v5.2.0） | 纯文本 | 仅 **`enable_brown = true`**：twister 种子整数一行 + 复现说明（与 `config.json` 中 `brownian.rng_seed` 一致） |
+
+| 文件                              | 格式              | 内容                                                                                                         |
+| ------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------- |
+| `simulation_results.mat`        | MAT v7.3 (HDF5) | `results` + `params` 完整结构体                                                                                 |
+| `timeseries.csv`                | 纯文本             | 10 列标量时间序列（见下表）                                                                                            |
+| `config.json`                   | JSON            | 配置参数快照（可直接作为输入复用以精确复现运行）                                                                                   |
+| `summary_plot.png`              | PNG 600 dpi     | 静态总览：CM 轨迹、沉降速度、倾斜角、快照三视图                                                                                  |
+| `initial_pose.png`              | PNG 600 dpi     | 初始姿态预览三视图（`preview_initial = true` 时生成）                                                                    |
+| `bacteria_3d_motion.mp4`        | MPEG-4 质量 100   | 3D 动画，三面板 1×3 布局（3D + XZ + YZ 投影），动态图像尺寸（**v5.3.1**：编码器安全框内等比缩放 + 固定 `getframe` 矩形），含光滑胞体表面 + 着色纤毛 + CM 轨迹 |
+| `flowfield_panels.png`          | PNG 600 dpi     | 双平面流场 2×2 面板图：XZ + YZ，3D 表面视图 + 2D 着色图；jet 色图 + 单层深灰归一化箭头（v3.3.1 起无白边）                                     |
+| `simulation.log`                | 纯文本             | 带时间戳的完整双通道运行日志                                                                                             |
+| `brownian_rng_seed.txt`（v5.2.0） | 纯文本             | 仅 **`enable_brown = true`**：twister 种子整数一行 + 复现说明（与 `config.json` 中 `brownian.rng_seed` 一致）                |
+
 
 **图形窗口（v5.1.1）**：`summary_plot.png` 与 `flowfield_panels.png` 在写入磁盘后，对应 MATLAB figure 会立即 `close`，避免连续批量调用 `run_simulation` 时堆积可见图窗、拖慢交互与内存占用。动画渲染仍使用不可见图窗并在写完后关闭（既有行为）。
 
 ### 17.3 results 结构体字段（物理单位）
 
-| 字段         | 单位 | 尺寸           | 说明                                    |
-| ------------ | ---- | -------------- | --------------------------------------- |
-| `t`          | s    | `[1 × NT]`     | 物理时间序列                            |
-| `t_dimless`  | —    | `[1 × NT]`     | 无量纲时间序列                          |
-| `X_cm_um`    | μm   | `[3 × NT]`     | 质心位置 (X/Y/Z)                        |
-| `V_cm_um`    | μm/s | `[3 × NT]`     | 质心速度三分量                          |
-| `V_sink`     | μm/s | `[1 × NT]`     | 沉降速度（Z 分量）                      |
-| `tilt_angle` | rad  | `[1 × NT]`     | 胞体长轴偏仰角（与 `alpha_0` 约定一致） |
-| `q`          | —    | `[4 × NT]`     | 方向四元数                              |
-| `X_pili_um`  | μm   | cell `{M × 1}` | 各纤毛节点坐标 `[Nseg+1 × 3 × NT]`      |
-| `F_sink_pN`  | pN   | 标量           | 净沉降力（重力浮力差）                  |
-| `units`      | —    | struct         | 单位及特征尺度元数据                    |
-| `brown_rng_seed`（v5.2.0） | — | 标量 | 仅布朗开启时：`rng` twister 种子（与 `config.json` / `brownian_rng_seed.txt` 一致） |
 
-**`timeseries.csv` 列说明：**
+| 字段                       | 单位   | 尺寸             | 说明                                                                    |
+| ------------------------ | ---- | -------------- | --------------------------------------------------------------------- |
+| `t`                      | s    | `[1 × NT]`     | 物理时间序列                                                                |
+| `t_dimless`              | —    | `[1 × NT]`     | 无量纲时间序列                                                               |
+| `X_cm_um`                | μm   | `[3 × NT]`     | 质心位置 (X/Y/Z)                                                          |
+| `V_cm_um`                | μm/s | `[3 × NT]`     | 质心速度三分量                                                               |
+| `V_sink`                 | μm/s | `[1 × NT]`     | 沉降速度（Z 分量）                                                            |
+| `tilt_angle`             | rad  | `[1 × NT]`     | 胞体长轴偏仰角（与 `alpha_0` 约定一致）                                             |
+| `q`                      | —    | `[4 × NT]`     | 方向四元数                                                                 |
+| `X_pili_um`              | μm   | cell `{M × 1}` | 各纤毛节点坐标 `[Nseg+1 × 3 × NT]`                                           |
+| `F_sink_pN`              | pN   | 标量             | 净沉降力（重力浮力差）                                                           |
+| `units`                  | —    | struct         | 单位及特征尺度元数据                                                            |
+| `brown_rng_seed`（v5.2.0） | —    | 标量             | 仅布朗开启时：`rng` twister 种子（与 `config.json` / `brownian_rng_seed.txt` 一致） |
 
-| 列名                            | 单位 | 说明               |
-| ------------------------------- | ---- | ------------------ |
-| `t_s`                           | s    | 时间               |
-| `X_um`, `Y_um`, `Z_um`          | μm   | 质心坐标           |
-| `Vx_um_s`, `Vy_um_s`, `Vz_um_s` | μm/s | 质心速度三分量     |
+
+`**timeseries.csv` 列说明：**
+
+
+| 列名                              | 单位   | 说明         |
+| ------------------------------- | ---- | ---------- |
+| `t_s`                           | s    | 时间         |
+| `X_um`, `Y_um`, `Z_um`          | μm   | 质心坐标       |
+| `Vx_um_s`, `Vy_um_s`, `Vz_um_s` | μm/s | 质心速度三分量    |
 | `Vsink_um_s`                    | μm/s | 沉降速度（Z 方向） |
-| `tilt_rad`                      | rad  | 胞体倾斜角         |
+| `tilt_rad`                      | rad  | 胞体倾斜角      |
 | `tilt_deg`                      | °    | 胞体倾斜角（度）   |
+
 
 ### 17.4 单位约定
 
-| 物理量 | 输出单位       |
-| ------ | -------------- |
-| 时间   | 秒 [s]         |
-| 长度   | 微米 [μm]      |
-| 速度   | 微米/秒 [μm/s] |
-| 力     | 皮牛 [pN]      |
-| 角度   | 弧度 [rad]     |
+
+| 物理量 | 输出单位        |
+| --- | ----------- |
+| 时间  | 秒 [s]       |
+| 长度  | 微米 [μm]     |
+| 速度  | 微米/秒 [μm/s] |
+| 力   | 皮牛 [pN]     |
+| 角度  | 弧度 [rad]    |
+
 
 ---
 
@@ -782,12 +815,14 @@ $$
 
 2×2 面板布局：
 
-| 位置 | 视图       | 说明                                                                                         |
-| ---- | ---------- | -------------------------------------------------------------------------------------------- |
-| 左上 | 3D — XZ 面 | XZ 流场以纹理表面（`texturemap`）铺设于 3D 视图中，半透明胞体 + 纤毛叠加                     |
-| 右上 | 3D — YZ 面 | YZ 流场以纹理表面铺设于 3D 视图中，半透明胞体 + 纤毛叠加                                     |
-| 左下 | 2D — XZ 面 | 速度大小 `imagesc` + 归一化等长单层深灰 `quiver` 箭头（v3.3.1：无白色衬底；箭头尺寸较先前深色层 +50%）；胞体白色填充 + 灰色描边 |
-| 右下 | 2D — YZ 面 | 速度大小 `imagesc` + 归一化等长单层深灰 `quiver` 箭头（同上）；胞体白色填充 + 灰色描边 |
+
+| 位置  | 视图        | 说明                                                                                 |
+| --- | --------- | ---------------------------------------------------------------------------------- |
+| 左上  | 3D — XZ 面 | XZ 流场以纹理表面（`texturemap`）铺设于 3D 视图中，半透明胞体 + 纤毛叠加                                    |
+| 右上  | 3D — YZ 面 | YZ 流场以纹理表面铺设于 3D 视图中，半透明胞体 + 纤毛叠加                                                  |
+| 左下  | 2D — XZ 面 | 速度大小 `imagesc` + 归一化等长单层深灰 `quiver` 箭头（v3.3.1：无白色衬底；箭头尺寸较先前深色层 +50%）；胞体白色填充 + 灰色描边 |
+| 右下  | 2D — YZ 面 | 速度大小 `imagesc` + 归一化等长单层深灰 `quiver` 箭头（同上）；胞体白色填充 + 灰色描边                           |
+
 
 **共享特性**：
 
@@ -799,12 +834,14 @@ $$
 
 流场参数已提升至主脚本 `cfg` 结构体，通过 `flow_opts` 传入 `compute_plot_flowfield`。缺省值在函数内部通过 `get_flow_opt` 回退提供：
 
-| cfg 字段 | flow_opts 字段 | 默认值 | 说明 |
-| -------- | -------------- | ------ | ---- |
-| `flowfield_grid_spacing` | `grid_spacing_um` | 0.05 | 网格间距 [μm] |
-| `flowfield_grid_range` | `grid_range_um` | 10 | 网格总范围 [μm]（10×10） |
-| `flowfield_quiver_skip` | `quiver_skip` | 5 | 箭头降采样倍率（每 5 个点一箭） |
-| `flowfield_chunk_size` | `chunk_size` | 2000 | 核函数评估分块大小 |
+
+| cfg 字段                   | flow_opts 字段      | 默认值  | 说明                |
+| ------------------------ | ----------------- | ---- | ----------------- |
+| `flowfield_grid_spacing` | `grid_spacing_um` | 0.05 | 网格间距 [μm]         |
+| `flowfield_grid_range`   | `grid_range_um`   | 10   | 网格总范围 [μm]（10×10） |
+| `flowfield_quiver_skip`  | `quiver_skip`     | 5    | 箭头降采样倍率（每 5 个点一箭） |
+| `flowfield_chunk_size`   | `chunk_size`      | 2000 | 核函数评估分块大小         |
+
 
 流场计算过程现配备 `render_progress_bar` 实时进度条（含 ETA），分别显示 `[FLOW-XZ]` 和 `[FLOW-YZ]` 标签。
 
@@ -917,14 +954,16 @@ Coupled_Body_Pili/
 
 ### 21.2 耦合
 
-| 机制              | 实现方式                                                                                    |
-| ----------------- | ------------------------------------------------------------------------------------------- |
-| 纤毛—纤毛流体力学 | 全局迁移率矩阵中的完全交叉耦合（$M_{PP}$ 块）                                               |
-| 胞体—纤毛流体力学 | $M_{BP}$ 和 $M_{PB}$ 块中的交叉耦合                                                         |
-| 弹性力矩          | 逐纤毛独立计算（Kirchhoff 曲率）                                                            |
-| 固支边界条件      | 逐纤毛独立约束（不同附着位点）                                                              |
-| 扭转阻力          | 块对角 $\tilde{A} = \text{blkdiag}(\tilde{A}_1, \ldots, \tilde{A}_M)$（局部 RFT，物理正确） |
-| 自适应基底        | 逐纤毛独立检测与旋转                                                                        |
+
+| 机制        | 实现方式                                                                            |
+| --------- | ------------------------------------------------------------------------------- |
+| 纤毛—纤毛流体力学 | 全局迁移率矩阵中的完全交叉耦合（$M_{PP}$ 块）                                                     |
+| 胞体—纤毛流体力学 | $M_{BP}$ 和 $M_{PB}$ 块中的交叉耦合                                                     |
+| 弹性力矩      | 逐纤毛独立计算（Kirchhoff 曲率）                                                           |
+| 固支边界条件    | 逐纤毛独立约束（不同附着位点）                                                                 |
+| 扭转阻力      | 块对角 $\tilde{A} = \text{blkdiag}(\tilde{A}_1, \ldots, \tilde{A}_M)$（局部 RFT，物理正确） |
+| 自适应基底     | 逐纤毛独立检测与旋转                                                                      |
+
 
 ### 21.3 附着位点验证
 
@@ -932,7 +971,8 @@ Coupled_Body_Pili/
 
 ### 21.4 矩阵维度汇总
 
-| 矩阵                         | 维度                                                      |
+
+| 矩阵                           | 维度                                                        |
 | ---------------------------- | --------------------------------------------------------- |
 | $\mathbf{Z}$                 | $7 + 3\sum_k N_k$                                         |
 | $\dot{\mathbf{z}}$           | $6 + 3\sum_k N_k$                                         |
@@ -941,71 +981,76 @@ Coupled_Body_Pili/
 | $\mathbf{Q}_{\text{global}}$ | $(3N_{\text{total}} + \sum_k N_k) \times n_{\text{dof}}$  |
 | $\mathbf{B}_{\text{global}}$ | $n_{\text{dof}} \times (3N_{\text{total}} + 3\sum_k N_k)$ |
 
+
 ---
 
 ## 22. 验证总结
 
 ### 22.1 已验证项目 (30+)
 
-| 类别                | 详情                                                                         |
-| ------------------- | ---------------------------------------------------------------------------- |
-| RSM 胞体核函数      | $1/(8\pi\mu)$ 吸收、特征尺度自洽性、胶囊体积                                 |
-| 四元数代数          | 左乘约定、运动学 $\dot{q} = \frac{1}{2}[0;\Omega]\otimes q$、归一化          |
-| Q 矩阵              | 标度、坐标变换、根部耦合、交错排序                                           |
-| B 矩阵              | 力的梯形权重、力矩平衡、$\ell^3$ 标度                                        |
-| RSS $T_{n,q}$ 递推  | 全部 6 项（$T_{0,-1}$ 至 $T_{3,-3}$）已对照 Cortez 2018 Eq. 7 验证           |
-| RSS $M_1$/$M_2$ 块  | Eq. 12–13，对称性检查（机器精度），自相互作用安全                            |
-| RSS $T_{n,-5}$ 递推 | Rotlet 递推、$d^2$ 安全措施、Sec. 2.4 公式                                   |
-| Rotlet 反对称块     | 反对称性已验证（$\|R+R^T\|/\|R\| = 0$），收敛率 2.0                          |
-| 向量化组装          | 所有 $[N_{\text{total}} \times N_{\text{seg,all}}]$ 数组与标量核函数输出一致 |
-| 扭转阻力            | $\ell_k \varepsilon_k^2 / 2$ 标度，量纲一致                                  |
-| 固支边界条件        | 雅可比矩阵推导、速率层面 + 位置层面双重施加                                  |
-| 自适应基底          | 逐纤毛检测与旋转、Euler 角重新计算                                           |
-| 多纤毛              | 状态向量、几何、Q/B 矩阵、边界条件均已验证（$M \geq 1$）                     |
-| 线性系统            | $L\dot{z}=R$ 每行逐一量纲追踪                                                |
-| 布朗动力学          | 全系统有效摩擦张量（probing method）、Cholesky 正定性检查、FDT 一致性、可选 Fixman 中点修正 |
+
+| 类别                | 详情                                                              |
+| ----------------- | --------------------------------------------------------------- |
+| RSM 胞体核函数         | $1/(8\pi\mu)$ 吸收、特征尺度自洽性、胶囊体积                                   |
+| 四元数代数             | 左乘约定、运动学 $\dot{q} = \frac{1}{2}[0;\Omega]\otimes q$、归一化         |
+| Q 矩阵              | 标度、坐标变换、根部耦合、交错排序                                               |
+| B 矩阵              | 力的梯形权重、力矩平衡、$\ell^3$ 标度                                         |
+| RSS $T_{n,q}$ 递推  | 全部 6 项（$T_{0,-1}$ 至 $T_{3,-3}$）已对照 Cortez 2018 Eq. 7 验证         |
+| RSS $M_1$/$M_2$ 块 | Eq. 12–13，对称性检查（机器精度），自相互作用安全                                   |
+| RSS $T_{n,-5}$ 递推 | Rotlet 递推、$d^2$ 安全措施、Sec. 2.4 公式                                |
+| Rotlet 反对称块       | 反对称性已验证（$\lVert R+R^T\rVert/\lVert R\rVert = 0$），收敛率 2.0                              |
+| 向量化组装             | 所有 $[N_{\text{total}} \times N_{\text{seg,all}}]$ 数组与标量核函数输出一致  |
+| 扭转阻力              | $\ell_k \varepsilon_k^2 / 2$ 标度，量纲一致                            |
+| 固支边界条件            | 雅可比矩阵推导、速率层面 + 位置层面双重施加                                         |
+| 自适应基底             | 逐纤毛检测与旋转、Euler 角重新计算                                            |
+| 多纤毛               | 状态向量、几何、Q/B 矩阵、边界条件均已验证（$M \geq 1$）                             |
+| 线性系统              | $L\dot{z}=R$ 每行逐一量纲追踪                                           |
+| 布朗动力学             | 全系统有效摩擦张量（probing method）、Cholesky 正定性检查、FDT 一致性、可选 Fixman 中点修正 |
+
 
 ### 22.2 缺陷修复历史（均已解决）
 
 > 完整变更日志详见 [CHANGELOG.md](CHANGELOG.md)。
 
-| #   | 问题                                    | 日期       | 修复                                     |
-| --- | --------------------------------------- | ---------- | ---------------------------------------- |
-| 1   | 纤毛端点列权重不一致                    | 2026-02-07 | 统一 $\Delta s$（Walker 一致性）         |
-| 2   | `inv()` 数值稳定性                      | 2026-02-07 | 替换为 `\` 运算符                        |
-| 3   | 全矩阵求逆性能                          | 2026-02-10 | 返回 $M_{\text{weighted}}$，使用 LU 求解 |
-| 4   | $\tilde{A}_{\text{twist}}$ 坐标系不匹配 | 2026-02-10 | 使用实验室坐标系 `d3`                    |
-| 5   | PascalCase 文件命名                     | 2026-02-11 | 重命名为 `snake_case`                    |
-| 6   | 几何构建器中未使用的力点数据            | 2026-02-11 | 移除冗余代码                             |
-| 7   | 胞体以散点渲染                          | 2026-02-11 | 参数化 `surf` + Gouraud 着色             |
-| 8   | 扭转阻力缺少 $\ell_k$ 因子              | 2026-02-12 | `eps_k^2/2` → `ell_k*eps_k^2/2`          |
-| 9   | `reconstruct_geometry` 冗余调用         | 2026-02-12 | 移至循环外                               |
-| 10  | 多纤毛统一着色                          | 2026-02-12 | 10 色可区分调色板                        |
-| 11  | 无附着位点冲突检测                      | 2026-02-12 | 添加重复位点警告                         |
-| 12  | `acos` 因浮点域错误产生 NaN             | 2026-02-12 | 钳位至 $[-1, 1]$                         |
-| 13  | 四元数初始化假设胞体 Z 为长轴           | 2026-02-12 | 修正为胞体 X 轴                          |
-| 14  | 移除纯 RSM 纤毛模式 (v2.0)              | 2026-02-14 | 统一为 RSS + Rotlet；删除 `use_rss` 标志 |
-| 15  | 纤毛线宽与质心标记过大 (v2.1)           | 2026-02-15 | 静态图与动画中减半                       |
-| 16  | 坐标轴范围无最小下限 (v2.1)             | 2026-02-15 | 增加 `4*major_axis` 最小范围约束         |
-| 17  | 动画中 CM 轨迹断续 (v2.1)               | 2026-02-15 | 使用全分辨率轨迹数据替代帧采样稀疏数据   |
-| 18  | 重力标识偏离坐标轴框 (v2.1)             | 2026-02-15 | 缩小间距；添加 `drawnow` 确保位置准确    |
-| 19  | `TightInset(3)` 对三维坐标轴高估，重力标识与轴框间距仍然过大 (v2.3→v2.4) | 2026-02-19 | 将 `TightInset(3)` 截断至 0.020（图宽 2%）；三维摄像机投影会把 tick/axis 标签投影到 Position 框外，MATLAB 将其全部计入 TightInset 导致虚高 |
-| 20  | 动画中重力标识在坐标轴全属性配置前放置，`Position` 在第一帧后收缩导致标识垂直偏移 (v2.4) | 2026-02-19 | 在 `add_gravity_indicator_outside` 调用前预配置 `xlim/ylim/zlim`、`DataAspectRatio`、`view`、`xlabel/ylabel/zlabel` 及 `title`（字体大小一致）；`cla` 不清除 `HandleVisibility='off'` 的装饰对象，预配置状态全程稳定 |
-| 21  | 根本原因：`DataAspectRatio=[1 1 1]` 等比例约束使极细长轴框（Z>>X,Y）居中于 Position 矩形，实际轴框右边缘与 Position 右边缘相差数百像素；之前所有基于 Position 右边缘的方案均无法修复此问题 (v2.4) | 2026-02-19 | 彻底重写 `add_gravity_indicator_outside`：通过正射影投影（`right=[cos az, sin az, 0]`）将数据边界框投影到屏幕水平方向，计算等比例缩放后的真实渲染宽度，以居中关系求得轴框真实右边界，完全移除对 `TightInset` 的依赖 |
-| 22  | 静态快照中胞体与纤毛颜色偏暗，无法呈现预设明亮渐变色 (v2.4→v2.5) | 2026-02-19 | 移除三个快照视图的 `camlight`/`lighting('gouraud')`/`material('dull')`，改为 `lighting(axi,'none')` 均匀环境光，曲面以 `FaceColor` 原色全亮度渲染，消除单向定向光照造成的暗区 |
-| 23  | 3D 动画中 CM 轨迹线遮挡半透明胞体和纤毛 (v2.4→v2.5) | 2026-02-19 | 调整绘制顺序（胞体→纤毛→CM 标记→轨迹），绘制轨迹后立即调用 `uistack(h_traj,'bottom')` 将其移至 `Children` 数组首位，强制 Painters 渲染器最先绘制轨迹，使其位于所有对象之下 |
-| 24  | 胞体正则化参数 `eps_body` 由 `h_min/2` 改为 `h_mean/6` (v2.6) | 2026-03-01 | 原策略受球帽—圆柱拼接处局部几何（CDis/2 ≈ 38.6 nm）驱动，使 ε/Δs 系统性偏大（≈ 0.24–0.35）；新策略基于全局平均最近邻间距，ε/Δs ≈ 0.167，与 Cortez et al. (2005) 最优比值 0.154 吻合，正则化误差降低约 40% |
-| 25  | 胞体正则化参数 `eps_body` 由 `h_mean/6` 调整为 `h_mean/3` (v2.7) | 2026-03-01 | 经数值测试验证，ε/Δs ≈ 0.333 对当前胶囊几何（$a/b=3.125$，$N_\text{body}=1000$）为经验最优值，阻力矩阵精度与数值稳定性均优于 h_mean/6 |
-| 26  | 动画 CM 轨迹在 OpenGL 渲染器下遮挡纤毛 (v2.8) | 2026-03-03 | `uistack('bottom')` 仅对 Painters 渲染器有效；动画中因 `FaceAlpha` 曲面强制启用 OpenGL，渲染顺序由深度缓冲（z-buffer）决定，轨迹线在几何位置靠近相机时必然遮挡纤毛。解决方案：将 `traj_color` 由 `[R G B]` 改为 4 分量 `[R G B 0.30]`（RGBA，alpha = 0.30），即使几何位置在前也不完全遮挡，同时移除无效的 `uistack` 调用 |
-| 27  | 动画视频左右两侧大面积留白 (v2.8) | 2026-03-03 | `DataAspectRatio=[1 1 1]` 将等比例数据框居中于 Position 矩形，细菌沉降时 Z 范围远大于 X/Y，投影内容呈竖向细长形，固定 1080×810 横向图像导致两侧大量空白。解决方案：按正射影投影（az=45°, el=25°）将数据边界框投影到屏幕，推算内容宽高比，动态设定图像尺寸（固定高度 1440 px，宽度 = `max(1440 × proj_w/proj_h × fill_ratio, 900)`），视频分辨率随数据自适应，留白消除 |
-| 28  | `validate_simulation_params.m` 重复附着位点检测索引错误 (v3.1→v3.2) | 2026-03-17 | `sites(accumarray(ic,1)>1)` 以逻辑向量（长度=唯一位点数）索引 `sites`（长度=总纤毛数），维度不匹配导致崩溃；改为 `u_sites(counts > 1)` 正确过滤唯一位点 |
-| 29  | `run_simulation.m` "覆盖" 选项未清除旧文件 (v3.1→v3.2) | 2026-03-17 | 输出目录覆盖对话框的 "Overwrite" 分支仅记录日志但未删除已有文件，旧输出残留；添加 `delete` 循环显式清除所有已有文件 |
-| 30  | `load_sim_config.m` `get_json` 死代码 (v3.1→v3.2) | 2026-03-17 | `isnumeric(default) && islogical(default)` 恒为 `false`（`islogical` 为 `true` 时 `isnumeric` 必为 `false`），`logical(v)` 转换永远不执行；移除 `isnumeric(default) &&` |
-| 31  | `main_coupled_simulation.m` 案例名拼写错误 (v3.1→v3.2) | 2026-03-17 | `'Brwon-Test-Soft'` → `'Brown-Test-Soft'` |
-| 32  | `render_progress_bar.m` 进度条无法原地更新 (v3.1→v3.2) | 2026-03-17 | `prev_len_container` 数值数组按值传递，函数内修改不回传至调用方，`\b` 退格数始终为 0，进度信息逐行堆叠而非原地刷新；改用 `persistent prev_msg_len` 管理状态（与 `odetpbar.m` 同模式），`current==1` 时重置 |
-| 33  | 胞体默认 `eps_body` 由 `h_mean/3` 调整为 `h_mean/2.6667` | 2026-04-13 | 经 `batch_sweep_N_body_eps_RSM` 多 $N_{\text{body}}$ 扫描，以 Stokes 球沉降速度与解析解误差最小为准则，$\varepsilon/\Delta s \approx 0.375$ 优于 $1/3$ |
-| 34  | 发布 **5.3.0**（2026-04-13） | 2026-04-13 | 新增 `batch_sweep_N_body_eps_RSM.m`；`run_simulation` 日志横幅与 `README` / `USER_GUIDE` / `CHANGELOG` / `requirements.txt` / `docs/index.html` 版本与日期同步 |
-| 35  | `build_coupled_lin_sys.m` 节点 Director 插值缺少 `det<0` SVD 修正 + 单段纤毛越界 | 2026-04-14 | 内联实现的 SVD 极分解缺少 `det(R)<0` 检查，可能返回不当旋转（反射而非旋转）；`N_k=1` 时边界外推索引越界。提取为独立共享函数 `compute_node_directors.m`，含完整 `det<0` 修正与 `min(2,N_k)` 安全防护，同时消除与 `ode_coupled_rhs.m` 的代码重复 |
+
+| #   | 问题                                                                                                                                  | 日期         | 修复                                                                                                                                                                                                                                               |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | 纤毛端点列权重不一致                                                                                                                          | 2026-02-07 | 统一 $\Delta s$（Walker 一致性）                                                                                                                                                                                                                        |
+| 2   | `inv()` 数值稳定性                                                                                                                       | 2026-02-07 | 替换为 `\` 运算符                                                                                                                                                                                                                                      |
+| 3   | 全矩阵求逆性能                                                                                                                             | 2026-02-10 | 返回 $M_{\text{weighted}}$，使用 LU 求解                                                                                                                                                                                                                |
+| 4   | $\tilde{A}_{\text{twist}}$ 坐标系不匹配                                                                                                   | 2026-02-10 | 使用实验室坐标系 `d3`                                                                                                                                                                                                                                    |
+| 5   | PascalCase 文件命名                                                                                                                     | 2026-02-11 | 重命名为 `snake_case`                                                                                                                                                                                                                                |
+| 6   | 几何构建器中未使用的力点数据                                                                                                                      | 2026-02-11 | 移除冗余代码                                                                                                                                                                                                                                           |
+| 7   | 胞体以散点渲染                                                                                                                             | 2026-02-11 | 参数化 `surf` + Gouraud 着色                                                                                                                                                                                                                          |
+| 8   | 扭转阻力缺少 $\ell_k$ 因子                                                                                                                  | 2026-02-12 | `eps_k^2/2` → `ell_k*eps_k^2/2`                                                                                                                                                                                                                  |
+| 9   | `reconstruct_geometry` 冗余调用                                                                                                         | 2026-02-12 | 移至循环外                                                                                                                                                                                                                                            |
+| 10  | 多纤毛统一着色                                                                                                                             | 2026-02-12 | 10 色可区分调色板                                                                                                                                                                                                                                       |
+| 11  | 无附着位点冲突检测                                                                                                                           | 2026-02-12 | 添加重复位点警告                                                                                                                                                                                                                                         |
+| 12  | `acos` 因浮点域错误产生 NaN                                                                                                                 | 2026-02-12 | 钳位至 $[-1, 1]$                                                                                                                                                                                                                                    |
+| 13  | 四元数初始化假设胞体 Z 为长轴                                                                                                                    | 2026-02-12 | 修正为胞体 X 轴                                                                                                                                                                                                                                        |
+| 14  | 移除纯 RSM 纤毛模式 (v2.0)                                                                                                                 | 2026-02-14 | 统一为 RSS + Rotlet；删除 `use_rss` 标志                                                                                                                                                                                                                 |
+| 15  | 纤毛线宽与质心标记过大 (v2.1)                                                                                                                  | 2026-02-15 | 静态图与动画中减半                                                                                                                                                                                                                                        |
+| 16  | 坐标轴范围无最小下限 (v2.1)                                                                                                                   | 2026-02-15 | 增加 `4*major_axis` 最小范围约束                                                                                                                                                                                                                         |
+| 17  | 动画中 CM 轨迹断续 (v2.1)                                                                                                                  | 2026-02-15 | 使用全分辨率轨迹数据替代帧采样稀疏数据                                                                                                                                                                                                                              |
+| 18  | 重力标识偏离坐标轴框 (v2.1)                                                                                                                   | 2026-02-15 | 缩小间距；添加 `drawnow` 确保位置准确                                                                                                                                                                                                                         |
+| 19  | `TightInset(3)` 对三维坐标轴高估，重力标识与轴框间距仍然过大 (v2.3→v2.4)                                                                                  | 2026-02-19 | 将 `TightInset(3)` 截断至 0.020（图宽 2%）；三维摄像机投影会把 tick/axis 标签投影到 Position 框外，MATLAB 将其全部计入 TightInset 导致虚高                                                                                                                                           |
+| 20  | 动画中重力标识在坐标轴全属性配置前放置，`Position` 在第一帧后收缩导致标识垂直偏移 (v2.4)                                                                               | 2026-02-19 | 在 `add_gravity_indicator_outside` 调用前预配置 `xlim/ylim/zlim`、`DataAspectRatio`、`view`、`xlabel/ylabel/zlabel` 及 `title`（字体大小一致）；`cla` 不清除 `HandleVisibility='off'` 的装饰对象，预配置状态全程稳定                                                                   |
+| 21  | 根本原因：`DataAspectRatio=[1 1 1]` 等比例约束使极细长轴框（Z>>X,Y）居中于 Position 矩形，实际轴框右边缘与 Position 右边缘相差数百像素；之前所有基于 Position 右边缘的方案均无法修复此问题 (v2.4) | 2026-02-19 | 彻底重写 `add_gravity_indicator_outside`：通过正射影投影（`right=[cos az, sin az, 0]`）将数据边界框投影到屏幕水平方向，计算等比例缩放后的真实渲染宽度，以居中关系求得轴框真实右边界，完全移除对 `TightInset` 的依赖                                                                                                   |
+| 22  | 静态快照中胞体与纤毛颜色偏暗，无法呈现预设明亮渐变色 (v2.4→v2.5)                                                                                              | 2026-02-19 | 移除三个快照视图的 `camlight`/`lighting('gouraud')`/`material('dull')`，改为 `lighting(axi,'none')` 均匀环境光，曲面以 `FaceColor` 原色全亮度渲染，消除单向定向光照造成的暗区                                                                                                              |
+| 23  | 3D 动画中 CM 轨迹线遮挡半透明胞体和纤毛 (v2.4→v2.5)                                                                                                 | 2026-02-19 | 调整绘制顺序（胞体→纤毛→CM 标记→轨迹），绘制轨迹后立即调用 `uistack(h_traj,'bottom')` 将其移至 `Children` 数组首位，强制 Painters 渲染器最先绘制轨迹，使其位于所有对象之下                                                                                                                                |
+| 24  | 胞体正则化参数 `eps_body` 由 `h_min/2` 改为 `h_mean/6` (v2.6)                                                                                 | 2026-03-01 | 原策略受球帽—圆柱拼接处局部几何（CDis/2 ≈ 38.6 nm）驱动，使 ε/Δs 系统性偏大（≈ 0.24–0.35）；新策略基于全局平均最近邻间距，ε/Δs ≈ 0.167，与 Cortez et al. (2005) 最优比值 0.154 吻合，正则化误差降低约 40%                                                                                                     |
+| 25  | 胞体正则化参数 `eps_body` 由 `h_mean/6` 调整为 `h_mean/3` (v2.7)                                                                               | 2026-03-01 | 经数值测试验证，ε/Δs ≈ 0.333 对当前胶囊几何（$a/b=3.125$，$N_\text{body}=1000$）为经验最优值，阻力矩阵精度与数值稳定性均优于 h_mean/6                                                                                                                                                    |
+| 26  | 动画 CM 轨迹在 OpenGL 渲染器下遮挡纤毛 (v2.8)                                                                                                    | 2026-03-03 | `uistack('bottom')` 仅对 Painters 渲染器有效；动画中因 `FaceAlpha` 曲面强制启用 OpenGL，渲染顺序由深度缓冲（z-buffer）决定，轨迹线在几何位置靠近相机时必然遮挡纤毛。解决方案：将 `traj_color` 由 `[R G B]` 改为 4 分量 `[R G B 0.30]`（RGBA，alpha = 0.30），即使几何位置在前也不完全遮挡，同时移除无效的 `uistack` 调用                     |
+| 27  | 动画视频左右两侧大面积留白 (v2.8)                                                                                                                | 2026-03-03 | `DataAspectRatio=[1 1 1]` 将等比例数据框居中于 Position 矩形，细菌沉降时 Z 范围远大于 X/Y，投影内容呈竖向细长形，固定 1080×810 横向图像导致两侧大量空白。解决方案：按正射影投影（az=45°, el=25°）将数据边界框投影到屏幕，推算内容宽高比，动态设定图像尺寸（固定高度 1440 px，宽度 = `max(1440 × proj_w/proj_h × fill_ratio, 900)`），视频分辨率随数据自适应，留白消除 |
+| 28  | `validate_simulation_params.m` 重复附着位点检测索引错误 (v3.1→v3.2)                                                                             | 2026-03-17 | `sites(accumarray(ic,1)>1)` 以逻辑向量（长度=唯一位点数）索引 `sites`（长度=总纤毛数），维度不匹配导致崩溃；改为 `u_sites(counts > 1)` 正确过滤唯一位点                                                                                                                                       |
+| 29  | `run_simulation.m` "覆盖" 选项未清除旧文件 (v3.1→v3.2)                                                                                        | 2026-03-17 | 输出目录覆盖对话框的 "Overwrite" 分支仅记录日志但未删除已有文件，旧输出残留；添加 `delete` 循环显式清除所有已有文件                                                                                                                                                                            |
+| 30  | `load_sim_config.m` `get_json` 死代码 (v3.1→v3.2)                                                                                      | 2026-03-17 | `isnumeric(default) && islogical(default)` 恒为 `false`（`islogical` 为 `true` 时 `isnumeric` 必为 `false`），`logical(v)` 转换永远不执行；移除 `isnumeric(default) &&`                                                                                             |
+| 31  | `main_coupled_simulation.m` 案例名拼写错误 (v3.1→v3.2)                                                                                     | 2026-03-17 | `'Brwon-Test-Soft'` → `'Brown-Test-Soft'`                                                                                                                                                                                                        |
+| 32  | `render_progress_bar.m` 进度条无法原地更新 (v3.1→v3.2)                                                                                       | 2026-03-17 | `prev_len_container` 数值数组按值传递，函数内修改不回传至调用方，`\b` 退格数始终为 0，进度信息逐行堆叠而非原地刷新；改用 `persistent prev_msg_len` 管理状态（与 `odetpbar.m` 同模式），`current==1` 时重置                                                                                                   |
+| 33  | 胞体默认 `eps_body` 由 `h_mean/3` 调整为 `h_mean/2.6667`                                                                                    | 2026-04-13 | 经 `batch_sweep_N_body_eps_RSM` 多 $N_{\text{body}}$ 扫描，以 Stokes 球沉降速度与解析解误差最小为准则，$\varepsilon/\Delta s \approx 0.375$ 优于 $1/3$                                                                                                                    |
+| 34  | 发布 **5.3.0**（2026-04-13）                                                                                                            | 2026-04-13 | 新增 `batch_sweep_N_body_eps_RSM.m`；`run_simulation` 日志横幅与 `README` / `USER_GUIDE` / `CHANGELOG` / `requirements.txt` / `docs/index.html` 版本与日期同步                                                                                                  |
+| 35  | `build_coupled_lin_sys.m` 节点 Director 插值缺少 `det<0` SVD 修正 + 单段纤毛越界                                                                  | 2026-04-14 | 内联实现的 SVD 极分解缺少 `det(R)<0` 检查，可能返回不当旋转（反射而非旋转）；`N_k=1` 时边界外推索引越界。提取为独立共享函数 `compute_node_directors.m`，含完整 `det<0` 修正与 `min(2,N_k)` 安全防护，同时消除与 `ode_coupled_rhs.m` 的代码重复                                                                          |
+
 
 ### 22.3 功能历史
 
@@ -1013,100 +1058,108 @@ Coupled_Body_Pili/
 
 #### v2.x — 基础框架与渲染优化
 
-| #   | 功能                                                              | 日期       |
-| --- | ----------------------------------------------------------------- | ---------- |
-| 1   | 初始姿态参数化 `alpha_0`                                          | 2026-02-12 |
-| 2   | 案例命名 `case_name`                                              | 2026-02-12 |
-| 3   | 专业进度条 `odetpbar.m`                                           | 2026-02-12 |
-| 4   | 多纤毛可区分着色                                                  | 2026-02-12 |
-| 5   | 附着位点冲突检测                                                  | 2026-02-12 |
-| 6   | ODE 事件触发日志                                                  | 2026-02-12 |
-| 7   | 初始姿态交互式预览                                                | 2026-02-12 |
-| 8   | 纤毛 RSS 流体力学 (Cortez 2018)                                   | 2026-02-14 |
-| 9   | 向量化 RSS 组装（消除线段循环）                                   | 2026-02-14 |
-| 10  | Rotlet 线段迁移率 $M_{\text{rotlet}}$                             | 2026-02-14 |
-| 11  | 纯 RSS 模式——移除 RSM 纤毛回退 (v2.0)                             | 2026-02-14 |
-| 12  | 纤毛线宽与质心标记减半 (v2.1)                                     | 2026-02-15 |
-| 13  | 坐标轴范围最小下限 `4*major_axis` (v2.1)                          | 2026-02-15 |
-| 14  | 动画中全分辨率 CM 轨迹 (v2.1)                                     | 2026-02-15 |
-| 15  | 重力标识紧贴坐标轴框 (v2.1)                                       | 2026-02-15 |
-| 16  | `results.tilt_angle`：胞体长轴偏仰角时间序列 (v2.2)               | 2026-02-18 |
-| 17  | `results.V_cm_um`：质心速度三分量时间序列 (v2.2)                  | 2026-02-18 |
-| 18  | 初始姿态预览图自动保存为 `initial_pose.png` (v2.2)                | 2026-02-18 |
-| 19  | `timeseries.csv` 导出：10 列标量时间序列，便于外部工具调用 (v2.2) | 2026-02-18 |
-| 20  | summary_plot 第 3 子图替换为胞体倾斜角时间演化图 (v2.2)           | 2026-02-18 |
-| 21  | 修复重力标识位置偏移：`sgtitle` 后调用以获取最终 Position (v2.3)  | 2026-02-18 |
-| 22  | 重力标识定位改用 `TightInset(3)` 精确计算内容右边界 (v2.3)        | 2026-02-18 |
-| 23  | 根治重力标识右偏：`TightInset(3)` 截断至 0.020，消除三维轴标签余量虚高 (v2.4) | 2026-02-19 |
-| 24  | 动画轴完整预配置（`xlim/ylim/zlim` + `DataAspectRatio` + `view` + 轴标签 + `title`）后再放置重力标识，`Position` 全帧稳定 (v2.4) | 2026-02-19 |
-| 25  | 彻底根治：正射影投影法计算 `DataAspectRatio=[1 1 1]` 等比例约束下的轴框真实渲染宽度，完全移除对 `TightInset`/`Position` 右边缘的依赖；对极细长数据范围（细菌沉降 Z>>X,Y）准确有效 (v2.4) | 2026-02-19 |
-| 26  | 静态快照均匀光照：三视图改用 `lighting('none')` 环境光，消除 Gouraud 单向光照对非正对摄像机曲面的暗化，胞体/纤毛以真实颜色渐变完整呈现 (v2.5) | 2026-02-19 |
-| 27  | 动画 CM 轨迹置底层渲染：绘制完成后调用 `uistack(h_traj,'bottom')`，轨迹线始终位于胞体与纤毛之下，不影响半透明胞体及纤毛的视觉效果 (v2.5) | 2026-02-19 |
-| 28  | 胞体正则化参数优化为 `h_mean/6`（v2.6）：正则化参数策略由局部最小间距 `h_min/2` 改为全局平均最近邻间距 `h_mean/6`，ε/Δs ≈ 0.167，符合 Cortez et al. (2005) 对球体算例的最优配置，兼顾正则化精度与数值稳定性 | 2026-03-01 |
-| 29  | 胞体正则化参数进一步调整为 `h_mean/3`（v2.7）：经数值测试，ε/Δs ≈ 0.333 对当前胶囊几何为经验最优，精度与稳定性优于 `h_mean/6` | 2026-03-01 |
-| 30  | PNG 输出分辨率升级至 600 dpi（v2.8）：`initial_pose.png` 由 200 dpi 升至 600 dpi；`summary_plot.png` 由 300 dpi 升至 600 dpi，满足期刊投稿图像质量要求 | 2026-03-03 |
-| 31  | 坐标轴最小范围由 4 倍半长轴（5 μm）改为 4 倍胞体全长（10 μm，= `4 × 2 × major_axis`）（v2.8）：确保三视图在细菌几何尺度下具有充足的空间背景；同时为 `initial_pose.png` 新增最小范围约束（此前无约束），三图规则统一 | 2026-03-03 |
-| 32  | 动画视频分辨率与质量提升（v2.8）：图像高度由 900 px 提升至 1440 px（2K 级纵向分辨率），最小宽度由 560 px 提升至 900 px；MPEG-4 压缩质量由 95 升至最高值 100，视频更清晰锐利 | 2026-03-03 |
+
+| #   | 功能                                                                                                                                                                                                                  | 日期         |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 1   | 初始姿态参数化 `alpha_0`                                                                                                                                                                                                   | 2026-02-12 |
+| 2   | 案例命名 `case_name`                                                                                                                                                                                                    | 2026-02-12 |
+| 3   | 专业进度条 `odetpbar.m`                                                                                                                                                                                                  | 2026-02-12 |
+| 4   | 多纤毛可区分着色                                                                                                                                                                                                            | 2026-02-12 |
+| 5   | 附着位点冲突检测                                                                                                                                                                                                            | 2026-02-12 |
+| 6   | ODE 事件触发日志                                                                                                                                                                                                          | 2026-02-12 |
+| 7   | 初始姿态交互式预览                                                                                                                                                                                                           | 2026-02-12 |
+| 8   | 纤毛 RSS 流体力学 (Cortez 2018)                                                                                                                                                                                           | 2026-02-14 |
+| 9   | 向量化 RSS 组装（消除线段循环）                                                                                                                                                                                                  | 2026-02-14 |
+| 10  | Rotlet 线段迁移率 $M_{\text{rotlet}}$                                                                                                                                                                                    | 2026-02-14 |
+| 11  | 纯 RSS 模式——移除 RSM 纤毛回退 (v2.0)                                                                                                                                                                                        | 2026-02-14 |
+| 12  | 纤毛线宽与质心标记减半 (v2.1)                                                                                                                                                                                                  | 2026-02-15 |
+| 13  | 坐标轴范围最小下限 `4*major_axis` (v2.1)                                                                                                                                                                                     | 2026-02-15 |
+| 14  | 动画中全分辨率 CM 轨迹 (v2.1)                                                                                                                                                                                                | 2026-02-15 |
+| 15  | 重力标识紧贴坐标轴框 (v2.1)                                                                                                                                                                                                   | 2026-02-15 |
+| 16  | `results.tilt_angle`：胞体长轴偏仰角时间序列 (v2.2)                                                                                                                                                                             | 2026-02-18 |
+| 17  | `results.V_cm_um`：质心速度三分量时间序列 (v2.2)                                                                                                                                                                                | 2026-02-18 |
+| 18  | 初始姿态预览图自动保存为 `initial_pose.png` (v2.2)                                                                                                                                                                              | 2026-02-18 |
+| 19  | `timeseries.csv` 导出：10 列标量时间序列，便于外部工具调用 (v2.2)                                                                                                                                                                      | 2026-02-18 |
+| 20  | summary_plot 第 3 子图替换为胞体倾斜角时间演化图 (v2.2)                                                                                                                                                                             | 2026-02-18 |
+| 21  | 修复重力标识位置偏移：`sgtitle` 后调用以获取最终 Position (v2.3)                                                                                                                                                                       | 2026-02-18 |
+| 22  | 重力标识定位改用 `TightInset(3)` 精确计算内容右边界 (v2.3)                                                                                                                                                                           | 2026-02-18 |
+| 23  | 根治重力标识右偏：`TightInset(3)` 截断至 0.020，消除三维轴标签余量虚高 (v2.4)                                                                                                                                                               | 2026-02-19 |
+| 24  | 动画轴完整预配置（`xlim/ylim/zlim` + `DataAspectRatio` + `view` + 轴标签 + `title`）后再放置重力标识，`Position` 全帧稳定 (v2.4)                                                                                                              | 2026-02-19 |
+| 25  | 彻底根治：正射影投影法计算 `DataAspectRatio=[1 1 1]` 等比例约束下的轴框真实渲染宽度，完全移除对 `TightInset`/`Position` 右边缘的依赖；对极细长数据范围（细菌沉降 Z>>X,Y）准确有效 (v2.4)                                                                                       | 2026-02-19 |
+| 26  | 静态快照均匀光照：三视图改用 `lighting('none')` 环境光，消除 Gouraud 单向光照对非正对摄像机曲面的暗化，胞体/纤毛以真实颜色渐变完整呈现 (v2.5)                                                                                                                           | 2026-02-19 |
+| 27  | 动画 CM 轨迹置底层渲染：绘制完成后调用 `uistack(h_traj,'bottom')`，轨迹线始终位于胞体与纤毛之下，不影响半透明胞体及纤毛的视觉效果 (v2.5)                                                                                                                             | 2026-02-19 |
+| 28  | 胞体正则化参数优化为 `h_mean/6`（v2.6）：正则化参数策略由局部最小间距 `h_min/2` 改为全局平均最近邻间距 `h_mean/6`，ε/Δs ≈ 0.167，符合 Cortez et al. (2005) 对球体算例的最优配置，兼顾正则化精度与数值稳定性                                                                           | 2026-03-01 |
+| 29  | 胞体正则化参数进一步调整为 `h_mean/3`（v2.7）：经数值测试，ε/Δs ≈ 0.333 对当前胶囊几何为经验最优，精度与稳定性优于 `h_mean/6`                                                                                                                                  | 2026-03-01 |
+| 30  | PNG 输出分辨率升级至 600 dpi（v2.8）：`initial_pose.png` 由 200 dpi 升至 600 dpi；`summary_plot.png` 由 300 dpi 升至 600 dpi，满足期刊投稿图像质量要求                                                                                             | 2026-03-03 |
+| 31  | 坐标轴最小范围由 4 倍半长轴（5 μm）改为 4 倍胞体全长（10 μm，= `4 × 2 × major_axis`）（v2.8）：确保三视图在细菌几何尺度下具有充足的空间背景；同时为 `initial_pose.png` 新增最小范围约束（此前无约束），三图规则统一                                                                            | 2026-03-03 |
+| 32  | 动画视频分辨率与质量提升（v2.8）：图像高度由 900 px 提升至 1440 px（2K 级纵向分辨率），最小宽度由 560 px 提升至 900 px；MPEG-4 压缩质量由 95 升至最高值 100，视频更清晰锐利                                                                                                    | 2026-03-03 |
 | 33  | XZ 平面流场可视化（v2.9）：新增 `compute_flowfield_xz.m`，在仿真末状态计算并绘制 XZ 平面流场。利用 RSM/RSS/Rotlet 核函数在 10×10 μm 网格（间距 0.1 μm）上向量化评估流体速度，jet 色图背景着色速度大小 + 归一化等长 quiver 箭头表示流向；胞体内部由球冠柱距离场遮罩；分块策略控制内存；输出 `flowfield_xz.png`（600 dpi） | 2026-03-06 |
+
 
 #### v3.x — 工程化与批量扫描
 
-| #   | 功能                                                              | 日期       |
-| --- | ----------------------------------------------------------------- | ---------- |
-| 34  | 胞体布朗动力学（v3.0）：新增分裂步算符分裂（Operator Splitting）框架，`ode15s` 确定性求解器与固定间隔 `dt_B` Euler-Maruyama 布朗扰动解耦。RSM 摩擦矩阵 → Schur 补解耦 → Cholesky 扩散因子；四元数旋转布朗扰动；布朗节点后自动重施加固支几何投影 | 2026-03-14 |
-| 35  | `compute_body_brownian_params.m` 新建（v3.0）：基于 RSM 迁移率矩阵构建胶囊体 6×6 刚体摩擦矩阵，Schur 补解耦平移/旋转子块，Cholesky 分解生成 Euler-Maruyama 所需的 $L_T$、$L_R$ 因子 | 2026-03-14 |
-| 36  | 双平面流场 2×2 面板可视化（v3.0）：`compute_flowfield_xz.m` 重构为 `compute_plot_flowfield.m`，同时计算 XZ 和 YZ 平面流场；2×2 面板布局（3D 表面视图 + 2D imagesc，各含 XZ 和 YZ）；统一色标（99 百分位截断）；`contourc` 轮廓提取胞体遮罩轮廓；输出 `flowfield_panels.png` | 2026-03-14 |
-| 37  | 流场网格间距由 0.1 μm 细化至 0.05 μm（v3.0）：分辨率翻倍，流场细节更清晰 | 2026-03-14 |
-| 38  | 动画三面板 1×3 布局（v3.0）：3D 视图（左）+ XZ 投影（中）+ YZ 投影（右），每帧三个面板同步更新；XZ/YZ 面板采用正射影投影（`Projection = orthographic`），手动补充封闭轴框线 | 2026-03-14 |
-| 39  | 动画图像尺寸自适应（v3.0）：固定高度 1200 px，宽度按正射影投影数据边界框宽高比动态计算（最小 1800 px），适配 1×3 三面板布局 | 2026-03-14 |
-| 40  | 流场参数提升至主脚本（v3.1）：`grid_spacing_um`、`grid_range_um`、`quiver_skip`、`chunk_size` 从 `compute_plot_flowfield` 硬编码提升至 `cfg` 结构体，通过 `flow_opts` 传入，函数内通过 `get_flow_opt` 回退默认值 | 2026-03-17 |
-| 41  | 纤毛结构体接口（v3.1）：新增 `parse_pili_config.m`，支持以命名字段（`type`, `length_um`, `site` 等）定义纤毛配置，自动转换为 `Pili_Matrix [8×M]`；保留原始矩阵格式向后兼容 | 2026-03-17 |
-| 42  | 无人值守模式（v3.1）：新增 `auto_confirm` 参数（默认 `false`），设为 `true` 时跳过初始姿态预览确认和输出目录覆盖对话框，支持无交互批量运行 | 2026-03-17 |
-| 43  | 参数合理性预检（v3.1）：新增 `validate_simulation_params.m`，在仿真启动前对所有用户参数执行合理性检查；错误聚合（一次性报告全部违规）+ 警告分级（次优但可接受的参数值） | 2026-03-17 |
-| 44  | 输出目录覆盖保护（v3.1）：检测到输出目录已包含仿真数据文件时，弹出三选一对话框（覆盖/重命名/中止）；`auto_confirm` 模式下默认重命名（追加时间戳） | 2026-03-17 |
-| 45  | 通用文本进度条（v3.1→v3.2 修复）：新增 `render_progress_bar.m`，为动画渲染（`[ANIM]`）和流场计算（`[FLOW-XZ]`/`[FLOW-YZ]`）提供带 ETA 的实时进度反馈；0.25s 刷新节流，`\b` 原地更新；v3.2 改用 `persistent` 变量管理状态（解决值传递导致无法原地刷新的问题） | 2026-03-17 |
-| 46  | 外部 JSON 配置系统（v3.1）：新增 `load_sim_config.m` / `save_sim_config.m`，支持从 JSON 文件加载参数 + 运行时自动保存 `config.json` 至输出目录；配置快照可直接复用以精确复现运行 | 2026-03-17 |
-| 47  | 函数化封装 + 批量扫描（v3.1）：核心仿真逻辑封装为 `run_simulation(cfg)` 函数，支持编程式调用；`main_coupled_simulation.m` 简化为入口脚本；新增 `batch_sweep_example.m` 参数扫描示例 | 2026-03-17 |
-| 48  | 参数扫描套件 `batch sweep/`（v3.3）：`batch_sweep_example.m` 重命名为 `batch_sweep_alpha.m` 并与 5 个新脚本统一归入 `batch sweep/` 子文件夹；各脚本分别扫描：初始倾斜角 `alpha_0`（7 工况）、胞体长半轴 `major_axis`（6 工况）、纤毛长度 `length_um`（6 工况）、纤毛附着点位 `site`（14 工况）、纤毛数量（6 工况）、纤毛杨氏模量 `E`（5 工况）；全部采用 headless 无头模式；代码审查修复杨氏模量脚本注释错误及 case_name 小数点问题（`1p77e07` 格式） | 2026-03-18 |
-| 49  | JSON 批量运行器 `batch_run_from_json.m`（v3.3）：`uigetdir` 交互选择文件夹（支持硬编码路径旁路）→ 自动发现并字母序排列全部 `*.json` → `load_sim_config` 加载并强制 headless 覆盖 → `try-catch` 捕获异常跳过失败工况继续执行 → 运行结束输出对齐汇总表（状态 / 稳态 V_sink / 耗时 / 错误原因）→ 自动生成 `batch_summary_*.log`；ETA 基于历史均值动态估算；使用 `mean(...,'omitnan')` 消除 Statistics Toolbox 依赖 | 2026-03-18 |
-| 50  | 批量脚本代码审查修复（v3.3）：修复 `batch_run_from_json.m` 的死代码（`cfg.generate_animation` 自赋值）与冗余赋值（`blog_fid=-1` 在 `fopen` 已返回 -1 后的重复写入） | 2026-03-18 |
-| 51  | 流场 2D `quiver` 单层深灰箭头（v3.3.1）：移除白色衬底叠绘；箭头长度/线宽/箭头头相对原深色层放大 50%，便于在 jet 背景上判读 | 2026-03-30 |
-| 52  | 配套文档与版本对齐（v3.3.1）：新增 `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`；`README.md` 增补 §25；`run_simulation` 日志横幅版本与发布一致 | 2026-03-30 |
+
+| #   | 功能                                                                                                                                                                                                                                                                                                                                                                                    | 日期         |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 34  | 胞体布朗动力学（v3.0）：新增分裂步算符分裂（Operator Splitting）框架，`ode15s` 确定性求解器与固定间隔 `dt_B` Euler-Maruyama 布朗扰动解耦。RSM 摩擦矩阵 → Schur 补解耦 → Cholesky 扩散因子；四元数旋转布朗扰动；布朗节点后自动重施加固支几何投影                                                                                                                                                                                                                       | 2026-03-14 |
+| 35  | `compute_body_brownian_params.m` 新建（v3.0）：基于 RSM 迁移率矩阵构建胶囊体 6×6 刚体摩擦矩阵，Schur 补解耦平移/旋转子块，Cholesky 分解生成 Euler-Maruyama 所需的 $L_T$、$L_R$ 因子                                                                                                                                                                                                                                               | 2026-03-14 |
+| 36  | 双平面流场 2×2 面板可视化（v3.0）：`compute_flowfield_xz.m` 重构为 `compute_plot_flowfield.m`，同时计算 XZ 和 YZ 平面流场；2×2 面板布局（3D 表面视图 + 2D imagesc，各含 XZ 和 YZ）；统一色标（99 百分位截断）；`contourc` 轮廓提取胞体遮罩轮廓；输出 `flowfield_panels.png`                                                                                                                                                                              | 2026-03-14 |
+| 37  | 流场网格间距由 0.1 μm 细化至 0.05 μm（v3.0）：分辨率翻倍，流场细节更清晰                                                                                                                                                                                                                                                                                                                                        | 2026-03-14 |
+| 38  | 动画三面板 1×3 布局（v3.0）：3D 视图（左）+ XZ 投影（中）+ YZ 投影（右），每帧三个面板同步更新；XZ/YZ 面板采用正射影投影（`Projection = orthographic`），手动补充封闭轴框线                                                                                                                                                                                                                                                                     | 2026-03-14 |
+| 39  | 动画图像尺寸自适应（v3.0）：固定高度 1200 px，宽度按正射影投影数据边界框宽高比动态计算（最小 1800 px），适配 1×3 三面板布局                                                                                                                                                                                                                                                                                                            | 2026-03-14 |
+| 40  | 流场参数提升至主脚本（v3.1）：`grid_spacing_um`、`grid_range_um`、`quiver_skip`、`chunk_size` 从 `compute_plot_flowfield` 硬编码提升至 `cfg` 结构体，通过 `flow_opts` 传入，函数内通过 `get_flow_opt` 回退默认值                                                                                                                                                                                                                | 2026-03-17 |
+| 41  | 纤毛结构体接口（v3.1）：新增 `parse_pili_config.m`，支持以命名字段（`type`, `length_um`, `site` 等）定义纤毛配置，自动转换为 `Pili_Matrix [8×M]`；保留原始矩阵格式向后兼容                                                                                                                                                                                                                                                            | 2026-03-17 |
+| 42  | 无人值守模式（v3.1）：新增 `auto_confirm` 参数（默认 `false`），设为 `true` 时跳过初始姿态预览确认和输出目录覆盖对话框，支持无交互批量运行                                                                                                                                                                                                                                                                                               | 2026-03-17 |
+| 43  | 参数合理性预检（v3.1）：新增 `validate_simulation_params.m`，在仿真启动前对所有用户参数执行合理性检查；错误聚合（一次性报告全部违规）+ 警告分级（次优但可接受的参数值）                                                                                                                                                                                                                                                                                | 2026-03-17 |
+| 44  | 输出目录覆盖保护（v3.1）：检测到输出目录已包含仿真数据文件时，弹出三选一对话框（覆盖/重命名/中止）；`auto_confirm` 模式下默认重命名（追加时间戳）                                                                                                                                                                                                                                                                                                   | 2026-03-17 |
+| 45  | 通用文本进度条（v3.1→v3.2 修复）：新增 `render_progress_bar.m`，为动画渲染（`[ANIM]`）和流场计算（`[FLOW-XZ]`/`[FLOW-YZ]`）提供带 ETA 的实时进度反馈；0.25s 刷新节流，`\b` 原地更新；v3.2 改用 `persistent` 变量管理状态（解决值传递导致无法原地刷新的问题）                                                                                                                                                                                                      | 2026-03-17 |
+| 46  | 外部 JSON 配置系统（v3.1）：新增 `load_sim_config.m` / `save_sim_config.m`，支持从 JSON 文件加载参数 + 运行时自动保存 `config.json` 至输出目录；配置快照可直接复用以精确复现运行                                                                                                                                                                                                                                                        | 2026-03-17 |
+| 47  | 函数化封装 + 批量扫描（v3.1）：核心仿真逻辑封装为 `run_simulation(cfg)` 函数，支持编程式调用；`main_coupled_simulation.m` 简化为入口脚本；新增 `batch_sweep_example.m` 参数扫描示例                                                                                                                                                                                                                                                   | 2026-03-17 |
+| 48  | 参数扫描套件 `batch sweep/`（v3.3）：`batch_sweep_example.m` 重命名为 `batch_sweep_alpha.m` 并与 5 个新脚本统一归入 `batch sweep/` 子文件夹；各脚本分别扫描：初始倾斜角 `alpha_0`（7 工况）、胞体长半轴 `major_axis`（6 工况）、纤毛长度 `length_um`（6 工况）、纤毛附着点位 `site`（14 工况）、纤毛数量（6 工况）、纤毛杨氏模量 `E`（5 工况）；全部采用 headless 无头模式；代码审查修复杨氏模量脚本注释错误及 case_name 小数点问题（`1p77e07` 格式）                                                                    | 2026-03-18 |
+| 49  | JSON 批量运行器 `batch_run_from_json.m`（v3.3）：`uigetdir` 交互选择文件夹（支持硬编码路径旁路）→ 自动发现并字母序排列全部 `*.json` → `load_sim_config` 加载并强制 headless 覆盖 → `try-catch` 捕获异常跳过失败工况继续执行 → 运行结束输出对齐汇总表（状态 / 稳态 V_sink / 耗时 / 错误原因）→ 自动生成 `batch_summary_*.log`；ETA 基于历史均值动态估算；使用 `mean(...,'omitnan')` 消除 Statistics Toolbox 依赖                                                                               | 2026-03-18 |
+| 50  | 批量脚本代码审查修复（v3.3）：修复 `batch_run_from_json.m` 的死代码（`cfg.generate_animation` 自赋值）与冗余赋值（`blog_fid=-1` 在 `fopen` 已返回 -1 后的重复写入）                                                                                                                                                                                                                                                            | 2026-03-18 |
+| 51  | 流场 2D `quiver` 单层深灰箭头（v3.3.1）：移除白色衬底叠绘；箭头长度/线宽/箭头头相对原深色层放大 50%，便于在 jet 背景上判读                                                                                                                                                                                                                                                                                                          | 2026-03-30 |
+| 52  | 配套文档与版本对齐（v3.3.1）：新增 `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`；`README.md` 增补 §25；`run_simulation` 日志横幅版本与发布一致                                                                                                                                                                                                                                                                | 2026-03-30 |
 | 53  | 批量扫描套件（v3.3.2）：新增 `batch_sweep_N_body.m`（球体 R=0.4 μm、无纤毛，`N_body` 600–1600 步长 200）、`batch_sweep_seg_per_um.m`（10–35 步长 5）；删除 `batch_sweep_pili_count.m`；各 `batch_sweep_*.m` 统一 `T_obs=200`、关布朗、开动画且 `animation_skip=5`、`case_name` 连字符、默认纤毛 `E=3.279e8` Pa；`batch_sweep_pili_length` 支持 `site_list`；`batch_sweep_pili_E` 扫描 `1e5`–`1e9` Pa（10 倍档）；`validate_simulation_params` 允许等轴球体 | 2026-03-30 |
-| 54  | `batch_sweep_alpha.m`（v3.3.3）：改为**无纤毛**胞体（`Pili_Matrix` 空），仅扫描胶囊胞体初始倾角 `alpha_0`；文档与版本号同步至 3.3.3 | 2026-03-30 |
-| 55  | 删除 `batch_sweep_pili_site.m`（v3.3.4）：附着点扫描由 `batch_sweep_pili_length.m` 的 `site_list` 覆盖；MATLAB 源文件 38 个、批量扫描脚本 6 个 + JSON 运行器 | 2026-03-30 |
-| 56  | `batch_sweep_major_axis.m`（v3.3.5）：无纤毛胞体长半轴扫描改为 **0.4~1.6 μm、步长 0.2 μm**（7 工况）；首档为等轴球（`major_axis = minor_axis`） | 2026-03-30 |
+| 54  | `batch_sweep_alpha.m`（v3.3.3）：改为**无纤毛**胞体（`Pili_Matrix` 空），仅扫描胶囊胞体初始倾角 `alpha_0`；文档与版本号同步至 3.3.3                                                                                                                                                                                                                                                                                      | 2026-03-30 |
+| 55  | 删除 `batch_sweep_pili_site.m`（v3.3.4）：附着点扫描由 `batch_sweep_pili_length.m` 的 `site_list` 覆盖；MATLAB 源文件 38 个、批量扫描脚本 6 个 + JSON 运行器                                                                                                                                                                                                                                                        | 2026-03-30 |
+| 56  | `batch_sweep_major_axis.m`（v3.3.5）：无纤毛胞体长半轴扫描改为 **0.4~1.6 μm、步长 0.2 μm**（7 工况）；首档为等轴球（`major_axis = minor_axis`）                                                                                                                                                                                                                                                                      | 2026-03-30 |
+
 
 #### v4.x — 全系统布朗动力学
 
-| #   | 功能                                                              | 日期       |
-| --- | ----------------------------------------------------------------- | ---------- |
+
+| #   | 功能                                                                                                                                                                                                                                                                                                                                                                                          | 日期         |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
 | 57  | 全系统有效摩擦张量布朗动力学（v4.0）：布朗扩散张量不再基于孤立胞体预计算，而是在每个布朗步通过 probing method 从完整体-纤毛耦合线性系统动态提取有效 6×6 迁移率（隐式 Schur 补缩并纤毛自由度），纤毛数量与长度自然抑制热扩散；新增 `build_coupled_lin_sys.m`（提取 `ode_coupled_rhs` Steps 1-7 为可复用子程序）和 `compute_effective_body_brownian.m`（探测 + 量纲转换 + Cholesky）；可选 Fixman 中点修正消除构型相关漂移；删除旧 body-only `compute_body_brownian_params.m`；修复 `main_coupled_simulation.m` 缺失 `fixman_midpoint` 参数 | 2026-03-31 |
+
 
 #### v5.x — 物理功能扩展与后处理
 
-| #   | 功能                                                              | 日期       |
-| --- | ----------------------------------------------------------------- | ---------- |
+
+| #   | 功能                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 日期         |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
 | 58  | 内禀曲率 + 主动力矩 + 背景流场三合一物理功能扩展（v5.0）：新增 `coupled_background_flow.m`（稳态背景流 off/uniform/shear_z）和 `coupled_active_moment.m`（per-pili 时变主动力矩 off/traveling_wave/custom）；`build_coupled_lin_sys` 新增可选 `hydro` 输出；`ode_coupled_rhs` 整合主动力矩减去和背景流 B·Ainv·u_bg 贡献；`init_coupled_params` 新增三组 Name-Value 配置（内禀曲率 frozen/zero/constant/helix、主动力矩、背景流）并自动无量纲化；`parse_pili_config` 新增 `pili_ext` 第二输出透传扩展字段；`load/save_sim_config` 解析/写入新 JSON 节；`validate_simulation_params` 新增完整参数验证规则；`main_coupled_simulation` 新增内联配置示例。所有新功能默认关闭，完全向后兼容 | 2026-04-03 |
-| 59  | 批量仿真结果后处理（v5.1）：新增 `post_processing/postprocess_cases.m`，父目录下多选含 `timeseries.csv` 的 Case 子文件夹，汇总沉降速度、最大水平位移、轨迹曲折度、MSD 拟合扩散系数等，导出 Excel；英文界面；Windows 下可选 Excel COM 排版；`run_simulation` 日志横幅版本号同步为 **5.1.0** | 2026-04-07 |
-| 60  | 批量友好图窗管理（v5.1.1）：`exportgraphics` 保存 `summary_plot.png` / `flowfield_panels.png` 后立即 `close` 对应 figure（`run_simulation.m`、`compute_plot_flowfield.m`），避免大批量仿真堆积 MATLAB 图窗；日志横幅版本号 **5.1.1** | 2026-04-08 |
-| 61  | 布朗 twister 种子策略（v5.2.0）：默认 **`MMddHHmmss`** 整数（`brown_rng_seed_from_clock`）；可选 **`cfg.brown_rng_seed`** / JSON **`brownian.rng_seed`**；种子写入 `config.json`、`brownian_rng_seed.txt`、`simulation.log`、`results`/`params`；`batch_repeat_brownian` 改为 **`cfg.brown_rng_seed = rng_seed_base + k`**；日志横幅 **5.2.0** | 2026-04-10 |
-| 62  | 默认离散与 ODE 限时（v5.2.1）：**`N_body` = 200**（原 250）、**`tlim` = 360 s**（原 120 s）；`load_sim_config` / `init_coupled_params` / 主脚本与批量模板同步；日志横幅 **5.2.1** | 2026-04-10 |
-| 63  | 发布 **5.3.0**（2026-04-13）：胞体默认 RSM 正则化 `h_mean/2.6667`（`batch_sweep_N_body_eps_RSM` 标定）；新增 `batch_sweep_N_body_eps_RSM.m`；`init_coupled_params` / `build_global_resistance` / README §8.5；日志横幅 **`5.3.0`**；`README` / `USER_GUIDE` / `CHANGELOG` / `requirements.txt` / `docs/index.html` 版本与日期同步 | 2026-04-13 |
-| 64  | **5.3.1**（2026-04-14）：`bacteria_3d_motion.mp4` 生成 — 图窗像素在 **3840×2160** 内等比缩放（保留原宽高比），`getframe` 使用图窗 `Position` 固定矩形，避免 Windows MPEG-4 编码器报帧尺寸超限或帧间尺寸不一致；日志横幅 **`5.3.1`**；文档与 `requirements.txt` 同步 | 2026-04-14 |
-| 65  | **5.3.2**（2026-04-14）：新增共享工具函数 `compute_node_directors.m`（段 Director → 节点 Director 插值 + SVD 极分解投影 + `det<0` 修正）；修复 `build_coupled_lin_sys.m` 节点 Director 缺 `det<0` 检查与 `N_k=1` 越界；`ode_coupled_rhs.m` 向量化弹性/主动力矩写入 `R_global`；`validate_simulation_params.m` 增 `wavenumber`/`d3_amp` 警告；`coupled_active_moment.m` 补充 `d3_amp` 物理含义文档 | 2026-04-14 |
-| 66  | **5.4.1**（2026-04-15）：移除主动力矩 **`breaststroke`** 模式；保留 `off` / `traveling_wave` / `custom`；`config_example.json` 第二根纤毛示例改为 `traveling_wave`；文档与日志横幅同步 **5.4.1**（v5.4.0 曾引入 `breaststroke`，见 `CHANGELOG`） | 2026-04-15 |
-| 67  | **5.4.2**（2026-04-15）：`traveling_wave` 主动力矩新增可选 **`phase_rad`** [rad]（默认 0），用于调节 \(\Phi=k_w s-\omega t+\phi\) 的时间相位；`coupled_active_moment` / `init_coupled_params` / `validate_simulation_params` / `config_example.json` 同步 | 2026-04-15 |
-| 68  | **5.4.3**（2026-04-15）：全部 47 个 `.m` 文件头注释移除 `Updated:` 历史行，统一以 `Author:` / `Created:` 结尾；`build_coupled_lin_sys.m` Syntax 补写 3-输出调用形式；`brown_rng_seed_from_clock.m` 补全标准化头注释；`postprocess_cases.m` 头注释统一项目规范风格 | 2026-04-15 |
+| 59  | 批量仿真结果后处理（v5.1）：新增 `post_processing/postprocess_cases.m`，父目录下多选含 `timeseries.csv` 的 Case 子文件夹，汇总沉降速度、最大水平位移、轨迹曲折度、MSD 拟合扩散系数等，导出 Excel；英文界面；Windows 下可选 Excel COM 排版；`run_simulation` 日志横幅版本号同步为 **5.1.0**                                                                                                                                                                                                                                                                                                                      | 2026-04-07 |
+| 60  | 批量友好图窗管理（v5.1.1）：`exportgraphics` 保存 `summary_plot.png` / `flowfield_panels.png` 后立即 `close` 对应 figure（`run_simulation.m`、`compute_plot_flowfield.m`），避免大批量仿真堆积 MATLAB 图窗；日志横幅版本号 **5.1.1**                                                                                                                                                                                                                                                                                                                                     | 2026-04-08 |
+| 61  | 布朗 twister 种子策略（v5.2.0）：默认 **`MMddHHmmss`** 整数（`brown_rng_seed_from_clock`）；可选 **`cfg.brown_rng_seed`** / JSON **`brownian.rng_seed`**；种子写入 `config.json`、`brownian_rng_seed.txt`、`simulation.log`、`results`/`params`；`batch_repeat_brownian` 改为 **`cfg.brown_rng_seed = rng_seed_base + k`**；日志横幅 **5.2.0**                                                                                                                                                                                                                    | 2026-04-10 |
+| 62  | 默认离散与 ODE 限时（v5.2.1）：**`N_body` = 200**（原 250）、**`tlim` = 360 s**（原 120 s）；`load_sim_config` / `init_coupled_params` / 主脚本与批量模板同步；日志横幅 **5.2.1**                                                                                                                                                                                                                                                                                                                                                                                | 2026-04-10 |
+| 63  | 发布 **5.3.0**（2026-04-13）：胞体默认 RSM 正则化 `h_mean/2.6667`（`batch_sweep_N_body_eps_RSM` 标定）；新增 `batch_sweep_N_body_eps_RSM.m`；`init_coupled_params` / `build_global_resistance` / README §8.5；日志横幅 **`5.3.0`**；`README` / `USER_GUIDE` / `CHANGELOG` / `requirements.txt` / `docs/index.html` 版本与日期同步                                                                                                                                                                                                                                | 2026-04-13 |
+| 64  | **5.3.1**（2026-04-14）：`bacteria_3d_motion.mp4` 生成 — 图窗像素在 **3840×2160** 内等比缩放（保留原宽高比），`getframe` 使用图窗 `Position` 固定矩形，避免 Windows MPEG-4 编码器报帧尺寸超限或帧间尺寸不一致；日志横幅 **`5.3.1`**；文档与 `requirements.txt` 同步                                                                                                                                                                                                                                                                                                                            | 2026-04-14 |
+| 65  | **5.3.2**（2026-04-14）：新增共享工具函数 `compute_node_directors.m`（段 Director → 节点 Director 插值 + SVD 极分解投影 + `det<0` 修正）；修复 `build_coupled_lin_sys.m` 节点 Director 缺 `det<0` 检查与 `N_k=1` 越界；`ode_coupled_rhs.m` 向量化弹性/主动力矩写入 `R_global`；`validate_simulation_params.m` 增 `wavenumber`/`d3_amp` 警告；`coupled_active_moment.m` 补充 `d3_amp` 物理含义文档                                                                                                                                                                                            | 2026-04-14 |
+| 66  | **5.4.1**（2026-04-15）：移除主动力矩 **`breaststroke`** 模式；保留 `off` / `traveling_wave` / `custom`；`config_example.json` 第二根纤毛示例改为 `traveling_wave`；文档与日志横幅同步 **5.4.1**（v5.4.0 曾引入 `breaststroke`，见 `CHANGELOG`）                                                                                                                                                                                                                                                                                                                         | 2026-04-15 |
+| 67  | **5.4.2**（2026-04-15）：`traveling_wave` 主动力矩新增可选 **`phase_rad`** [rad]（默认 0），用于调节 $\Phi=k_w s-\omega t+\phi$ 的时间相位；`coupled_active_moment` / `init_coupled_params` / `validate_simulation_params` / `config_example.json` 同步                                                                                                                                                                                                                                                                                                       | 2026-04-15 |
+| 68  | **5.4.3**（2026-04-15）：全部 47 个 `.m` 文件头注释移除 `Updated:` 历史行，统一以 `Author:` / `Created:` 结尾；`build_coupled_lin_sys.m` Syntax 补写 3-输出调用形式；`brown_rng_seed_from_clock.m` 补全标准化头注释；`postprocess_cases.m` 头注释统一项目规范风格                                                                                                                                                                                                                                                                                                                   | 2026-04-15 |
+
 
 ---
 
 ## 23. 参考文献
 
-1. **Walker, B.J. et al. (2020)**. "Filament mechanics in a half-space via regularised Stokeslet segments." _Physical Review E_, 102(2), 023101.
-2. **Cortez, R. et al. (2005)**. "The method of regularized Stokeslets in three dimensions: analysis, validation, and application to helical swimming." _Physics of Fluids_, 17(3), 031504.
-3. **Cortez, R. (2018)**. "Regularized Stokeslet segments." _Journal of Computational Physics_, 375, 783–796.
-4. **Bergou, M. et al. (2008)**. "Discrete elastic rods." _ACM Transactions on Graphics_, 27(3), 63.
+1. **Walker, B.J. et al. (2020)**. "Filament mechanics in a half-space via regularised Stokeslet segments." *Physical Review E*, 102(2), 023101.
+2. **Cortez, R. et al. (2005)**. "The method of regularized Stokeslets in three dimensions: analysis, validation, and application to helical swimming." *Physics of Fluids*, 17(3), 031504.
+3. **Cortez, R. (2018)**. "Regularized Stokeslet segments." *Journal of Computational Physics*, 375, 783–796.
+4. **Bergou, M. et al. (2008)**. "Discrete elastic rods." *ACM Transactions on Graphics*, 27(3), 63.
 
 ---
 
@@ -1146,11 +1199,13 @@ $$
 
 ## 24. 配套文档与变更日志
 
-| 文件 | 说明 |
-| ---- | ---- |
-| `CHANGELOG.md` | 版本变更记录（Keep a Changelog 风格） |
-| `USER_GUIDE.md` | 简明用户指南：快速上手、主要输出、`flowfield_panels.png` 与流场参数说明 |
+
+| 文件                 | 说明                                                                    |
+| ------------------ | --------------------------------------------------------------------- |
+| `CHANGELOG.md`     | 版本变更记录（Keep a Changelog 风格）                                           |
+| `USER_GUIDE.md`    | 简明用户指南：快速上手、主要输出、`flowfield_panels.png` 与流场参数说明                       |
 | `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.4.3**，**2026-04-15**） |
+
 
 长篇理论、公式与完整参数表仍以本文件为准。
 
