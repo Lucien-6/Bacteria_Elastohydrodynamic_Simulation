@@ -3,7 +3,7 @@
 > **作者**: Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期**: 2026-02-06  
 > **更新日期**: 2026-04-15  
-> **版本**: 5.4.3  
+> **版本**: 5.4.4  
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
@@ -48,11 +48,11 @@
 
 | 组件                          | 方法                     | 参考文献                 |
 | --------------------------- | ---------------------- | -------------------- |
-| 胞体表面（\(N_{\text{body}}\) 个力点） | RSM 点力法                | Cortez et al. (2005) |
-| 纤毛丝（每根 \(N_k\) 段）             | RSS 精确线段积分 + Rotlet 线段 | Cortez (2018)        |
+| 胞体表面（$N_{\text{body}}$ 个力点） | RSM 点力法                | Cortez et al. (2005) |
+| 纤毛丝（每根 $N_k$ 段）             | RSS 精确线段积分 + Rotlet 线段 | Cortez (2018)        |
 
 
-RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则化 Stokeslet 核函数沿每段直线段进行精确积分，将正则化参数 \(\varepsilon\) 与线段长度 \(h\) 解耦。这使得纤毛仅需约 10 段/微米即可保持较高精度，与逐点方法相比大幅降低了计算成本。
+RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则化 Stokeslet 核函数沿每段直线段进行精确积分，将正则化参数 $\varepsilon$ 与线段长度 $h$ 解耦。这使得纤毛仅需约 10 段/微米即可保持较高精度，与逐点方法相比大幅降低了计算成本。
 
 ### 核心特性
 
@@ -68,7 +68,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 #### 流体力学
 
 - **混合 RSM-RSS 方法**：胞体 RSM 点力 + 纤毛 RSS Stokeslet 线段 + Rotlet 线段耦合（扭转—平移）
-- **胞体 RSM 默认正则化（v5.3.0）**：未指定 `eps_body` 时默认 **`eps_body = h_mean/2.6667`**（\(\varepsilon/\Delta s \approx 0.375\)），由 `batch_sweep_N_body_eps_RSM` 与 Stokes 球解析沉降对比标定；可选 `cfg.eps_body` 覆盖
+- **胞体 RSM 默认正则化（v5.3.0）**：未指定 `eps_body` 时默认 **`eps_body = h_mean/2.6667`**（$\varepsilon/\Delta s \approx 0.375$），由 `batch_sweep_N_body_eps_RSM` 与 Stokes 球解析沉降对比标定；可选 `cfg.eps_body` 覆盖
 - **节点 Director 插值（v5.3.2）**：`compute_node_directors.m` 统一段标架→节点标架的 SVD 极分解投影，含 `det<0` 反射修正，`ode_coupled_rhs.m` 与 `build_coupled_lin_sys.m` 共用
 
 #### 布朗动力学
@@ -141,7 +141,7 @@ config_file = 'configs/my_case.json';    % 指向 JSON 配置文件
 **JSON 与程序架构（`load_sim_config.m` / `save_sim_config.m`）**
 
 - **顶层节**：`case_name`，`body`，`pili`（纤毛结构体数组或原始 `[8×M]` 矩阵），`material`，`fluid`，`simulation`，`brownian`，`output`，`flowfield`，`background_flow`（v5.0）。
-- **`body`**：`minor_axis`，`major_axis`，`N_body`，`alpha_0`；可选 **`eps_body`**（无量纲 RSM 胞体正则化长度 \(\varepsilon/L_0\)，覆盖 `init_coupled_params` 默认 `h_mean/2.6667`）。
+- **`body`**：`minor_axis`，`major_axis`，`N_body`，`alpha_0`；可选 **`eps_body`**（无量纲 RSM 胞体正则化长度 $\varepsilon/L_0$，覆盖 `init_coupled_params` 默认 `h_mean/2.6667`）。
 - **`pili[]`**：每根纤毛至少含 `type`，`length_um`，`site`；可选 `deflection_z`，`deflection_x`，`shape_params`；v5.0 可选 **`intrinsic_curvature`**（字符串或对象）、**`active_moment`**（对象；`traveling_wave` 时含 `amplitude_Nm`，`omega_Hz`，`wavenumber`，可选 `phase_rad`，`d1_amp` / `d2_amp` / `d3_amp` 等；与 `init_coupled_params` 一致）。
 - **`simulation`**：`T_obs`，`AbsTol`，`RelTol`，`delta_frac`（内部得到 `cfg.delta = π/delta_frac`），`tlim`，`dt`，`seg_per_um`。
 - **`brownian`**：`enable` → `cfg.enable_brown`，`temperature` → `cfg.Temper`，`dt_B_ratio` → `cfg.dt_B = dt * dt_B_ratio`，`fixman_midpoint`；可选 **`rng_seed`** → `cfg.brown_rng_seed`（v5.2.0：正整数固定 twister 种子；省略或非正则用运行时刻 **`MMddHHmmss`** 整数默认种子）。
@@ -322,8 +322,8 @@ graph TD
 
 模拟具有弹性纤毛的细菌在 Stokes 流中重力沉降：
 
-- **胞体**：刚性胶囊体（两个半球端盖 + 圆柱中段），离散为 \(N_{\text{body}}\) 个表面力点（默认 200）
-- **纤毛**：\(M\) 根不可伸长的 Kirchhoff 弹性杆，每根含 \(N_k\) 段（\(N_k + 1\) 个节点）
+- **胞体**：刚性胶囊体（两个半球端盖 + 圆柱中段），离散为 $N_{\text{body}}$ 个表面力点（默认 200）
+- **纤毛**：$M$ 根不可伸长的 Kirchhoff 弹性杆，每根含 $N_k$ 段（$N_k + 1$ 个节点）
 - **流体**：Stokes 流（零雷诺数）；所有流体力学相互作用通过 RSS（纤毛）+ RSM（胞体）实现
 
 ### 4.2 方法来源
@@ -351,16 +351,16 @@ graph TD
 
 ### 5.1 特征尺度
 
-所有量均以胞体半长轴 \(a\)（`major_axis`）进行无量纲化：
+所有量均以胞体半长轴 $a$（`major_axis`）进行无量纲化：
 
 
 | 尺度   | 符号    | 定义                                  |
 | ---- | ----- | ----------------------------------- |
-| 长度   | \(L_0\) | \(a\)                                 |
-| 弯曲刚度 | \(EI\)  | \(E \cdot \pi r_{\text{pili}}^4 / 4\) |
-| 时间   | \(T_0\) | \(8\pi\mu L_0^4 / EI\)                |
-| 速度   | \(U_0\) | \(L_0 / T_0\)                         |
-| 力    | \(F_0\) | \(EI / L_0^2\)                        |
+| 长度   | $L_0$ | $a$                                 |
+| 弯曲刚度 | $EI$  | $E \cdot \pi r_{\text{pili}}^4 / 4$ |
+| 时间   | $T_0$ | $8\pi\mu L_0^4 / EI$                |
+| 速度   | $U_0$ | $L_0 / T_0$                         |
+| 力    | $F_0$ | $EI / L_0^2$                        |
 
 
 ### 5.2 关键无量纲参数
@@ -368,9 +368,9 @@ graph TD
 
 | 参数     | 符号            | 定义                           |
 | ------ | ------------- | ---------------------------- |
-| 弹性-重力数 | \(Eg\)          | \(F_{\text{sink}} L_0^2 / EI\) |
-| 细长比    | \(\varepsilon\) | \(r_{\text{pili}} / L_0\)      |
-| 泊松比    | \(\sigma\)      | 用户指定                         |
+| 弹性-重力数 | $Eg$          | $F_{\text{sink}} L_0^2 / EI$ |
+| 细长比    | $\varepsilon$ | $r_{\text{pili}} / L_0$      |
+| 泊松比    | $\sigma$      | 用户指定                         |
 
 
 ### 5.3 新功能无量纲化
@@ -378,9 +378,9 @@ graph TD
 
 | 物理量       | 无量纲化公式                                                            |
 | --------- | ----------------------------------------------------------------- |
-| 背景流速度     | \(u_{\text{bg,dimless}} = u_{\text{bg,phys}} / U_0\)                |
-| 主动力矩（积分后） | \(M_{\text{dimless}} = M_{\text{phys}} \cdot L_{\text{pili}} / EI\) |
-| 内禀曲率      | 无量纲，与 \(\kappa\) 同标度（曲率 × 弧长，\(s \in [0,1]\)）                         |
+| 背景流速度     | $u_{\text{bg,dimless}} = u_{\text{bg,phys}} / U_0$                |
+| 主动力矩（积分后） | $M_{\text{dimless}} = M_{\text{phys}} \cdot L_{\text{pili}} / EI$ |
+| 内禀曲率      | 无量纲，与 $\kappa$ 同标度（曲率 × 弧长，$s \in [0,1]$）                         |
 
 
 ---
@@ -393,7 +393,7 @@ $$
 \mathbf{Z} = \underbrace{[\mathbf{X}_{\text{cm}}(3),\; \mathbf{q}(4)]}_{7}\; \underbrace{[\boldsymbol{\theta}_1, \boldsymbol{\phi}_1, \boldsymbol{\psi}_1]}_{3N_1}\; \cdots\; \underbrace{[\boldsymbol{\theta}_M, \boldsymbol{\phi}_M, \boldsymbol{\psi}_M]}_{3N_M}
 $$
 
-总自由度数：\(n = 7 + 3\sum_{k=1}^M N_k\)
+总自由度数：$n = 7 + 3\sum_{k=1}^M N_k$
 
 ### 6.2 速率向量（约化）
 
@@ -401,7 +401,7 @@ $$
 \dot{\mathbf{z}} = [\mathbf{V}(3),  \boldsymbol{\Omega}(3),  \dot{\boldsymbol{\theta}}_1, \dot{\boldsymbol{\phi}}_1, \dot{\boldsymbol{\psi}}_1,  \ldots]
 $$
 
-自由度数：\(n_{\text{dof}} = 6 + 3\sum_k N_k\)
+自由度数：$n_{\text{dof}} = 6 + 3\sum_k N_k$
 
 ### 6.3 初始姿态参数 `alpha_0`
 
@@ -415,11 +415,11 @@ $$
 
 ## 7. 几何重构
 
-`reconstruct_geometry.m` 将状态向量 \(\mathbf{Z}\) 转换为实验室坐标系中的位置：
+`reconstruct_geometry.m` 将状态向量 $\mathbf{Z}$ 转换为实验室坐标系中的位置：
 
-1. **胞体**：\(\mathbf{X}_{\text{cm}}\) + 四元数 \(\mathbf{q}\) → 旋转矩阵 \(R\) → 胞体表面点 \(\mathbf{X}_i = \mathbf{X}_{\text{cm}} + R \cdot \mathbf{x}_i^{\text{local}}\)
+1. **胞体**：$\mathbf{X}_{\text{cm}}$ + 四元数 $\mathbf{q}$ → 旋转矩阵 $R$ → 胞体表面点 $\mathbf{X}_i = \mathbf{X}_{\text{cm}} + R \cdot \mathbf{x}_i^{\text{local}}$
 2. **纤毛**：由胞体表面获取根部位置 + Euler 角 → `pili_spatial_coords` → 实验室坐标系节点位置
-3. **标架**：`pili_directors` → 材料标架 \((\mathbf{d}_1, \mathbf{d}_2, \mathbf{d}_3)\)，其中 \(\mathbf{d}_3\) 为切线方向
+3. **标架**：`pili_directors` → 材料标架 $(\mathbf{d}_1, \mathbf{d}_2, \mathbf{d}_3)$，其中 $\mathbf{d}_3$ 为切线方向
 
 输出：`geom` 结构体，包含 `X_all`、`X_cm`、`X_body`、`X_pili`、标架、角度等。
 
@@ -437,7 +437,7 @@ $$
 
 ### 8.2 RSS 线段核函数 (Cortez 2018)
 
-对于线段 \(\mathbf{y}(\alpha) = \mathbf{y}_0 - \alpha\mathbf{v}\)（\(\mathbf{v} = \mathbf{y}_0 - \mathbf{y}_1\)，\(L = |\mathbf{v}|\)），力密度从 \(\mathbf{f}_0\) 到 \(\mathbf{f}_1\) 线性变化：
+对于线段 $\mathbf{y}(\alpha) = \mathbf{y}_0 - \alpha\mathbf{v}$（$\mathbf{v} = \mathbf{y}_0 - \mathbf{y}_1$，$L = |\mathbf{v}|$），力密度从 $\mathbf{f}_0$ 到 $\mathbf{f}_1$ 线性变化：
 
 $$
 \mathbf{u}(\hat{\mathbf{x}}) = \mathbf{M}_1\mathbf{f}_0 + \mathbf{M}_2\mathbf{f}_1
@@ -451,12 +451,12 @@ $$
 \mathbf{M}_1 = L\left[(T_{0,-1} + \varepsilon^2 T_{0,-3})\mathbf{I} + \cdots\right] - \mathbf{M}_2
 $$
 
-\(T_{n,q}\) 值通过递推关系计算（Cortez 2018, Eq. 7），起始于：
+$T_{n,q}$ 值通过递推关系计算（Cortez 2018, Eq. 7），起始于：
 
-- \(T_{0,-1} = \frac{1}{L}\ln\frac{H_1}{H_0}\)，其中 \(H = LR + \mathbf{x}_0 \cdot \mathbf{v}\)
-- \(T_{0,-3} = \frac{1}{R_0 H_0} - \frac{1}{R_1 H_1}\)
+- $T_{0,-1} = \frac{1}{L}\ln\frac{H_1}{H_0}$，其中 $H = LR + \mathbf{x}_0 \cdot \mathbf{v}$
+- $T_{0,-3} = \frac{1}{R_0 H_0} - \frac{1}{R_1 H_1}$
 
-**核心优势**：\(\mathbf{M}_1\)、\(\mathbf{M}_2\) 已包含线段长度积分权重——无需额外的 \(\Delta s\) 列权重。
+**核心优势**：$\mathbf{M}_1$、$\mathbf{M}_2$ 已包含线段长度积分权重——无需额外的 $\Delta s$ 列权重。
 
 ### 8.3 全局迁移率矩阵
 
@@ -468,17 +468,17 @@ M_{PB} & M_{PP}
 $$
 
 
-| 分块       | 评估点 | 力源  | 方法     | \(\varepsilon\)         |
+| 分块       | 评估点 | 力源  | 方法     | $\varepsilon$         |
 | -------- | --- | --- | ------ | --------------------- |
-| \(M_{BB}\) | 胞体  | 胞体  | RSM 点力 | \(h_{\text{mean}}/3\)   |
-| \(M_{PB}\) | 纤毛  | 胞体  | RSM 点力 | \(h_{\text{mean}}/3\)   |
-| \(M_{BP}\) | 胞体  | 纤毛  | RSS 线段 | \(r_{\text{pili}}/L_0\) |
-| \(M_{PP}\) | 纤毛  | 纤毛  | RSS 线段 | \(r_{\text{pili}}/L_0\) |
+| $M_{BB}$ | 胞体  | 胞体  | RSM 点力 | $h_{\text{mean}}/3$   |
+| $M_{PB}$ | 纤毛  | 胞体  | RSM 点力 | $h_{\text{mean}}/3$   |
+| $M_{BP}$ | 胞体  | 纤毛  | RSS 线段 | $r_{\text{pili}}/L_0$ |
+| $M_{PP}$ | 纤毛  | 纤毛  | RSS 线段 | $r_{\text{pili}}/L_0$ |
 
 
-**配对规则**：\(\varepsilon_{ij} = \varepsilon_j\)（由力源点决定）。
+**配对规则**：$\varepsilon_{ij} = \varepsilon_j$（由力源点决定）。
 
-**向量化组装**：所有 \(T_{n,q}\) 值和 \(\mathbf{M}_1\)/\(\mathbf{M}_2\) 分量以 \([N_{\text{total}} \times N_{\text{seg,all}}]\) 矩阵形式计算，然后散射至全局迁移率矩阵中。
+**向量化组装**：所有 $T_{n,q}$ 值和 $\mathbf{M}_1$/$\mathbf{M}_2$ 分量以 $[N_{\text{total}} \times N_{\text{seg,all}}]$ 矩阵形式计算，然后散射至全局迁移率矩阵中。
 
 ### 8.4 Rotlet 线段迁移率
 
@@ -488,11 +488,11 @@ $$
 \mathbf{u}(\hat{\mathbf{x}}) = -L\left[c_a[\mathbf{x}_0]_\times + c_b[\mathbf{v}]_\times\right]\boldsymbol{\tau}
 $$
 
-其中 \(c_a = 2T_{0,-3} + 3\varepsilon^2 T_{0,-5}\)，\(c_b = 2T_{1,-3} + 3\varepsilon^2 T_{1,-5}\)。
+其中 $c_a = 2T_{0,-3} + 3\varepsilon^2 T_{0,-5}$，$c_b = 2T_{1,-3} + 3\varepsilon^2 T_{1,-5}$。
 
-\(T_{n,-5}\) 通过额外的递推关系计算，需要 \(d^2 = |\mathbf{x}_0 \times \mathbf{v}|^2 + L^2\varepsilon^2\)。
+$T_{n,-5}$ 通过额外的递推关系计算，需要 $d^2 = |\mathbf{x}_0 \times \mathbf{v}|^2 + L^2\varepsilon^2$。
 
-\(M_{\text{rotlet}} \in \mathbb{R}^{3N_{\text{total}} \times 3N_{\text{seg}}}\) 将每段的三维扭矩密度映射到所有点的平移速度。
+$M_{\text{rotlet}} \in \mathbb{R}^{3N_{\text{total}} \times 3N_{\text{seg}}}}$ 将每段的三维扭矩密度映射到所有点的平移速度。
 
 **线性系统中的集成**：
 
@@ -500,7 +500,7 @@ $$
 \mathbf{f} = M_{\text{stokeslet}}^{-1}\left(\mathbf{Q}_{\text{trans}} - M_{\text{rotlet}} \cdot \tilde{A}_{\text{twist}} \cdot \mathbf{Q}_{\text{twist}}\right) \dot{\mathbf{z}}
 $$
 
-**物理影响**：对于典型的细菌纤毛（\(\varepsilon \sim 10^{-3}\)），Rotlet 耦合量级为 \(O(\varepsilon^4) \sim 10^{-12}\)，实际上可忽略，但确保了理论的完备性。
+**物理影响**：对于典型的细菌纤毛（$\varepsilon \sim 10^{-3}$），Rotlet 耦合量级为 $O(\varepsilon^4) \sim 10^{-12}$，实际上可忽略，但确保了理论的完备性。
 
 ### 8.5 正则化参数
 
@@ -511,15 +511,15 @@ r_{\text{pili}} / L_0 & \text{纤毛节点}
 \end{cases}
 $$
 
-**胞体**（RSM，力源在封闭曲面上）：\(h_{\text{body}}^{\text{mean}}\) 为胞体表面所有点最近邻距离的均值（平均网格间距 \(\Delta s_{\text{avg}}\)），默认取 \(h_{\text{mean}}/2.6667\)，对应比值 \(\varepsilon/\Delta s_{\text{avg}} \approx 0.375\)。该比值由 `batch_sweep_N_body_eps_RSM` 扫描不同 \(N_{\text{body}}\) 下 \(\varepsilon = kh_{\text{mean}}\)，并与 Stokes 球解析沉降速度对比得到，在阻力矩阵精度与数值稳定性之间优于此前的 \(h_{\text{mean}}/3\)。\(\varepsilon \to 0\) 的极限存在（退化为奇异 BEM），故 \(\varepsilon\) 为纯数值参数，应通过与解析解（如 Stokes 球阻力）对比验证。
+**胞体**（RSM，力源在封闭曲面上）：$h_{\text{body}}^{\text{mean}}$ 为胞体表面所有点最近邻距离的均值（平均网格间距 $\Delta s_{\text{avg}}$），默认取 $h_{\text{mean}}/2.6667$，对应比值 $\varepsilon/\Delta s_{\text{avg}} \approx 0.375$。该比值由 `batch_sweep_N_body_eps_RSM` 扫描不同 $N_{\text{body}}$ 下 $\varepsilon = kh_{\text{mean}}$，并与 Stokes 球解析沉降速度对比得到，在阻力矩阵精度与数值稳定性之间优于此前的 $h_{\text{mean}}/3$。$\varepsilon \to 0$ 的极限存在（退化为奇异 BEM），故 $\varepsilon$ 为纯数值参数，应通过与解析解（如 Stokes 球阻力）对比验证。
 
-**纤毛**（RSS，力源在一维曲线上）：\(\varepsilon = r_{\text{pili}}/L_0\) 是**物理参数**，代表力作用区域的空间延展半径（纤毛横截面半径）。Cortez et al. (2005) 明确指出，当力作用于曲线时 \(\varepsilon \to 0\) 的极限不存在（速度场发散），因此 \(\varepsilon\) 不可趋向零，而应取纤毛的物理横截面半径。细长比 \(\varepsilon/\ell = r_{\text{pili}}/L_{\text{pili}} \approx 10^{-3}\) 远小于 1，满足细长体假设；段长与正则化参数之比 \(\Delta s/\varepsilon = \Delta s \cdot L_0 / r_{\text{pili}} \approx 22\)，RSS 精确积分在此范围内精度充分。
+**纤毛**（RSS，力源在一维曲线上）：$\varepsilon = r_{\text{pili}}/L_0$ 是**物理参数**，代表力作用区域的空间延展半径（纤毛横截面半径）。Cortez et al. (2005) 明确指出，当力作用于曲线时 $\varepsilon \to 0$ 的极限不存在（速度场发散），因此 $\varepsilon$ 不可趋向零，而应取纤毛的物理横截面半径。细长比 $\varepsilon/\ell = r_{\text{pili}}/L_{\text{pili}} \approx 10^{-3}$ 远小于 1，满足细长体假设；段长与正则化参数之比 $\Delta s/\varepsilon = \Delta s \cdot L_0 / r_{\text{pili}} \approx 22$，RSS 精确积分在此范围内精度充分。
 
-纤毛根部与胞体表面的间隙：\(d_{\text{gap}} = 1.1 \times (\varepsilon_{\text{body}} \cdot L_0 + r_{\text{pili}})\)。
+纤毛根部与胞体表面的间隙：$d_{\text{gap}} = 1.1 \times (\varepsilon_{\text{body}} \cdot L_0 + r_{\text{pili}})$。
 
 ### 8.6 平移阻力
 
-\(\mathbf{A}_{\text{trans}} = M_{\text{weighted}}^{-1}\) — 通过 LU 分解计算：`M_weighted \ Q_trans`（避免显式 \(O(N^3)\) 矩阵求逆）。
+$\mathbf{A}_{\text{trans}} = M_{\text{weighted}}^{-1}$ — 通过 LU 分解计算：`M_weighted \ Q_trans`（避免显式 $O(N^3)$ 矩阵求逆）。
 
 ### 8.7 扭转阻力 (RFT)
 
@@ -533,37 +533,37 @@ $$
 
 ## 9. 运动学矩阵 Q
 
-\(\mathbf{Q}_{\text{global}} \in \mathbb{R}^{n_{\text{vel}} \times n_{\text{dof}}}\) 将速率向量 \(\dot{\mathbf{z}}\) 映射为物理速度：
+$\mathbf{Q}_{\text{global}} \in \mathbb{R}^{n_{\text{vel}} \times n_{\text{dof}}}}$ 将速率向量 $\dot{\mathbf{z}}$ 映射为物理速度：
 
-- **胞体点**：\(\mathbf{v}_i = \mathbf{V} + \boldsymbol{\Omega} \times (\mathbf{x}_i - \mathbf{X}_{\text{cm}})\)
-- **纤毛节点**：由 Walker 的空间 Q 矩阵构建，通过自适应旋转 \(R_k\) 从纤毛基底变换至实验室坐标系
-- **扭转速率**：\(\psi\) 速率通过 \(\cos\theta\) 与 \(\theta\) 速率耦合（Euler 角运动学）
+- **胞体点**：$\mathbf{v}_i = \mathbf{V} + \boldsymbol{\Omega} \times (\mathbf{x}_i - \mathbf{X}_{\text{cm}})$
+- **纤毛节点**：由 Walker 的空间 Q 矩阵构建，通过自适应旋转 $R_k$ 从纤毛基底变换至实验室坐标系
+- **扭转速率**：$\psi$ 速率通过 $\cos\theta$ 与 $\theta$ 速率耦合（Euler 角运动学）
 
-平移子块：\(\mathbf{Q}_{\text{trans}} = \mathbf{Q}[1:3N_{\text{total}}, :]\)
+平移子块：$\mathbf{Q}_{\text{trans}} = \mathbf{Q}[1:3N_{\text{total}}, :]$
 
-扭转子块：\(\mathbf{Q}_{\text{twist}} = \mathbf{Q}[3N_{\text{total}}+1:\text{end}, :]\)
+扭转子块：$\mathbf{Q}_{\text{twist}} = \mathbf{Q}[3N_{\text{total}}+1:\text{end}, :]$
 
 ---
 
 ## 10. 力/力矩平衡矩阵 B
 
-\(\mathbf{B}_{\text{global}} \in \mathbb{R}^{n_{\text{dof}} \times n_{\text{force}}}\) 将分布力/力矩映射至速率向量方程：
+$\mathbf{B}_{\text{global}} \in \mathbb{R}^{n_{\text{dof}} \times n_{\text{force}}}}$ 将分布力/力矩映射至速率向量方程：
 
 
 | 行   | 方程                         | 右端项                   |
 | --- | -------------------------- | --------------------- |
-| 1–3 | 力平衡                        | \(-Eg\hat{\mathbf{g}}\) |
+| 1–3 | 力平衡                        | $-Eg\hat{\mathbf{g}}$ |
 | 4–6 | 力矩平衡                       | 0（无外力矩）               |
-| 7+  | 纤毛力矩平衡（每根 \(N_k\) 段 × 3 个分量） | 弹性曲率 \(\kappa\)         |
+| 7+  | 纤毛力矩平衡（每根 $N_k$ 段 × 3 个分量） | 弹性曲率 $\kappa$         |
 
 
-胞体和纤毛的力贡献使用梯形求积权重。纤毛力矩平衡遵循 Walker (2020) 的公式，采用 \(\ell_k^3\) 标度。
+胞体和纤毛的力贡献使用梯形求积权重。纤毛力矩平衡遵循 Walker (2020) 的公式，采用 $\ell_k^3$ 标度。
 
 ---
 
 ## 11. 弹性恢复力矩（Kirchhoff 弹性杆）
 
-`compute_pili_elastic_moments.m` 计算离散曲率与固有曲率的偏差。v5.0 起，固有曲率 \(\kappa_{\alpha,0}\) 可通过 `intrinsic_curvature` 配置为 `'frozen'`（保持初始几何）、`'zero'`、`'constant'`（用户指定常数向量）或 `'helix'`（螺旋曲率）：
+`compute_pili_elastic_moments.m` 计算离散曲率与固有曲率的偏差。v5.0 起，固有曲率 $\kappa_{\alpha,0}$ 可通过 `intrinsic_curvature` 配置为 `'frozen'`（保持初始几何）、`'zero'`、`'constant'`（用户指定常数向量）或 `'helix'`（螺旋曲率）：
 
 $$
 \kappa_\alpha^{(j)} = \mathbf{d}_\alpha^{(j)} \cdot \mathbf{d}_3'^{(j)} - \kappa_{\alpha,0}^{(j)}, \quad \alpha = 1, 2
@@ -585,8 +585,8 @@ $$
 
 其中：
 
-- \(\mathbf{L} = -\mathbf{B} \cdot \mathbf{AQ}\)
-- \(\mathbf{AQ}\)：
+- $\mathbf{L} = -\mathbf{B} \cdot \mathbf{AQ}$
+- $\mathbf{AQ}$：
 
 $$
 \mathbf{AQ} = \begin{bmatrix}
@@ -594,8 +594,8 @@ M_{\text{weighted}}^{-1} \cdot \mathbf{Q}_{\text{trans,corr}} \\
 \tilde{A}_{\text{twist}} \cdot \mathbf{Q}_{\text{twist}}
 \end{bmatrix}
 $$
-- \(\mathbf{Q}_{\text{trans,corr}} = \mathbf{Q}_{\text{trans}} - M_{\text{rotlet}} \cdot \tilde{A}_{\text{twist}} \cdot \mathbf{Q}_{\text{twist}}\)
-- \(\mathbf{R} = [-Eg\hat{\mathbf{g}};\; \mathbf{0};\; \boldsymbol{\kappa}_1 - \mathbf{M}_{\text{act},1}; \ldots; \boldsymbol{\kappa}_M - \mathbf{M}_{\text{act},M}] - \mathbf{B}\mathbf{A}^{-1}\mathbf{u}_{\text{bg}}\)
+- $\mathbf{Q}_{\text{trans,corr}} = \mathbf{Q}_{\text{trans}} - M_{\text{rotlet}} \cdot \tilde{A}_{\text{twist}} \cdot \mathbf{Q}_{\text{twist}}$
+- $\mathbf{R} = [-Eg\hat{\mathbf{g}};\; \mathbf{0};\; \boldsymbol{\kappa}_1 - \mathbf{M}_{\text{act},1}; \ldots; \boldsymbol{\kappa}_M - \mathbf{M}_{\text{act},M}] - \mathbf{B}\mathbf{A}^{-1}\mathbf{u}_{\text{bg}}$
 
 通过 LU 分解求解：`lin_sys \ R_global`。
 
@@ -611,7 +611,7 @@ $$
 [\dot{\theta}_1, \dot{\phi}_1, \dot{\psi}_1]^T = J_e \cdot \boldsymbol{\Omega}
 $$
 
-其中 \(J_e \in \mathbb{R}^{3 \times 3}\) 为自适应基底下 Euler 角速率到角速度的雅可比矩阵，将胞体角速度 \(\boldsymbol{\Omega}\) 映射为根节点的三个 Euler 角速率。
+其中 $J_e \in \mathbb{R}^{3 \times 3}$ 为自适应基底下 Euler 角速率到角速度的雅可比矩阵，将胞体角速度 $\boldsymbol{\Omega}$ 映射为根节点的三个 Euler 角速率。
 
 1. **位置层面**（在 `enforce_clamped_geometry.m` 中）：每个 ODE 步后，几何投影修正纤毛—胞体连接处的约束漂移。
 
@@ -619,7 +619,7 @@ $$
 
 ## 14. 自适应基底旋转（Euler 角奇异性规避）
 
-`adaptive_basis_check.m` 监控每根纤毛的 \(|\theta_1^{(k)}|\)。当 \(\theta_1\) 趋近 0 或 \(\pi\)（在阈值 \(\delta\) 范围内）时，更新旋转基底 \(R_k\) 以将工作点移离奇异性。所有 Euler 角在新基底下重新计算。
+`adaptive_basis_check.m` 监控每根纤毛的 $|\theta_1^{(k)}|$。当 $\theta_1$ 趋近 0 或 $\pi$（在阈值 $\delta$ 范围内）时，更新旋转基底 $R_k$ 以将工作点移离奇异性。所有 Euler 角在新基底下重新计算。
 
 ---
 
@@ -667,7 +667,7 @@ $$
 \boldsymbol{\Xi}_{\text{eff}} \dot{\mathbf{U}} = \mathbf{F}_{\text{det}} + \sqrt{2k_BT\boldsymbol{\Xi}_{\text{eff}}}\boldsymbol{\eta}(t)
 $$
 
-其中 \(\boldsymbol{\Xi}_{\text{eff}} \in \mathbb{R}^{6\times 6}\) 为包含纤毛水动力贡献的**有效胞体摩擦张量**，\(\mathbf{U} = [\mathbf{V};\boldsymbol{\Omega}]\) 为胞体广义速度，\(\boldsymbol{\eta}\) 为 6D 高斯白噪声。完整 6×6 框架自然包含平移-旋转耦合。
+其中 $\boldsymbol{\Xi}_{\text{eff}} \in \mathbb{R}^{6\times 6}$ 为包含纤毛水动力贡献的**有效胞体摩擦张量**，$\mathbf{U} = [\mathbf{V};\boldsymbol{\Omega}]$ 为胞体广义速度，$\boldsymbol{\eta}$ 为 6D 高斯白噪声。完整 6×6 框架自然包含平移-旋转耦合。
 
 ### 16.3 有效摩擦张量的动态计算
 
@@ -680,32 +680,32 @@ $$
 \mathbf{M}_{\text{eff}}^{*}(:, i) = (\texttt{linsys} \backslash (-\mathbf{e}_i))(1{:}6), \quad i = 1, \ldots, 6
 $$
 
-1. **隐式 Schur 补**：\(\mathbf{M}_{\text{eff}}^{\ast} = [\boldsymbol{\Xi}_{\text{gen}}^{-1}]_{BB}\)，等价于 \((\boldsymbol{\Xi}_{BB} - \boldsymbol{\Xi}_{BP}\boldsymbol{\Xi}_{PP}^{-1}\boldsymbol{\Xi}_{PB})^{-1}\)
-2. **量纲转换**：\(M_{\text{eff,dim}}(j,i) = M_{\text{eff}}^{*}(j,i) / (S_j \cdot S_i)\)，其中 \(S = [\sqrt{8\pi\mu L_0}\mathbf{1}_3;\sqrt{8\pi\mu L_0^3}\mathbf{1}_3]\)
-3. **扩散张量**：\(D_{\text{eff}} = k_BT \cdot M_{\text{eff,dim}}\)
-4. **Cholesky 分解**：\(L_{\text{eff}} = \text{chol}(2D_{\text{eff}}, \text{'lower'})\)
+1. **隐式 Schur 补**：$\mathbf{M}_{\text{eff}}^{\ast} = [\boldsymbol{\Xi}_{\text{gen}}^{-1}]_{BB}$，等价于 $(\boldsymbol{\Xi}_{BB} - \boldsymbol{\Xi}_{BP}\boldsymbol{\Xi}_{PP}^{-1}\boldsymbol{\Xi}_{PB})^{-1}$
+2. **量纲转换**：$M_{\text{eff,dim}}(j,i) = M_{\text{eff}}^{*}(j,i) / (S_j \cdot S_i)$，其中 $S = [\sqrt{8\pi\mu L_0}\mathbf{1}_3;\sqrt{8\pi\mu L_0^3}\mathbf{1}_3]$
+3. **扩散张量**：$D_{\text{eff}} = k_BT \cdot M_{\text{eff,dim}}$
+4. **Cholesky 分解**：$L_{\text{eff}} = \text{chol}(2D_{\text{eff}}, \text{'lower'})$
 
 物理含义：当胞体受到单位力/力矩时，纤毛被动通过流体拖曳（force-free，受 clamped BC 约束），总阻力自然包含纤毛贡献。
 
 ### 16.4 布朗扰动施加
 
-在每个布朗节点 \(t = n \cdot \text{dt}_B\) 处，直接在实验室坐标系中生成 6D 相关噪声：
+在每个布朗节点 $t = n \cdot \text{dt}_B$ 处，直接在实验室坐标系中生成 6D 相关噪声：
 
 $$
 \delta\mathbf{U}_{\text{dim}} = L_{\text{eff}} \cdot \boldsymbol{\eta} \cdot \sqrt{\text{dt}_B}, \quad \boldsymbol{\eta} \sim \mathcal{N}(\mathbf{0}, \mathbf{I}_6)
 $$
 
-其中 \(\delta\mathbf{U} = [\delta\mathbf{X}(\text{m});\delta\boldsymbol{\Theta}(\text{rad})]\)。平移部分无量纲化后叠加到质心位置；旋转部分转换为四元数增量后左乘合成。每次扰动后重新施加固支几何投影。
+其中 $\delta\mathbf{U} = [\delta\mathbf{X}(\text{m});\delta\boldsymbol{\Theta}(\text{rad})]$。平移部分无量纲化后叠加到质心位置；旋转部分转换为四元数增量后左乘合成。每次扰动后重新施加固支几何投影。
 
 ### 16.5 Fixman 中点修正（可选）
 
-由于 \(M_{\text{eff}}\) 依赖于当前构型（纤毛形状 + 胞体朝向），过阻尼 SDE 的 Ito 形式包含漂移项 \(k_BT\nabla\cdot M_{\text{eff}}\)。Fixman 中点法通过以下步骤隐式捕获该漂移：
+由于 $M_{\text{eff}}$ 依赖于当前构型（纤毛形状 + 胞体朝向），过阻尼 SDE 的 Ito 形式包含漂移项 $k_BT\nabla\cdot M_{\text{eff}}$。Fixman 中点法通过以下步骤隐式捕获该漂移：
 
-1. 在当前态计算 \(L_0 = \text{chol}(2 k_BT M_{\text{eff}})\)
-2. 生成 \(\boldsymbol{\eta} \sim \mathcal{N}(\mathbf{0}, \mathbf{I}_6)\)
-3. 试探半步：\(Z_{\text{mid}} = Z + \frac{1}{2} L_0 \boldsymbol{\eta} \sqrt{\text{dt}_B}\)
-4. 在 \(Z_{\text{mid}}\) 重算 \(L_{\text{mid}}\)
-5. 实际位移：\(\delta\mathbf{U} = L_{\text{mid}} \cdot \boldsymbol{\eta} \cdot \sqrt{\text{dt}_B}\)（**同一个** \(\boldsymbol{\eta}\)）
+1. 在当前态计算 $L_0 = \text{chol}(2 k_BT M_{\text{eff}})$
+2. 生成 $\boldsymbol{\eta} \sim \mathcal{N}(\mathbf{0}, \mathbf{I}_6)$
+3. 试探半步：$Z_{\text{mid}} = Z + \frac{1}{2} L_0 \boldsymbol{\eta} \sqrt{\text{dt}_B}$
+4. 在 $Z_{\text{mid}}$ 重算 $L_{\text{mid}}$
+5. 实际位移：$\delta\mathbf{U} = L_{\text{mid}} \cdot \boldsymbol{\eta} \cdot \sqrt{\text{dt}_B}$（**同一个** $\boldsymbol{\eta}$）
 
 通过 `fixman_midpoint = true` 启用（默认关闭），代价为每步 2x 线性系统组装/求解。
 
@@ -948,9 +948,9 @@ Coupled_Body_Pili/
 
 无量纲化体系经设计可在简化为无胞体的单根纤毛时精确复现 Walker 的框架。关键等价关系：
 
-- \(Q\) 矩阵：结构相同（基底速度 + Euler 角速率）
-- \(B\) 矩阵：力平衡使用梯形求积权重；力矩平衡使用 \(\ell^3\) 标度
-- \(\tilde{A}_{\text{twist}}\)：包含额外的 \(\ell_k\) 因子以确保量纲一致性
+- $Q$ 矩阵：结构相同（基底速度 + Euler 角速率）
+- $B$ 矩阵：力平衡使用梯形求积权重；力矩平衡使用 $\ell^3$ 标度
+- $\tilde{A}_{\text{twist}}$：包含额外的 $\ell_k$ 因子以确保量纲一致性
 - 弹性力矩：曲率偏差公式与 Walker 的离散算子一致
 
 ---
@@ -959,7 +959,7 @@ Coupled_Body_Pili/
 
 ### 21.1 配置
 
-`Pili_Matrix` 的每一列定义一根纤毛。系统支持 \(M \geq 1\) 根纤毛，各自独立设定：
+`Pili_Matrix` 的每一列定义一根纤毛。系统支持 $M \geq 1$ 根纤毛，各自独立设定：
 
 - 长度、形状类型、附着位点
 - Euler 角状态和自适应基底
@@ -970,11 +970,11 @@ Coupled_Body_Pili/
 
 | 机制        | 实现方式                                                                            |
 | --------- | ------------------------------------------------------------------------------- |
-| 纤毛—纤毛流体力学 | 全局迁移率矩阵中的完全交叉耦合（\(M_{PP}\) 块）                                                     |
-| 胞体—纤毛流体力学 | \(M_{BP}\) 和 \(M_{PB}\) 块中的交叉耦合                                                     |
+| 纤毛—纤毛流体力学 | 全局迁移率矩阵中的完全交叉耦合（$M_{PP}$ 块）                                                     |
+| 胞体—纤毛流体力学 | $M_{BP}$ 和 $M_{PB}$ 块中的交叉耦合                                                     |
 | 弹性力矩      | 逐纤毛独立计算（Kirchhoff 曲率）                                                           |
 | 固支边界条件    | 逐纤毛独立约束（不同附着位点）                                                                 |
-| 扭转阻力      | 块对角 \(\tilde{A} = \text{blkdiag}(\tilde{A}_1, \ldots, \tilde{A}_M)\)（局部 RFT，物理正确） |
+| 扭转阻力      | 块对角 $\tilde{A} = \text{blkdiag}(\tilde{A}_1, \ldots, \tilde{A}_M)$（局部 RFT，物理正确） |
 | 自适应基底     | 逐纤毛独立检测与旋转                                                                      |
 
 
@@ -987,12 +987,12 @@ Coupled_Body_Pili/
 
 | 矩阵                           | 维度                                                        |
 | ---------------------------- | --------------------------------------------------------- |
-| \(\mathbf{Z}\)                 | \(7 + 3\sum_k N_k\)                                         |
-| \(\dot{\mathbf{z}}\)           | \(6 + 3\sum_k N_k\)                                         |
-| \(M_{\text{weighted}}\)        | \(3N_{\text{total}} \times 3N_{\text{total}}\)              |
-| \(M_{\text{rotlet}}\)          | \(3N_{\text{total}} \times 3\sum_k N_k\)                    |
-| \(\mathbf{Q}_{\text{global}}\) | \((3N_{\text{total}} + \sum_k N_k) \times n_{\text{dof}}\)  |
-| \(\mathbf{B}_{\text{global}}\) | \(n_{\text{dof}} \times (3N_{\text{total}} + 3\sum_k N_k)\) |
+| $\mathbf{Z}$                 | $7 + 3\sum_k N_k$                                         |
+| $\dot{\mathbf{z}}$           | $6 + 3\sum_k N_k$                                         |
+| $M_{\text{weighted}}$        | $3N_{\text{total}} \times 3N_{\text{total}}$              |
+| $M_{\text{rotlet}}$          | $3N_{\text{total}} \times 3\sum_k N_k$                    |
+| $\mathbf{Q}_{\text{global}}$ | $(3N_{\text{total}} + \sum_k N_k) \times n_{\text{dof}}$  |
+| $\mathbf{B}_{\text{global}}$ | $n_{\text{dof}} \times (3N_{\text{total}} + 3\sum_k N_k)$ |
 
 
 ---
@@ -1004,20 +1004,20 @@ Coupled_Body_Pili/
 
 | 类别                | 详情                                                              |
 | ----------------- | --------------------------------------------------------------- |
-| RSM 胞体核函数         | \(1/(8\pi\mu)\) 吸收、特征尺度自洽性、胶囊体积                                   |
-| 四元数代数             | 左乘约定、运动学 \(\dot{q} = \frac{1}{2}[0;\Omega]\otimes q\)、归一化         |
+| RSM 胞体核函数         | $1/(8\pi\mu)$ 吸收、特征尺度自洽性、胶囊体积                                   |
+| 四元数代数             | 左乘约定、运动学 $\dot{q} = \frac{1}{2}[0;\Omega]\otimes q$、归一化         |
 | Q 矩阵              | 标度、坐标变换、根部耦合、交错排序                                               |
-| B 矩阵              | 力的梯形权重、力矩平衡、\(\ell^3\) 标度                                         |
-| RSS \(T_{n,q}\) 递推  | 全部 6 项（\(T_{0,-1}\) 至 \(T_{3,-3}\)）已对照 Cortez 2018 Eq. 7 验证         |
-| RSS \(M_1\)/\(M_2\) 块 | Eq. 12–13，对称性检查（机器精度），自相互作用安全                                   |
-| RSS \(T_{n,-5}\) 递推 | Rotlet 递推、\(d^2\) 安全措施、Sec. 2.4 公式                                |
-| Rotlet 反对称块       | 反对称性已验证（\(\lVert R+R^T\rVert/\lVert R\rVert = 0\)），收敛率 2.0                              |
-| 向量化组装             | 所有 \([N_{\text{total}} \times N_{\text{seg,all}}]\) 数组与标量核函数输出一致  |
-| 扭转阻力              | \(\ell_k \varepsilon_k^2 / 2\) 标度，量纲一致                            |
+| B 矩阵              | 力的梯形权重、力矩平衡、$\ell^3$ 标度                                         |
+| RSS $T_{n,q}$ 递推  | 全部 6 项（$T_{0,-1}$ 至 $T_{3,-3}$）已对照 Cortez 2018 Eq. 7 验证         |
+| RSS $M_1$/$M_2$ 块 | Eq. 12–13，对称性检查（机器精度），自相互作用安全                                   |
+| RSS $T_{n,-5}$ 递推 | Rotlet 递推、$d^2$ 安全措施、Sec. 2.4 公式                                |
+| Rotlet 反对称块       | 反对称性已验证（$\lVert R+R^T\rVert/\lVert R\rVert = 0$），收敛率 2.0                              |
+| 向量化组装             | 所有 $[N_{\text{total}} \times N_{\text{seg,all}}]$ 数组与标量核函数输出一致  |
+| 扭转阻力              | $\ell_k \varepsilon_k^2 / 2$ 标度，量纲一致                            |
 | 固支边界条件            | 雅可比矩阵推导、速率层面 + 位置层面双重施加                                         |
 | 自适应基底             | 逐纤毛检测与旋转、Euler 角重新计算                                            |
-| 多纤毛               | 状态向量、几何、Q/B 矩阵、边界条件均已验证（\(M \geq 1\)）                             |
-| 线性系统              | \(L\dot{z}=R\) 每行逐一量纲追踪                                           |
+| 多纤毛               | 状态向量、几何、Q/B 矩阵、边界条件均已验证（$M \geq 1$）                             |
+| 线性系统              | $L\dot{z}=R$ 每行逐一量纲追踪                                           |
 | 布朗动力学             | 全系统有效摩擦张量（probing method）、Cholesky 正定性检查、FDT 一致性、可选 Fixman 中点修正 |
 
 
@@ -1028,18 +1028,18 @@ Coupled_Body_Pili/
 
 | #   | 问题                                                                                                                                  | 日期         | 修复                                                                                                                                                                                                                                               |
 | --- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | 纤毛端点列权重不一致                                                                                                                          | 2026-02-07 | 统一 \(\Delta s\)（Walker 一致性）                                                                                                                                                                                                                        |
+| 1   | 纤毛端点列权重不一致                                                                                                                          | 2026-02-07 | 统一 $\Delta s$（Walker 一致性）                                                                                                                                                                                                                        |
 | 2   | `inv()` 数值稳定性                                                                                                                       | 2026-02-07 | 替换为 `\` 运算符                                                                                                                                                                                                                                      |
-| 3   | 全矩阵求逆性能                                                                                                                             | 2026-02-10 | 返回 \(M_{\text{weighted}}\)，使用 LU 求解                                                                                                                                                                                                                |
-| 4   | \(\tilde{A}_{\text{twist}}\) 坐标系不匹配                                                                                                   | 2026-02-10 | 使用实验室坐标系 `d3`                                                                                                                                                                                                                                    |
+| 3   | 全矩阵求逆性能                                                                                                                             | 2026-02-10 | 返回 $M_{\text{weighted}}$，使用 LU 求解                                                                                                                                                                                                                |
+| 4   | $\tilde{A}_{\text{twist}}$ 坐标系不匹配                                                                                                   | 2026-02-10 | 使用实验室坐标系 `d3`                                                                                                                                                                                                                                    |
 | 5   | PascalCase 文件命名                                                                                                                     | 2026-02-11 | 重命名为 `snake_case`                                                                                                                                                                                                                                |
 | 6   | 几何构建器中未使用的力点数据                                                                                                                      | 2026-02-11 | 移除冗余代码                                                                                                                                                                                                                                           |
 | 7   | 胞体以散点渲染                                                                                                                             | 2026-02-11 | 参数化 `surf` + Gouraud 着色                                                                                                                                                                                                                          |
-| 8   | 扭转阻力缺少 \(\ell_k\) 因子                                                                                                                  | 2026-02-12 | `eps_k^2/2` → `ell_k*eps_k^2/2`                                                                                                                                                                                                                  |
+| 8   | 扭转阻力缺少 $\ell_k$ 因子                                                                                                                  | 2026-02-12 | `eps_k^2/2` → `ell_k*eps_k^2/2`                                                                                                                                                                                                                  |
 | 9   | `reconstruct_geometry` 冗余调用                                                                                                         | 2026-02-12 | 移至循环外                                                                                                                                                                                                                                            |
 | 10  | 多纤毛统一着色                                                                                                                             | 2026-02-12 | 10 色可区分调色板                                                                                                                                                                                                                                       |
 | 11  | 无附着位点冲突检测                                                                                                                           | 2026-02-12 | 添加重复位点警告                                                                                                                                                                                                                                         |
-| 12  | `acos` 因浮点域错误产生 NaN                                                                                                                 | 2026-02-12 | 钳位至 \([-1, 1]\)                                                                                                                                                                                                                                    |
+| 12  | `acos` 因浮点域错误产生 NaN                                                                                                                 | 2026-02-12 | 钳位至 $[-1, 1]$                                                                                                                                                                                                                                    |
 | 13  | 四元数初始化假设胞体 Z 为长轴                                                                                                                    | 2026-02-12 | 修正为胞体 X 轴                                                                                                                                                                                                                                        |
 | 14  | 移除纯 RSM 纤毛模式 (v2.0)                                                                                                                 | 2026-02-14 | 统一为 RSS + Rotlet；删除 `use_rss` 标志                                                                                                                                                                                                                 |
 | 15  | 纤毛线宽与质心标记过大 (v2.1)                                                                                                                  | 2026-02-15 | 静态图与动画中减半                                                                                                                                                                                                                                        |
@@ -1052,7 +1052,7 @@ Coupled_Body_Pili/
 | 22  | 静态快照中胞体与纤毛颜色偏暗，无法呈现预设明亮渐变色 (v2.4→v2.5)                                                                                              | 2026-02-19 | 移除三个快照视图的 `camlight`/`lighting('gouraud')`/`material('dull')`，改为 `lighting(axi,'none')` 均匀环境光，曲面以 `FaceColor` 原色全亮度渲染，消除单向定向光照造成的暗区                                                                                                              |
 | 23  | 3D 动画中 CM 轨迹线遮挡半透明胞体和纤毛 (v2.4→v2.5)                                                                                                 | 2026-02-19 | 调整绘制顺序（胞体→纤毛→CM 标记→轨迹），绘制轨迹后立即调用 `uistack(h_traj,'bottom')` 将其移至 `Children` 数组首位，强制 Painters 渲染器最先绘制轨迹，使其位于所有对象之下                                                                                                                                |
 | 24  | 胞体正则化参数 `eps_body` 由 `h_min/2` 改为 `h_mean/6` (v2.6)                                                                                 | 2026-03-01 | 原策略受球帽—圆柱拼接处局部几何（CDis/2 ≈ 38.6 nm）驱动，使 ε/Δs 系统性偏大（≈ 0.24–0.35）；新策略基于全局平均最近邻间距，ε/Δs ≈ 0.167，与 Cortez et al. (2005) 最优比值 0.154 吻合，正则化误差降低约 40%                                                                                                     |
-| 25  | 胞体正则化参数 `eps_body` 由 `h_mean/6` 调整为 `h_mean/3` (v2.7)                                                                               | 2026-03-01 | 经数值测试验证，ε/Δs ≈ 0.333 对当前胶囊几何（\(a/b=3.125\)，\(N_{\text{body}}=1000\)）为经验最优值，阻力矩阵精度与数值稳定性均优于 h_mean/6                                                                                                                                                    |
+| 25  | 胞体正则化参数 `eps_body` 由 `h_mean/6` 调整为 `h_mean/3` (v2.7)                                                                               | 2026-03-01 | 经数值测试验证，ε/Δs ≈ 0.333 对当前胶囊几何（$a/b=3.125$，$N_{\text{body}}=1000$）为经验最优值，阻力矩阵精度与数值稳定性均优于 h_mean/6                                                                                                                                                    |
 | 26  | 动画 CM 轨迹在 OpenGL 渲染器下遮挡纤毛 (v2.8)                                                                                                    | 2026-03-03 | `uistack('bottom')` 仅对 Painters 渲染器有效；动画中因 `FaceAlpha` 曲面强制启用 OpenGL，渲染顺序由深度缓冲（z-buffer）决定，轨迹线在几何位置靠近相机时必然遮挡纤毛。解决方案：将 `traj_color` 由 `[R G B]` 改为 4 分量 `[R G B 0.30]`（RGBA，alpha = 0.30），即使几何位置在前也不完全遮挡，同时移除无效的 `uistack` 调用                     |
 | 27  | 动画视频左右两侧大面积留白 (v2.8)                                                                                                                | 2026-03-03 | `DataAspectRatio=[1 1 1]` 将等比例数据框居中于 Position 矩形，细菌沉降时 Z 范围远大于 X/Y，投影内容呈竖向细长形，固定 1080×810 横向图像导致两侧大量空白。解决方案：按正射影投影（az=45°, el=25°）将数据边界框投影到屏幕，推算内容宽高比，动态设定图像尺寸（固定高度 1440 px，宽度 = `max(1440 × proj_w/proj_h × fill_ratio, 900)`），视频分辨率随数据自适应，留白消除 |
 | 28  | `validate_simulation_params.m` 重复附着位点检测索引错误 (v3.1→v3.2)                                                                             | 2026-03-17 | `sites(accumarray(ic,1)>1)` 以逻辑向量（长度=唯一位点数）索引 `sites`（长度=总纤毛数），维度不匹配导致崩溃；改为 `u_sites(counts > 1)` 正确过滤唯一位点                                                                                                                                       |
@@ -1060,7 +1060,7 @@ Coupled_Body_Pili/
 | 30  | `load_sim_config.m` `get_json` 死代码 (v3.1→v3.2)                                                                                      | 2026-03-17 | `isnumeric(default) && islogical(default)` 恒为 `false`（`islogical` 为 `true` 时 `isnumeric` 必为 `false`），`logical(v)` 转换永远不执行；移除 `isnumeric(default) &&`                                                                                             |
 | 31  | `main_coupled_simulation.m` 案例名拼写错误 (v3.1→v3.2)                                                                                     | 2026-03-17 | `'Brwon-Test-Soft'` → `'Brown-Test-Soft'`                                                                                                                                                                                                        |
 | 32  | `render_progress_bar.m` 进度条无法原地更新 (v3.1→v3.2)                                                                                       | 2026-03-17 | `prev_len_container` 数值数组按值传递，函数内修改不回传至调用方，`\b` 退格数始终为 0，进度信息逐行堆叠而非原地刷新；改用 `persistent prev_msg_len` 管理状态（与 `odetpbar.m` 同模式），`current==1` 时重置                                                                                                   |
-| 33  | 胞体默认 `eps_body` 由 `h_mean/3` 调整为 `h_mean/2.6667`                                                                                    | 2026-04-13 | 经 `batch_sweep_N_body_eps_RSM` 多 \(N_{\text{body}}\) 扫描，以 Stokes 球沉降速度与解析解误差最小为准则，\(\varepsilon/\Delta s \approx 0.375\) 优于 \(1/3\)                                                                                                                    |
+| 33  | 胞体默认 `eps_body` 由 `h_mean/3` 调整为 `h_mean/2.6667`                                                                                    | 2026-04-13 | 经 `batch_sweep_N_body_eps_RSM` 多 $N_{\text{body}}$ 扫描，以 Stokes 球沉降速度与解析解误差最小为准则，$\varepsilon/\Delta s \approx 0.375$ 优于 $1/3$                                                                                                                    |
 | 34  | 发布 **5.3.0**（2026-04-13）                                                                                                            | 2026-04-13 | 新增 `batch_sweep_N_body_eps_RSM.m`；`run_simulation` 日志横幅与 `README` / `USER_GUIDE` / `CHANGELOG` / `requirements.txt` / `docs/index.html` 版本与日期同步                                                                                                  |
 | 35  | `build_coupled_lin_sys.m` 节点 Director 插值缺少 `det<0` SVD 修正 + 单段纤毛越界                                                                  | 2026-04-14 | 内联实现的 SVD 极分解缺少 `det(R)<0` 检查，可能返回不当旋转（反射而非旋转）；`N_k=1` 时边界外推索引越界。提取为独立共享函数 `compute_node_directors.m`，含完整 `det<0` 修正与 `min(2,N_k)` 安全防护，同时消除与 `ode_coupled_rhs.m` 的代码重复                                                                          |
 
@@ -1083,7 +1083,7 @@ Coupled_Body_Pili/
 | 7   | 初始姿态交互式预览                                                                                                                                                                                                           | 2026-02-12 |
 | 8   | 纤毛 RSS 流体力学 (Cortez 2018)                                                                                                                                                                                           | 2026-02-14 |
 | 9   | 向量化 RSS 组装（消除线段循环）                                                                                                                                                                                                  | 2026-02-14 |
-| 10  | Rotlet 线段迁移率 \(M_{\text{rotlet}}\)                                                                                                                                                                                    | 2026-02-14 |
+| 10  | Rotlet 线段迁移率 $M_{\text{rotlet}}$                                                                                                                                                                                    | 2026-02-14 |
 | 11  | 纯 RSS 模式——移除 RSM 纤毛回退 (v2.0)                                                                                                                                                                                        | 2026-02-14 |
 | 12  | 纤毛线宽与质心标记减半 (v2.1)                                                                                                                                                                                                  | 2026-02-15 |
 | 13  | 坐标轴范围最小下限 `4*major_axis` (v2.1)                                                                                                                                                                                     | 2026-02-15 |
@@ -1115,7 +1115,7 @@ Coupled_Body_Pili/
 | #   | 功能                                                                                                                                                                                                                                                                                                                                                                                    | 日期         |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
 | 34  | 胞体布朗动力学（v3.0）：新增分裂步算符分裂（Operator Splitting）框架，`ode15s` 确定性求解器与固定间隔 `dt_B` Euler-Maruyama 布朗扰动解耦。RSM 摩擦矩阵 → Schur 补解耦 → Cholesky 扩散因子；四元数旋转布朗扰动；布朗节点后自动重施加固支几何投影                                                                                                                                                                                                                       | 2026-03-14 |
-| 35  | `compute_body_brownian_params.m` 新建（v3.0）：基于 RSM 迁移率矩阵构建胶囊体 6×6 刚体摩擦矩阵，Schur 补解耦平移/旋转子块，Cholesky 分解生成 Euler-Maruyama 所需的 \(L_T\)、\(L_R\) 因子                                                                                                                                                                                                                                               | 2026-03-14 |
+| 35  | `compute_body_brownian_params.m` 新建（v3.0）：基于 RSM 迁移率矩阵构建胶囊体 6×6 刚体摩擦矩阵，Schur 补解耦平移/旋转子块，Cholesky 分解生成 Euler-Maruyama 所需的 $L_T$、$L_R$ 因子                                                                                                                                                                                                                                               | 2026-03-14 |
 | 36  | 双平面流场 2×2 面板可视化（v3.0）：`compute_flowfield_xz.m` 重构为 `compute_plot_flowfield.m`，同时计算 XZ 和 YZ 平面流场；2×2 面板布局（3D 表面视图 + 2D imagesc，各含 XZ 和 YZ）；统一色标（99 百分位截断）；`contourc` 轮廓提取胞体遮罩轮廓；输出 `flowfield_panels.png`                                                                                                                                                                              | 2026-03-14 |
 | 37  | 流场网格间距由 0.1 μm 细化至 0.05 μm（v3.0）：分辨率翻倍，流场细节更清晰                                                                                                                                                                                                                                                                                                                                        | 2026-03-14 |
 | 38  | 动画三面板 1×3 布局（v3.0）：3D 视图（左）+ XZ 投影（中）+ YZ 投影（右），每帧三个面板同步更新；XZ/YZ 面板采用正射影投影（`Projection = orthographic`），手动补充封闭轴框线                                                                                                                                                                                                                                                                     | 2026-03-14 |
@@ -1161,7 +1161,7 @@ Coupled_Body_Pili/
 | 64  | **5.3.1**（2026-04-14）：`bacteria_3d_motion.mp4` 生成 — 图窗像素在 **3840×2160** 内等比缩放（保留原宽高比），`getframe` 使用图窗 `Position` 固定矩形，避免 Windows MPEG-4 编码器报帧尺寸超限或帧间尺寸不一致；日志横幅 **`5.3.1`**；文档与 `requirements.txt` 同步                                                                                                                                                                                                                                                                                                                            | 2026-04-14 |
 | 65  | **5.3.2**（2026-04-14）：新增共享工具函数 `compute_node_directors.m`（段 Director → 节点 Director 插值 + SVD 极分解投影 + `det<0` 修正）；修复 `build_coupled_lin_sys.m` 节点 Director 缺 `det<0` 检查与 `N_k=1` 越界；`ode_coupled_rhs.m` 向量化弹性/主动力矩写入 `R_global`；`validate_simulation_params.m` 增 `wavenumber`/`d3_amp` 警告；`coupled_active_moment.m` 补充 `d3_amp` 物理含义文档                                                                                                                                                                                            | 2026-04-14 |
 | 66  | **5.4.1**（2026-04-15）：移除主动力矩 **`breaststroke`** 模式；保留 `off` / `traveling_wave` / `custom`；`config_example.json` 第二根纤毛示例改为 `traveling_wave`；文档与日志横幅同步 **5.4.1**（v5.4.0 曾引入 `breaststroke`，见 `CHANGELOG`）                                                                                                                                                                                                                                                                                                                         | 2026-04-15 |
-| 67  | **5.4.2**（2026-04-15）：`traveling_wave` 主动力矩新增可选 **`phase_rad`** [rad]（默认 0），用于调节 \(\Phi=k_w s-\omega t+\phi\) 的时间相位；`coupled_active_moment` / `init_coupled_params` / `validate_simulation_params` / `config_example.json` 同步                                                                                                                                                                                                                                                                                                       | 2026-04-15 |
+| 67  | **5.4.2**（2026-04-15）：`traveling_wave` 主动力矩新增可选 **`phase_rad`** [rad]（默认 0），用于调节 $\Phi=k_w s-\omega t+\phi$ 的时间相位；`coupled_active_moment` / `init_coupled_params` / `validate_simulation_params` / `config_example.json` 同步                                                                                                                                                                                                                                                                                                       | 2026-04-15 |
 | 68  | **5.4.3**（2026-04-15）：全部 47 个 `.m` 文件头注释移除 `Updated:` 历史行，统一以 `Author:` / `Created:` 结尾；`build_coupled_lin_sys.m` Syntax 补写 3-输出调用形式；`brown_rng_seed_from_clock.m` 补全标准化头注释；`postprocess_cases.m` 头注释统一项目规范风格                                                                                                                                                                                                                                                                                                                   | 2026-04-15 |
 
 
@@ -1190,23 +1190,23 @@ $$
 Eg = \frac{F_{\text{sink}} L_0^2}{EI} = \frac{\Delta\rho \cdot V_{\text{capsule}} \cdot g \cdot a^2}{EI}
 $$
 
-### A.3 扭转阻力 \(\ell_k\) 因子
+### A.3 扭转阻力 $\ell_k$ 因子
 
-纤毛每段的有量纲扭转阻力为 \(\tilde{c}_t = 4\pi\mu\)。无量纲化后：
+纤毛每段的有量纲扭转阻力为 $\tilde{c}_t = 4\pi\mu$。无量纲化后：
 
 $$
 \tilde{A}_k = \frac{\ell_k \varepsilon_k^2}{2} \hat{A}_k
 $$
 
-额外的 \(\ell_k\) 因子确保线性系统中的量纲一致性。
+额外的 $\ell_k$ 因子确保线性系统中的量纲一致性。
 
-### A.4 线性系统 \(L\dot{z}=R\) 逐行量纲检查
+### A.4 线性系统 $L\dot{z}=R$ 逐行量纲检查
 
 所有行均已验证量纲一致：
 
-- 第 1–3 行（力）：两侧均为 \([F_0]\)
-- 第 4–6 行（力矩）：两侧均为 \([F_0 \cdot L_0]\)
-- 纤毛力矩行：两侧均为 \([EI/L_0]\)
+- 第 1–3 行（力）：两侧均为 $[F_0]$
+- 第 4–6 行（力矩）：两侧均为 $[F_0 \cdot L_0]$
+- 纤毛力矩行：两侧均为 $[EI/L_0]$
 
 ---
 
