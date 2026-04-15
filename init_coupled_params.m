@@ -357,6 +357,20 @@ if M_pili > 0
                 if ~isfield(am_k, 'd3_amp'), am_k.d3_amp = 0; end
                 params.am_cfg{k} = am_k;
 
+            case 'breaststroke'
+                L_pili_phys = params.ell(k) * L_0;
+                am_k.amplitude_dimless = am_k.amplitude_Nm * L_pili_phys / EI;
+                am_k.omega_dimless     = am_k.omega_Hz * 2 * pi * T_0;
+                if ~isfield(am_k, 'wavenumber'),     am_k.wavenumber     = 2*pi; end
+                if ~isfield(am_k, 'd1_amp'),         am_k.d1_amp         = 1;    end
+                if ~isfield(am_k, 'd2_amp'),         am_k.d2_amp         = 0;    end
+                if ~isfield(am_k, 'd3_amp'),         am_k.d3_amp         = 0;    end
+                if ~isfield(am_k, 'envelope_slope'), am_k.envelope_slope = 0.5;  end
+                if ~isfield(am_k, 'C2_ratio'),       am_k.C2_ratio       = 0.25; end
+                if ~isfield(am_k, 'C2_phase'),       am_k.C2_phase       = 0;    end
+                if ~isfield(am_k, 'mean_curv'),      am_k.mean_curv      = 0;    end
+                params.am_cfg{k} = am_k;
+
             case 'custom'
                 params.am_cfg{k} = am_k;
 

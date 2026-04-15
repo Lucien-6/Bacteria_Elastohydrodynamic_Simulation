@@ -187,7 +187,7 @@ end
 M_pili = size(PM, 2);
 if isfield(cfg, 'pili_ext') && M_pili > 0
     valid_ic = {'frozen', 'zero', 'constant', 'helix'};
-    valid_am = {'off', 'traveling_wave', 'custom'};
+    valid_am = {'off', 'traveling_wave', 'breaststroke', 'custom'};
     for kk = 1:min(numel(cfg.pili_ext), M_pili)
         pe = cfg.pili_ext(kk);
         % Intrinsic curvature
@@ -219,9 +219,9 @@ if isfield(cfg, 'pili_ext') && M_pili > 0
             am_type = '';
             if isfield(am_val, 'type'), am_type = am_val.type; end
             if ~any(strcmp(am_type, valid_am))
-                errs{end+1} = sprintf('Pili %d: active_moment type must be one of {off, traveling_wave, custom}, got ''%s''.', kk, am_type);
+                errs{end+1} = sprintf('Pili %d: active_moment type must be one of {off, traveling_wave, breaststroke, custom}, got ''%s''.', kk, am_type);
             end
-            if strcmp(am_type, 'traveling_wave')
+            if strcmp(am_type, 'traveling_wave') || strcmp(am_type, 'breaststroke')
                 if ~isfield(am_val, 'amplitude_Nm') || am_val.amplitude_Nm < 0
                     errs{end+1} = sprintf('Pili %d: active_moment.amplitude_Nm must be >= 0.', kk);
                 end
@@ -236,6 +236,26 @@ if isfield(cfg, 'pili_ext') && M_pili > 0
                     warns{end+1} = sprintf(['Pili %d: active_moment.d3_amp = %.4g (non-zero). ' ...
                         'This drives torsion rather than bending, which is unusual for standard pili beating.'], ...
                         kk, am_val.d3_amp);
+                end
+            end
+            if strcmp(am_type, 'breaststroke')
+                if isfield(am_val, 'envelope_slope')
+                    if am_val.envelope_slope < 0 || am_val.envelope_slope > 1
+                        errs{end+1} = sprintf('Pili %d: active_moment.envelope_slope must be in [0, 1], got %.4g.', kk, am_val.envelope_slope);
+                    end
+                end
+                if isfield(am_val, 'C2_ratio')
+                    if am_val.C2_ratio < 0
+                        errs{end+1} = sprintf('Pili %d: active_moment.C2_ratio must be >= 0, got %.4g.', kk, am_val.C2_ratio);
+                    end
+                    if am_val.C2_ratio > 1
+                        warns{end+1} = sprintf(['Pili %d: active_moment.C2_ratio = %.4g (> 1). ' ...
+                            'Second harmonic dominates the fundamental; verify this is intended.'], kk, am_val.C2_ratio);
+                    end
+                end
+                if isfield(am_val, 'mean_curv') && abs(am_val.mean_curv) > 10
+                    warns{end+1} = sprintf(['Pili %d: active_moment.mean_curv = %.4g (|value| > 10). ' ...
+                        'Very large static curvature offset; verify this is intended.'], kk, am_val.mean_curv);
                 end
             end
         end

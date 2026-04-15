@@ -8,6 +8,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.4.0] — 2026-04-14
+
+### Added
+
+- **`coupled_active_moment.m` — `breaststroke` mode** (NEW): Two-harmonic asymmetric beat pattern modelling Chlamydomonas-like breaststroke flagellar motion. Moment density: $m(s,t) = A \cdot E(s) \cdot [\cos\Phi + C_2\cos(2\Phi+\varphi_2) + C_0]$ where $\Phi = k\,s - \omega\,t$ and $E(s) = (1-\beta)+\beta\,s$ is a linear spatial envelope. The linear envelope admits **exact antiderivatives** (same precision as `traveling_wave`). Three mechanisms absent from the single-harmonic `traveling_wave`:
+  - **Temporal asymmetry** (`C2_ratio`, `C2_phase`): second harmonic creates distinct power/recovery stroke durations.
+  - **Spatial envelope** (`envelope_slope`): amplitude ramps from base to tip.
+  - **Mean curvature offset** (`mean_curv`): beat oscillates around a curved rest shape.
+  Setting `envelope_slope = 0`, `C2_ratio = 0`, `mean_curv = 0` reduces exactly to `traveling_wave`.
+- **`init_coupled_params.m`**: `case 'breaststroke'` — same `amplitude_dimless` / `omega_dimless` conversion as `traveling_wave` plus defaults for `envelope_slope` (0.5), `C2_ratio` (0.25), `C2_phase` (0), `mean_curv` (0).
+- **`validate_simulation_params.m`**: Validation rules for breaststroke — `envelope_slope` in [0, 1], `C2_ratio >= 0`; warnings for `C2_ratio > 1`, `|mean_curv| > 10`.
+- **`main_coupled_simulation.m`**: Commented inline breaststroke configuration example.
+- **`config_example.json`**: Second pili entry with full breaststroke JSON template.
+
+### Documentation
+
+- **`README.md`**, **`USER_GUIDE.md`**, **`requirements.txt`**, **`docs/index.html`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**: Version **5.4.0**, date **2026-04-14**.
+
+---
+
 ## [5.3.2] — 2026-04-14
 
 ### Added

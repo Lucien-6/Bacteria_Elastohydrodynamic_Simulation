@@ -3,7 +3,7 @@
 > **作者**: Lucien (lucien-6@qq.com)  
 > **创建日期**: 2026-02-06  
 > **更新日期**: 2026-04-14  
-> **版本**: 5.3.2  
+> **版本**: 5.4.0  
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
@@ -57,7 +57,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 - **刚体胞体**：胶囊几何体（半球端盖 + 圆柱中段），四元数参数化姿态（无万向锁）
 - **弹性纤毛**：Kirchhoff 不可伸长弹性杆 + Euler 角参数化（Walker 2020）
 - **内禀曲率**：per-pili 可配置静态固有曲率（`frozen`/`zero`/`constant`/`helix`）
-- **主动力矩**：per-pili 时变内部主动力矩（`off`/`traveling_wave`/`custom`），支持纤毛/鞭毛主动摆动模拟
+- **主动力矩**：per-pili 时变内部主动力矩（`off`/`traveling_wave`/`breaststroke`/`custom`），支持纤毛/鞭毛主动摆动模拟；`breaststroke`（v5.4.0）通过双谐波 + 线性空间包络 + 平均曲率偏移模拟莱茵衣藻式非对称蛙泳摆动
 - **背景流场**：全局静态背景流（`off`/`uniform`/`shear_z`），与无量纲化方案自动兼容
 - **流体力学**：胞体 RSM 点力 + 纤毛 RSS Stokeslet 线段 + Rotlet 线段耦合（扭转—平移）
 - **布朗动力学**：胞体热涨落（全系统有效摩擦张量，每步动态计算包含纤毛水动力贡献的 6×6 扩散张量；可选 Fixman 中点修正）
@@ -120,7 +120,7 @@ config_file = 'configs/my_case.json';    % 指向 JSON 配置文件
 
 - **顶层节**：`case_name`，`body`，`pili`（纤毛结构体数组或原始 `[8×M]` 矩阵），`material`，`fluid`，`simulation`，`brownian`，`output`，`flowfield`，`background_flow`（v5.0）。
 - **`body`**：`minor_axis`，`major_axis`，`N_body`，`alpha_0`；可选 **`eps_body`**（无量纲 RSM 胞体正则化长度 \( \varepsilon/L_0 \)，覆盖 `init_coupled_params` 默认 `h_mean/2.6667`）。
-- **`pili[]`**：每根纤毛至少含 `type`，`length_um`，`site`；可选 `deflection_z`，`deflection_x`，`shape_params`；v5.0 可选 **`intrinsic_curvature`**（字符串或对象）、**`active_moment`**（对象，如 `traveling_wave` 时用 `amplitude_Nm`，`omega_Hz`，`wavenumber`，`d1_amp` / `d2_amp` / `d3_amp` 等，与 `init_coupled_params` 一致）。
+- **`pili[]`**：每根纤毛至少含 `type`，`length_um`，`site`；可选 `deflection_z`，`deflection_x`，`shape_params`；v5.0 可选 **`intrinsic_curvature`**（字符串或对象）、**`active_moment`**（对象，如 `traveling_wave` / `breaststroke` 时用 `amplitude_Nm`，`omega_Hz`，`wavenumber`，`d1_amp` / `d2_amp` / `d3_amp` 等；`breaststroke` 另含 `envelope_slope`，`C2_ratio`，`C2_phase`，`mean_curv`；与 `init_coupled_params` 一致）。
 - **`simulation`**：`T_obs`，`AbsTol`，`RelTol`，`delta_frac`（内部得到 `cfg.delta = π/delta_frac`），`tlim`，`dt`，`seg_per_um`。
 - **`brownian`**：`enable` → `cfg.enable_brown`，`temperature` → `cfg.Temper`，`dt_B_ratio` → `cfg.dt_B = dt * dt_B_ratio`，`fixman_midpoint`；可选 **`rng_seed`** → `cfg.brown_rng_seed`（v5.2.0：正整数固定 twister 种子；省略或非正则用运行时刻 **`MMddHHmmss`** 整数默认种子）。
 - **`flowfield`**：`grid_spacing_um` → `cfg.flowfield_grid_spacing`，`grid_range_um` → `cfg.flowfield_grid_range`，`quiver_skip`，`chunk_size`。
@@ -1052,6 +1052,7 @@ Coupled_Body_Pili/
 | 63  | 发布 **5.3.0**（2026-04-13）：胞体默认 RSM 正则化 `h_mean/2.6667`（`batch_sweep_N_body_eps_RSM` 标定）；新增 `batch_sweep_N_body_eps_RSM.m`；`init_coupled_params` / `build_global_resistance` / README §8.5；日志横幅 **`5.3.0`**；`README` / `USER_GUIDE` / `CHANGELOG` / `requirements.txt` / `docs/index.html` 版本与日期同步 | 2026-04-13 |
 | 64  | **5.3.1**（2026-04-14）：`bacteria_3d_motion.mp4` 生成 — 图窗像素在 **3840×2160** 内等比缩放（保留原宽高比），`getframe` 使用图窗 `Position` 固定矩形，避免 Windows MPEG-4 编码器报帧尺寸超限或帧间尺寸不一致；日志横幅 **`5.3.1`**；文档与 `requirements.txt` 同步 | 2026-04-14 |
 | 65  | **5.3.2**（2026-04-14）：新增共享工具函数 `compute_node_directors.m`（段 Director → 节点 Director 插值 + SVD 极分解投影 + `det<0` 修正）；修复 `build_coupled_lin_sys.m` 节点 Director 缺 `det<0` 检查与 `N_k=1` 越界；`ode_coupled_rhs.m` 向量化弹性/主动力矩写入 `R_global`；`validate_simulation_params.m` 增 `wavenumber`/`d3_amp` 警告；`coupled_active_moment.m` 补充 `d3_amp` 物理含义文档 | 2026-04-14 |
+| 66  | **5.4.0**（2026-04-14）：**蛙泳式主动力矩** `breaststroke` 模式——双谐波非对称摆动 $m(s,t) = A\,E(s)\,[\cos\Phi + C_2\cos(2\Phi+\varphi_2) + C_0]$（$E(s) = (1-\beta)+\beta s$ 线性空间包络）；模拟莱茵衣藻鞭毛的有效冲程/恢复冲程节律；精确解析反导数，无数值积分；`envelope_slope`=0、`C2_ratio`=0、`mean_curv`=0 时退化为 `traveling_wave`；含完整参数校验与文档 | 2026-04-14 |
 
 ---
 
@@ -1104,7 +1105,7 @@ $$
 | ---- | ---- |
 | `CHANGELOG.md` | 版本变更记录（Keep a Changelog 风格） |
 | `USER_GUIDE.md` | 简明用户指南：快速上手、主要输出、`flowfield_panels.png` 与流场参数说明 |
-| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.3.2**，**2026-04-14**） |
+| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.4.0**，**2026-04-14**） |
 
 长篇理论、公式与完整参数表仍以本文件为准。
 

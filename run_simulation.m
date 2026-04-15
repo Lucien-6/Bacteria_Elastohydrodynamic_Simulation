@@ -36,6 +36,10 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %                         Hi-DPI: normalize_anim_frame_cdata → exact [h×w] for VideoWriter.
 %           2026-04-14 — v5.3.2: compute_node_directors shared utility (SVD det<0 fix);
 %                         ode_coupled_rhs vectorised R_global writes; validation warnings.
+%           2026-04-14 — v5.4.0: breaststroke active moment mode (two-harmonic asymmetric
+%                         beat with linear envelope); log banner Version 5.4.0.
+%           2026-04-15 — Empty `case_name` / collision rename: run ID uses hyphens,
+%                         e.g. `run-yyyyMMdd-HHmmss`, `MyCase-yyyyMMdd-HHmmss` (not underscores).
 
 %% ---- Input parsing ----
 if ischar(cfg_or_path) || isstring(cfg_or_path)
@@ -141,9 +145,9 @@ tic_sim_start = tic;
 %  OUTPUT DIRECTORY AND LOGGING SETUP
 %  =====================================================================
 
-run_timestamp = char(datetime('now', 'Format', 'uuuuMMdd''_''HHmmss'));
+run_timestamp = char(datetime('now', 'Format', 'uuuuMMdd''-''HHmmss'));
 if isempty(strtrim(case_name))
-    run_id     = ['run_' run_timestamp];
+    run_id     = ['run-' run_timestamp];
     output_dir = fullfile(pwd, 'output', run_id);
 else
     run_id     = strtrim(case_name);
@@ -158,8 +162,8 @@ if exist(output_dir, 'dir')
 
     if has_data
         if auto_confirm
-            output_dir = [output_dir '_' run_timestamp];
-            run_id     = [run_id '_' run_timestamp];
+            output_dir = [output_dir '-' run_timestamp];
+            run_id     = [run_id '-' run_timestamp];
             mkdir(output_dir);
             fprintf('[OUTPUT] Auto-renamed to avoid overwrite: %s\n', output_dir);
         else
@@ -178,8 +182,8 @@ if exist(output_dir, 'dir')
                     fprintf('[OUTPUT] Cleared %d existing file(s) and proceeding.\n', ...
                         numel(existing_files));
                 case 'Rename (append timestamp)'
-                    output_dir = [output_dir '_' run_timestamp];
-                    run_id     = [run_id '_' run_timestamp];
+                    output_dir = [output_dir '-' run_timestamp];
+                    run_id     = [run_id '-' run_timestamp];
                     mkdir(output_dir);
                     fprintf('[OUTPUT] Renamed to: %s\n', output_dir);
                 otherwise
@@ -203,7 +207,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 5.3.2\n');
+logf('  Version 5.4.0\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);

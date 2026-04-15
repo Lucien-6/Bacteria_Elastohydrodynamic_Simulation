@@ -20,6 +20,26 @@
             "active_moment": {
                 "type": "off"
             }
+        },
+        {
+            "_comment": "Example pilus with breaststroke active moment (remove or replace entry 1 to use)",
+            "type": "linear",
+            "length_um": 5,
+            "site": 2,
+            "intrinsic_curvature": "frozen",
+            "active_moment": {
+                "type": "breaststroke",
+                "amplitude_Nm": 1e-19,
+                "omega_Hz": 50,
+                "wavenumber": 6.2832,
+                "d1_amp": 1,
+                "d2_amp": 0,
+                "d3_amp": 0,
+                "envelope_slope": 0.5,
+                "C2_ratio": 0.25,
+                "C2_phase": 0,
+                "mean_curv": 0
+            }
         }
     ],
 

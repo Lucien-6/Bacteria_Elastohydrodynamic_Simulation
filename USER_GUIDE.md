@@ -1,7 +1,7 @@
 # User Guide — Coupled Body-Pili Simulation
 
 > **Author:** Lucien (lucien-6@qq.com)  
-> **Version:** 5.3.2  
+> **Version:** 5.4.0  
 > **Updated:** 2026-04-14  
 
 This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
@@ -146,6 +146,39 @@ pili_config(1).active_moment = struct('type', 'off');     % Default
 ```
 
 In JSON, use `"active_moment": { "type": "off" }` or a `traveling_wave` object with **`amplitude_Nm`**, **`omega_Hz`**, **`wavenumber`**, **`d1_amp`** / **`d2_amp`** / **`d3_amp`** (same names as MATLAB).
+
+### Per-pili active moment — breaststroke (v5.4.0)
+
+A two-harmonic asymmetric beat that models Chlamydomonas-like breaststroke flagellar motion. Adds three mechanisms over `traveling_wave`: spatial envelope, temporal power/recovery asymmetry, and a mean curvature offset.
+
+```matlab
+pili_config(1).active_moment = struct('type','breaststroke', ...
+    'amplitude_Nm', 1e-19, 'omega_Hz', 50, ...
+    'wavenumber', 2*pi, ...
+    'd1_amp', 1, 'd2_amp', 0, 'd3_amp', 0, ...
+    'envelope_slope', 0.5, ...       % beta in [0,1]; 0 = uniform, 1 = base-to-tip ramp
+    'C2_ratio', 0.25, ...            % 2nd harmonic amplitude ratio
+    'C2_phase', 0, ...               % 2nd harmonic phase offset [rad]
+    'mean_curv', 0);                 % static curvature offset
+```
+
+Equivalent JSON:
+
+```json
+"active_moment": {
+    "type": "breaststroke",
+    "amplitude_Nm": 1e-19,
+    "omega_Hz": 50,
+    "wavenumber": 6.2832,
+    "d1_amp": 1, "d2_amp": 0, "d3_amp": 0,
+    "envelope_slope": 0.5,
+    "C2_ratio": 0.25,
+    "C2_phase": 0,
+    "mean_curv": 0
+}
+```
+
+Setting `envelope_slope = 0`, `C2_ratio = 0`, `mean_curv = 0` reduces exactly to `traveling_wave`.
 
 Physical units are automatically converted to dimensionless at initialisation. See `CHANGELOG.md` for full details.
 
