@@ -461,7 +461,11 @@ $`T_{n,q}`$ 值通过递推关系计算（Cortez 2018, Eq. 7），起始于：
 ### 8.3 全局迁移率矩阵
 
 $$
-M_{\text{weighted}} = \begin{pmatrix} M_{BB} & M_{BP} \\ M_{PB} & M_{PP} \end{pmatrix}
+M_{\text{weighted}} =
+\begin{pmatrix}
+M_{BB} & M_{BP} \\
+M_{PB} & M_{PP}
+\end{pmatrix}
 $$
 
 
@@ -502,7 +506,11 @@ $$
 ### 8.5 正则化参数
 
 $$
-\varepsilon_j = \begin{cases} h_{\text{body}}^{\text{mean}} / 2.6667 & \text{胞体表面点} \\ r_{\text{pili}} / L_0 & \text{纤毛节点} \end{cases}
+\varepsilon_j =
+\begin{cases}
+h_{\text{body}}^{\text{mean}} / 2.6667 & \text{胞体表面点} \\
+r_{\text{pili}} / L_0 & \text{纤毛节点}
+\end{cases}
 $$
 
 **胞体**（RSM，力源在封闭曲面上）：$`h_{\text{body}}^{\text{mean}}`$ 为胞体表面所有点最近邻距离的均值（平均网格间距 $`\Delta s_{\text{avg}}`$），默认取 $`h_{\text{mean}}/2.6667`$，对应比值 $`\varepsilon/\Delta s_{\text{avg}} \approx 0.375`$。该比值由 `batch_sweep_N_body_eps_RSM` 扫描不同 $`N_{\text{body}}`$ 下 $`\varepsilon = kh_{\text{mean}}`$，并与 Stokes 球解析沉降速度对比得到，在阻力矩阵精度与数值稳定性之间优于此前的 $`h_{\text{mean}}/3`$。$`\varepsilon \to 0`$ 的极限存在（退化为奇异 BEM），故 $`\varepsilon`$ 为纯数值参数，应通过与解析解（如 Stokes 球阻力）对比验证。
