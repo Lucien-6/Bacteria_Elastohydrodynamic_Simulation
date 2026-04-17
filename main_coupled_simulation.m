@@ -38,7 +38,7 @@ if ~isempty(config_file) && isfile(config_file)
     cfg = load_sim_config(config_file);
 else
     %% --- Inline parameter definitions ---
-    cfg.case_name = 'OnePili-Active-HighFre-Test';
+    cfg.case_name = 'TwoPili-Active-HighFre-Test-new1';
 
     % -------- Bacterial Body Geometry --------
     cfg.minor_axis = 0.4e-6;              % [m]   Semi-minor axis (body radius)
@@ -51,21 +51,31 @@ else
     %  For a bare body with NO pili, use: pili_config = struct([]);
     pili_config(1).type        = 'linear';
     pili_config(1).length_um   = 3;
-    pili_config(1).deflection_z = 0;
-    pili_config(1).deflection_x = 0;
-    pili_config(1).site        = 1;
+    pili_config(1).deflection_z = pi/2;
+    pili_config(1).deflection_x = pi/2;
+    pili_config(1).site        = 3;
+    pili_config(2).type        = 'linear';
+    pili_config(2).length_um   = 3;
+    pili_config(2).deflection_z = pi/2;
+    pili_config(2).deflection_x = pi/2;
+    pili_config(2).site        = 5;
 
     % -------- Per-pili: Intrinsic Curvature --------
     %  Options: 'frozen' (default, keep initial geometry), 'zero',
     %           struct('type','constant','kappa',[k1 k2 k3]),
     %           struct('type','helix','kappa_d2',val,'kappa_d3',val)
     pili_config(1).intrinsic_curvature = 'frozen';
+    pili_config(2).intrinsic_curvature = 'frozen';
     
     % -------- Per-pili: Active Moment --------
     %  Options: struct('type','off')  (default)
     pili_config(1).active_moment = struct('type','traveling_wave', ...
-                  'amplitude_Nm', 5e-19, 'omega_Hz', 100, ...
-                  'wavenumber', 2*pi, 'phase_rad', 0, ...
+                  'amplitude_Nm', 2e-19, 'omega_Hz', 50, ...
+                  'wavenumber', 2*pi, 'phase_rad', 0, ... 
+                  'd1_amp', 1, 'd2_amp', 0, 'd3_amp', 0);
+    pili_config(2).active_moment = struct('type','traveling_wave', ...
+                  'amplitude_Nm', 2e-19, 'omega_Hz', 50, ...
+                  'wavenumber', 2*pi, 'phase_rad', pi, ... 
                   'd1_amp', 1, 'd2_amp', 0, 'd3_amp', 0);
 
     %  Custom:     struct('type','custom', 'fun', @my_moment_func)
@@ -99,12 +109,12 @@ else
     cfg.rho_fluid = 998.232;             % [kg/m^3] Fluid density
 
     % -------- Simulation Time & Numerics --------
-    cfg.T_obs  = 60.0;                    % [s]   Total observation time
+    cfg.T_obs  = 30.0;                    % [s]   Total observation time
     cfg.AbsTol = 1e-4;                    % ODE absolute tolerance
     cfg.RelTol = 1e-4;                    % ODE relative tolerance
     cfg.delta  = pi / 20;                 % [rad] Euler angle singularity threshold
     cfg.tlim   = 360;                     % [s]   ODE timeout limit
-    cfg.dt     = 1e-1;                    % [s]   Output time step
+    cfg.dt     = 1e-2;                    % [s]   Output time step
 
     % -------- Brownian Motion --------
     cfg.enable_brown     = false;          % true = enable Brownian motion
