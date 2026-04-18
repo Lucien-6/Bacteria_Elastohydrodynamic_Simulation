@@ -1,12 +1,18 @@
 # Coupled Body-Pili elastohydrodynamic simulation — MATLAB project
 #
-# Release: 5.4.4 (2026-04-15)
+# Release: 5.5.0 (2026-04-18)
 #
 # This repository has no Python/pip dependencies. Simulation code is MATLAB-only.
 #
 # Runtime
 #   - MATLAB R2020b or later recommended (tested with modern releases).
 #   - Statistics Toolbox: not required (code uses 'omitnan' in base MATLAB where applicable).
+#
+# MATLAB Add-On (required for capsule body-surface points in v5.5.0+)
+#   - "Suite of functions to perform uniform sampling of a sphere" (S2 Sampling Toolbox)
+#     by Anton Semechko — install via MATLAB Add-On Explorer / File Exchange so that
+#     ParticleSampleSphere, SpiralSampleSphere, IcosahedronMesh, QuadCubeMesh, and
+#     SubdivideSphericalMesh are on the path.
 #
 # Python / conda: N/A for running the simulator. If you add Python tooling later,
 # list packages here and prefer conda + pip per project policy.

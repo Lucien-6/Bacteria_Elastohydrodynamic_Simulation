@@ -2,8 +2,8 @@
 
 > **作者**: Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期**: 2026-02-06  
-> **更新日期**: 2026-04-16  
-> **版本**: 5.5.0  
+> **更新日期**: 2026-04-18
+> **版本**: 5.5.0
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
@@ -59,7 +59,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 #### 物理建模
 
 - **刚体胞体**：胶囊几何体（半球端盖 + 圆柱中段），四元数参数化姿态（无万向锁）
-- **胞体表面布点（v5.5.0）**：球帽采用 **Lebedev 角求积点**（Laikov & Lebedev 1999，18 阶可选，存放于 `lebedev/`），具备精确的 **八面体 O_h 对称性**（48 个对称操作，含 X=0 / Y=0 / Z=0 三平面镜像）；圆柱中段采用环-栈结构化网格、环向点数 `TN` 强制为 4 的倍数，保证与球帽协同的双平面镜像对称；Lebedev 阶次按**天花板**策略自适应匹配请求的 `N_body`。此布点方案消除了旧 Fibonacci 螺旋下长时仿真中可观测的横向系统漂移（见 §22）
+- **胞体表面布点（v5.5.0）**：球帽在 MATLAB **S2 Sampling Toolbox**（Anton Semechko；File Exchange / Add-On）上生成——按面积权重得到目标帽点数后，若与 Ico/Quad 细分网格原生顶点数相差不超过 5，则将帽点数 **对齐到最近一档原生顶点数**；否则 **`N_\text{cap}<1000`** 时默认 **`ParticleSampleSphere`**，`**≥1000**` 时 **`SpiralSampleSphere`**；细分档位 **`k=0…4`** 的顶点数由 **`SubdivideSphericalMesh`** **实测**（`capsule_sphere_mesh_cache.m`），不依赖闭式公式。赤道 **`x=0`**（双精度严格为 0）上的点在平移前 **复制一份**，使左右半球帽各保留一圈。**圆柱中段**仍为轴向分圈 × 周向等角的规则格点（`capsule_body_building.m` 与辅助函数 `snap_sphere_cap_count.m`、`capsule_sphere_cap_points.m`）。仍与 Cortez 型 RSM「全局 **ε**」离散假设兼容
 - **弹性纤毛**：Kirchhoff 不可伸长弹性杆 + Euler 角参数化（Walker 2020）
 - **内禀曲率**：per-pili 可配置静态固有曲率（`frozen`/`zero`/`constant`/`helix`）
 - **主动力矩**：per-pili 时变内部主动力矩（`off`/`traveling_wave`/`custom`），支持纤毛/鞭毛主动摆动模拟
@@ -188,7 +188,7 @@ output/MyCase/
 | `minor_axis`                         | `0.4e-6`                  | 胞体椭球短半轴（体宽半径）[m]                                                                                                 |
 | `major_axis`                         | `1.25e-6`                 | 胞体椭球长半轴（体长半径）[m]                                                                                                 |
 | `alpha_0`                            | `0`                       | XZ 平面内初始胞体倾斜角 [rad]                                                                                              |
-| `N_body`                             | `200`                     | 胞体表面力点数（请求值；v5.5.0 起实际值按 Lebedev 合法阶次向上取整后再加圆柱格点，可能与请求相差数点）                                                     |
+| `N_body`                             | `200`                     | 胞体表面力点数（请求值；实际值为球帽螺旋点数 + 圆柱规则格点数，可能与请求相差数点）                                                                        |
 | `eps_body`                           | `[]`（空则用 `h_mean/2.6667`） | 可选：胞体 RSM 正则化长度（无量纲 L_0）                                                                                         |
 | `seg_per_um`                         | `10`                      | 纤毛每微米段数（RSS 精确积分）                                                                                                |
 | `dt`                                 | `0.1`                     | 输出时间步 [s]                                                                                                        |
@@ -888,12 +888,10 @@ Coupled_Body_Pili/
 ├── coupled_background_flow.m           % (v5.0) 稳态背景流场评估（off/uniform/shear_z）
 ├── coupled_active_moment.m             % (v5.0) Per-pili 时变主动力矩（off/traveling_wave/custom）
 │
-├── capsule_body_building.m             % 胶囊/球体表面网格生成（v5.5.0：Lebedev 球帽 + 4k 对称圆柱）
-│
-├── lebedev/                            % (v5.5.0) Lebedev 角求积点库（O_h 对称）
-│   ├── gen_oh.m                        %   八面体对称生成原语（IEEE-754 符号翻转）
-│   ├── ld_by_order.m                   %   按阶次分派到具体规则（order ∈ {6,14,...,770}）
-│   └── ld00xx.m (18 files)             %   18 阶 Lebedev 规则数据（返回 [N×1] 列向量）
+├── capsule_body_building.m             % 胶囊/球体表面网格（球帽：S2 工具箱 + 对齐策略；柱面：规则格点）
+├── capsule_sphere_mesh_cache.m         % Ico/Quad 细分球面缓存与原生顶点数（工具箱实测）
+├── snap_sphere_cap_count.m             % 帽点数与 Ico/Quad 原生 N 在 ±5 内对齐
+├── capsule_sphere_cap_points.m         % 单位球帽布点（网格全长 / Particle / Spiral）
 │
 ├── pili_building.m                     % 纤毛结构初始化（刚度、曲率）
 ├── pili_type_building.m                % 纤毛形态生成（5 种类型）
@@ -942,7 +940,7 @@ Coupled_Body_Pili/
 └── Cortez - 2018 - Regularized stokeslet segments.pdf
 ```
 
-总计：**47 个 MATLAB 核心源文件 + 20 个 `lebedev/` 库文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（35 个核心模块 + 1 个 `post_processing/` 脚本 + 10 个 `batch sweep/` 与批量脚本 + 20 个 `lebedev/` 角求积规则文件，无冗余代码，无未使用函数）。
+总计：**47 个 MATLAB 核心源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（35 个核心模块 + 1 个 `post_processing/` 脚本 + 10 个 `batch sweep/` 与批量脚本，无冗余代码，无未使用函数）。
 
 ---
 
@@ -1065,7 +1063,6 @@ Coupled_Body_Pili/
 | 33  | 胞体默认 `eps_body` 由 `h_mean/3` 调整为 `h_mean/2.6667`                                                                                    | 2026-04-13 | 经 `batch_sweep_N_body_eps_RSM` 多 $`N_{\text{body}}`$ 扫描，以 Stokes 球沉降速度与解析解误差最小为准则，$`\varepsilon/\Delta s \approx 0.375`$ 优于 $`1/3`$                                                                                                              |
 | 34  | 发布 **5.3.0**（2026-04-13）                                                                                                            | 2026-04-13 | 新增 `batch_sweep_N_body_eps_RSM.m`；`run_simulation` 日志横幅与 `README` / `USER_GUIDE` / `CHANGELOG` / `requirements.txt` / `docs/index.html` 版本与日期同步                                                                                                  |
 | 35  | `build_coupled_lin_sys.m` 节点 Director 插值缺少 `det<0` SVD 修正 + 单段纤毛越界                                                                  | 2026-04-14 | 内联实现的 SVD 极分解缺少 `det(R)<0` 检查，可能返回不当旋转（反射而非旋转）；`N_k=1` 时边界外推索引越界。提取为独立共享函数 `compute_node_directors.m`，含完整 `det<0` 修正与 `min(2,N_k)` 安全防护，同时消除与 `ode_coupled_rhs.m` 的代码重复                                                                          |
-| 36  | 胞体球帽 Fibonacci 螺旋布点无镜像对称，长时主动摆动仿真出现单调累积横向漂移 (v5.5.0)                                                                                   | 2026-04-16 | Fibonacci 螺旋采用黄金角无理步进，球帽散点不具备关于 X=0/Y=0/Z=0 的镜像对称，使 RSM 自阻力矩阵 `M_BB` 失去相应对称分量；双纤毛相反相位 `traveling_wave` 主动力矩下累积为沿 Y/Z 的慢漂移。改为 **Lebedev 角求积点**（精确 O_h 对称，含三平面镜像）+ 圆柱环向 `TN = 4k` 强制对称，理论上使 `M_BB` 在期望对称类上精确对消；同时为 `major==minor` 球体特例新增专用分支（不再误舍弃赤道 Lebedev 点）            |
 
 
 ### 22.3 功能历史
@@ -1167,7 +1164,8 @@ Coupled_Body_Pili/
 | 67  | **5.4.2**（2026-04-15）：`traveling_wave` 主动力矩新增可选 `**phase_rad`** [rad]（默认 0），用于调节 $`\Phi=k_w s-\omega t+\phi`$ 的时间相位；`coupled_active_moment` / `init_coupled_params` / `validate_simulation_params` / `config_example.json` 同步                                                                                                                                                                                                                                                                                                   | 2026-04-15 |
 | 68  | **5.4.3**（2026-04-15）：全部 47 个 `.m` 文件头注释移除 `Updated:` 历史行，统一以 `Author:` / `Created:` 结尾；`build_coupled_lin_sys.m` Syntax 补写 3-输出调用形式；`brown_rng_seed_from_clock.m` 补全标准化头注释；`postprocess_cases.m` 头注释统一项目规范风格                                                                                                                                                                                                                                                                                                                   | 2026-04-15 |
 | 69  | **5.4.4**（2026-04-15）：修复 `run_simulation.m` 的 MP4 导出在 Windows HiDPI / 显示缩放下仍可能超过 MPEG-4 编码器限制的问题；动画流程现在先探测 `getframe` 实际物理像素尺寸，再把编码输出尺寸钳制到合法偶数分辨率；若抓帧仍偏大，则写入前自动缩放 `frame.cdata`。同时将 `main_coupled_simulation.m` 的内联示例调整为单纤毛高频主动摆动案例（`OnePili-Active-HighFre-Test`）
-| 70  | **5.5.0**（2026-04-16）：胞体表面布点由 **Fibonacci 螺旋** 迁移至 **Lebedev 角求积点** — 新增 `lebedev/` 子库（`gen_oh.m` + `ld_by_order.m` + 18 阶 `ld00xx.m` 数据），`capsule_body_building.m` 重写：球帽直接取用 Lebedev 自然 `lx<0/lx>0` 子集（O_h 对称含三平面镜像，无需显式镜像），圆柱环向 `TN = 4k` 强制对称，阶次按**天花板**策略自适应匹配 `N_body`；新增 `major==minor` 球体专用分支（保留赤道 Lebedev 点）；新增 `minor_axis` / `major_axis` 输入校验（错误 ID `capsule_body_building:InvalidMinorAxis` / `InvalidMajorAxis`）；消除长时主动摆动下球帽对称缺失驱动的系统横向漂移；`N_body` 实际值可能与请求差数点（向 Lebedev 合法阶次取整）                                                                                                                                                                                                                                                              | 2026-04-15 |
+                                                   | 2026-04-15 |
+| 70  | **5.5.0**（2026-04-18）：胞体球帽表面离散改为 **MATLAB S2 Sampling Toolbox**（`ParticleSampleSphere` / `SpiralSampleSphere` / Ico·Quad **`SubdivideSphericalMesh`**）；`snap_sphere_cap_count` 在 ±5 内对齐到最近原生顶点数；原生 **`N`** 由 **`capsule_sphere_mesh_cache`** 对工具箱细分结果 **实测**；赤道 **`x==0`** 严格复制至左右帽；新增 `capsule_sphere_mesh_cache.m`、`snap_sphere_cap_count.m`、`capsule_sphere_cap_points.m`；圆柱格点规则不变 | 2026-04-18 |
 
 
 ---
@@ -1222,7 +1220,7 @@ $$
 | ------------------ | --------------------------------------------------------------------- |
 | `CHANGELOG.md`     | 版本变更记录（Keep a Changelog 风格）                                           |
 | `USER_GUIDE.md`    | 简明用户指南：快速上手、主要输出、`flowfield_panels.png` 与流场参数说明                       |
-| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.5.0**，**2026-04-16**） |
+| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.5.0**，**2026-04-18**）；可选 **S2 Sampling Toolbox**（胞体球帽） |
 
 
 长篇理论、公式与完整参数表仍以本文件为准。

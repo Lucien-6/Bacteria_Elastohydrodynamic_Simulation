@@ -8,6 +8,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.5.0] — 2026-04-18
+
+### Added
+
+- **Capsule sphere-cap discretisation (S2 Sampling Toolbox)** — `capsule_body_building.m` now builds hemispherical-cap Stokeslet points via Anton Semechko’s add-on (`ParticleSampleSphere`, `SpiralSampleSphere`, optionally Ico / quad meshes from `IcosahedronMesh` / `QuadCubeMesh` + `SubdivideSphericalMesh`). New helpers: **`capsule_sphere_mesh_cache.m`** (persistent cache of subdivided meshes and **measured** vertex counts for `k = 0…4`), **`snap_sphere_cap_count.m`** (snap area-weighted cap count to nearest native total if within ±5), **`capsule_sphere_cap_points.m`** (mesh / particle / spiral branches; documented `Etol`, `Dtol`, `Nitr` for `ParticleSampleSphere`). Native vertex totals match the **installed** toolbox version (no closed-form assumption).
+
+### Changed
+
+- **`capsule_body_building.m`** — Duplicates cap points on the **strict** equator **`x == 0`** onto **both** hemispherical caps after translation. Final `NBody` is `numel(rxB)` (may differ from requested `NBody` when snap or duplication applies). Cylindrical patch rule unchanged.
+
+### Documentation
+
+- **`README.md`**, **`USER_GUIDE.md`**, **`requirements.txt`**, **`docs/index.html`**, **`run_simulation.m`**: Version **5.5.0**, date **2026-04-18**; S2 toolbox prerequisite and cap-algorithm summary.
+
+---
+
 ## [5.4.4] — 2026-04-15
 
 ### Changed

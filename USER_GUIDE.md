@@ -1,8 +1,8 @@
 # User Guide — Coupled Body-Pili Simulation
 
 > **Author:** Lucien (lucien-6@qq.com)  
-> **Version:** 5.4.4  
-> **Updated:** 2026-04-15  
+> **Version:** 5.5.0
+> **Updated:** 2026-04-18
 
 This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
 
@@ -11,6 +11,7 @@ This guide is a short entry point. **Full theory, parameters, and file map:** se
 ## 1. What you need
 
 - **MATLAB** (R2020b or later recommended). No Python environment is required to run the simulator (`requirements.txt` documents this).
+- **MATLAB Add-On / File Exchange — S2 Sampling Toolbox** (*Suite of functions to perform uniform sampling of a sphere*, Anton Semechko): required for **capsule** body-surface generation (`capsule_sphere_mesh_cache.m`, `capsule_sphere_cap_points.m`) — e.g. `ParticleSampleSphere`, `SpiralSampleSphere`, `IcosahedronMesh`, `QuadCubeMesh`, `SubdivideSphericalMesh`. Install from Add-On Explorer so the functions are on the path.
 
 ---
 
@@ -100,6 +101,8 @@ The script computes per-case summaries (e.g. sinking velocity statistics, maximu
 - **v5.4.3:** **Header comment cleanup** — all 47 `.m` files: removed `Updated:` history lines; headers now end with `Author:` / `Created:` only. `build_coupled_lin_sys.m` Syntax comment fixed (3-output form). `brown_rng_seed_from_clock.m` and `postprocess_cases.m` header comments standardised.
 
 - **v5.4.4:** **HiDPI animation export hardening** — `run_simulation.m` now clamps the encoded MP4 frame size to a legal even-valued MPEG-4 box after probing `getframe` output, then rescales oversized frames before `writeVideo` if needed. The inline example in `main_coupled_simulation.m` now defaults to a single-pilus high-frequency active case.
+
+**v5.5.0:** **Capsule sphere caps (S2 toolbox)** — hemispherical cap Stokeslet points use Anton Semechko’s toolbox: optional snap of the cap count to Ico/Quad native vertex totals (±5 from area-weighted allocation), else `ParticleSampleSphere` below 1000 points (see `capsule_sphere_cap_points.m` for documented `Etol`/`Dtol`/`Nitr`), else `SpiralSampleSphere`. Equator points with **exact** `x==0` are duplicated onto both caps. Native mesh sizes come from `SubdivideSphericalMesh` via `capsule_sphere_mesh_cache.m` (not a closed-form formula).
 
 Tunable via `cfg`: `flowfield_grid_spacing`, `flowfield_grid_range`, `flowfield_quiver_skip`, `flowfield_chunk_size`.
 

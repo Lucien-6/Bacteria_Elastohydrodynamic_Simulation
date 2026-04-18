@@ -41,7 +41,7 @@ else
     cfg.case_name = 'TwoPili-Active-HighFre-Test-new1';
 
     % -------- Bacterial Body Geometry --------
-    cfg.minor_axis = 0.4e-6;              % [m]   Semi-minor axis (body radius)
+    cfg.minor_axis = 1.25e-6;              % [m]   Semi-minor axis (body radius)
     cfg.major_axis = 1.25e-6;             % [m]   Semi-major axis (half body length)
     cfg.N_body     = 200;                % [-]   Number of body surface points
     cfg.alpha_0    = 0;                   % [rad] Initial tilt angle in XZ plane
