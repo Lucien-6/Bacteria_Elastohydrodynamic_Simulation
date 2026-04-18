@@ -10,18 +10,21 @@ function V = capsule_sphere_cap_points(SPN)
 %       that mesh (no subsampling). If Ico and Quad share the same N, Ico
 %       wins, then lower k.
 %    2) Else if SPN >= 1000, SpiralSampleSphere(SPN).
-%    3) Else if SPN >= 14, ParticleSampleSphere with the specification below.
+%    3) Else if SPN >= 14, ParticleSampleSphere (see below).
 %    4) Else SpiralSampleSphere(SPN).
 %
-%  --- ParticleSampleSphere specification (name-value overrides) ---
-%  These values replace toolbox defaults for silent batch use. Change only
-%  deliberately; document revisions for reproducibility.
-%    'Etol'   Absolute energy convergence tolerance ............ 1e-4
-%    'Dtol'   Max particle displacement tolerance .............. 1e-3 deg
-%    'Nitr'   Maximum iterations ................................... 3500
+%  --- ParticleSampleSphere (name-value overrides only where needed) ---
+%  Initial positions: 'Vo' = SpiralSampleSphere(SPN,false) (deterministic, no RNG).
+%  'Etol', 'Dtol', 'Nitr' are not passed — toolbox defaults apply
+%  (Etol=1e-5, Dtol=1e-4 deg, Nitr=1e4 per ParticleSampleSphere/VerifyInputArgs).
 %    'qdlg'   false — no confirmation dialog for large N
 %    'upd'    false — suppress iteration print to command window
-%  Riesz s-energy minimisation parameters follow ParticleSampleSphere.m (s=1).
+%  'asym' is omitted (false). Riesz s-energy uses s=1 per toolbox default.
+%
+%  --- Particle result cache ---
+%  When 100 < SPN < 1000 the result is read from / written to disk via
+%  sphere_particle_sample_cached (cache/sphere_particle/spherical_points_NXXXX.mat).
+%  For 14 <= SPN <= 100 ParticleSampleSphere is called directly (no cache).
 %
 %  Toolbox z-axis pole -> body x-axis pole (capsule).
 %
@@ -29,11 +32,9 @@ function V = capsule_sphere_cap_points(SPN)
 %
 %  Author: Lucien (lucien-6@qq.com)
 %  Date:   2026-04-17
-
-% --- ParticleSampleSphere public tuning (keep in sync with header block) ---
-SPHERE_PARTICLE_ETOL = 1e-4;
-SPHERE_PARTICLE_DTOL_DEG = 1e-3;
-SPHERE_PARTICLE_NITR = 3500;
+%  Updated: 2026-04-18 — ParticleSampleSphere: toolbox Etol/Dtol/Nitr defaults;
+%                        deterministic Vo via SpiralSampleSphere(SPN,false);
+%                        disk cache for 100 < SPN < 1000 via sphere_particle_sample_cached
 
 if SPN < 1
     error('capsule_sphere_cap_points: SPN must be at least 1.');
@@ -71,10 +72,12 @@ end
 if SPN >= 1000
     Vtool = SpiralSampleSphere(SPN, false);
 elseif SPN >= 14
-    particle_opts = {'qdlg', false, 'upd', false, ...
-        'Etol', SPHERE_PARTICLE_ETOL, 'Dtol', SPHERE_PARTICLE_DTOL_DEG, ...
-        'Nitr', SPHERE_PARTICLE_NITR};
-    Vtool = ParticleSampleSphere('N', SPN, particle_opts{:});
+    if SPN > 100 && SPN < 1000
+        Vtool = sphere_particle_sample_cached(SPN);
+    else
+        Vo    = SpiralSampleSphere(SPN, false);
+        Vtool = ParticleSampleSphere('Vo', Vo, 'qdlg', false, 'upd', false);
+    end
 else
     Vtool = SpiralSampleSphere(SPN, false);
 end

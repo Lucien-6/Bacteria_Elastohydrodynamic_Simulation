@@ -8,6 +8,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.5.1] — 2026-04-18
+
+### Added
+
+- **`sphere_particle_sample_cached.m`** (NEW): Disk cache for `ParticleSampleSphere` results when `100 < SPN < 1000`. On first call for a given `SPN` the converged point set is saved to `cache/sphere_particle/spherical_points_NXXXX.mat`; subsequent calls load from disk and bypass the iterative Riesz-energy optimisation entirely. Each cache file stores `Vtool` (N×3, toolbox frame) plus a `meta` struct containing the toolbox-default tolerances (`Etol`, `Dtol_deg`, `Nitr`), the initial-position strategy (`Vo_method`), and a format version. Any mismatch between stored meta and current constants triggers recomputation and overwrites the stale file; the old file is also deleted on any structural or meta validation failure so corrupt entries do not persist. All I/O errors fall back silently to direct computation, leaving the simulation unaffected.
+
+### Changed
+
+- **`capsule_sphere_cap_points.m` — `ParticleSampleSphere` call**: Removed custom `Etol` / `Dtol` / `Nitr` overrides; the toolbox defaults (`Etol=1e-5`, `Dtol=1e-4 deg`, `Nitr=1e4`) now apply. Initial particle positions (`'Vo'`) are supplied as `SpiralSampleSphere(SPN, false)` — fully deterministic, no `RandSampleSphere` / RNG dependency. For `100 < SPN < 1000` the call is routed through `sphere_particle_sample_cached`.
+
+### Documentation
+
+- **`README.md`**, **`USER_GUIDE.md`**, **`requirements.txt`**: Version **5.5.1**, date **2026-04-18**; sphere-cap discretisation description updated.
+
+---
+
 ## [5.5.0] — 2026-04-18
 
 ### Added
