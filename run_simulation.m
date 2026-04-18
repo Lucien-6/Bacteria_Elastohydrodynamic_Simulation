@@ -442,7 +442,7 @@ if preview_initial
 
         if vi == 1
             lg_pv = legend(ax_pv, legend_entries, ...
-                           'Location', 'best', 'FontSize', 9, 'Box', 'off');
+                           'Location', 'northeast', 'FontSize', 9, 'Box', 'off');
             set(lg_pv, 'FontName', 'Arial');
         end
 
