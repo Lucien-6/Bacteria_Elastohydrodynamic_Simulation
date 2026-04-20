@@ -6,6 +6,8 @@
 %    hemispherical caps connected by a cylindrical middle section. Points
 %    use Anton Semechko S2 Sampling Toolbox on the sphere caps (see
 %    capsule_sphere_cap_points) and a regular grid for the cylinder.
+%    Cylinder circumferential resolution TN is snapped to a multiple of 4
+%    via TN = max(round(TN/4)*4, 4) after the area-based TN estimate.
 %    Sphere points with x==0 (equator, strict) are duplicated so each
 %    hemispherical cap receives a copy after translation.
 %
@@ -38,6 +40,7 @@
 %  Created: 2024-10-24
 %  Updated: 2026-04-17 — S2 toolbox sphere caps; optional snap_sphere_cap_count
 %  Updated: 2026-04-17 — duplicate points with x==0 (equator) onto both caps
+%  Updated: 2026-04-20 — cylinder TN snapped to multiple of 4 (round(TN/4)*4)
 
 %% Compute surface point allocation between sphere caps and cylinder
 SA  = 4 * pi * minor_axis^2;                       % Total sphere surface area
@@ -67,6 +70,7 @@ if CPN > 0
     Turns = ceil(2 * (major_axis - minor_axis) / CDis);
     CDis  = 2 * (major_axis - minor_axis) / Turns;
     TN    = ceil(CPN / Turns);
+    TN    = max(round(TN / 4) * 4, 4);   % circumferential points per ring: multiple of 4
     Alpha = 0 : 2*pi/TN : (2*pi - 2*pi/TN);
 
     TempX = (minor_axis - major_axis + CDis/2) : CDis : (major_axis - minor_axis - CDis/2);
