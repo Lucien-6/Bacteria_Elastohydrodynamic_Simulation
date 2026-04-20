@@ -97,7 +97,7 @@ cfg_base.T_obs  = 200.0;
 cfg_base.AbsTol = 1e-4;
 cfg_base.RelTol = 1e-4;
 cfg_base.delta  = pi / 20;
-cfg_base.tlim   = 360;
+cfg_base.tlim   = 3600;
 cfg_base.dt     = 0.1;
 
 cfg_base.enable_brown = false;

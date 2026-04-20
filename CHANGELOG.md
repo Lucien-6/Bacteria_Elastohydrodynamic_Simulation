@@ -8,6 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.5.3] — 2026-04-20
+
+### Changed
+
+- **Default ODE timeout `tlim`**: Project-wide default is now **3600 s** (was **360 s**) — `load_sim_config.m` JSON fallback, `main_coupled_simulation.m` inline config, `config_example.json`, `docs/index.html` JSON snippet, all `batch sweep/*` scripts that set `cfg_base.tlim`, and **`README.md`** §2 parameter table.
+
+### Documentation
+
+- **`README.md`**, **`USER_GUIDE.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`docs/index.html`**: Version **5.5.3**, date **2026-04-20**; `tlim` default and feature-history row 73.
+
+---
+
 ## [5.5.2] — 2026-04-20
 
 ### Changed

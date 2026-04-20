@@ -78,7 +78,7 @@ cfg.AbsTol     = get_json(js, 'AbsTol',     1e-4);
 cfg.RelTol     = get_json(js, 'RelTol',     1e-4);
 delta_frac     = get_json(js, 'delta_frac', 20);
 cfg.delta      = pi / delta_frac;
-cfg.tlim       = get_json(js, 'tlim',       360);
+cfg.tlim       = get_json(js, 'tlim',       3600);
 cfg.dt         = get_json(js, 'dt',         0.1);
 cfg.seg_per_um = get_json(js, 'seg_per_um', 10);
 

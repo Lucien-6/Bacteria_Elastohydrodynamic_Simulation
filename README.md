@@ -3,7 +3,7 @@
 > **作者**: Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期**: 2026-02-06  
 > **更新日期**: 2026-04-20
-> **版本**: 5.5.2
+> **版本**: 5.5.3
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
@@ -202,7 +202,7 @@ output/MyCase/
 | `T_obs`                              | `30.0`                    | 总观测时间 [s]                                                                                                        |
 | `AbsTol` / `RelTol`                  | `1e-4`                    | ODE 求解器容差                                                                                                        |
 | `delta`                              | `pi/20`                   | Euler 角奇异性阈值 [rad]                                                                                               |
-| `tlim`                               | `360`                     | ODE 段超时限制 [s]                                                                                                    |
+| `tlim`                               | `3600`                    | ODE 段超时限制 [s]                                                                                                    |
 | `preview_initial`                    | `true`                    | 积分前显示初始姿态预览                                                                                                      |
 | `generate_animation`                 | `true`                    | 生成 MP4 动画                                                                                                        |
 | `animation_fps`                      | `30`                      | 动画帧率                                                                                                             |
@@ -1168,6 +1168,7 @@ Coupled_Body_Pili/
 | 70  | **5.5.0**（2026-04-18）：胞体球帽表面离散改为 **MATLAB S2 Sampling Toolbox**（`ParticleSampleSphere` / `SpiralSampleSphere` / Ico·Quad **`SubdivideSphericalMesh`**）；`snap_sphere_cap_count` 在 ±5 内对齐到最近原生顶点数；原生 **`N`** 由 **`capsule_sphere_mesh_cache`** 对工具箱细分结果 **实测**；赤道 **`x==0`** 严格复制至左右帽；新增 `capsule_sphere_mesh_cache.m`、`snap_sphere_cap_count.m`、`capsule_sphere_cap_points.m`；圆柱格点规则不变 | 2026-04-18 |
 | 71  | **5.5.1**（2026-04-18）：`ParticleSampleSphere` 改用工具箱默认容差（`Etol=1e-5`、`Dtol=1e-4`°、`Nitr=1e4`）；初始位置改由 `SpiralSampleSphere(N,false)` 确定性生成（无 RNG）；新增 `sphere_particle_sample_cached.m`：`100 < SPN < 1000` 时将收敛点集缓存至 `cache/sphere_particle/spherical_points_NXXXX.mat`，命中时跳过迭代优化直接加载；缓存附 `meta` 字段校验（容差、`Vo_method`、格式版本），不匹配则重算覆盖，任何 I/O 失败均静默降级为直接计算 | 2026-04-18 |
 | 72  | **5.5.2**（2026-04-20）：`capsule_body_building.m` 圆柱段周向分辨率 **`TN`** 在 `ceil(CPN/Turns)` 之后按 **`TN = max(round(TN/4)*4, 4)`** 对齐为 4 的倍数；圆柱总点数及实际 **`N_body`** 可能相对请求值进一步变化 | 2026-04-20 |
+| 73  | **5.5.3**（2026-04-20）：工程默认 ODE 超时 **`tlim`** 由 **360 s** 统一改为 **3600 s**（`load_sim_config`、`main_coupled_simulation`、JSON 模板、`batch sweep`、文档）；版本号对齐 **5.5.3** | 2026-04-20 |
 
 
 ---
@@ -1222,7 +1223,7 @@ $$
 | ------------------ | --------------------------------------------------------------------- |
 | `CHANGELOG.md`     | 版本变更记录（Keep a Changelog 风格）                                           |
 | `USER_GUIDE.md`    | 简明用户指南：快速上手、主要输出、`flowfield_panels.png` 与流场参数说明                       |
-| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.5.2**，**2026-04-20**）；可选 **S2 Sampling Toolbox**（胞体球帽） |
+| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.5.3**，**2026-04-20**）；可选 **S2 Sampling Toolbox**（胞体球帽） |
 
 
 长篇理论、公式与完整参数表仍以本文件为准。

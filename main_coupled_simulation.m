@@ -113,7 +113,7 @@ else
     cfg.AbsTol = 1e-4;                    % ODE absolute tolerance
     cfg.RelTol = 1e-4;                    % ODE relative tolerance
     cfg.delta  = pi / 20;                 % [rad] Euler angle singularity threshold
-    cfg.tlim   = 360;                     % [s]   ODE timeout limit
+    cfg.tlim   = 3600;                    % [s]   ODE timeout limit
     cfg.dt     = 1e-2;                    % [s]   Output time step
 
     % -------- Brownian Motion --------
