@@ -189,7 +189,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 5.5.0\n');
+logf('  Version 5.5.2\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -630,8 +630,8 @@ while T_achieved < T_obs_dimless
     Z_end      = sol.y(:, end);
 
     % Record segment timing for ETA estimation
-    seg_walltimes(end+1) = seg_wall;            %#ok<SAGROW>
-    seg_dtstar(end+1)    = T_achieved - T_prev; %#ok<SAGROW>
+    seg_walltimes(end+1) = seg_wall;            
+    seg_dtstar(end+1)    = T_achieved - T_prev; 
 
     % Renormalise quaternion
     q_end         = Z_end(4:7);

@@ -1,8 +1,8 @@
 ﻿# User Guide — Coupled Body-Pili Simulation
 
 > **Author:** Lucien (lucien-6@qq.com)  
-> **Version:** 5.5.1
-> **Updated:** 2026-04-18
+> **Version:** 5.5.2
+> **Updated:** 2026-04-20
 
 This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
 
@@ -105,6 +105,8 @@ The script computes per-case summaries (e.g. sinking velocity statistics, maximu
 **v5.5.0:** **Capsule sphere caps (S2 toolbox)** — hemispherical cap Stokeslet points use Anton Semechko’s toolbox: optional snap of the cap count to Ico/Quad native vertex totals (±5 from area-weighted allocation), else `ParticleSampleSphere` below 1000 points, else `SpiralSampleSphere`. Equator points with **exact** `x==0` are duplicated onto both caps. Native mesh sizes come from `SubdivideSphericalMesh` via `capsule_sphere_mesh_cache.m` (not a closed-form formula).
 
 **v5.5.1:** **Sphere-cap Particle sampling — deterministic init + disk cache** — `ParticleSampleSphere` now uses toolbox default tolerances (`Etol=1e-5`, `Dtol=1e-4 deg`, `Nitr=1e4`; no custom overrides). Initial particle positions are supplied as `SpiralSampleSphere(N, false)` — fully deterministic, no RNG dependency. For `100 < SPN < 1000`, results are cached to `cache/sphere_particle/spherical_points_NXXXX.mat` via the new `sphere_particle_sample_cached.m`; a cache hit skips the iterative Riesz-energy optimisation entirely. Each file stores a `meta` struct (tolerances, `Vo_method`, format version); any mismatch triggers recomputation and overwrites the file. I/O failures fall back silently to direct computation.
+
+**v5.5.2:** **Cylinder circumferential grid — TN multiple of 4** — In `capsule_body_building.m`, after the area-based estimate `TN = ceil(CPN / Turns)`, the code sets **`TN = max(round(TN / 4) * 4, 4)`** before building the azimuthal grid. Total cylinder points and actual `N_body` may change relative to the previous rule.
 
 Tunable via `cfg`: `flowfield_grid_spacing`, `flowfield_grid_range`, `flowfield_quiver_skip`, `flowfield_chunk_size`.
 

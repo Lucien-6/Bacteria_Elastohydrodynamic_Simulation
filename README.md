@@ -2,8 +2,8 @@
 
 > **作者**: Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期**: 2026-02-06  
-> **更新日期**: 2026-04-18
-> **版本**: 5.5.1
+> **更新日期**: 2026-04-20
+> **版本**: 5.5.2
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
@@ -59,7 +59,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 #### 物理建模
 
 - **刚体胞体**：胶囊几何体（半球端盖 + 圆柱中段），四元数参数化姿态（无万向锁）
-- **胞体表面布点（v5.5）**：球帽在 MATLAB **S2 Sampling Toolbox**（Anton Semechko；File Exchange / Add-On）上生成——按面积权重得到目标帽点数后，若与 Ico/Quad 细分网格原生顶点数相差不超过 5，则将帽点数 **对齐到最近一档原生顶点数**；否则 **`N_\text{cap}<1000`** 时默认 **`ParticleSampleSphere`**，**`≥1000`** 时 **`SpiralSampleSphere`**；细分档位 **`k=0…4`** 的顶点数由 **`SubdivideSphericalMesh`** **实测**（`capsule_sphere_mesh_cache.m`），不依赖闭式公式。赤道 **`x=0`**（双精度严格为 0）上的点在平移前 **复制一份**，使左右半球帽各保留一圈。**圆柱中段**仍为轴向分圈 × 周向等角的规则格点。**`ParticleSampleSphere` 设置（v5.5.1）**：采用工具箱默认容差（`Etol=1e-5`、`Dtol=1e-4`°、`Nitr=1e4`）；初始位置由 `SpiralSampleSphere(N, false)` 确定性生成，无随机初值依赖；`100 < SPN < 1000` 时结果经 `sphere_particle_sample_cached.m` 读写磁盘缓存（`cache/sphere_particle/spherical_points_NXXXX.mat`），避免重复迭代优化。仍与 Cortez 型 RSM「全局 **ε**」离散假设兼容
+- **胞体表面布点（v5.5）**：球帽在 MATLAB **S2 Sampling Toolbox**（Anton Semechko；File Exchange / Add-On）上生成——按面积权重得到目标帽点数后，若与 Ico/Quad 细分网格原生顶点数相差不超过 5，则将帽点数 **对齐到最近一档原生顶点数**；否则 **`N_\text{cap}<1000`** 时默认 **`ParticleSampleSphere`**，**`≥1000`** 时 **`SpiralSampleSphere`**；细分档位 **`k=0…4`** 的顶点数由 **`SubdivideSphericalMesh`** **实测**（`capsule_sphere_mesh_cache.m`），不依赖闭式公式。赤道 **`x=0`**（双精度严格为 0）上的点在平移前 **复制一份**，使左右半球帽各保留一圈。**圆柱中段**仍为轴向分圈 × 周向等角的规则格点；**v5.5.2** 起周向每圈点数 **`TN`** 在面积启发式估计后按 **`TN = max(round(TN/4)*4, 4)`** 对齐为 **4 的倍数**。**`ParticleSampleSphere` 设置（v5.5.1）**：采用工具箱默认容差（`Etol=1e-5`、`Dtol=1e-4`°、`Nitr=1e4`）；初始位置由 `SpiralSampleSphere(N, false)` 确定性生成，无随机初值依赖；`100 < SPN < 1000` 时结果经 `sphere_particle_sample_cached.m` 读写磁盘缓存（`cache/sphere_particle/spherical_points_NXXXX.mat`），避免重复迭代优化。仍与 Cortez 型 RSM「全局 **ε**」离散假设兼容
 - **弹性纤毛**：Kirchhoff 不可伸长弹性杆 + Euler 角参数化（Walker 2020）
 - **内禀曲率**：per-pili 可配置静态固有曲率（`frozen`/`zero`/`constant`/`helix`）
 - **主动力矩**：per-pili 时变内部主动力矩（`off`/`traveling_wave`/`custom`），支持纤毛/鞭毛主动摆动模拟
@@ -1167,6 +1167,7 @@ Coupled_Body_Pili/
                                                    | 2026-04-15 |
 | 70  | **5.5.0**（2026-04-18）：胞体球帽表面离散改为 **MATLAB S2 Sampling Toolbox**（`ParticleSampleSphere` / `SpiralSampleSphere` / Ico·Quad **`SubdivideSphericalMesh`**）；`snap_sphere_cap_count` 在 ±5 内对齐到最近原生顶点数；原生 **`N`** 由 **`capsule_sphere_mesh_cache`** 对工具箱细分结果 **实测**；赤道 **`x==0`** 严格复制至左右帽；新增 `capsule_sphere_mesh_cache.m`、`snap_sphere_cap_count.m`、`capsule_sphere_cap_points.m`；圆柱格点规则不变 | 2026-04-18 |
 | 71  | **5.5.1**（2026-04-18）：`ParticleSampleSphere` 改用工具箱默认容差（`Etol=1e-5`、`Dtol=1e-4`°、`Nitr=1e4`）；初始位置改由 `SpiralSampleSphere(N,false)` 确定性生成（无 RNG）；新增 `sphere_particle_sample_cached.m`：`100 < SPN < 1000` 时将收敛点集缓存至 `cache/sphere_particle/spherical_points_NXXXX.mat`，命中时跳过迭代优化直接加载；缓存附 `meta` 字段校验（容差、`Vo_method`、格式版本），不匹配则重算覆盖，任何 I/O 失败均静默降级为直接计算 | 2026-04-18 |
+| 72  | **5.5.2**（2026-04-20）：`capsule_body_building.m` 圆柱段周向分辨率 **`TN`** 在 `ceil(CPN/Turns)` 之后按 **`TN = max(round(TN/4)*4, 4)`** 对齐为 4 的倍数；圆柱总点数及实际 **`N_body`** 可能相对请求值进一步变化 | 2026-04-20 |
 
 
 ---
@@ -1221,7 +1222,7 @@ $$
 | ------------------ | --------------------------------------------------------------------- |
 | `CHANGELOG.md`     | 版本变更记录（Keep a Changelog 风格）                                           |
 | `USER_GUIDE.md`    | 简明用户指南：快速上手、主要输出、`flowfield_panels.png` 与流场参数说明                       |
-| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.5.1**，**2026-04-18**）；可选 **S2 Sampling Toolbox**（胞体球帽） |
+| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.5.2**，**2026-04-20**）；可选 **S2 Sampling Toolbox**（胞体球帽） |
 
 
 长篇理论、公式与完整参数表仍以本文件为准。

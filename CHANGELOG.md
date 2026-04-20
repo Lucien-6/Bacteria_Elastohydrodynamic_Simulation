@@ -8,6 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.5.2] — 2026-04-20
+
+### Changed
+
+- **`capsule_body_building.m` — cylinder circumferential resolution**: After the area-based estimate `TN = ceil(CPN / Turns)`, the code now snaps **`TN`** to a multiple of 4 with **`TN = max(round(TN / 4) * 4, 4)`** before constructing the azimuthal grid (`Alpha`, `TempY`, `TempZ`, `CLoc`). Total cylinder points become **`TN * Turns`** with the snapped **`TN`**, so actual **`N_body`** may differ further from the requested input.
+
+### Documentation
+
+- **`README.md`**, **`USER_GUIDE.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`docs/index.html`**: Version **5.5.2**, date **2026-04-20**; capsule cylinder grid note updated.
+
+---
+
 ## [5.5.1] — 2026-04-18
 
 ### Added
