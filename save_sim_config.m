@@ -106,6 +106,11 @@ j.output.generate_animation = cfg.generate_animation;
 j.output.animation_fps      = cfg.animation_fps;
 j.output.animation_skip     = cfg.animation_skip;
 j.output.auto_confirm       = cfg.auto_confirm;
+if isfield(cfg, 'compute_flowfield')
+    j.output.compute_flowfield = logical(cfg.compute_flowfield);
+else
+    j.output.compute_flowfield = true;   % Matches run_simulation backward-compatible default
+end
 
 % Background flow
 if isfield(cfg, 'background_flow')

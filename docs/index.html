@@ -99,7 +99,7 @@ tailwind.config = {
 <aside id="sidebar" class="no-print fixed top-0 left-0 h-full w-64 bg-navy-900 text-gray-300 z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 overflow-y-auto">
   <div class="p-6 border-b border-navy-700">
     <h2 class="text-white font-bold text-lg leading-tight">Coupled Body-Pili</h2>
-    <p class="text-xs text-teal-500 mt-1">v5.5.5 &mdash; Documentation</p>
+    <p class="text-xs text-teal-500 mt-1">v5.5.7 &mdash; Documentation</p>
   </div>
   <nav class="p-4 space-y-1 text-sm">
     <a href="#hero"         class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Home</span><span class="zh">首页</span></a>
@@ -140,7 +140,7 @@ tailwind.config = {
 <section id="hero" class="hero-gradient text-white py-24 px-6 md:px-16 lg:px-24">
   <div class="max-w-4xl mx-auto text-center">
     <div class="inline-block bg-teal-600/30 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-3 py-1 rounded-full mb-6 tracking-wide">
-      VERSION 5.5.5 &bull; 2026-04-21
+      VERSION 5.5.7 &bull; 2026-04-21
     </div>
     <h1 class="text-3xl md:text-5xl font-extrabold leading-tight mb-4">
       <span class="en">Coupled Body-Pili<br>Elastohydrodynamic Simulation</span>
@@ -528,8 +528,8 @@ tailwind.config = {
           </thead>
           <tbody class="divide-y divide-gray-100 dark:divide-navy-700">
             <tr><td class="px-4 py-2 font-mono">$L_0$</td><td class="px-4 py-2"><span class="en">$a$ (semi-major axis)</span><span class="zh">$a$（半长轴）</span></td><td class="px-4 py-2">1.25 &mu;m</td></tr>
-            <tr><td class="px-4 py-2 font-mono">$T_0$</td><td class="px-4 py-2">$8\pi\mu L_0^3 / EI$</td><td class="px-4 py-2">~0.1 s</td></tr>
-            <tr><td class="px-4 py-2 font-mono">$U_0$</td><td class="px-4 py-2">$L_0 / T_0 = EI/(8\pi\mu L_0^2)$</td><td class="px-4 py-2">~10 &mu;m/s</td></tr>
+            <tr><td class="px-4 py-2 font-mono">$T_0$</td><td class="px-4 py-2">$8\pi\mu L_0^4 / EI$</td><td class="px-4 py-2">~0.1 s</td></tr>
+            <tr><td class="px-4 py-2 font-mono">$U_0$</td><td class="px-4 py-2">$L_0 / T_0 = EI/(8\pi\mu L_0^3)$</td><td class="px-4 py-2">~10 &mu;m/s</td></tr>
             <tr><td class="px-4 py-2 font-mono">$F_0$</td><td class="px-4 py-2">$EI / L_0^2$</td><td class="px-4 py-2">~pN</td></tr>
             <tr><td class="px-4 py-2 font-mono">$E_g$</td><td class="px-4 py-2">$\Delta\rho\, g\, V_\text{body}\, L_0^2 / EI$</td><td class="px-4 py-2">~0.01&ndash;0.1</td></tr>
           </tbody>
@@ -757,8 +757,8 @@ pili_config(1).active_moment.wavenumber    = 2*pi;    % [1/L_pili]
 pili_config(1).active_moment.a1            = 1;       % d1-weight
 pili_config(1).active_moment.a2            = 0;       % d2-weight</code></pre>
       <p class="text-xs text-gray-500 dark:text-gray-500 mt-3">
-        <span class="en">Physical units (amplitude in N&middot;m, frequency in Hz) are automatically pre-converted to dimensionless at initialisation using $EI/L_\text{pili}$ and $T_0 = 8\pi\mu L_0^3/EI$.</span>
-        <span class="zh">物理单位（振幅 N&middot;m、频率 Hz）在初始化时自动使用 $EI/L_\text{pili}$ 和 $T_0 = 8\pi\mu L_0^3/EI$ 预转换为无量纲值。</span>
+        <span class="en">Physical units (amplitude in N&middot;m, frequency in Hz) are automatically pre-converted to dimensionless at initialisation using $EI/L_\text{pili}$ and $T_0 = 8\pi\mu L_0^4/EI$.</span>
+        <span class="zh">物理单位（振幅 N&middot;m、频率 Hz）在初始化时自动使用 $EI/L_\text{pili}$ 和 $T_0 = 8\pi\mu L_0^4/EI$ 预转换为无量纲值。</span>
       </p>
     </div>
 
@@ -810,9 +810,9 @@ cfg.background_flow.U_max          = 10e-6;       % [m/s]
 cfg.background_flow.shear_axis     = [1 0 0];     % flow along x
 cfg.background_flow.shear_height_m = 20e-6;       % [m]</code></pre>
       <p class="text-xs text-gray-500 dark:text-gray-500 mt-3">
-        <span class="en"><code>U_max</code> is pre-converted to dimensionless via $U_0 = EI/(8\pi\mu L_0^2)$.
+        <span class="en"><code>U_max</code> is pre-converted to dimensionless via $U_0 = EI/(8\pi\mu L_0^3)$.
         The background flow does not affect the Brownian diffusion tensor.</span>
-        <span class="zh"><code>U_max</code> 通过 $U_0 = EI/(8\pi\mu L_0^2)$ 预转换为无量纲值。
+        <span class="zh"><code>U_max</code> 通过 $U_0 = EI/(8\pi\mu L_0^3)$ 预转换为无量纲值。
         背景流不影响布朗扩散张量。</span>
       </p>
     </div>
@@ -967,8 +967,8 @@ graph TD
       <button onclick="this.nextElementSibling.classList.toggle('open'); this.querySelector('svg').classList.toggle('rotate-180')"
         class="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 dark:hover:bg-navy-800 transition">
         <span class="font-semibold text-sm">
-          <span class="en">Project File Tree (43 MATLAB files)</span>
-          <span class="zh">项目文件树（43 个 MATLAB 文件）</span>
+          <span class="en">Project File Tree (54 <code>.m</code> sources incl. <code>_legacy/</code>)</span>
+          <span class="zh">项目文件树（54 个 <code>.m</code> 源文件，含 <code>_legacy/</code>）</span>
         </span>
         <svg class="w-5 h-5 text-gray-400 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
       </button>
@@ -982,21 +982,27 @@ graph TD
 ├── build_coupled_lin_sys.m          % Coupled linear system assembly
 ├── build_global_resistance.m        % RSM/RSS mobility matrices
 ├── reconstruct_geometry.m           % State → geometry
-├── compute_pili_elastic_moments.m   % Kirchhoff elastic moments
+├── compute_pili_elastic_moments.m % Kirchhoff elastic moments
+├── compute_node_directors.m         % Segment → node directors (SVD polar)
 ├── coupled_active_moment.m          % Per-pili active moments (v5.0)
-├── coupled_background_flow.m        % Background flow field   (v5.0)
-├── compute_effective_body_brownian.m% Full-system Brownian (probing)
+├── coupled_background_flow.m        % Background flow field (v5.0)
+├── compute_effective_body_brownian.m % Full-system Brownian (probing)
+├── brown_rng_seed_from_clock.m      % Default Brownian twister seed (v5.2)
 ├── enforce_clamped_geometry.m       % Clamped BC projection
 ├── adaptive_basis_check.m           % Euler-angle singularity avoidance
 ├── compute_plot_flowfield.m         % Flow field visualisation
 ├── capsule_body_building.m          % Capsule body mesh
+├── capsule_sphere_mesh_cache.m      % Ico/Quad mesh cache (v5.5)
+├── snap_sphere_cap_count.m          % Cap count snap helper
+├── capsule_sphere_cap_points.m      % Hemisphere cap points
+├── sphere_particle_sample_cached.m  % ParticleSampleSphere cache (v5.5.1)
 ├── pili_building.m                  % Pili structure initialisation
 ├── pili_type_building.m             % Pili shape generation
 ├── pili_directors.m                 % Euler angles → director frame
 ├── pili_euler_angles.m              % Director frame → Euler angles
 ├── pili_spatial_coords.m            % Pili node coordinates
 ├── compute_curvature_binormal.m     % Discrete curvature binormal
-├── skew_matrix.m                    % 3D skew-symmetric matrix
+├── skew_matrix.m                    % 3×3 skew-symmetric matrix
 ├── unpack_state.m                   % Z → body + pili components
 ├── pack_state_rates.m               % Assemble dZ/dt
 ├── quat_kinematics.m                % Quaternion time derivative
@@ -1008,9 +1014,9 @@ graph TD
 ├── validate_simulation_params.m     % Pre-flight checks
 ├── render_progress_bar.m            % Console progress bar
 ├── odetpbar.m                       % ODE OutputFcn progress
-├── config_example.json              % Example JSON configuration
-├── configs/
-│   └── OnePili-P1-L3.json          % Reference config
+├── config_example.json              % Example JSON (tracked)
+├── Brownian_Implementation_Plan.md  % Brownian scope & Itô / Fixman notes
+├── configs/                         % Optional local JSON (gitignored)
 ├── post_processing/
 │   └── postprocess_cases.m          % Batch post-processing → Excel (v5.1)
 ├── batch sweep/
@@ -1020,8 +1026,14 @@ graph TD
 │   ├── batch_sweep_pili_E.m
 │   ├── batch_sweep_N_body.m
 │   ├── batch_sweep_seg_per_um.m
+│   ├── batch_sweep_eps_body_RSM.m
+│   ├── batch_sweep_N_body_eps_RSM.m
 │   ├── batch_run_from_json.m
 │   └── batch_repeat_brownian.m
+├── _legacy/                         % Frozen pre-optimisation references
+│   ├── build_coupled_lin_sys_v0.m
+│   ├── build_global_resistance_v0.m
+│   └── ode_coupled_rhs_v0.m
 └── docs/
     └── index.html                   % This documentation page</pre>
       </div>
@@ -1095,7 +1107,8 @@ postprocess_cases();</code></pre>
       </h3>
       <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-1">
         <li>&#10003;&nbsp; <strong>MATLAB R2020b</strong> <span class="en">or later</span><span class="zh">或更高版本</span></li>
-        <li>&#10003;&nbsp; <span class="en">No additional toolboxes required</span><span class="zh">无需额外工具箱</span></li>
+        <li>&#10003;&nbsp; <span class="en"><strong>S2 Sampling Toolbox</strong> (Anton Semechko, File Exchange / Add-On) — required for <strong>capsule</strong> body surface points since v5.5 (<code>ParticleSampleSphere</code>, <code>SpiralSampleSphere</code>, <code>SubdivideSphericalMesh</code>, … on MATLAB path)</span><span class="zh"><strong>S2 Sampling Toolbox</strong>（Anton Semechko，File Exchange / 附加功能）— v5.5 起<strong>胶囊</strong>胞体球帽布点依赖（<code>ParticleSampleSphere</code> 等需在路径上）</span></li>
+        <li>&#10003;&nbsp; <span class="en">Statistics Toolbox not required (code avoids toolbox-only APIs)</span><span class="zh">无需 Statistics 工具箱（代码避免仅工具箱提供的 API）</span></li>
         <li>&#10003;&nbsp; <span class="en">Navigate MATLAB to the</span><span class="zh">将 MATLAB 工作目录切换至</span> <code class="bg-gray-100 dark:bg-navy-800 px-1.5 py-0.5 rounded text-xs">Coupled_Body_Pili/</code> <span class="en">directory</span><span class="zh">目录</span></li>
       </ul>
     </div>
@@ -1147,9 +1160,13 @@ pili_config(1).active_moment = struct('type', 'off');
           <span class="en">Load configuration from a JSON file:</span>
           <span class="zh">从 JSON 文件加载配置：</span>
         </p>
-        <pre><code class="language-matlab">config_file = 'configs/OnePili-P1-L3.json';
-cfg = load_sim_config(config_file);
+        <pre><code class="language-matlab">% Tracked template (or copy to a local configs/ path — that folder is gitignored)
+cfg = load_sim_config('config_example.json');
 [results, params, output_dir] = run_simulation(cfg);</code></pre>
+        <p class="text-xs text-gray-500 dark:text-gray-500 mt-2">
+          <span class="en">Create a personal <code>configs/</code> folder if you prefer; it is ignored by default so machine-specific JSON paths are not committed.</span>
+          <span class="zh">亦可自建本地 <code>configs/</code> 目录；仓库默认忽略该目录，避免本机路径被提交。</span>
+        </p>
         <p class="text-sm text-gray-600 dark:text-gray-400 mt-4 mb-3">
           <span class="en">Example JSON structure:</span><span class="zh">JSON 配置示例：</span>
         </p>
@@ -1176,7 +1193,7 @@ cfg = load_sim_config(config_file);
     "material": { "E": 3.279e8, "r_pili": 3e-9, "sigma_p": 0.2 },
     "fluid": { "mu": 1e-3, "rho_bac": 1180.0, "rho_fluid": 998.232 },
     "simulation": {
-        "T_obs": 300.0,
+        "T_obs": 0.5,
         "AbsTol": 1e-4,
         "RelTol": 1e-4,
         "delta_frac": 20,
@@ -1194,7 +1211,7 @@ cfg = load_sim_config(config_file);
         "preview_initial": true,
         "generate_animation": true,
         "animation_fps": 30,
-        "animation_skip": 10,
+        "animation_skip": 1,
         "auto_confirm": false
     },
     "flowfield": {
@@ -1498,7 +1515,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
 
 <!-- Footer -->
 <footer class="bg-navy-900 text-gray-500 text-center py-8 text-xs">
-  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v5.5.5 &mdash; 2026-04-21</p>
+  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v5.5.7 &mdash; 2026-04-21</p>
   <p class="mt-1">Built by Lucien &bull; MIT License</p>
 </footer>
 

@@ -75,6 +75,19 @@ fprintf('  Parameter Sweep: major_axis (body only, no pili)\n');
 fprintf('  %d runs scheduled\n', n_runs);
 fprintf('========================================\n\n');
 
+%% ---- Summary log setup (persistent, timestamped) ----
+[sweep_fid, sweep_log_path] = open_sweep_summary_log(mfilename('fullpath'));
+run_status   = repmat("PENDING", n_runs, 1);
+run_walltime = nan(n_runs, 1);
+run_errmsg   = repmat("", n_runs, 1);
+if sweep_fid ~= -1
+    fprintf(sweep_fid, 'script    : batch_sweep_major_axis\n');
+    fprintf(sweep_fid, 'sweep_var : major_axis [um]\n');
+    fprintf(sweep_fid, 'n_runs    : %d\n', n_runs);
+    fprintf(sweep_fid, 'values_um : %s\n', mat2str(major_values * 1e6, 4));
+    fprintf(sweep_fid, 'started   : %s\n\n', char(datetime('now', 'Format', 'uuuu-MM-dd HH:mm:ss')));
+end
+
 %% ---- Execute sweep ----
 t_sweep_start = tic;
 
@@ -86,25 +99,80 @@ for ii = 1:n_runs
     fprintf('\n--- Run %d/%d: major_axis = %.2f um ---\n', ...
         ii, n_runs, major_values(ii) * 1e6);
 
-    [res_i, ~, dir_i] = run_simulation(cfg_i);
-    sweep_results{ii} = res_i;
-    sweep_dirs{ii}    = dir_i;
+    t_run_start = tic;
+    try
+        [res_i, ~, dir_i] = run_simulation(cfg_i);
+        run_walltime(ii)  = toc(t_run_start);
+        sweep_results{ii} = res_i;
+        sweep_dirs{ii}    = dir_i;
+        if isempty(res_i)
+            run_status(ii) = "ABORTED";
+        else
+            run_status(ii) = "OK";
+        end
+    catch ME
+        run_walltime(ii)  = toc(t_run_start);
+        run_status(ii)    = "FAILED";
+        run_errmsg(ii)    = string(ME.message);
+        sweep_results{ii} = [];
+        sweep_dirs{ii}    = '';
+        fprintf('\n  [FAIL] major_axis = %.2f um: %s\n', ...
+            major_values(ii) * 1e6, ME.message);
+    end
+
+    if sweep_fid ~= -1
+        fprintf(sweep_fid, '[%02d/%02d] major_axis = %5.2f um  status = %-8s  wall = %8.2f s\n', ...
+            ii, n_runs, major_values(ii) * 1e6, run_status(ii), run_walltime(ii));
+        if run_status(ii) == "FAILED"
+            fprintf(sweep_fid, '         error: %s\n', run_errmsg(ii));
+        end
+    end
 end
 
 t_sweep_total = toc(t_sweep_start);
 
 %% ---- Summary ----
+n_ok  = sum(run_status == "OK");
+n_err = sum(run_status == "FAILED");
+n_abt = sum(run_status == "ABORTED");
+
 fprintf('\n========================================\n');
 fprintf('  Sweep Complete  (%d runs, %.1f s total)\n', n_runs, t_sweep_total);
+fprintf('  OK: %d  |  FAILED: %d  |  ABORTED: %d\n', n_ok, n_err, n_abt);
 fprintf('========================================\n');
 
 for ii = 1:n_runs
-    if ~isempty(sweep_results{ii})
+    if ~isempty(sweep_results{ii}) && run_status(ii) == "OK"
         Vs = sweep_results{ii}.V_sink;
         fprintf('  major_axis = %5.2f um  |  Steady V_sink = %.4e um/s\n', ...
             major_values(ii) * 1e6, mean(Vs(max(1, round(0.95 * numel(Vs))):end)));
     else
-        fprintf('  major_axis = %5.2f um  |  ABORTED\n', major_values(ii) * 1e6);
+        fprintf('  major_axis = %5.2f um  |  %s\n', major_values(ii) * 1e6, run_status(ii));
     end
 end
 fprintf('========================================\n');
+
+if sweep_fid ~= -1
+    fprintf(sweep_fid, '\nelapsed_total_s: %.2f\n', t_sweep_total);
+    fprintf(sweep_fid, 'success_count  : %d / %d  (FAILED: %d, ABORTED: %d)\n', ...
+        n_ok, n_runs, n_err, n_abt);
+    fclose(sweep_fid);
+    fprintf('\nSweep summary log: %s\n', sweep_log_path);
+end
+
+%% ---- Local helpers ----
+function [fid, log_path] = open_sweep_summary_log(script_fullpath)
+    ts_str  = char(datetime('now', 'Format', 'uuuuMMdd''_''HHmmss'));
+    [d, nm] = fileparts(script_fullpath);
+    if isempty(d)
+        d = fullfile(pwd, 'batch sweep');
+    end
+    if ~isfolder(d), mkdir(d); end
+    log_path = fullfile(d, sprintf('%s_summary_%s.log', nm, ts_str));
+    fid = fopen(log_path, 'w', 'n', 'UTF-8');
+    if fid == -1
+        warning('batch_sweep:LogOpenFailed', ...
+            'Cannot open sweep summary log: %s', log_path);
+        log_path = '';
+    end
+end

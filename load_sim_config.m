@@ -21,7 +21,8 @@
 %      mu, rho_bac, rho_fluid, T_obs, AbsTol, RelTol,
 %      delta, tlim, dt, enable_brown, Temper, dt_B, fixman_midpoint, brown_rng_seed,
 %      preview_initial, generate_animation, animation_fps, animation_skip,
-%      auto_confirm, flowfield_grid_spacing, flowfield_grid_range,
+%      auto_confirm, compute_flowfield,
+%      flowfield_grid_spacing, flowfield_grid_range,
 %      flowfield_quiver_skip, flowfield_chunk_size
 %
 %  Author:  Lucien (lucien-6@qq.com)
@@ -109,6 +110,7 @@ cfg.generate_animation = logical(get_json(jo, 'generate_animation', true));
 cfg.animation_fps      = get_json(jo, 'animation_fps',  30);
 cfg.animation_skip     = get_json(jo, 'animation_skip', 1);
 cfg.auto_confirm       = logical(get_json(jo, 'auto_confirm', false));
+cfg.compute_flowfield  = logical(get_json(jo, 'compute_flowfield', true));
 
 % Flow field
 jff = get_json(j, 'flowfield', struct());

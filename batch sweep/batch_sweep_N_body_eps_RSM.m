@@ -1,4 +1,4 @@
-d%% batch_sweep_N_body_eps_RSM.m
+%% batch_sweep_N_body_eps_RSM.m
 %  Nested sweep: N_body x (eps_body = k * h_mean) for RSM calibration
 %
 %  Description:
@@ -122,6 +122,9 @@ cfg_base.compute_flowfield      = false;
 steady_V_grid = nan(n_N, n_k);
 h_mean_list   = nan(n_N, 1);
 sweep_cell    = cell(n_N, n_k);
+status_grid   = repmat("PENDING", n_N, n_k);
+walltime_grid = nan(n_N, n_k);
+errmsg_grid   = repmat("", n_N, n_k);
 
 fprintf('========================================\n');
 fprintf('  Nested sweep: N_body x k (eps_body = k * h_mean)\n');
@@ -130,6 +133,17 @@ fprintf('  Stokes reference V_sink = %.6e um/s (same F_sink as simulation)\n', V
 fprintf('  N_body in [%d, %d] (%d values); k in [%.2f, %.2f] (%d values); total runs = %d\n', ...
     min(N_body_values), max(N_body_values), n_N, k_vals(1), k_vals(end), n_k, n_total);
 fprintf('========================================\n\n');
+
+%% ---- Summary log setup (persistent, timestamped) ----
+[sweep_fid, sweep_log_path] = open_sweep_summary_log(mfilename('fullpath'));
+if sweep_fid ~= -1
+    fprintf(sweep_fid, 'script        : batch_sweep_N_body_eps_RSM\n');
+    fprintf(sweep_fid, 'N_body values : %s\n', mat2str(N_body_values));
+    fprintf(sweep_fid, 'k values      : %s\n', mat2str(k_vals, 4));
+    fprintf(sweep_fid, 'total runs    : %d\n', n_total);
+    fprintf(sweep_fid, 'V_Stokes_ref  : %.6e um/s\n', V_stokes_um_s);
+    fprintf(sweep_fid, 'started       : %s\n\n', char(datetime('now', 'Format', 'uuuu-MM-dd HH:mm:ss')));
+end
 
 t_sweep_start = tic;
 run_id = 0;
@@ -163,17 +177,40 @@ for iN = 1:n_N
         fprintf('  [%d/%d] N_body=%d  k=%.2f  eps_body=%.6f L0\n', ...
             run_id, n_total, Nb, k, eps_body_i);
 
-        [res_i, ~, ~] = run_simulation(cfg_i);
-        sweep_cell{iN, ik} = res_i;
+        t_run_start = tic;
+        try
+            [res_i, ~, ~] = run_simulation(cfg_i);
+            walltime_grid(iN, ik) = toc(t_run_start);
+            sweep_cell{iN, ik}    = res_i;
 
-        if ~isempty(res_i) && isfield(res_i, 'V_sink')
-            Vs = res_i.V_sink(:);
-            nt = numel(Vs);
-            steady_V_grid(iN, ik) = mean(Vs(max(1, round(0.95 * nt)):end));
+            if ~isempty(res_i) && isfield(res_i, 'V_sink')
+                Vs = res_i.V_sink(:);
+                nt = numel(Vs);
+                steady_V_grid(iN, ik) = mean(Vs(max(1, round(0.95 * nt)):end));
+                status_grid(iN, ik)   = "OK";
+            else
+                status_grid(iN, ik)   = "ABORTED";
+            end
+        catch ME
+            walltime_grid(iN, ik) = toc(t_run_start);
+            status_grid(iN, ik)   = "FAILED";
+            errmsg_grid(iN, ik)   = string(ME.message);
+            sweep_cell{iN, ik}    = [];
+            fprintf('    [FAIL] %s\n', ME.message);
         end
 
         rows_grid(run_id, :) = [Nb, h_m, k, eps_body_i, steady_V_grid(iN, ik), ...
             abs(steady_V_grid(iN, ik) - V_stokes_um_s)];
+
+        if sweep_fid ~= -1
+            fprintf(sweep_fid, ...
+                '[%02d/%02d] N_body = %5d  k = %.2f  status = %-8s  V_sink = %12.4g  wall = %8.2f s\n', ...
+                run_id, n_total, Nb, k, status_grid(iN, ik), ...
+                steady_V_grid(iN, ik), walltime_grid(iN, ik));
+            if status_grid(iN, ik) == "FAILED"
+                fprintf(sweep_fid, '         error: %s\n', errmsg_grid(iN, ik));
+            end
+        end
     end
     fprintf('\n');
 end
@@ -214,8 +251,13 @@ summary_tbl = table( ...
     'VariableNames', {'N_body', 'h_mean_dimless', 'k_star', ...
     'min_abs_err_vs_Stokes_um_s', 'steady_V_at_k_star_um_s', 'V_Stokes_ref_um_s'});
 
+n_ok  = sum(status_grid == "OK", 'all');
+n_err = sum(status_grid == "FAILED", 'all');
+n_abt = sum(status_grid == "ABORTED", 'all');
+
 fprintf('========================================\n');
 fprintf('  Sweep complete  (%.1f s wall time)\n', t_sweep_total);
+fprintf('  OK: %d  |  FAILED: %d  |  ABORTED: %d\n', n_ok, n_err, n_abt);
 fprintf('========================================\n');
 fprintf('  k_star vs Stokes (min |V - V_Stokes| per N_body):\n');
 disp(summary_tbl);
@@ -242,10 +284,39 @@ try
     save(out_mat, ...
         'grid_tbl', 'summary_tbl', 'steady_V_grid', 'err_grid', 'sweep_cell', ...
         'N_body_values', 'k_vals', 'h_mean_list', 'k_star', 'V_stokes_um_s', ...
-        'R_sphere', 'F_sink', 'V_stokes_m_s', 't_sweep_total', '-v7.3');
+        'R_sphere', 'F_sink', 'V_stokes_m_s', 't_sweep_total', ...
+        'status_grid', 'walltime_grid', 'errmsg_grid', '-v7.3');
     fprintf('Full results saved: %s\n', out_mat);
 catch ME
     warning('batch_sweep_N_body_eps_RSM:WriteMAT', '%s', ME.message);
 end
 
+if sweep_fid ~= -1
+    fprintf(sweep_fid, '\nelapsed_total_s: %.2f\n', t_sweep_total);
+    fprintf(sweep_fid, 'success_count  : %d / %d  (FAILED: %d, ABORTED: %d)\n', ...
+        n_ok, n_total, n_err, n_abt);
+    fprintf(sweep_fid, 'grid_csv       : %s\n', out_csv_grid);
+    fprintf(sweep_fid, 'summary_csv    : %s\n', out_csv_sum);
+    fprintf(sweep_fid, 'results_mat    : %s\n', out_mat);
+    fclose(sweep_fid);
+    fprintf('\nSweep summary log: %s\n', sweep_log_path);
+end
+
 fprintf('========================================\n');
+
+%% ---- Local helpers ----
+function [fid, log_path] = open_sweep_summary_log(script_fullpath)
+    ts_str  = char(datetime('now', 'Format', 'uuuuMMdd''_''HHmmss'));
+    [d, nm] = fileparts(script_fullpath);
+    if isempty(d)
+        d = fullfile(pwd, 'batch sweep');
+    end
+    if ~isfolder(d), mkdir(d); end
+    log_path = fullfile(d, sprintf('%s_summary_%s.log', nm, ts_str));
+    fid = fopen(log_path, 'w', 'n', 'UTF-8');
+    if fid == -1
+        warning('batch_sweep:LogOpenFailed', ...
+            'Cannot open sweep summary log: %s', log_path);
+        log_path = '';
+    end
+end

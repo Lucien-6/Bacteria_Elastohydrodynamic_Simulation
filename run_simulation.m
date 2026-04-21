@@ -139,7 +139,7 @@ end
 if exist(output_dir, 'dir')
     existing_files = dir(fullfile(output_dir, '*.*'));
     existing_files = existing_files(~[existing_files.isdir]);
-    data_exts = {'.mat', '.csv', '.png', '.mp4', '.log'};
+    data_exts = {'.mat', '.csv', '.png', '.mp4', '.log', '.json', '.txt'};
     has_data  = any(cellfun(@(ext) any(endsWith({existing_files.name}, ext)), data_exts));
 
     if has_data
@@ -189,7 +189,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 5.5.5\n');
+logf('  Version 5.5.7\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -223,6 +223,55 @@ for kk = 1:size(Pili_Matrix, 2)
     logf('[PARAMS]   Pili %d: type=%d, L=%.1f um, site=%d, N_seg=%d\n', ...
         kk, Pili_Matrix(1,kk), Pili_Matrix(2,kk), ...
         Pili_Matrix(8,kk), N_segments(kk));
+    % v5.0+: per-pilus intrinsic curvature & active moment summary
+    if kk <= numel(intrinsic_curvature_cfg) && ~isempty(intrinsic_curvature_cfg{kk})
+        ic_kk = intrinsic_curvature_cfg{kk};
+        if isstruct(ic_kk) && isfield(ic_kk, 'type')
+            logf('[PARAMS]     intrinsic_curvature: type = %s\n', char(ic_kk.type));
+        end
+    end
+    if kk <= numel(active_moment_cfg) && ~isempty(active_moment_cfg{kk})
+        am_kk = active_moment_cfg{kk};
+        if isstruct(am_kk) && isfield(am_kk, 'type')
+            am_type = char(am_kk.type);
+            switch lower(am_type)
+                case 'traveling_wave'
+                    amp_str  = fmt_field_value(am_kk, 'amplitude_Nm');
+                    freq_str = fmt_field_value(am_kk, 'frequency_Hz');
+                    wvl_str  = fmt_field_value(am_kk, 'wavelength');
+                    logf(['[PARAMS]     active_moment: traveling_wave | ', ...
+                          'amp = %s Nm, freq = %s Hz, wavelength = %s\n'], ...
+                          amp_str, freq_str, wvl_str);
+                case {'off', 'custom'}
+                    logf('[PARAMS]     active_moment: %s\n', am_type);
+                otherwise
+                    logf('[PARAMS]     active_moment: %s\n', am_type);
+            end
+        end
+    end
+end
+% v5.0+: global background flow summary
+bg_type = 'off';
+if isstruct(background_flow_cfg) && isfield(background_flow_cfg, 'type')
+    bg_type = char(background_flow_cfg.type);
+end
+switch lower(bg_type)
+    case 'uniform'
+        umax_str = fmt_field_value(background_flow_cfg, 'U_max');
+        dir_vec  = get_field_default(background_flow_cfg, 'direction', [1, 0, 0]);
+        logf('[PARAMS] Background flow: uniform | U_max = %s m/s | dir = [%.3f, %.3f, %.3f]\n', ...
+            umax_str, dir_vec(1), dir_vec(2), dir_vec(3));
+    case 'shear_z'
+        umax_str = fmt_field_value(background_flow_cfg, 'U_max');
+        dir_vec  = get_field_default(background_flow_cfg, 'direction',  [1, 0, 0]);
+        ax_vec   = get_field_default(background_flow_cfg, 'shear_axis', [0, 0, 1]);
+        h_str    = fmt_field_value(background_flow_cfg, 'shear_height_m');
+        logf(['[PARAMS] Background flow: shear_z | U_max = %s m/s | ', ...
+              'dir = [%.3f, %.3f, %.3f] | axis = [%.3f, %.3f, %.3f] | h = %s m\n'], ...
+              umax_str, dir_vec(1), dir_vec(2), dir_vec(3), ...
+              ax_vec(1), ax_vec(2), ax_vec(3), h_str);
+    otherwise
+        logf('[PARAMS] Background flow: off\n');
 end
 logf('[PARAMS] Material: E = %.2e Pa, r_pili = %.1f nm, sigma = %.1f\n', ...
     E, r_pili*1e9, sigma_p);
@@ -243,7 +292,7 @@ if enable_brown
 end
 logf('[PARAMS] Auto-confirm: %s\n', mat2str(auto_confirm));
 if isempty(strtrim(case_name))
-    logf('[PARAMS] Case name: (auto — timestamp)\n');
+    logf('[PARAMS] Case name: %s (auto-generated from timestamp)\n', run_id);
 else
     logf('[PARAMS] Case name: %s\n', strtrim(case_name));
 end
@@ -547,13 +596,6 @@ segment_count    = 0;
 seg_walltimes    = [];          % Wall time per segment [s]
 seg_dtstar       = [];          % Dimensionless time advanced per segment
 
-% --- Phase 0 profiler: per-segment ODE diagnostics (read-only from sol) ---
-seg_nsteps       = [];          % ODE accepted steps per segment
-seg_nfevals      = [];          % ode_coupled_rhs calls per segment (sol.stats.nfevals)
-seg_npds         = [];          % Numerical Jacobian evaluations (sol.stats.npds)
-seg_first_dt     = [];          % First accepted step size (dimensionless)
-seg_median_dt    = [];          % Median step size over the later half of segment
-
 % ---- Brownian dynamics node tracking ----
 if params.brown_enabled
     dt_B_dimless   = dt_B / params.scales.T_0;
@@ -639,34 +681,6 @@ while T_achieved < T_obs_dimless
     % Record segment timing for ETA estimation
     seg_walltimes(end+1) = seg_wall;            
     seg_dtstar(end+1)    = T_achieved - T_prev; 
-
-    % --- Phase 0 profiler: capture ode15s internal stats (zero-overhead) ---
-    seg_nsteps(end+1) = max(0, numel(sol.x) - 1);
-
-    if isfield(sol, 'stats') && isfield(sol.stats, 'nfevals')
-        seg_nfevals(end+1) = double(sol.stats.nfevals);
-    else
-        seg_nfevals(end+1) = NaN;
-    end
-
-    if isfield(sol, 'stats') && isfield(sol.stats, 'npds')
-        seg_npds(end+1) = double(sol.stats.npds);
-    else
-        seg_npds(end+1) = NaN;
-    end
-
-    if numel(sol.x) >= 2
-        seg_first_dt(end+1) = sol.x(2) - sol.x(1);
-    else
-        seg_first_dt(end+1) = NaN;
-    end
-
-    if numel(sol.x) >= 3
-        half_idx = max(2, ceil(numel(sol.x) / 2));
-        seg_median_dt(end+1) = median(diff(sol.x(half_idx:end)));
-    else
-        seg_median_dt(end+1) = NaN;
-    end
 
     % Renormalise quaternion
     q_end         = Z_end(4:7);
@@ -825,16 +839,6 @@ if ~isempty(seg_walltimes)
         format_duration(max(seg_walltimes)));
 end
 logf('================================================================\n\n');
-
-% --- Phase 0 profiler: expose segment-level metrics for benchmarking ---
-results.seg_metrics = struct( ...
-    'wall_time_s', seg_walltimes(:), ...
-    'dtstar',      seg_dtstar(:), ...
-    'nsteps',      seg_nsteps(:), ...
-    'nfevals',     seg_nfevals(:), ...
-    'npds',        seg_npds(:), ...
-    'first_dt',    seg_first_dt(:), ...
-    'median_dt',   seg_median_dt(:));
 
 %% =====================================================================
 %  POST-PROCESSING: Convert to Physical Units
@@ -1588,21 +1592,25 @@ logf('    Flow field      : %s\n',   format_duration(t_flow_elapsed));
 logf('    Total wall time : %s\n',   format_duration(total_sim_walltime));
 logf('  ------------------------------------------------\n');
 logf('  Files saved:\n');
-logf('    Data  : simulation_results.mat\n');
-logf('    CSV   : timeseries.csv\n');
-logf('    Plot  : summary_plot.png\n');
+logf('    Data   : simulation_results.mat\n');
+logf('    CSV    : timeseries.csv\n');
+logf('    Config : config.json\n');
+if enable_brown
+    logf('    Seed   : brownian_rng_seed.txt\n');
+end
+logf('    Plot   : summary_plot.png\n');
 if preview_initial
-    logf('    Pose  : initial_pose.png\n');
+    logf('    Pose   : initial_pose.png\n');
 end
 if generate_animation
-    logf('    Video : bacteria_3d_motion.mp4\n');
+    logf('    Video  : bacteria_3d_motion.mp4\n');
 end
 if compute_flowfield
-    logf('    Flow  : flowfield_panels.png\n');
+    logf('    Flow   : flowfield_panels.png\n');
 else
-    logf('    Flow  : (skipped)\n');
+    logf('    Flow   : (skipped)\n');
 end
-logf('    Log   : simulation.log\n');
+logf('    Log    : simulation.log\n');
 logf('  ------------------------------------------------\n');
 logf('  results fields added:\n');
 logf('    tilt_angle  [rad] : body long-axis elevation angle vs time\n');
@@ -1625,6 +1633,35 @@ function dual_log(fid, varargin)
     msg = sprintf(varargin{:});
     fprintf('%s', msg);           % Console
     fprintf(fid, '%s', msg);      % File
+end
+
+function s = fmt_field_value(S, fname)
+%FMT_FIELD_VALUE  Compact string for a struct field used in [PARAMS] logging
+    if ~isstruct(S) || ~isfield(S, fname)
+        s = '(n/a)';
+        return;
+    end
+    v = S.(fname);
+    if isempty(v)
+        s = '(n/a)';
+    elseif isnumeric(v) && isscalar(v)
+        s = sprintf('%.4g', v);
+    elseif isnumeric(v)
+        s = mat2str(v, 4);
+    elseif ischar(v) || isstring(v)
+        s = char(v);
+    else
+        s = '(complex)';
+    end
+end
+
+function v = get_field_default(S, fname, default_val)
+%GET_FIELD_DEFAULT  Return S.(fname) if present and non-empty, else default_val
+    if isstruct(S) && isfield(S, fname) && ~isempty(S.(fname))
+        v = S.(fname);
+    else
+        v = default_val;
+    end
 end
 
 function cdata = normalize_anim_frame_cdata(cdata, nh, nw)

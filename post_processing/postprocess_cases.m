@@ -45,7 +45,7 @@ sep = repmat('=', 1, 64);
 fprintf('\n%s\n', sep);
 fprintf('  Coupled Body-Pili Simulation  |  Batch Post-Processor\n');
 fprintf('  Author : Lucien  <lucien-6@qq.com>\n');
-fprintf('  Run at : %s\n', datestr(now, 'yyyy-mm-dd HH:MM:SS'));
+fprintf('  Run at : %s\n', char(datetime('now', 'Format', 'uuuu-MM-dd HH:mm:ss')));
 fprintf('%s\n\n', sep);
 
 %% ---- Step 1: Case folder selection ------------------------------------
@@ -60,7 +60,8 @@ fprintf('      %d case(s) selected.\n\n', N);
 
 %% ---- Step 2: Output file path ----------------------------------------
 fprintf('[2/4] Choosing output file path ...\n');
-default_name = sprintf('postprocess_summary_%s.xlsx', datestr(now, 'yyyymmdd'));
+default_name = sprintf('postprocess_summary_%s.xlsx', ...
+    char(datetime('now', 'Format', 'uuuuMMdd')));
 [out_file, out_dir] = uiputfile( ...
     {'*.xlsx', 'Excel Workbook (*.xlsx)'}, ...
     'Save Summary Workbook As', default_name);

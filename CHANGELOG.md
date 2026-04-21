@@ -8,28 +8,59 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.5.7] — 2026-04-21
+
+### Added
+
+- **`run_simulation.m` — enriched `[PARAMS]` section**: Per-pilus logging now prints `intrinsic_curvature.type` and `active_moment.type` for every pilus; `traveling_wave` active moments additionally emit `amplitude_Nm`, `frequency_Hz`, and `wavelength`. A new `[PARAMS] Background flow:` block is appended at the end of the parameters section with three branches — `off`, `uniform` (logs `U_max`, `direction`), and `shear_z` (logs `U_max`, `direction`, `shear_axis`, `shear_height_m`). Two local helpers (`fmt_field_value`, `get_field_default`) format struct fields defensively (`'(n/a)'` fallback for missing/empty entries) so the log remains well-formed even if `cfg.pili_ext` or `cfg.background_flow` is only partially specified.
+- **`run_simulation.m` — completed `Files saved` manifest**: The final "Files saved" block at the end of the run now lists `Config : config.json` and, only when `enable_brown = true`, `Seed : brownian_rng_seed.txt`, alongside the existing `Data / CSV / Plot / Pose / Video / Flow / Log` entries; column labels are re-aligned to a uniform width. This removes the mismatch between the human-readable summary and the files actually written into `output/<case>/`.
+- **`save_sim_config.m` / `load_sim_config.m` — `compute_flowfield` persistence**: The flow-field on/off toggle is now saved into `config.json` under `output.compute_flowfield` (default `true`, matching `run_simulation.m`'s backward-compatible fallback) and read back by `load_sim_config` as `cfg.compute_flowfield`. Reloading a saved configuration no longer silently flips flow-field computation back on; reproducibility of batch reruns and JSON-driven sweeps is now complete for this flag. Header comment in `load_sim_config.m` is updated to list the new field.
+- **`batch sweep/` — unified summary logs + per-run exception isolation (8 scripts)**: Every sweep driver (`batch_sweep_alpha`, `batch_sweep_N_body`, `batch_sweep_major_axis`, `batch_sweep_pili_E`, `batch_sweep_pili_length`, `batch_sweep_seg_per_um`, `batch_sweep_eps_body_RSM`, `batch_sweep_N_body_eps_RSM`) now wraps the `run_simulation(cfg_i)` call in a `try/catch` block that records the per-run status (`OK` / `FAILED` / `ABORTED`), wall-clock duration, and — on failure — the exception message, without aborting the enclosing sweep. A persistent timestamped summary log `batch sweep/<script>_summary_<ts>.log` is opened at the start of each sweep and receives (i) a header block (script name, sweep variable, sweep grid, start time), (ii) one status line per run, and (iii) a footer with total elapsed time, success/failure/abort counts, and paths to any CSV/MAT products. The two RSM scripts additionally persist `run_status` / `run_walltime` / `run_errmsg` (or `status_grid` / `walltime_grid` / `errmsg_grid` for the nested sweep) inside their `.mat` outputs. The stylistic convention and summary fields deliberately mirror the existing `batch_run_from_json.m` and `batch_repeat_brownian.m` logs for operator familiarity.
+
+### Changed
+
+- **`run_simulation.m` — overwrite detection whitelist**: The `data_exts` list inside the output-directory overwrite probe now includes `.json` and `.txt` (previously only `.mat/.csv/.png/.mp4/.log`). `config.json` and `brownian_rng_seed.txt` are therefore properly recognised as pre-existing run artefacts instead of being silently left behind when the user chooses `Overwrite`.
+- **`run_simulation.m` — empty `case_name` log**: When `cfg.case_name` is blank, the `[PARAMS]` banner now prints the auto-generated `run-<MMddHHmmss>` identifier (which was already resolved by that point) instead of the placeholder `(auto — timestamp)`. The two-line banner behaviour is unchanged for non-empty `case_name`.
+- **`post_processing/postprocess_cases.m` — `datestr` → `datetime`**: Deprecated `datestr(now, …)` calls replaced with `datetime('now', 'Format', …)` (two sites: the console banner timestamp and the default `.xlsx` filename date tag). Output identical; avoids upcoming `datestr` deprecation warnings in newer MATLAB releases.
+- **`batch sweep/batch_sweep_N_body_eps_RSM.m` — syntax fix**: Stray leading character `d` on line 1 (`d%% batch_sweep_N_body_eps_RSM.m` → `%% batch_sweep_N_body_eps_RSM.m`) removed so the file parses and runs. The script had been unrunnable since it was introduced.
+
+### Numerical equivalence
+
+- Purely diagnostic, log-facing, and batch-plumbing changes. No physics, ODE right-hand side, linear-system assembly, Brownian kernel, or time-stepping path is touched. Re-running any pre-5.5.7 case (inline cfg or JSON) yields identical `results.mat` and `timeseries.csv` contents; the `.log`, `.json`, and newly-added `batch sweep/*_summary_*.log` files are richer but strictly additive.
+
+### Documentation
+
+- **`README.md`**, **`USER_GUIDE.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`docs/index.html`**, **`CHANGELOG.md`**: Version **5.5.7**, date **2026-04-21**; README feature-history row **77** added covering the logging polish, sweep-summary unification, and `compute_flowfield` persistence; USER_GUIDE v5.5.7 paragraph added inline with the rest of the 5.5.x history.
+
+---
+
 ## [5.5.6] — 2026-04-21
 
 ### Added
 
-- **`Brownian_Implementation_Plan.md §1.5 — Scope & Simplifying Assumptions`**: New section explicitly delimiting the modelled Brownian degrees of freedom (body 6 DOF + pili-induced Schur-complement drag amplification) and the deliberate omission (pili internal thermal fluctuations). Lists applicable and non-applicable analyses; points to Westwood & Keaveny (2022) and Maxian & Donev (2023) as extension references.
-- **`Brownian_Implementation_Plan.md §2.4.1 — Stochastic Interpretation & Missing Drift`**: Quantitative discussion of the exact Itô form of the overdamped Langevin SDE, why the simple `fixman_midpoint=false` mode drops the `kB*T * div(M_eff)` drift, and how the Fixman midpoint scheme recovers it. Includes a practical decision matrix for choosing `fixman_midpoint` based on pili count, simulation time scale, and pili activity.
+- **`Brownian_Implementation_Plan.md` (tracked companion)**: New repository document with **§1.5 — Scope & Simplifying Assumptions** (modelled body 6 DOF + pili-induced drag through the coupled mobility; deliberate omission of pili internal thermal modes; extension references) and **§2.4.1 — Stochastic Interpretation & Missing Drift** (Itô form, missing drift when `fixman_midpoint=false`, Fixman recovery, decision matrix). The file was previously listed in `.gitignore` and therefore missing from a clean clone; it is now versioned so cross-references in `validate_simulation_params.m` resolve.
 - **`validate_simulation_params.m`**: Two new Brownian-related warnings. (a) When `enable_brown = true` and `Pili_Matrix` is non-empty but `fixman_midpoint = false`, a warning is emitted recommending Fixman to avoid the missing Itô drift. (b) When `dt_B` exceeds 10% of a Stokes-Einstein back-of-envelope estimate of `min(tau_trans, tau_rot)` (using the major semi-axis as a conservative radius), a warning suggests a smaller `dt_B` for accurate Brownian statistics. Both warnings are inert when `enable_brown = false`.
 - **`compute_effective_body_brownian.m`**: Read-only numerical diagnostics injected into the existing computation path. (a) Before the mandatory symmetrisation of `M_eff_dimless`, the relative Frobenius asymmetry `||M-Mᵀ||_F / ||M||_F` is computed and compared against `1e-6`; exceeding that threshold emits `compute_effective_body_brownian:AsymmetryHigh` to prevent silent masking of `lin_sys` assembly bugs or catastrophic conditioning. (b) After dimensionalisation, `rcond(M_eff_dim)` is evaluated; values below `1e-10` emit `compute_effective_body_brownian:IllConditioned` to warn about near-singular effective mobility before the downstream Cholesky. Both hooks are diagnostic only — the numerical output (`L_eff`, `D_eff`, `M_eff_dim`) and function signature are unchanged.
 
 ### Changed
 
+- **`.gitignore`**: Stopped ignoring `Brownian_Implementation_Plan.md` so the Brownian companion document ships with the repository (see **Added**).
 - **`batch sweep/batch_repeat_brownian.m`**: Brownian seed mode `'default'` renamed to `'timestamp'` for self-documenting clarity (it is the wall-clock `MMddHHmmss` policy, never "the default"). The string `'default'` is retained as a silent backward-compatible alias: the script accepts it without warning and normalises it to `'timestamp'` internally before any downstream use. The default initial value of the `brown_rng_seed_mode` variable is updated from `'default'` to `'timestamp'`; existing user scripts or saved configs that still assign `'default'` continue to work identically.
 - **`README.md`**, **`USER_GUIDE.md`**: Documentation of `brown_rng_seed_mode` updated to match the new canonical value; the alias is called out inline.
-- **`Brownian_Implementation_Plan.md §7`**: File manifest entry for `validate_simulation_params.m` extended to list the two new warnings; new row added for `batch sweep/batch_repeat_brownian.m`.
+- **`Brownian_Implementation_Plan.md` §7**: File manifest entry for `validate_simulation_params.m` (lists the two new warnings) and `batch sweep/batch_repeat_brownian.m`.
+- **`config_example.json`** (demo-only tweak): pili Young modulus `E = 1.768e7 → 3.279e8` (stiffer demo pili so the example reaches a visually interpretable regime faster); observation window `T_obs = 30.0 → 0.5` s (shorter default demo run). Purely illustrative — user-supplied JSON configs and inline cfg structs are unaffected; no numerical path or API change.
+
+### Removed
+
+- **`run_simulation.m` (post-5.5.6 cleanup)**: Experimental per-segment `results.seg_metrics` / "Phase 0 ODE profiler" instrumentation (briefly present in v5.5.6) has been removed. It only recorded `ode15s` bookkeeping statistics (`nsteps`, `nfevals`, `npds`, `first_dt`, `median_dt`) and did not affect physics; downstream code that never relied on `seg_metrics` is unchanged.
 
 ### Numerical equivalence
 
-- All numerical paths are preserved bit-exactly. The `compute_effective_body_brownian.m` diagnostic hooks observe `M_eff_dimless` and `M_eff_dim` but do not mutate them; the existing symmetrisation, dimensionalisation, and Cholesky flow (Steps 1–5) is unchanged. `validate_simulation_params.m` adds only to the `warns{}` cell array; no error classification is altered. Re-running any pre-5.5.6 case with either Brownian off (`enable_brown=false`) or with `brown_rng_seed_mode = 'default'` / `'fixed'` yields identical output artefacts.
+- All numerical paths are preserved bit-exactly. The `compute_effective_body_brownian.m` diagnostic hooks observe `M_eff_dimless` and `M_eff_dim` but do not mutate them; the existing symmetrisation, dimensionalisation, and Cholesky flow (Steps 1–5) is unchanged. `validate_simulation_params.m` adds only to the `warns{}` cell array; no error classification is altered. Re-running any pre-5.5.6 case with either Brownian off (`enable_brown=false`) or with `brown_rng_seed_mode = 'default'` / `'fixed'` yields identical trajectory output.
 
 ### Documentation
 
-- New changelog entry (this one); version bump to **5.5.6** where required.
+- **`README.md`**, **`USER_GUIDE.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`docs/index.html`**, **`CHANGELOG.md`**: Version **5.5.6**, date **2026-04-21**; README feature-history row 76 added covering the Brownian polish and config-example tweaks; USER_GUIDE v5.5.6 paragraph added inline with the rest of the 5.5.x history. No other documentation sections required changes (file manifest and theory sections are unaffected by this release).
 
 ---
 
