@@ -3,7 +3,7 @@
 > **作者**: Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期**: 2026-02-06  
 > **更新日期**: 2026-04-21
-> **版本**: 5.5.4
+> **版本**: 5.5.5
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
@@ -933,13 +933,10 @@ Coupled_Body_Pili/
 │
 ├── config_example.json                 % JSON 配置文件模板
 │
-├── _legacy/                            % (v5.5.4) 冻结基线（仅供数值等价回归，不在运行路径上）
+├── _legacy/                            % (v5.5.4+) 冻结基线（仅供数值等价回归，不在运行路径上）
 │   ├── build_coupled_lin_sys_v0.m     % 优化前基线（函数名加 _v0 后缀）
-│   └── build_global_resistance_v0.m   % 优化前基线（函数名加 _v0 后缀）
-│
-├── test_optimization_invariance.m      % (v5.5.4) 数值等价回归：优化版 vs _legacy/_v0（容差 1e-14）
-├── compare_profiles.m                  % (v5.5.4) 性能对比脚本：两份 profile_info_*.mat 自/总耗时对照
-├── profile_short_run.m                 % 短时长剖面运行脚本（驱动 MATLAB profiler 采集热点数据）
+│   ├── build_global_resistance_v0.m   % 优化前基线（函数名加 _v0 后缀）
+│   └── ode_coupled_rhs_v0.m           % (v5.5.5) 优化前基线（含内部 apply_Ainv_u_v0 helper）
 │
 ├── README.md                           % 本文件（完整理论与用户说明）
 ├── CHANGELOG.md                        % 版本变更记录（Keep a Changelog 风格）
@@ -948,7 +945,7 @@ Coupled_Body_Pili/
 └── Cortez - 2018 - Regularized stokeslet segments.pdf
 ```
 
-总计：**47 个 MATLAB 核心源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（35 个核心模块 + 1 个 `post_processing/` 脚本 + 10 个 `batch sweep/` 与批量脚本，无冗余代码，无未使用函数）。v5.5.4 增量：3 个开发者工具脚本（`profile_short_run.m` / `test_optimization_invariance.m` / `compare_profiles.m`）与 1 个 `_legacy/` 冻结基线目录（2 个 `_v0` 副本，仅用于等价性回归，不在仿真运行路径上）。
+总计：**47 个 MATLAB 核心源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（35 个核心模块 + 1 个 `post_processing/` 脚本 + 10 个 `batch sweep/` 与批量脚本，无冗余代码，无未使用函数）。`_legacy/` 目录保留 3 个 `_v0` 冻结基线副本（`build_coupled_lin_sys_v0.m` / `build_global_resistance_v0.m` / `ode_coupled_rhs_v0.m`），仅作历史参照，不在仿真运行路径上。v5.5.4–5.5.5 期间引入的一次性开发者工具脚本（`profile_short_run.m` / `compare_profiles.m` / `test_optimization_invariance.m` / `benchmark_direction1.m`）在优化验证通过并归档到 CHANGELOG 后统一清理移除（见 CHANGELOG 5.5.5 "Removed" 条目）。
 
 ---
 
@@ -1178,6 +1175,7 @@ Coupled_Body_Pili/
 | 72  | **5.5.2**（2026-04-20）：`capsule_body_building.m` 圆柱段周向分辨率 **`TN`** 在 `ceil(CPN/Turns)` 之后按 **`TN = max(round(TN/4)*4, 4)`** 对齐为 4 的倍数；圆柱总点数及实际 **`N_body`** 可能相对请求值进一步变化 | 2026-04-20 |
 | 73  | **5.5.3**（2026-04-20）：工程默认 ODE 超时 **`tlim`** 由 **360 s** 统一改为 **3600 s**（`load_sim_config`、`main_coupled_simulation`、JSON 模板、`batch sweep`、文档）；版本号对齐 **5.5.3** | 2026-04-20 |
 | 74  | **5.5.4**（2026-04-21）：热路径向量化性能优化（数值位等价，容差 `1e-14`，实测最大相对偏差 `~1.8e-20`）。`build_coupled_lin_sys.m` 共 7 处向量化（胞体 Q 块步进直写 + 纤毛 Q 下三角三角函数掩码化 + `row_order` 整体置换 + `A_twist_total` 单次 `blkdiag(...)` + 胞体 B 力行 + 角动量行 + `B_k` 四子块按掩码/`cross`/`sub2ind` 重写）；`build_global_resistance.m` 共 3 处向量化（Stokeslet 散射 `[M1,0]+[0,M2]` shift-add、Rotlet 散射步进直写、`Atilde_k` `sub2ind` 线性索引）。综合实测端到端 `run_simulation` **95.97 s → 81.80 s (−14.8 %)**、`build_coupled_lin_sys` **−17.1 %**、`ode_coupled_rhs` **−16.4 %**；`init_coupled_params.m` 新增静态字段 `params.quad_weights` 预计算全局梯形求积权重（原 `get_trapezoidal_weight` 局部辅助函数删除）；新增 `test_optimization_invariance.m` 数值等价回归脚本与 `compare_profiles.m` 性能对比脚本；`_legacy/` 冻结优化前基线 `build_coupled_lin_sys_v0.m` / `build_global_resistance_v0.m` 作为等价性参照；无 API 变更，不影响任何现有功能与数值行为 | 2026-04-21 |
+| 75  | **5.5.5**（2026-04-21）：**Direction 1 — `M_weighted` LU 分解复用**（非对称矩阵，非 Cholesky；经实测 `\|\|M-Mᵀ\|\|_F/\|\|M\|\|_F ≈ 0.56`，且 RSM+RSS 混合内核导致矩阵非正定，Cholesky 方案被证否）。`build_coupled_lin_sys.m` 用 `decomposition(M_weighted, 'lu', 'CheckCondition', false)` 一次 LU 同时服务 `AQ_trans = M\Q_trans_corr`（本函数）与 `apply_Ainv_u` 里的背景流场求解（经 `hydro.dM_weighted` 传递），避免每 RHS 调用两次独立的 O(N³) LU；`CheckCondition=false` 关闭 MATLAB 每次求解自动 `rcond` 估计（节省 O(N²)/次）。`ode_coupled_rhs.m::apply_Ainv_u` 优先读 `hydro.dM_weighted`，缺失时回退到 `hydro.M_weighted\` 保持向后兼容。**实测 `benchmark_direction1.m`**（DOFs = 1807）：`bg=off` 中位 **767.5 ms → 731.6 ms (−4.7 %)**；`bg=uniform` 中位 **868.2 ms → 731.7 ms (−15.7 %)**。等价性：所有 D1 涉及量（`AQ_trans`、`B_global·Ainv·u_bg`、`Z0` 处 `dZ`）在 `Z0`/`Zp` 两状态皆位级等价（`rel_err = 0`）；`Zp` 端到端 `dZ` ≈ `4.2e-11`（条件数 `~1e9` 放大前轮 `B_global` 向量化残余 `~1e-20`，非 Direction 1 引入）。新增 `_legacy/ode_coupled_rhs_v0.m` 冻结副本、`benchmark_direction1.m` A/B 墙钟基准；`test_optimization_invariance.m` 扩展 Case 1b/2b（`AQ_trans`）、Case 3（背景流场 `apply_Ainv_u`）、Case 4（`dZ` 端到端）；无 API 变更，不影响任何现有功能与数值行为 | 2026-04-21 |
 
 
 ---
@@ -1232,7 +1230,7 @@ $$
 | ------------------ | --------------------------------------------------------------------- |
 | `CHANGELOG.md`     | 版本变更记录（Keep a Changelog 风格）                                           |
 | `USER_GUIDE.md`    | 简明用户指南：快速上手、主要输出、`flowfield_panels.png` 与流场参数说明                       |
-| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.5.4**，**2026-04-21**）；可选 **S2 Sampling Toolbox**（胞体球帽） |
+| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.5.5**，**2026-04-21**）；可选 **S2 Sampling Toolbox**（胞体球帽） |
 
 
 长篇理论、公式与完整参数表仍以本文件为准。

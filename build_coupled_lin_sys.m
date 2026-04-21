@@ -31,7 +31,12 @@ function [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params)
 %              caller for elastic moments, director frames, etc.)
 %    hydro   - (Optional, 3rd output) Hydrodynamic intermediate struct
 %              for background flow computation.  Fields:
-%                .B_global, .M_weighted, .A_twist_total, .M_rotlet, .n_trans
+%                .B_global, .M_weighted, .dM_weighted,
+%                .A_twist_total, .M_rotlet, .n_trans
+%              .dM_weighted is a reusable LU decomposition object for
+%              M_weighted \ rhs solves (lets apply_Ainv_u skip a second
+%              full LU factorisation in the background-flow branch of
+%              ode_coupled_rhs).
 %
 %  References:
 %    [1] Walker et al. (2020), Physical Review E.
@@ -354,6 +359,25 @@ end
 n_trans  = 3 * N_total;
 Q_trans  = Q_global(1:n_trans, :);
 
+% ---- Direction 1: factor M_weighted ONCE, reuse across solves.            ----
+% M_weighted mixes RSM (body point-Stokeslets) and RSS (pili segment
+% integrals); the resulting block matrix is non-symmetric by construction,
+% so LU is the right factorisation.
+%
+% Build a reusable decomposition so the SAME LU serves:
+%   (a) this function's  AQ_trans = M \ Q_trans  solve;
+%   (b) ode_coupled_rhs.apply_Ainv_u's  M \ u_t  solve (background-flow
+%       branch).  Case (b) would otherwise trigger a second full O(N^3)
+%       LU on every RHS call; reuse saves it entirely.
+%
+% CheckCondition=false suppresses MATLAB's automatic rcond estimate on
+% each solve (O(N^2) per invocation); overall condition health is
+% validated externally by the regression tests.  Measurement also shows
+% the explicit LU dispatch is marginally faster than the generic
+% backslash path even in the single-solve (bg=off) case, because it
+% skips backslash's per-call symmetry / triangular heuristics.
+dM_weighted = decomposition(M_weighted, 'lu', 'CheckCondition', false);
+
 if ~isempty(A_twist_total)
     Q_twist  = Q_global(n_trans+1:end, :);
     AQ_twist = A_twist_total * Q_twist;
@@ -363,10 +387,10 @@ if ~isempty(A_twist_total)
     else
         Q_trans_corr = Q_trans;
     end
-    AQ_trans = M_weighted \ Q_trans_corr;
+    AQ_trans = dM_weighted \ Q_trans_corr;
     AQ       = [AQ_trans; AQ_twist];
 else
-    AQ_trans = M_weighted \ Q_trans;
+    AQ_trans = dM_weighted \ Q_trans;
     AQ = AQ_trans;
 end
 
@@ -376,6 +400,7 @@ lin_sys = -B_global * AQ;
 if nargout >= 3
     hydro.B_global      = B_global;
     hydro.M_weighted    = M_weighted;
+    hydro.dM_weighted   = dM_weighted;
     hydro.A_twist_total = A_twist_total;
     hydro.M_rotlet      = M_rotlet;
     hydro.n_trans        = n_trans;

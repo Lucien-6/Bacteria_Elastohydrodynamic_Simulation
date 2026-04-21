@@ -1,5 +1,5 @@
-function [M_weighted, A_twist_cells, M_rotlet] = build_global_resistance_v0(X_all, params, geom)
-%BUILD_GLOBAL_RESISTANCE_V0  Frozen reference copy (pre-optimization) used by test_optimization_invariance
+﻿function [M_weighted, A_twist_cells, M_rotlet] = build_global_resistance_v0(X_all, params, geom)
+%BUILD_GLOBAL_RESISTANCE_V0  Frozen reference copy (pre-v5.5.4 vectorisation) — historical archive only
 %
 %  Description:
 %    Builds the translational mobility matrix for ALL points (body + pili)

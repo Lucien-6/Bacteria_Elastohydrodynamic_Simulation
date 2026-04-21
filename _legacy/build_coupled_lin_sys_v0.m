@@ -1,5 +1,5 @@
 function [lin_sys, geom, hydro] = build_coupled_lin_sys_v0(Z, params)
-%BUILD_COUPLED_LIN_SYS_V0  Frozen reference copy (pre-optimization) used by test_optimization_invariance
+%BUILD_COUPLED_LIN_SYS_V0  Frozen reference copy (pre-v5.5.4 vectorisation) — historical archive only
 %
 %  Description:
 %    Builds the full coupled linear system for the body-pili

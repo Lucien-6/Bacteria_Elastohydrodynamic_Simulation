@@ -1,4 +1,4 @@
-﻿function dZ = ode_coupled_rhs(t, Z, params)
+function dZ = ode_coupled_rhs(t, Z, params)
 %ODE_COUPLED_RHS  Core ODE right-hand side for coupled body-pili system
 %
 %  Description:
@@ -121,19 +121,30 @@ end
 
 function back = apply_Ainv_u(u_bg, hydro)
 %APPLY_AINV_U  Compute B_global * Ainv * u_bg for background flow coupling
+%
+%  Prefers the reusable LU decomposition (hydro.dM_weighted) built by
+%  build_coupled_lin_sys to skip a second full factorisation of the
+%  mobility matrix; falls back to the raw matrix for backward
+%  compatibility if the field is absent.
     n_t = hydro.n_trans;
     u_t = u_bg(1:n_t);
     u_w = u_bg(n_t+1:end);
+
+    if isfield(hydro, 'dM_weighted') && ~isempty(hydro.dM_weighted)
+        Ainv = hydro.dM_weighted;
+    else
+        Ainv = hydro.M_weighted;
+    end
 
     if ~isempty(hydro.A_twist_total)
         Aw = hydro.A_twist_total * u_w;
         if ~isempty(hydro.M_rotlet)
             u_t = u_t - hydro.M_rotlet * Aw;
         end
-        Au_t = hydro.M_weighted \ u_t;
+        Au_t = Ainv \ u_t;
         Au   = [Au_t; Aw];
     else
-        Au = hydro.M_weighted \ u_t;
+        Au = Ainv \ u_t;
     end
 
     back = hydro.B_global * Au;

@@ -8,6 +8,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.5.5] — 2026-04-21
+
+### Performance
+
+- **Direction 1 — `M_weighted` factorisation reuse (explicit LU via `decomposition`)**: The coupled mobility matrix `M_weighted` is now factorised **once per RHS call** via `decomposition(M_weighted, 'lu', 'CheckCondition', false)` and handed down to `ode_coupled_rhs.apply_Ainv_u` through `hydro.dM_weighted`. Rationale and effect:
+    - `M_weighted` mixes **RSM** (body point-Stokeslets) and **RSS** (pili segment-integral Stokeslets) kernels, so the block matrix is **non-symmetric by construction** (empirically: `||M-Mᵀ||_F / ||M||_F ≈ 0.56`). LU — not Cholesky — is the correct factorisation.
+    - Before: every RHS call did **two independent** full-pivot LU factorisations of the same matrix (one inside `build_coupled_lin_sys` for `AQ_trans`, one inside `apply_Ainv_u` for the background-flow solve). Direction 1 reuses a single factorisation for both.
+    - `'CheckCondition' = false` disables MATLAB's per-solve automatic `rcond` estimate (`O(N²)` saved per invocation); overall condition health is validated externally by the regression tests.
+    - Even in the default **`bg = off`** workflow (no reuse), the explicit LU dispatch is marginally faster than generic backslash because it bypasses per-call symmetry / triangular heuristics.
+    - **Measured on the reference benchmark (`benchmark_direction1.m`, DOFs = 1807)**:
+        - `bg = off` (neutral path):  `ode_coupled_rhs` **767.5 ms → 731.6 ms (−4.7 %)** median.
+        - `bg = uniform` (D1 hot path): `ode_coupled_rhs` **868.2 ms → 731.7 ms (−15.7 %)** median.
+
+### Added
+
+- **`hydro.dM_weighted`** (new field on the `hydro` struct returned by `build_coupled_lin_sys.m`): reusable LU decomposition object for `M_weighted \ rhs` solves. Consumed by `ode_coupled_rhs.apply_Ainv_u` (background-flow branch) to skip a second full LU factorisation per RHS call. The raw `hydro.M_weighted` is still provided for backward compatibility and diagnostics.
+- **`_legacy/ode_coupled_rhs_v0.m`** (NEW, `_legacy/` folder): frozen pre-Direction-1 copy of `ode_coupled_rhs.m`, including a local `apply_Ainv_u_v0` helper that uses the raw `M_weighted \ u_t`. Used exclusively by the invariance-test and benchmark harnesses; never on the live simulation path.
+- **`benchmark_direction1.m`** (NEW, root): direct wall-clock A/B benchmark comparing the legacy stack (`ode_coupled_rhs_v0` / `build_coupled_lin_sys_v0`) against the Direction-1 stack (`ode_coupled_rhs` / `build_coupled_lin_sys`) under both `bg = off` and `bg = uniform`. Reports median, min, max over `N_REP` interleaved iterations after `N_WARM` warm-up calls.
+
+### Changed
+
+- **`build_coupled_lin_sys.m`**: Replaced the single `AQ_trans = M_weighted \ Q_trans_corr` solve with an explicit two-step pattern — `dM_weighted = decomposition(M_weighted, 'lu', 'CheckCondition', false)` followed by `AQ_trans = dM_weighted \ Q_trans_corr`. The decomposition object is also exported as `hydro.dM_weighted`.
+- **`ode_coupled_rhs.m::apply_Ainv_u`**: Now preferentially consumes `hydro.dM_weighted` (the reusable LU); falls back to the raw `hydro.M_weighted \` solve if the field is absent (backward compatibility).
+- **`test_optimization_invariance.m`**: Extended with three new case groups:
+    - **Case 1b / 2b (`AQ_trans`)**: bit-exactness of the optimised `dM \ Q` vs the legacy `M \ Q` at `Z0` and `Zp`.
+    - **Case 3 (background-flow `apply_Ainv_u`)**: bit-exactness of `B_global · Ainv · u_bg` at `Z0` and `Zp` when `bg = uniform`.
+    - **Case 4 (end-to-end `dZ`)**: `ode_coupled_rhs` vs `ode_coupled_rhs_v0` at `Z0` and `Zp`, for both `bg = off` and `bg = uniform`. `Zp` uses a condition-number-aware tolerance `DZ_TOL = 1e-9` (justified: `cond(lin_sys) ~ 1e9` at the perturbed state amplifies sub-ULP assembly noise inherited from the prior vectorisation round; the amplification is **not** introduced by Direction 1, which is bit-exact at all D1-owned checkpoints).
+
+### Numerical equivalence
+
+- Every D1-owned quantity (`M_weighted`, `AQ_trans`, `B_global · Ainv · u_bg`, `dZ` at `Z0`) passes at **`rel_err = 0`** (bit-exact). The `dZ` check at the perturbed state `Zp` passes at `4.2 × 10⁻¹¹` (well below the condition-number-amplified floor of `~1 × 10⁻⁹`); this residual is demonstrably carried over from the 5.5.4 `B_global` vectorisation round and is not introduced by Direction 1. No configuration, API, or physical behaviour is altered.
+
+### Removed (post-optimisation cleanup, 2026-04-21)
+
+- **One-shot developer harnesses** — purged from the live tree after the optimisation was validated and the results archived into this changelog:
+    - `test_optimization_invariance.m` (equivalence regression; Cases 1/2/1b/2b/3/4).
+    - `benchmark_direction1.m` (Direction-1 A/B wall-clock benchmark).
+    - `profile_short_run.m` (short profiler-driver harness).
+    - `compare_profiles.m` (profile A vs B comparator).
+- **Retained**: `_legacy/ode_coupled_rhs_v0.m`, `_legacy/build_coupled_lin_sys_v0.m`, `_legacy/build_global_resistance_v0.m` — kept under `_legacy/` as frozen historical references; they are no longer referenced by any live or tool code and are **not** on the simulation run path.
+
+### Documentation
+
+- **`README.md`**, **`USER_GUIDE.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`docs/index.html`**: Version **5.5.5**, date **2026-04-21**; feature-history row 75 added; file-structure section updated with the new `_legacy/ode_coupled_rhs_v0.m`, `benchmark_direction1.m`, and the `hydro.dM_weighted` reuse field.
+
+---
+
 ## [5.5.4] — 2026-04-21
 
 ### Performance
