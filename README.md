@@ -2,8 +2,8 @@
 
 > **作者**: Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期**: 2026-02-06  
-> **更新日期**: 2026-04-20
-> **版本**: 5.5.3
+> **更新日期**: 2026-04-21
+> **版本**: 5.5.4
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`
 
 ---
@@ -933,6 +933,14 @@ Coupled_Body_Pili/
 │
 ├── config_example.json                 % JSON 配置文件模板
 │
+├── _legacy/                            % (v5.5.4) 冻结基线（仅供数值等价回归，不在运行路径上）
+│   ├── build_coupled_lin_sys_v0.m     % 优化前基线（函数名加 _v0 后缀）
+│   └── build_global_resistance_v0.m   % 优化前基线（函数名加 _v0 后缀）
+│
+├── test_optimization_invariance.m      % (v5.5.4) 数值等价回归：优化版 vs _legacy/_v0（容差 1e-14）
+├── compare_profiles.m                  % (v5.5.4) 性能对比脚本：两份 profile_info_*.mat 自/总耗时对照
+├── profile_short_run.m                 % 短时长剖面运行脚本（驱动 MATLAB profiler 采集热点数据）
+│
 ├── README.md                           % 本文件（完整理论与用户说明）
 ├── CHANGELOG.md                        % 版本变更记录（Keep a Changelog 风格）
 ├── USER_GUIDE.md                       % 简明用户指南（快速上手 + 输出说明）
@@ -940,7 +948,7 @@ Coupled_Body_Pili/
 └── Cortez - 2018 - Regularized stokeslet segments.pdf
 ```
 
-总计：**47 个 MATLAB 核心源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（35 个核心模块 + 1 个 `post_processing/` 脚本 + 10 个 `batch sweep/` 与批量脚本，无冗余代码，无未使用函数）。
+总计：**47 个 MATLAB 核心源文件 + 1 个 JSON 配置模板 + 1 个 JSON 参考工况配置 + 4 个根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements`）（35 个核心模块 + 1 个 `post_processing/` 脚本 + 10 个 `batch sweep/` 与批量脚本，无冗余代码，无未使用函数）。v5.5.4 增量：3 个开发者工具脚本（`profile_short_run.m` / `test_optimization_invariance.m` / `compare_profiles.m`）与 1 个 `_legacy/` 冻结基线目录（2 个 `_v0` 副本，仅用于等价性回归，不在仿真运行路径上）。
 
 ---
 
@@ -1169,6 +1177,7 @@ Coupled_Body_Pili/
 | 71  | **5.5.1**（2026-04-18）：`ParticleSampleSphere` 改用工具箱默认容差（`Etol=1e-5`、`Dtol=1e-4`°、`Nitr=1e4`）；初始位置改由 `SpiralSampleSphere(N,false)` 确定性生成（无 RNG）；新增 `sphere_particle_sample_cached.m`：`100 < SPN < 1000` 时将收敛点集缓存至 `cache/sphere_particle/spherical_points_NXXXX.mat`，命中时跳过迭代优化直接加载；缓存附 `meta` 字段校验（容差、`Vo_method`、格式版本），不匹配则重算覆盖，任何 I/O 失败均静默降级为直接计算 | 2026-04-18 |
 | 72  | **5.5.2**（2026-04-20）：`capsule_body_building.m` 圆柱段周向分辨率 **`TN`** 在 `ceil(CPN/Turns)` 之后按 **`TN = max(round(TN/4)*4, 4)`** 对齐为 4 的倍数；圆柱总点数及实际 **`N_body`** 可能相对请求值进一步变化 | 2026-04-20 |
 | 73  | **5.5.3**（2026-04-20）：工程默认 ODE 超时 **`tlim`** 由 **360 s** 统一改为 **3600 s**（`load_sim_config`、`main_coupled_simulation`、JSON 模板、`batch sweep`、文档）；版本号对齐 **5.5.3** | 2026-04-20 |
+| 74  | **5.5.4**（2026-04-21）：热路径向量化性能优化（数值位等价，容差 `1e-14`，实测最大相对偏差 `~1.8e-20`）。`build_coupled_lin_sys.m` 共 7 处向量化（胞体 Q 块步进直写 + 纤毛 Q 下三角三角函数掩码化 + `row_order` 整体置换 + `A_twist_total` 单次 `blkdiag(...)` + 胞体 B 力行 + 角动量行 + `B_k` 四子块按掩码/`cross`/`sub2ind` 重写）；`build_global_resistance.m` 共 3 处向量化（Stokeslet 散射 `[M1,0]+[0,M2]` shift-add、Rotlet 散射步进直写、`Atilde_k` `sub2ind` 线性索引）。综合实测端到端 `run_simulation` **95.97 s → 81.80 s (−14.8 %)**、`build_coupled_lin_sys` **−17.1 %**、`ode_coupled_rhs` **−16.4 %**；`init_coupled_params.m` 新增静态字段 `params.quad_weights` 预计算全局梯形求积权重（原 `get_trapezoidal_weight` 局部辅助函数删除）；新增 `test_optimization_invariance.m` 数值等价回归脚本与 `compare_profiles.m` 性能对比脚本；`_legacy/` 冻结优化前基线 `build_coupled_lin_sys_v0.m` / `build_global_resistance_v0.m` 作为等价性参照；无 API 变更，不影响任何现有功能与数值行为 | 2026-04-21 |
 
 
 ---
@@ -1223,7 +1232,7 @@ $$
 | ------------------ | --------------------------------------------------------------------- |
 | `CHANGELOG.md`     | 版本变更记录（Keep a Changelog 风格）                                           |
 | `USER_GUIDE.md`    | 简明用户指南：快速上手、主要输出、`flowfield_panels.png` 与流场参数说明                       |
-| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.5.3**，**2026-04-20**）；可选 **S2 Sampling Toolbox**（胞体球帽） |
+| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.5.4**，**2026-04-21**）；可选 **S2 Sampling Toolbox**（胞体球帽） |
 
 
 长篇理论、公式与完整参数表仍以本文件为准。

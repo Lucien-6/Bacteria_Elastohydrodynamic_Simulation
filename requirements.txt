@@ -1,6 +1,6 @@
 # Coupled Body-Pili elastohydrodynamic simulation — MATLAB project
 #
-# Release: 5.5.3 (2026-04-20)
+# Release: 5.5.4 (2026-04-21)
 #
 # This repository has no Python/pip dependencies. Simulation code is MATLAB-only.
 #

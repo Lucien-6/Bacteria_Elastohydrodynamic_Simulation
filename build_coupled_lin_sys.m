@@ -62,12 +62,21 @@ n_force = 3 * N_total + 3 * sum(N_segs);
 %% Build Q_global: [n_vel x n_state]
 Q_global = zeros(n_vel, n_state);
 
-for i = 1:N_body
-    ii  = 3*(i-1) + 1;
-    r_i = X_all(i,:)' - X_cm;
-    Q_global(ii:ii+2, 1:3) = eye(3);
-    Q_global(ii:ii+2, 4:6) = -skew_matrix(r_i);
-end
+%  Vectorised body block of Q_global.  For i = 1..N_body:
+%    rows (3i-2, 3i-1, 3i), cols 1..3 are identity 3x3
+%    rows (3i-2, 3i-1, 3i), cols 4..6 are -skew(r_i)
+%  where r_i = X_all(i,:) - X_cm.  -skew(r) = [0 z -y; -z 0 x; y -x 0].
+r_body = X_all(1:N_body, :) - X_cm';              % [N_body x 3]
+rbx    = r_body(:,1);  rby = r_body(:,2);  rbz = r_body(:,3);
+
+idx_bx = (1 : 3 : 3*N_body)';
+idx_by = (2 : 3 : 3*N_body)';
+idx_bz = (3 : 3 : 3*N_body)';
+
+Q_global(idx_bx, 1) = 1;  Q_global(idx_by, 2) = 1;  Q_global(idx_bz, 3) = 1;
+Q_global(idx_bx, 5) =  rbz;   Q_global(idx_bx, 6) = -rby;
+Q_global(idx_by, 4) = -rbz;   Q_global(idx_by, 6) =  rbx;
+Q_global(idx_bz, 4) =  rby;   Q_global(idx_bz, 5) = -rbx;
 
 pt_offset  = N_body;
 col_offset = 6;
@@ -89,27 +98,24 @@ for k = 1:M
     Q_k_spatial(N_k+2 : 2*(N_k+1), 2)           = 1;
     Q_k_spatial(2*(N_k+1)+1 : 3*(N_k+1), 3)     = 1;
 
-    Q12 = zeros(N_k+1, N_k);  Q13 = zeros(N_k+1, N_k);
-    Q22 = zeros(N_k+1, N_k);  Q23 = zeros(N_k+1, N_k);
-    Q32 = zeros(N_k+1, N_k);
-
-    for j = 1:N_k
-        cT = cos(theta_k(j));  sT = sin(theta_k(j));
-        cP = cos(phi_k(j));    sP = sin(phi_k(j));
-        Q12(j+1:end, j) =  cT * cP;
-        Q13(j+1:end, j) = -sT * sP;
-        Q22(j+1:end, j) =  cT * sP;
-        Q23(j+1:end, j) =  sT * cP;
-        Q32(j+1:end, j) = -sT;
-    end
+    %  Vectorised lower-triangular fill of Q12/Q13/Q22/Q23/Q32.  Each block
+    %  has entry (i,j) equal to the per-j trig product for i > j, else 0.
+    cT = cos(theta_k(:))';     sT = sin(theta_k(:))';     % 1 x N_k
+    cP = cos(phi_k(:))';       sP = sin(phi_k(:))';
+    maskL = tril(true(N_k+1, N_k), -1);                    % (N_k+1) x N_k
+    Q12 = maskL .* ( cT .* cP);
+    Q13 = maskL .* (-sT .* sP);
+    Q22 = maskL .* ( cT .* sP);
+    Q23 = maskL .* ( sT .* cP);
+    Q32 = maskL .* (-sT);
 
     Q_k_spatial(:, 4:end) = [Q12, Q13; Q22, Q23; Q32, zeros(N_k+1,N_k)] ...
                             * (ell_k / N_k);
 
-    row_order = zeros(3*(N_k+1), 1);
-    for j = 1:N_k+1
-        row_order(3*(j-1)+1 : 3*j) = [j, N_k+1+j, 2*(N_k+1)+j];
-    end
+    %  Vectorised row-permutation: interleave x/y/z rows.  For j=1..N_k+1,
+    %  row_order(3(j-1)+1 : 3j) = [j, (N_k+1)+j, 2(N_k+1)+j].
+    j_vec     = (1 : N_k+1)';
+    row_order = reshape([j_vec, (N_k+1)+j_vec, 2*(N_k+1)+j_vec]', [], 1);
     Q_k_spatial = Q_k_spatial(row_order, :);
 
     Q_k_ext = blkdiag(Q_k_spatial, eye(N_k));
@@ -139,21 +145,20 @@ for k = 1:M
     twist_row  = twist_row + N_k;
 end
 
-%% Build torsional resistance block
-A_twist_total = [];
-for k = 1:M
-    A_twist_total = blkdiag(A_twist_total, A_twist_cells{k});
+%% Build torsional resistance block (single blkdiag call; O(M) vs O(M^2))
+if M > 0
+    A_twist_total = blkdiag(A_twist_cells{:});
+else
+    A_twist_total = [];
 end
 
 %% Build B_global: [n_state x n_force]
 B_global = zeros(n_state, n_force);
 
-for i = 1:N_body
-    ii = 3*(i-1) + 1;
-    B_global(1, ii)   = 1;
-    B_global(2, ii+1) = 1;
-    B_global(3, ii+2) = 1;
-end
+%  Vectorised identity stripe for body delta-force rows
+B_global(1, 1:3:3*N_body) = 1;
+B_global(2, 2:3:3*N_body) = 1;
+B_global(3, 3:3:3*N_body) = 1;
 
 pt_offset = N_body;
 for k = 1:M
@@ -173,20 +178,19 @@ for k = 1:M
     pt_offset = pt_offset + N_k + 1;
 end
 
-for i = 1:N_total
-    r_i = X_all(i,:)' - X_cm;
-    ii  = 3*(i-1) + 1;
+%  Vectorised angular-moment rows.  Uses the precomputed quadrature
+%  weights from init_coupled_params (w=1 for body points, trapezoidal
+%  ds/2 or ds for pili node points -- identical to get_trapezoidal_weight).
+r_all = X_all - X_cm';                                % [N_total x 3]
+w_all = params.quad_weights(:)';                      % 1 x N_total
+rax   = r_all(:,1)';  ray = r_all(:,2)';  raz = r_all(:,3)';
 
-    if i <= N_body
-        w_i = 1;
-    else
-        w_i = get_trapezoidal_weight(i, N_body, N_segs, params.ell);
-    end
-
-    B_global(4, ii:ii+2) = w_i * [0, -r_i(3),  r_i(2)];
-    B_global(5, ii:ii+2) = w_i * [r_i(3),  0, -r_i(1)];
-    B_global(6, ii:ii+2) = w_i * [-r_i(2), r_i(1),  0];
-end
+B_global(4, 2:3:3*N_total) = -w_all .* raz;
+B_global(4, 3:3:3*N_total) =  w_all .* ray;
+B_global(5, 1:3:3*N_total) =  w_all .* raz;
+B_global(5, 3:3:3*N_total) = -w_all .* rax;
+B_global(6, 1:3:3*N_total) = -w_all .* ray;
+B_global(6, 2:3:3*N_total) =  w_all .* rax;
 
 row_offset       = 6;
 col_offset_trans = 3 * N_body;
@@ -211,76 +215,119 @@ for k = 1:M
     inter = (d3_k(2:end,:) + 2*d3_k(1:end-1,:)) / (6*Nk2) + ...
             (X_k(2:end-1,:) + X_k(1:end-2,:)) / (2*N_k);
 
-    for i = 1:N_k
-        i_row = 3*(i-1) + 1;
-        j = i;  j_col = 3*(j-1);
-        B_k(i_row, j_col+1:j_col+3) = cross(d1N(i,:), ...
-            (X_k(j,:) - X_k(i,:))/(2*N_k) + d3_k(j,:)/(6*Nk2));
-        if i < N_k
-            K_mat = [0, -d1N(i,3), d1N(i,2); d1N(i,3), 0, -d1N(i,1); ...
-                     -d1N(i,2), d1N(i,1), 0];
-            d_mat   = inter(i:end,:) - X_k(i,:)/N_k;
-            crosses = K_mat * d_mat';
-            B_k(i_row, 3*i+1:3*N_k) = crosses(:)';
-        end
-        j = N_k + 1;  j_col = 3*(j-1);
-        B_k(i_row, j_col+1:j_col+3) = cross(d1N(i,:), ...
-            (X_k(j-1,:) - X_k(i,:))/(2*N_k) + d3_k(j-1,:)/(3*Nk2));
-        j_col_tau = 3*(N_k+1) + 3*(i-1) + 1;
-        for j = i:N_k
-            B_k(i_row, j_col_tau)   = d1N(i,1) / N_k;
-            B_k(i_row, j_col_tau+1) = d1N(i,2) / N_k;
-            B_k(i_row, j_col_tau+2) = d1N(i,3) / N_k;
-            j_col_tau = j_col_tau + 3;
-        end
+    %  -------- Vectorised B_k assembly (4 sub-blocks) --------
+    %
+    %  Block layout (row index a = 1/2/3 ↔ d1/d2/d3):
+    %    Off-diag : i=1..N_k-1, j=i+1..N_k    cols 3*(j-1)+(1:3)
+    %    Diagonal : i=1..N_k,   j=i            cols 3*(i-1)+(1:3)
+    %    Tip      : i=1..N_k,   j=N_k+1        cols 3*N_k+(1:3)
+    %    Tau      : i=1..N_k,   j=i..N_k       cols 3(N_k+1)+3(j-1)+(1:3)
+    %
+    %  Ordering: we write Off-diag first, then Diagonal, then Tip, then Tau.
+    %  The masked Off-diag writes may put zeros into the diagonal 3x3 cells
+    %  (when jm = i-1); those zeros are subsequently overwritten by the
+    %  Diagonal block with the correct cross-product values.  The Tip and
+    %  Tau blocks occupy disjoint column ranges, so their order is free.
+
+    row_d1 = 1:3:3*N_k;
+    row_d2 = 2:3:3*N_k;
+    row_d3 = 3:3:3*N_k;
+
+    %  NOTE: compute_node_directors returns d1N/d2N/d3N of size [(N_k+1) x 3].
+    %  The original loops use only rows i = 1..N_k.  We slice here so that
+    %  broadcasting dimensions match the arg_off matrix [N_k x (N_k-1)].
+    d1N_i = d1N(1:N_k, :);    % [N_k x 3]  (rows used by row i = 1..N_k)
+    d2N_i = d2N(1:N_k, :);
+    d3N_i = d3N(1:N_k, :);
+
+    %% Block 1: Off-diagonal (j > i, j <= N_k)
+    if N_k > 1
+        %  arg_off(i, jm, c) = inter(jm, c) - X_k(i, c)/N_k  for jm = j-1 = 1..N_k-1
+        Xi_N      = X_k(1:N_k, :) / N_k;                % [N_k x 3]
+        arg_off_1 = inter(:,1)' - Xi_N(:,1);            % [N_k x (N_k-1)]
+        arg_off_2 = inter(:,2)' - Xi_N(:,2);
+        arg_off_3 = inter(:,3)' - Xi_N(:,3);
+
+        %  Component-wise cross product  (c-th component of  dN x arg_off)
+        %    cross_c1 = dN_2 .* arg3 - dN_3 .* arg2
+        %    cross_c2 = dN_3 .* arg1 - dN_1 .* arg3
+        %    cross_c3 = dN_1 .* arg2 - dN_2 .* arg1
+        %  Mathematically identical (and bit-exact in IEEE-754 forward
+        %  accumulation) to the original  K_mat * d_mat'  formulation.
+        d1_1 = d1N_i(:,1);  d1_2 = d1N_i(:,2);  d1_3 = d1N_i(:,3);
+        d2_1 = d2N_i(:,1);  d2_2 = d2N_i(:,2);  d2_3 = d2N_i(:,3);
+        d3_1 = d3N_i(:,1);  d3_2 = d3N_i(:,2);  d3_3 = d3N_i(:,3);
+
+        co_d1_1 = d1_2 .* arg_off_3 - d1_3 .* arg_off_2;
+        co_d1_2 = d1_3 .* arg_off_1 - d1_1 .* arg_off_3;
+        co_d1_3 = d1_1 .* arg_off_2 - d1_2 .* arg_off_1;
+
+        co_d2_1 = d2_2 .* arg_off_3 - d2_3 .* arg_off_2;
+        co_d2_2 = d2_3 .* arg_off_1 - d2_1 .* arg_off_3;
+        co_d2_3 = d2_1 .* arg_off_2 - d2_2 .* arg_off_1;
+
+        co_d3_1 = d3_2 .* arg_off_3 - d3_3 .* arg_off_2;
+        co_d3_2 = d3_3 .* arg_off_1 - d3_1 .* arg_off_3;
+        co_d3_3 = d3_1 .* arg_off_2 - d3_2 .* arg_off_1;
+
+        mask_UT = triu(true(N_k, N_k-1), 0);            % true when jm >= i
+
+        co_d1_1 = co_d1_1 .* mask_UT;  co_d1_2 = co_d1_2 .* mask_UT;  co_d1_3 = co_d1_3 .* mask_UT;
+        co_d2_1 = co_d2_1 .* mask_UT;  co_d2_2 = co_d2_2 .* mask_UT;  co_d2_3 = co_d2_3 .* mask_UT;
+        co_d3_1 = co_d3_1 .* mask_UT;  co_d3_2 = co_d3_2 .* mask_UT;  co_d3_3 = co_d3_3 .* mask_UT;
+
+        cols_co_1 = 3*(1:N_k-1) + 1;
+        cols_co_2 = 3*(1:N_k-1) + 2;
+        cols_co_3 = 3*(1:N_k-1) + 3;
+
+        B_k(row_d1, cols_co_1) = co_d1_1;
+        B_k(row_d1, cols_co_2) = co_d1_2;
+        B_k(row_d1, cols_co_3) = co_d1_3;
+        B_k(row_d2, cols_co_1) = co_d2_1;
+        B_k(row_d2, cols_co_2) = co_d2_2;
+        B_k(row_d2, cols_co_3) = co_d2_3;
+        B_k(row_d3, cols_co_1) = co_d3_1;
+        B_k(row_d3, cols_co_2) = co_d3_2;
+        B_k(row_d3, cols_co_3) = co_d3_3;
     end
 
-    for i = 1:N_k
-        i_row = 3*(i-1) + 2;
-        j = i;  j_col = 3*(j-1);
-        B_k(i_row, j_col+1:j_col+3) = cross(d2N(i,:), ...
-            (X_k(j,:) - X_k(i,:))/(2*N_k) + d3_k(j,:)/(6*Nk2));
-        if i < N_k
-            K_mat = [0, -d2N(i,3), d2N(i,2); d2N(i,3), 0, -d2N(i,1); ...
-                     -d2N(i,2), d2N(i,1), 0];
-            d_mat   = inter(i:end,:) - X_k(i,:)/N_k;
-            crosses = K_mat * d_mat';
-            B_k(i_row, 3*i+1:3*N_k) = crosses(:)';
-        end
-        j = N_k + 1;  j_col = 3*(j-1);
-        B_k(i_row, j_col+1:j_col+3) = cross(d2N(i,:), ...
-            (X_k(j-1,:) - X_k(i,:))/(2*N_k) + d3_k(j-1,:)/(3*Nk2));
-        j_col_tau = 3*(N_k+1) + 3*(i-1) + 1;
-        for j = i:N_k
-            B_k(i_row, j_col_tau)   = d2N(i,1) / N_k;
-            B_k(i_row, j_col_tau+1) = d2N(i,2) / N_k;
-            B_k(i_row, j_col_tau+2) = d2N(i,3) / N_k;
-            j_col_tau = j_col_tau + 3;
-        end
-    end
+    %% Block 2: Diagonal (j = i)
+    %  arg = (X_k(i,:)-X_k(i,:))/(2*N_k) + d3_k(i,:)/(6*Nk2) = d3_k(i,:)/(6*Nk2)
+    %  The zero subtraction term is bit-exact (x + 0 = x), so dropping it is
+    %  IEEE-754 equivalent to the original.
+    arg_diag = d3_k(1:N_k, :) / (6*Nk2);                % [N_k x 3]
+    cd_d1    = cross(d1N_i, arg_diag, 2);
+    cd_d2    = cross(d2N_i, arg_diag, 2);
+    cd_d3    = cross(d3N_i, arg_diag, 2);
 
-    for i = 1:N_k
-        i_row = 3*(i-1) + 3;
-        j = i;  j_col = 3*(j-1);
-        B_k(i_row, j_col+1:j_col+3) = cross(d3N(i,:), ...
-            (X_k(j,:) - X_k(i,:))/(2*N_k) + d3_k(j,:)/(6*Nk2));
-        if i < N_k
-            K_mat = [0, -d3N(i,3), d3N(i,2); d3N(i,3), 0, -d3N(i,1); ...
-                     -d3N(i,2), d3N(i,1), 0];
-            d_mat   = inter(i:end,:) - X_k(i,:)/N_k;
-            crosses = K_mat * d_mat';
-            B_k(i_row, 3*i+1:3*N_k) = crosses(:)';
-        end
-        j = N_k + 1;  j_col = 3*(j-1);
-        B_k(i_row, j_col+1:j_col+3) = cross(d3N(i,:), ...
-            (X_k(j-1,:) - X_k(i,:))/(2*N_k) + d3_k(j-1,:)/(3*Nk2));
-        j_col_tau = 3*(N_k+1) + 3*(i-1) + 1;
-        for j = i:N_k
-            B_k(i_row, j_col_tau)   = d3N(i,1) / N_k;
-            B_k(i_row, j_col_tau+1) = d3N(i,2) / N_k;
-            B_k(i_row, j_col_tau+2) = d3N(i,3) / N_k;
-            j_col_tau = j_col_tau + 3;
-        end
+    cc_diag  = 3*(0:N_k-1)' + (1:3);                    % [N_k x 3] column indices
+    rr_d1    = repmat((3*(0:N_k-1)' + 1), 1, 3);
+    lin_d1   = sub2ind(size(B_k), rr_d1,     cc_diag);
+    lin_d2   = sub2ind(size(B_k), rr_d1 + 1, cc_diag);
+    lin_d3   = sub2ind(size(B_k), rr_d1 + 2, cc_diag);
+    B_k(lin_d1) = cd_d1;
+    B_k(lin_d2) = cd_d2;
+    B_k(lin_d3) = cd_d3;
+
+    %% Block 3: Tip (j = N_k + 1)
+    arg_tip = (X_k(N_k, :) - X_k(1:N_k, :)) / (2*N_k) + d3_k(N_k, :) / (3*Nk2);
+    ct_d1   = cross(d1N_i, arg_tip, 2);
+    ct_d2   = cross(d2N_i, arg_tip, 2);
+    ct_d3   = cross(d3N_i, arg_tip, 2);
+
+    tip_cols = 3*N_k + (1:3);
+    B_k(row_d1, tip_cols) = ct_d1;
+    B_k(row_d2, tip_cols) = ct_d2;
+    B_k(row_d3, tip_cols) = ct_d3;
+
+    %% Block 4: Tau (upper triangular, j >= i)
+    tau_offset = 3*(N_k+1);
+    maskU_tau  = triu(true(N_k, N_k));
+    for c = 1:3
+        cols_tau = tau_offset + c : 3 : tau_offset + 3*N_k;
+        B_k(row_d1, cols_tau) = maskU_tau .* (d1N_i(:, c) / N_k);
+        B_k(row_d2, cols_tau) = maskU_tau .* (d2N_i(:, c) / N_k);
+        B_k(row_d3, cols_tau) = maskU_tau .* (d3N_i(:, c) / N_k);
     end
 
     R_f_trans = kron(eye(N_k+1), rot_k);
@@ -382,25 +429,6 @@ end
 end
 
 
-%% ==================== Local Helper Function ====================
-
-function w = get_trapezoidal_weight(global_idx, N_body, N_segs, ell)
-%GET_TRAPEZOIDAL_WEIGHT  Trapezoidal quadrature weight for a pili point
-    local_idx  = global_idx - N_body;
-    cumulative = 0;
-    for k = 1:length(N_segs)
-        n_pts_k = N_segs(k) + 1;
-        if local_idx <= cumulative + n_pts_k
-            j_in_pili = local_idx - cumulative;
-            ds_k      = ell(k) / N_segs(k);
-            if j_in_pili == 1 || j_in_pili == n_pts_k
-                w = ds_k / 2;
-            else
-                w = ds_k;
-            end
-            return;
-        end
-        cumulative = cumulative + n_pts_k;
-    end
-    w = 0;
-end
+%  Note: the former local helper get_trapezoidal_weight is superseded by
+%  params.quad_weights, precomputed once in init_coupled_params.  This
+%  eliminates per-call iteration over all pili points at every ODE RHS.

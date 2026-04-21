@@ -8,6 +8,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.5.4] — 2026-04-21
+
+### Performance
+
+- **`build_coupled_lin_sys.m` — hot-path vectorisation (7 sites)**: Replaced per-index `for` loops with strided indexing, triangular masks, and block assignments. End-to-end speed-up on the reference `ProfileShort` run: `build_coupled_lin_sys` **43.25 s → 35.88 s (−17.1 %)**, `ode_coupled_rhs` **43.22 s → 36.13 s (−16.4 %)**, `run_simulation` **95.97 s → 81.80 s (−14.8 %)**. Sites:
+  1. **Body Q block** (identity + `-skew(r_i)` rows 1–3 × cols 1–6): strided direct writes `Q_global(idx_bx, 5) = rbz;` etc., no more per-body-point `skew_matrix` call.
+  2. **Pili Q lower-triangular trig block**: `tril` mask + `cos/sin` vectorised element-wise fills (`Q12 = maskL .* (cT .* cP)` and the four siblings).
+  3. **`row_order` interleave permutation**: `reshape([j_vec, (N_k+1)+j_vec, 2*(N_k+1)+j_vec]', [], 1)`.
+  4. **`A_twist_total` assembly**: single `blkdiag(A_twist_cells{:})` call (O(M) vs the previous O(M²) iterative concatenation).
+  5. **`B_global` body delta-force rows**: three strided writes `B_global(1, 1:3:3*N_body) = 1;` etc.
+  6. **`B_global` angular-moment rows**: six strided writes using the precomputed quadrature weights (see "Added" below); replaces the per-point `get_trapezoidal_weight` lookup and per-iteration cross-product row.
+  7. **`B_k` four sub-block assembly** (off-diagonal / diagonal / tip / tau): component-wise cross-product formulas with an upper-triangular mask for the off-diagonal block; MATLAB `cross(...,2)` for diagonal and tip; strided write for the tau block. Explicit write ordering (off-diag → diagonal → tip → tau) relies on IEEE-754 `x + 0 = x` so that mask-produced zeros in the diagonal column are correctly overwritten.
+- **`build_global_resistance.m` — hot-path vectorisation (3 sites)**:
+  1. **Stokeslet scatter** (`M_weighted` assembly): per-pilus block assignment via the shift-add pattern `[M1_k, 0] + [0, M2_k]` for each of the 9 `(a,b)` component matrices, replacing `N_seg_all × 18` cumulative element additions.
+  2. **Rotlet scatter** (`M_rotlet` assembly): six strided writes `M_rotlet(row_x, 2:3:end) = Rxy;` etc., replacing the per-segment loop.
+  3. **Torsional `Atilde_k` fill**: `sub2ind` + linear-index assignment `Atilde_k(lin_idx) = d3_k'` replaces the inner `for j = 1..N_k` loop.
+
+### Added
+
+- **`params.quad_weights`** (new field in `init_coupled_params.m`): Precomputed global trapezoidal quadrature weight vector of length `N_body + Σ(N_segments(k) + 1)`. Body points carry weight `1`; each pilus carries endpoint weight `ds/2` and interior-node weight `ds = ell(k)/N_segments(k)`. Values are static under the current (fixed-geometry) architecture and match the old `get_trapezoidal_weight` helper bit-exactly. Consumed by `build_coupled_lin_sys.m` angular-moment row assembly; eliminates ~`N_total × N_ODE_step` redundant weight lookups.
+- **`test_optimization_invariance.m`** (NEW, root): Numerical equivalence test harness. Builds `params` / `Z0` with the same configuration as `profile_short_run.m`, then compares refactored `build_global_resistance` / `build_coupled_lin_sys` outputs against frozen reference copies `_legacy/build_global_resistance_v0.m` / `_legacy/build_coupled_lin_sys_v0.m` at two states (`Z0` and `Z0 + 1e-3·randn`). Reports relative Frobenius-norm error per output (`M_weighted`, `M_rotlet`, `A_twist_cells`, `lin_sys`, `hydro.*`, `geom.X_all`); **tolerance 1e-14**. Current pass: Case 1 (`Z0`) bit-exact (`rel_err = 0`); Case 2 (perturbed) `lin_sys` ≈ `1.8e-20`, `hydro.B_global` ≈ `3.4e-21`, all others `0`.
+- **`compare_profiles.m`** (NEW, root): Side-by-side wall-time comparison of two `profile_info_*.mat` snapshots for hot-path functions (`build_coupled_lin_sys`, `build_global_resistance`, `ode_coupled_rhs`, `run_simulation`, `cross`, `blkdiag`).
+- **`_legacy/build_coupled_lin_sys_v0.m`** and **`_legacy/build_global_resistance_v0.m`** (NEW, `_legacy/` folder): Frozen pre-optimisation copies with function names suffixed `_v0`. `build_coupled_lin_sys_v0` internally calls `build_global_resistance_v0`. Used exclusively by `test_optimization_invariance.m`; never on the live simulation path.
+
+### Changed
+
+- **`build_coupled_lin_sys.m`**: Removed the now-unused local helper `get_trapezoidal_weight` (fully superseded by `params.quad_weights`). Added structured code-block banners for the new vectorised sections with comments documenting the bit-exactness argument (IEEE-754 commutativity of two-operand addition; `0 + x = x`) and the overwrite ordering of the `B_k` sub-blocks.
+
+### Numerical equivalence
+
+- All changes are bit-exact (rel. Frobenius `= 0`) at the canonical initial state; under arbitrary perturbation the largest observed deviation is `1.8 × 10⁻²⁰`, well below the `1 × 10⁻¹⁴` equivalence threshold and several orders of magnitude below machine epsilon. No configuration, API, or physical behaviour is altered — all existing JSON configs, sweep drivers, and ODE tolerances continue to reproduce identical trajectories.
+
+### Documentation
+
+- **`README.md`**, **`USER_GUIDE.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`docs/index.html`**: Version **5.5.4**, date **2026-04-21**; feature-history row 74 added; file-structure section updated with the new `_legacy/`, `test_optimization_invariance.m`, `compare_profiles.m`, and the `params.quad_weights` precomputation note.
+
+---
+
 ## [5.5.3] — 2026-04-20
 
 ### Changed

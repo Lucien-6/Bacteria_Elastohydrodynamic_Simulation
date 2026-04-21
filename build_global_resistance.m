@@ -1,4 +1,4 @@
-﻿function [M_weighted, A_twist_cells, M_rotlet] = build_global_resistance(X_all, params, geom)
+function [M_weighted, A_twist_cells, M_rotlet] = build_global_resistance(X_all, params, geom)
 %BUILD_GLOBAL_RESISTANCE  Global hydrodynamic mobility and torsional resistance
 %
 %  Description:
@@ -220,35 +220,40 @@ M1_31 =          c10.*(x03.*x01) + c20.*(x03.*v1_r+x01.*v3_r) + c30.*(v3_r.*v1_r
 M1_32 =          c10.*(x03.*x02) + c20.*(x03.*v2_r+x02.*v3_r) + c30.*(v3_r.*v2_r) - M2_32;
 M1_33 = c_iso0 + c10.*(x03.*x03) + c20.*(2*x03.*v3_r)         + c30.*(v3_r.*v3_r) - M2_33;
 
-%% ---- Scatter Stokeslet M1/M2 into M_weighted ----
-for s = 1:N_seg_all
-    g0 = g0_idx(s);
-    g1 = g1_idx(s);
+%% ---- Scatter Stokeslet M1/M2 into M_weighted (per-pilus vectorised) ----
+%  Topology fact: pili k (N_k segments, N_k+1 nodes) contributes to its own
+%  column block only.  Since M_weighted's pili columns are zero before this
+%  step, the original "+=" is equivalent to a direct assignment, and the
+%  shift-add  [M1_k, 0] + [0, M2_k]  produces the exact column structure:
+%    node 1         : M1(:, seg 1)
+%    node 2..N_k    : M1(:, seg j) + M2(:, seg j-1)
+%    node N_k+1     : M2(:, seg N_k)
+%  All additions involve only two operands, so IEEE-754 result is bit-exact
+%  with respect to the original sequential "+=" pattern.
+seg_offset       = 0;
+pili_node_offset = N_body;
+z                = zeros(N_total, 1);   % scratch zero column (matches M1/M2 row size)
+for k = 1:M
+    N_k     = N_segs(k);
+    seg_idx = seg_offset + (1:N_k);
 
-    c0_1 = 3*(g0-1)+1;  c0_2 = 3*g0-1;  c0_3 = 3*g0;
-    c1_1 = 3*(g1-1)+1;  c1_2 = 3*g1-1;  c1_3 = 3*g1;
+    col_base = 3 * pili_node_offset;
+    col_x_k  = col_base + (1 : 3 : 3*(N_k+1));
+    col_y_k  = col_base + (2 : 3 : 3*(N_k+1));
+    col_z_k  = col_base + (3 : 3 : 3*(N_k+1));
 
-    % M1 -> column block of node g0
-    M_weighted(row_x, c0_1) = M_weighted(row_x, c0_1) + M1_11(:,s);
-    M_weighted(row_x, c0_2) = M_weighted(row_x, c0_2) + M1_12(:,s);
-    M_weighted(row_x, c0_3) = M_weighted(row_x, c0_3) + M1_13(:,s);
-    M_weighted(row_y, c0_1) = M_weighted(row_y, c0_1) + M1_21(:,s);
-    M_weighted(row_y, c0_2) = M_weighted(row_y, c0_2) + M1_22(:,s);
-    M_weighted(row_y, c0_3) = M_weighted(row_y, c0_3) + M1_23(:,s);
-    M_weighted(row_z, c0_1) = M_weighted(row_z, c0_1) + M1_31(:,s);
-    M_weighted(row_z, c0_2) = M_weighted(row_z, c0_2) + M1_32(:,s);
-    M_weighted(row_z, c0_3) = M_weighted(row_z, c0_3) + M1_33(:,s);
+    M_weighted(row_x, col_x_k) = [M1_11(:, seg_idx), z] + [z, M2_11(:, seg_idx)];
+    M_weighted(row_x, col_y_k) = [M1_12(:, seg_idx), z] + [z, M2_12(:, seg_idx)];
+    M_weighted(row_x, col_z_k) = [M1_13(:, seg_idx), z] + [z, M2_13(:, seg_idx)];
+    M_weighted(row_y, col_x_k) = [M1_21(:, seg_idx), z] + [z, M2_21(:, seg_idx)];
+    M_weighted(row_y, col_y_k) = [M1_22(:, seg_idx), z] + [z, M2_22(:, seg_idx)];
+    M_weighted(row_y, col_z_k) = [M1_23(:, seg_idx), z] + [z, M2_23(:, seg_idx)];
+    M_weighted(row_z, col_x_k) = [M1_31(:, seg_idx), z] + [z, M2_31(:, seg_idx)];
+    M_weighted(row_z, col_y_k) = [M1_32(:, seg_idx), z] + [z, M2_32(:, seg_idx)];
+    M_weighted(row_z, col_z_k) = [M1_33(:, seg_idx), z] + [z, M2_33(:, seg_idx)];
 
-    % M2 -> column block of node g1
-    M_weighted(row_x, c1_1) = M_weighted(row_x, c1_1) + M2_11(:,s);
-    M_weighted(row_x, c1_2) = M_weighted(row_x, c1_2) + M2_12(:,s);
-    M_weighted(row_x, c1_3) = M_weighted(row_x, c1_3) + M2_13(:,s);
-    M_weighted(row_y, c1_1) = M_weighted(row_y, c1_1) + M2_21(:,s);
-    M_weighted(row_y, c1_2) = M_weighted(row_y, c1_2) + M2_22(:,s);
-    M_weighted(row_y, c1_3) = M_weighted(row_y, c1_3) + M2_23(:,s);
-    M_weighted(row_z, c1_1) = M_weighted(row_z, c1_1) + M2_31(:,s);
-    M_weighted(row_z, c1_2) = M_weighted(row_z, c1_2) + M2_32(:,s);
-    M_weighted(row_z, c1_3) = M_weighted(row_z, c1_3) + M2_33(:,s);
+    pili_node_offset = pili_node_offset + N_k + 1;
+    seg_offset       = seg_offset       + N_k;
 end
 
 %% ---- Rotlet segment mobility  (Cortez 2018, Sec. 2.5) ----
@@ -261,18 +266,15 @@ Rxy =  L_r .* (ca .* x03 + cb .* v3_r);          % R12
 Rxz = -L_r .* (ca .* x02 + cb .* v2_r);          % R13
 Ryz =  L_r .* (ca .* x01 + cb .* v1_r);          % R23
 
-for s = 1:N_seg_all
-    tc1 = 3*(s-1) + 1;
-    tc2 = 3*(s-1) + 2;
-    tc3 = 3*(s-1) + 3;
-
-    M_rotlet(row_x, tc2) =  Rxy(:,s);
-    M_rotlet(row_x, tc3) =  Rxz(:,s);
-    M_rotlet(row_y, tc1) = -Rxy(:,s);
-    M_rotlet(row_y, tc3) =  Ryz(:,s);
-    M_rotlet(row_z, tc1) = -Rxz(:,s);
-    M_rotlet(row_z, tc2) = -Ryz(:,s);
-end
+%  Vectorised scatter: each segment occupies its own 3 disjoint columns, so
+%  the assignments are direct (no accumulation).  The strided writes below
+%  address exactly the same (row, col) cells as the original loop.
+M_rotlet(row_x, 2:3:end) =  Rxy;
+M_rotlet(row_x, 3:3:end) =  Rxz;
+M_rotlet(row_y, 1:3:end) = -Rxy;
+M_rotlet(row_y, 3:3:end) =  Ryz;
+M_rotlet(row_z, 1:3:end) = -Rxz;
+M_rotlet(row_z, 2:3:end) = -Ryz;
 
 %% Build torsional resistance for each pilus (RFT)
 A_twist_cells = cell(M, 1);
@@ -283,10 +285,14 @@ for k = 1:M
 
     d3_k = geom.d3{k};                  % [N_k x 3] in lab frame
 
-    Atilde_k = zeros(3*N_k, N_k);
-    for j = 1:N_k
-        Atilde_k(3*(j-1)+1 : 3*j, j) = d3_k(j, :)';
-    end
+    %  Vectorised block-diagonal assembly of Atilde_k:
+    %    Atilde_k(3(j-1)+1 : 3j, j) = d3_k(j,:)'   for j = 1..N_k
+    %  Uses linear indexing so every output cell is written exactly once.
+    Atilde_k  = zeros(3*N_k, N_k);
+    rows_3xNk = reshape(1:3*N_k, 3, N_k);                     % 3 x N_k
+    cols_3xNk = repmat(1:N_k, 3, 1);                          % 3 x N_k
+    lin_idx   = sub2ind([3*N_k, N_k], rows_3xNk, cols_3xNk);
+    Atilde_k(lin_idx) = d3_k';                                % d3_k' is 3 x N_k
 
     A_twist_cells{k} = params.ell(k) * eps_k^2 * Atilde_k / 2;
 end

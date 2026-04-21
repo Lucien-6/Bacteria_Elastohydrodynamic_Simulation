@@ -369,6 +369,23 @@ else
     ic_input          = {};
 end
 
+%% Precompute trapezoidal quadrature weights for the global point cloud
+%  quad_weights(i) = 1 for body points, and trapezoidal weight ds/2 or ds
+%  for pili node points.  Used by build_coupled_lin_sys to vectorise the
+%  angular-moment rows of B_global (replaces get_trapezoidal_weight).
+N_total_pts = params.N_body + sum(params.N_segments) + params.M_pili;
+params.quad_weights = ones(N_total_pts, 1);
+off_qw = params.N_body;
+for k = 1:params.M_pili
+    N_k  = params.N_segments(k);
+    ds_k = params.ell(k) / N_k;
+    w_k  = ds_k * ones(N_k + 1, 1);
+    w_k(1)   = ds_k / 2;
+    w_k(end) = ds_k / 2;
+    params.quad_weights(off_qw + 1 : off_qw + N_k + 1) = w_k;
+    off_qw = off_qw + N_k + 1;
+end
+
 %% Configure background flow (global, steady)
 bg_input = p.Results.background_flow;
 if ~isfield(bg_input, 'type'), bg_input.type = 'off'; end

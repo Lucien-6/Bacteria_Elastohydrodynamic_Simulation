@@ -1,8 +1,8 @@
 ﻿# User Guide — Coupled Body-Pili Simulation
 
 > **Author:** Lucien (lucien-6@qq.com)  
-> **Version:** 5.5.3
-> **Updated:** 2026-04-20
+> **Version:** 5.5.4
+> **Updated:** 2026-04-21
 
 This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
 
@@ -109,6 +109,8 @@ The script computes per-case summaries (e.g. sinking velocity statistics, maximu
 **v5.5.2:** **Cylinder circumferential grid — TN multiple of 4** — In `capsule_body_building.m`, after the area-based estimate `TN = ceil(CPN / Turns)`, the code sets **`TN = max(round(TN / 4) * 4, 4)`** before building the azimuthal grid. Total cylinder points and actual `N_body` may change relative to the previous rule.
 
 **v5.5.3:** **Default ODE timeout `tlim`** — Project-wide default is now **3600 s** (was **360 s**): `load_sim_config` JSON fallback, inline `main_coupled_simulation.m`, `config_example.json`, batch sweep scripts, and docs.
+
+**v5.5.4:** **Hot-path vectorisation (performance only, bit-exact)** — `build_coupled_lin_sys.m` (7 sites) and `build_global_resistance.m` (3 sites) now replace per-index `for` loops with strided indexing, triangular masks, block assignments, and a single `blkdiag(...)` call. Reference `ProfileShort` run: **end-to-end `run_simulation` −14.8 %**, `build_coupled_lin_sys` −17.1 %, `ode_coupled_rhs` −16.4 %. New precomputed `params.quad_weights` caches global trapezoidal quadrature weights once (replaces the old per-step `get_trapezoidal_weight` helper). Numerical equivalence verified by new `test_optimization_invariance.m` (tolerance `1e-14`; observed max rel. Frobenius error `~1.8 × 10⁻²⁰`, i.e. effectively bit-exact). Companion developer tools: `compare_profiles.m` (profile A vs B wall-time diff) and the `_legacy/` folder holding frozen `_v0` reference copies. **No configuration, API, or physics change** — existing inline cfg and JSON configs reproduce identical trajectories.
 
 Tunable via `cfg`: `flowfield_grid_spacing`, `flowfield_grid_range`, `flowfield_quiver_skip`, `flowfield_chunk_size`.
 
