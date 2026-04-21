@@ -21,9 +21,11 @@
 %      2. Run this script from the Coupled_Body_Pili project directory
 %         (same as other batch scripts).
 %      3. Brownian seed mode (see brown_rng_seed_mode below):
-%            'fixed'   — cfg.brown_rng_seed = rng_seed_base + k (reproducible batch).
-%            'default' — omit cfg.brown_rng_seed each run; run_simulation uses local
-%                        time MMddHHmmss (brown_rng_seed_from_clock), same as a single run.
+%            'fixed'     — cfg.brown_rng_seed = rng_seed_base + k (reproducible batch).
+%            'timestamp' — omit cfg.brown_rng_seed each run; run_simulation uses local
+%                          time MMddHHmmss (brown_rng_seed_from_clock), same as a single run.
+%            'default'   — alias for 'timestamp' (pre-rename value, retained for
+%                          backward compatibility; normalised silently at runtime).
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-03
@@ -54,10 +56,11 @@ case_name_base = 'NoPili-Brown';
 n_repeats = 50;
 
 % --- RNG (Brownian twister; see run_simulation.m):
-%     'fixed'   — per repeat: cfg.brown_rng_seed = rng_seed_base + k (reproducible).
-%     'default' — do not set cfg.brown_rng_seed; each run picks MMddHHmmss at start
-%                 (same policy as main_coupled_simulation without brown_rng_seed).
-brown_rng_seed_mode = 'default';   % 'default' | 'fixed'
+%     'fixed'     — per repeat: cfg.brown_rng_seed = rng_seed_base + k (reproducible).
+%     'timestamp' — do not set cfg.brown_rng_seed; each run picks MMddHHmmss at start
+%                   (same policy as main_coupled_simulation without brown_rng_seed).
+%     'default'   — alias for 'timestamp' (backward-compatible pre-rename value).
+brown_rng_seed_mode = 'timestamp';   % 'timestamp' | 'fixed'   ('default' = alias for 'timestamp')
 
 % --- Used only when brown_rng_seed_mode == 'fixed'
 rng_seed_base = 202604091;
@@ -127,11 +130,15 @@ if n_repeats < 1 || floor(n_repeats) ~= n_repeats
         'n_repeats must be a positive integer (>= 1).');
 end
 
-if ~(strcmpi(brown_rng_seed_mode, 'fixed') || strcmpi(brown_rng_seed_mode, 'default'))
+valid_seed_modes = {'fixed', 'timestamp', 'default'};
+if ~any(strcmpi(brown_rng_seed_mode, valid_seed_modes))
     error('batch_repeat_brownian:InvalidSeedMode', ...
-        'brown_rng_seed_mode must be ''default'' or ''fixed''.');
+        'brown_rng_seed_mode must be ''timestamp'', ''fixed'', or ''default'' (alias for ''timestamp'').');
 end
 brown_rng_seed_mode = lower(brown_rng_seed_mode);
+if strcmp(brown_rng_seed_mode, 'default')
+    brown_rng_seed_mode = 'timestamp';   % normalise backward-compatible alias
+end
 
 if ~isempty(strtrim(config_json))
     if ~isfile(config_json)
@@ -172,11 +179,11 @@ sep = repmat('=', 1, 60);
 fprintf('\n%s\n', sep);
 fprintf('  Batch repeat (Brownian): %d independent runs\n', n_repeats);
 fprintf('  Output root: %s\n', out_root);
-if strcmpi(brown_rng_seed_mode, 'fixed')
+if strcmp(brown_rng_seed_mode, 'fixed')
     fprintf('  Brownian seeds: FIXED — cfg.brown_rng_seed = rng_seed_base + k  (base = %d, k = 1..%d)\n', ...
         rng_seed_base, n_repeats);
 else
-    fprintf('  Brownian seeds: DEFAULT — time-based MMddHHmmss per run (no cfg.brown_rng_seed)\n');
+    fprintf('  Brownian seeds: TIMESTAMP — time-based MMddHHmmss per run (no cfg.brown_rng_seed)\n');
 end
 fprintf('%s\n\n', sep);
 
@@ -206,10 +213,10 @@ for k = 1:n_repeats
     cfg_k = cfg;
     cfg_k.case_name = fullfile(case_name_base, sub);
 
-    if strcmpi(brown_rng_seed_mode, 'fixed')
+    if strcmp(brown_rng_seed_mode, 'fixed')
         cfg_k.brown_rng_seed = rng_seed_base + k;
     else
-        % Default policy: let run_simulation use brown_rng_seed_from_clock (MMddHHmmss).
+        % Timestamp policy: let run_simulation use brown_rng_seed_from_clock (MMddHHmmss).
         if isfield(cfg_k, 'brown_rng_seed')
             cfg_k = rmfield(cfg_k, 'brown_rng_seed');
         end
@@ -240,11 +247,11 @@ for k = 1:n_repeats
     end
 
     if fid_sum ~= -1
-        if strcmpi(brown_rng_seed_mode, 'fixed')
+        if strcmp(brown_rng_seed_mode, 'fixed')
             fprintf(fid_sum, '%s  seed=%d  status=%s  wall=%.2f s\n', ...
                 sub, rng_seed_base + k, run_status(k), run_wall(k));
         elseif run_status(k) == "OK" && ~isempty(res_k) && isfield(res_k, 'brown_rng_seed')
-            fprintf(fid_sum, '%s  seed=%d  (default/time)  status=%s  wall=%.2f s\n', ...
+            fprintf(fid_sum, '%s  seed=%d  (timestamp)  status=%s  wall=%.2f s\n', ...
                 sub, res_k.brown_rng_seed, run_status(k), run_wall(k));
         else
             fprintf(fid_sum, '%s  seed=n/a  status=%s  wall=%.2f s\n', ...

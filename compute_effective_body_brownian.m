@@ -62,6 +62,23 @@ z_dot_probe = lin_sys \ R_probe;
 %% Step 3: Extract dimensionless 6x6 effective mobility
 M_eff_dimless = z_dot_probe(1:6, :);
 
+%  Diagnostic: measure asymmetry BEFORE symmetrisation.
+%  LU round-off on a 96..186-dim system should yield rel_asym at 1e-12..1e-10.
+%  A value >= 1e-6 indicates a structural issue (lin_sys assembly bug,
+%  catastrophic conditioning, or mis-scaled quadrature weights) that
+%  silent symmetrisation would otherwise mask.  The numerical path is
+%  unchanged; this block only emits a warning if something is clearly wrong.
+asym_abs  = norm(M_eff_dimless - M_eff_dimless', 'fro');
+sym_scale = max(norm(M_eff_dimless, 'fro'), eps);
+rel_asym  = asym_abs / sym_scale;
+if rel_asym > 1e-6
+    warning('compute_effective_body_brownian:AsymmetryHigh', ...
+        ['M_eff_dimless relative asymmetry = %.2e (expected <1e-8 from ', ...
+         'LU round-off alone). Possible lin_sys assembly bug or ', ...
+         'extreme conditioning; silent symmetrisation will still be applied.'], ...
+        rel_asym);
+end
+
 % Symmetrise (numerical round-off may break exact symmetry)
 M_eff_dimless = 0.5 * (M_eff_dimless + M_eff_dimless');
 
@@ -83,6 +100,19 @@ M_eff_dim = M_eff_dimless ./ (S * S');
 
 % Symmetrise dimensional mobility
 M_eff_dim = 0.5 * (M_eff_dim + M_eff_dim');
+
+%  Diagnostic: condition number of the effective mobility.
+%  Healthy body-pili configurations yield cond(M_eff) ~ 1..1e3; a rcond
+%  below 1e-10 signals near-degenerate TT/RR blocks (extreme aspect ratio,
+%  singular clamped BC, or catastrophic mobility cancellation) that would
+%  compromise Cholesky stability downstream.  rcond is O(1) for 6x6, so
+%  the cost is negligible.
+rc_mobility = rcond(M_eff_dim);
+if ~isfinite(rc_mobility) || rc_mobility < 1e-10
+    warning('compute_effective_body_brownian:IllConditioned', ...
+        ['M_eff_dim rcond = %.2e (< 1e-10): effective mobility is ', ...
+         'nearly singular, Cholesky factor may be unreliable.'], rc_mobility);
+end
 
 %% Step 5: Diffusion tensor and Cholesky decomposition
 kB    = 1.380649e-23;

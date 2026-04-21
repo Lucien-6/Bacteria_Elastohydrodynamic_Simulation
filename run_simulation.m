@@ -547,6 +547,13 @@ segment_count    = 0;
 seg_walltimes    = [];          % Wall time per segment [s]
 seg_dtstar       = [];          % Dimensionless time advanced per segment
 
+% --- Phase 0 profiler: per-segment ODE diagnostics (read-only from sol) ---
+seg_nsteps       = [];          % ODE accepted steps per segment
+seg_nfevals      = [];          % ode_coupled_rhs calls per segment (sol.stats.nfevals)
+seg_npds         = [];          % Numerical Jacobian evaluations (sol.stats.npds)
+seg_first_dt     = [];          % First accepted step size (dimensionless)
+seg_median_dt    = [];          % Median step size over the later half of segment
+
 % ---- Brownian dynamics node tracking ----
 if params.brown_enabled
     dt_B_dimless   = dt_B / params.scales.T_0;
@@ -632,6 +639,34 @@ while T_achieved < T_obs_dimless
     % Record segment timing for ETA estimation
     seg_walltimes(end+1) = seg_wall;            
     seg_dtstar(end+1)    = T_achieved - T_prev; 
+
+    % --- Phase 0 profiler: capture ode15s internal stats (zero-overhead) ---
+    seg_nsteps(end+1) = max(0, numel(sol.x) - 1);
+
+    if isfield(sol, 'stats') && isfield(sol.stats, 'nfevals')
+        seg_nfevals(end+1) = double(sol.stats.nfevals);
+    else
+        seg_nfevals(end+1) = NaN;
+    end
+
+    if isfield(sol, 'stats') && isfield(sol.stats, 'npds')
+        seg_npds(end+1) = double(sol.stats.npds);
+    else
+        seg_npds(end+1) = NaN;
+    end
+
+    if numel(sol.x) >= 2
+        seg_first_dt(end+1) = sol.x(2) - sol.x(1);
+    else
+        seg_first_dt(end+1) = NaN;
+    end
+
+    if numel(sol.x) >= 3
+        half_idx = max(2, ceil(numel(sol.x) / 2));
+        seg_median_dt(end+1) = median(diff(sol.x(half_idx:end)));
+    else
+        seg_median_dt(end+1) = NaN;
+    end
 
     % Renormalise quaternion
     q_end         = Z_end(4:7);
@@ -790,6 +825,16 @@ if ~isempty(seg_walltimes)
         format_duration(max(seg_walltimes)));
 end
 logf('================================================================\n\n');
+
+% --- Phase 0 profiler: expose segment-level metrics for benchmarking ---
+results.seg_metrics = struct( ...
+    'wall_time_s', seg_walltimes(:), ...
+    'dtstar',      seg_dtstar(:), ...
+    'nsteps',      seg_nsteps(:), ...
+    'nfevals',     seg_nfevals(:), ...
+    'npds',        seg_npds(:), ...
+    'first_dt',    seg_first_dt(:), ...
+    'median_dt',   seg_median_dt(:));
 
 %% =====================================================================
 %  POST-PROCESSING: Convert to Physical Units

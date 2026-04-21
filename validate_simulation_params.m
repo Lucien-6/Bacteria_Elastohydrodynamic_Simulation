@@ -15,7 +15,7 @@ function validate_simulation_params(cfg)
 %    cfg - struct with fields matching user-configurable parameters:
 %      T_obs, dt, minor_axis, major_axis, N_body, seg_per_um,
 %      Pili_Matrix, E, r_pili, mu, rho_bac, rho_fluid,
-%      AbsTol, RelTol, tlim, enable_brown, dt_B,
+%      AbsTol, RelTol, tlim, enable_brown, dt_B, Temper,
 %      animation_fps, sigma_p, fixman_midpoint
 %
 %  Author:  Lucien (lucien-6@qq.com)
@@ -112,6 +112,19 @@ if isfield(cfg, 'fixman_midpoint') && cfg.fixman_midpoint && ~cfg.enable_brown
     warns{end+1} = 'fixman_midpoint = true has no effect when enable_brown = false.';
 end
 
+%  Fixman recommended when Brownian is on AND pili are present.
+%  The simple Euler-Maruyama scheme drops the kB*T * div(M_eff) Ito drift,
+%  which becomes non-negligible when pili conformation strongly modulates
+%  the effective body mobility.  See Brownian_Implementation_Plan.md
+%  section 2.4.1 for a quantitative discussion and a decision matrix.
+if cfg.enable_brown && isfield(cfg, 'fixman_midpoint') && ~cfg.fixman_midpoint ...
+        && ~isempty(cfg.Pili_Matrix)
+    warns{end+1} = ['Brownian enabled with pili present but fixman_midpoint = false: ', ...
+        'the kB*T * div(M_eff) Ito drift term is omitted (simple Euler-Maruyama). ', ...
+        'For long-time diffusion statistics or large-amplitude pili motion, ', ...
+        'consider enabling fixman_midpoint (see Brownian_Implementation_Plan.md section 2.4.1).'];
+end
+
 %% ---- Warnings ----
 
 if cfg.N_body >= 10 && cfg.N_body < 100
@@ -138,6 +151,28 @@ end
 if cfg.enable_brown && cfg.dt_B > 0 && cfg.dt_B >= cfg.dt
     warns{end+1} = sprintf('dt_B = %g >= dt = %g: Brownian step >= output step.', ...
         cfg.dt_B, cfg.dt);
+end
+
+%  dt_B vs. Stokes-Einstein relaxation times (back-of-envelope spherical
+%  estimate; a factor-of-2 accuracy is sufficient for a warning).  We use
+%  the major semi-axis as a conservative radius so the warning triggers
+%  only when dt_B is clearly too coarse for accurate Brownian statistics.
+if cfg.enable_brown && cfg.dt_B > 0 && isfield(cfg, 'Temper') ...
+        && isfinite(cfg.Temper) && cfg.Temper > 0 && cfg.mu > 0 ...
+        && cfg.major_axis > 0 && cfg.minor_axis > 0
+    kB    = 1.380649e-23;
+    a_eff = max(cfg.major_axis, cfg.minor_axis);
+    D_T   = kB * cfg.Temper / (6 * pi * cfg.mu * a_eff);
+    D_R   = kB * cfg.Temper / (8 * pi * cfg.mu * a_eff^3);
+    tau_trans = a_eff^2 / D_T;
+    tau_rot   = 1 / (6 * D_R);
+    tau_min   = min(tau_trans, tau_rot);
+    if isfinite(tau_min) && tau_min > 0 && cfg.dt_B > 0.1 * tau_min
+        warns{end+1} = sprintf(['dt_B = %.3g s exceeds 10%% of estimated ', ...
+            'min(tau_trans, tau_rot) ~ %.3g s (Stokes-Einstein with a = %.2g m). ', ...
+            'Consider dt_B <= %.3g s for accurate Brownian statistics.'], ...
+            cfg.dt_B, tau_min, a_eff, 0.1 * tau_min);
+    end
 end
 
 % Pili duplicate attachment sites

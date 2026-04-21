@@ -8,6 +8,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.5.6] — 2026-04-21
+
+### Added
+
+- **`Brownian_Implementation_Plan.md §1.5 — Scope & Simplifying Assumptions`**: New section explicitly delimiting the modelled Brownian degrees of freedom (body 6 DOF + pili-induced Schur-complement drag amplification) and the deliberate omission (pili internal thermal fluctuations). Lists applicable and non-applicable analyses; points to Westwood & Keaveny (2022) and Maxian & Donev (2023) as extension references.
+- **`Brownian_Implementation_Plan.md §2.4.1 — Stochastic Interpretation & Missing Drift`**: Quantitative discussion of the exact Itô form of the overdamped Langevin SDE, why the simple `fixman_midpoint=false` mode drops the `kB*T * div(M_eff)` drift, and how the Fixman midpoint scheme recovers it. Includes a practical decision matrix for choosing `fixman_midpoint` based on pili count, simulation time scale, and pili activity.
+- **`validate_simulation_params.m`**: Two new Brownian-related warnings. (a) When `enable_brown = true` and `Pili_Matrix` is non-empty but `fixman_midpoint = false`, a warning is emitted recommending Fixman to avoid the missing Itô drift. (b) When `dt_B` exceeds 10% of a Stokes-Einstein back-of-envelope estimate of `min(tau_trans, tau_rot)` (using the major semi-axis as a conservative radius), a warning suggests a smaller `dt_B` for accurate Brownian statistics. Both warnings are inert when `enable_brown = false`.
+- **`compute_effective_body_brownian.m`**: Read-only numerical diagnostics injected into the existing computation path. (a) Before the mandatory symmetrisation of `M_eff_dimless`, the relative Frobenius asymmetry `||M-Mᵀ||_F / ||M||_F` is computed and compared against `1e-6`; exceeding that threshold emits `compute_effective_body_brownian:AsymmetryHigh` to prevent silent masking of `lin_sys` assembly bugs or catastrophic conditioning. (b) After dimensionalisation, `rcond(M_eff_dim)` is evaluated; values below `1e-10` emit `compute_effective_body_brownian:IllConditioned` to warn about near-singular effective mobility before the downstream Cholesky. Both hooks are diagnostic only — the numerical output (`L_eff`, `D_eff`, `M_eff_dim`) and function signature are unchanged.
+
+### Changed
+
+- **`batch sweep/batch_repeat_brownian.m`**: Brownian seed mode `'default'` renamed to `'timestamp'` for self-documenting clarity (it is the wall-clock `MMddHHmmss` policy, never "the default"). The string `'default'` is retained as a silent backward-compatible alias: the script accepts it without warning and normalises it to `'timestamp'` internally before any downstream use. The default initial value of the `brown_rng_seed_mode` variable is updated from `'default'` to `'timestamp'`; existing user scripts or saved configs that still assign `'default'` continue to work identically.
+- **`README.md`**, **`USER_GUIDE.md`**: Documentation of `brown_rng_seed_mode` updated to match the new canonical value; the alias is called out inline.
+- **`Brownian_Implementation_Plan.md §7`**: File manifest entry for `validate_simulation_params.m` extended to list the two new warnings; new row added for `batch sweep/batch_repeat_brownian.m`.
+
+### Numerical equivalence
+
+- All numerical paths are preserved bit-exactly. The `compute_effective_body_brownian.m` diagnostic hooks observe `M_eff_dimless` and `M_eff_dim` but do not mutate them; the existing symmetrisation, dimensionalisation, and Cholesky flow (Steps 1–5) is unchanged. `validate_simulation_params.m` adds only to the `warns{}` cell array; no error classification is altered. Re-running any pre-5.5.6 case with either Brownian off (`enable_brown=false`) or with `brown_rng_seed_mode = 'default'` / `'fixed'` yields identical output artefacts.
+
+### Documentation
+
+- New changelog entry (this one); version bump to **5.5.6** where required.
+
+---
+
 ## [5.5.5] — 2026-04-21
 
 ### Performance

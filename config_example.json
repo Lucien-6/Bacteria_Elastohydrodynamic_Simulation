@@ -41,7 +41,7 @@
     ],
 
     "material": {
-        "E": 1.768e7,
+        "E": 3.279e8,
         "r_pili": 3e-9,
         "sigma_p": 0.2
     },
@@ -53,7 +53,7 @@
     },
 
     "simulation": {
-        "T_obs": 30.0,
+        "T_obs": 0.5,
         "AbsTol": 1e-4,
         "RelTol": 1e-4,
         "delta_frac": 20,

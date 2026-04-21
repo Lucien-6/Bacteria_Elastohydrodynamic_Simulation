@@ -39,7 +39,7 @@ cfg.auto_confirm = true;
 [results, params, output_dir] = run_simulation(cfg);
 ```
 
-Use `batch sweep/` scripts or `batch_run_from_json.m` for unattended sweeps. The folder includes **eight** sweep drivers (e.g. `batch_sweep_alpha`, `batch_sweep_eps_body_RSM`, `batch_sweep_N_body_eps_RSM`, …) plus **`batch_run_from_json`** and **`batch_repeat_brownian`**. For **multiple independent runs of the same Brownian-on case** (outputs under `output/<case_name_base>/001/`, `002`, …), run `batch sweep/batch_repeat_brownian.m` (requires `enable_brown = true`; preview off by default). Set **`brown_rng_seed_mode`**: `'default'` (omit per-run seed; same **MMddHHmmss** time default as a single run) or `'fixed'` (**`cfg.brown_rng_seed = rng_seed_base + k`**, reproducible batch).
+Use `batch sweep/` scripts or `batch_run_from_json.m` for unattended sweeps. The folder includes **eight** sweep drivers (e.g. `batch_sweep_alpha`, `batch_sweep_eps_body_RSM`, `batch_sweep_N_body_eps_RSM`, …) plus **`batch_run_from_json`** and **`batch_repeat_brownian`**. For **multiple independent runs of the same Brownian-on case** (outputs under `output/<case_name_base>/001/`, `002`, …), run `batch sweep/batch_repeat_brownian.m` (requires `enable_brown = true`; preview off by default). Set **`brown_rng_seed_mode`**: `'timestamp'` (omit per-run seed; same **MMddHHmmss** time default as a single run; `'default'` kept as a silent backward-compatible alias) or `'fixed'` (**`cfg.brown_rng_seed = rng_seed_base + k`**, reproducible batch).
 
 **v5.1.1:** After each run, MATLAB **closes** the summary and flow-field figure windows once `summary_plot.png` and `flowfield_panels.png` are saved, so long batches do not leave hundreds of figures open.
 
