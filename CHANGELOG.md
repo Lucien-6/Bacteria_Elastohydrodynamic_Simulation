@@ -8,6 +8,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.5.8] — 2026-04-22
+
+### Added
+
+- **`export_figure_png_pdf_html.m`**: Centralised figure export — **`exportgraphics`** saves **PNG** (600 dpi), **PDF** (`ContentType`, `vector`), and on **MATLAB R2026a or later** an **interactive HTML** web canvas (same base path, `.html` extension). Used by `run_simulation.m`, `compute_plot_flowfield.m`, and `post_processing/postprocess_cases.m` (`export_batch_summary_figure`).
+- **Vector PDF alongside raster PNG** for `initial_pose`, `summary_plot`, `flowfield_panels`, and the post-process batch summary figure (same stem as the workbook).
+- **Post-process batch summary figure** (`postprocess_cases.m`): 2×2 bar-chart panel (kinematic metrics per case) saved next to the chosen `.xlsx` as `.png` / `.pdf` / optional `.html` (R2026a+).
+
+### Changed
+
+- **`main_coupled_simulation.m` / `run_simulation.m`**: Documented path policy — `addpath(project root)` at the main script and defensively at the start of `run_simulation` so programmatic calls resolve shared helpers; `post_processing/` and `batch sweep/` keep local `addpath` for standalone runs.
+- **Completion summaries list HTML only when present**: `run_simulation.m` *Files saved* block appends `*.html` only if `isfile`; `postprocess_cases.m` console and `questdlg` include the HTML path only when the file exists.
+- **`run_simulation.m`**: Output-directory data whitelist extended with **`.pdf`** and **`.html`** (overwrite / rename probe).
+- **`batch sweep/batch_sweep_eps_body_RSM.m`**, **`batch_sweep_N_body_eps_RSM.m`**: Header notes cross-reference the path policy in `main_coupled_simulation.m`.
+
+### Documentation
+
+- **`README.md`**, **`USER_GUIDE.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`docs/index.html`**, **`CHANGELOG.md`**: Version **5.5.8**, date **2026-04-22**; README feature-history row **78**; §17 output table and quick-start tree updated for PDF/HTML and `export_figure_png_pdf_html.m`; file counts **55** `.m` files (root **41**).
+
+### Numerical equivalence
+
+- Export and logging/path changes only. No ODE, linear-system, or Brownian physics path is modified. Trajectory outputs (`results`, `timeseries.csv`) unchanged for identical configs.
+
+---
+
 ## [5.5.7] — 2026-04-21
 
 ### Added

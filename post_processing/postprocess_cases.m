@@ -4,7 +4,7 @@ function postprocess_cases()
 %  Description:
 %    Interactively selects case folders, computes kinematic metrics from
 %    each simulation's timeseries.csv and config.json, and exports results
-%    to a professionally formatted Excel workbook.
+%    to a formatted Excel workbook and matching PNG/PDF/HTML summary figures.
 %
 %  Workflow:
 %    1. User selects a parent directory containing one or more Case subfolders.
@@ -17,7 +17,8 @@ function postprocess_cases()
 %               - Maximum horizontal displacement
 %               - 3-D trajectory tortuosity
 %               - Translational diffusion coefficient  (MSD fit)
-%    4. All results are exported to a professionally formatted Excel workbook.
+%    4. All results are exported to a formatted Excel workbook plus a batch
+%       summary figure (.png, .pdf, and .html on R2026a+, same base name).
 %
 %  Data source per case folder  (non-recursive — subfolders are ignored):
 %    timeseries.csv  ->  t_s, X_um, Y_um, Z_um,
@@ -32,10 +33,14 @@ function postprocess_cases()
 %    (none — interactive folder/case selection via GUI dialogs)
 %
 %  Outputs:
-%    (none — results written to Excel workbook; path printed to console)
+%    Excel workbook at user-chosen path; batch summary figure with the same
+%    base name as .png (600 dpi), .pdf (vector), and .html (interactive web
+%    canvas on MATLAB R2026a+); paths printed to console.
 %
 %  Requirements:
 %    MATLAB R2018b+, Microsoft Excel installed (for COM formatting).
+%    Summary figure export uses exportgraphics (MATLAB R2020a or later).
+%    Interactive HTML figure export requires MATLAB R2026a or later.
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-07
@@ -47,6 +52,11 @@ fprintf('  Coupled Body-Pili Simulation  |  Batch Post-Processor\n');
 fprintf('  Author : Lucien  <lucien-6@qq.com>\n');
 fprintf('  Run at : %s\n', char(datetime('now', 'Format', 'uuuu-MM-dd HH:mm:ss')));
 fprintf('%s\n\n', sep);
+
+% Standalone entry: add project root (same helper as main sim; batch sweep
+% also uses local addpath — see comments in main_coupled_simulation.m).
+_postproc_this = mfilename('fullpath');
+addpath(fileparts(fileparts(_postproc_this)));
 
 %% ---- Step 1: Case folder selection ------------------------------------
 fprintf('[1/4] Selecting case folders ...\n');
@@ -131,8 +141,8 @@ end
 fprintf('      %s\n', repmat('-', 1, 56));
 fprintf('      Completed : %d OK,  %d ERROR(S)\n\n', n_ok, n_err);
 
-%% ---- Step 4: Export to Excel -----------------------------------------
-fprintf('[4/4] Exporting to Excel ...\n');
+%% ---- Step 4: Export to Excel + summary figures -----------------------
+fprintf('[4/4] Exporting to Excel and summary figures ...\n');
 waitbar(1, hWB, 'Writing Excel workbook  —  please wait ...');
 
 valid_rows = all_rows(~cellfun(@isempty, all_rows));
@@ -142,21 +152,39 @@ if isempty(valid_rows)
 end
 
 export_to_excel(valid_rows, out_path);
+export_batch_summary_figure(valid_rows, out_path);
 
 %% ---- Done --------------------------------------------------------------
+[fp_out, fn_out, ~] = fileparts(out_path);
+fig_png  = fullfile(fp_out, [fn_out '.png']);
+fig_pdf  = fullfile(fp_out, [fn_out '.pdf']);
+fig_html = fullfile(fp_out, [fn_out '.html']);
 fprintf('\n%s\n', sep);
 fprintf('  Post-processing COMPLETE\n');
 fprintf('  Processed : %d / %d case(s)   (%d error(s))\n', n_ok, N, n_err);
 fprintf('  Output    : %s\n', out_path);
+fprintf('  Figures   : %s\n              %s', fig_png, fig_pdf);
+if isfile(fig_html)
+    fprintf('\n              %s\n', fig_html);
+else
+    fprintf('\n');
+end
 fprintf('%s\n\n', sep);
+
+if isfile(fig_html)
+    dlg_fig_lines = sprintf('%s\n%s\n%s', fig_png, fig_pdf, fig_html);
+else
+    dlg_fig_lines = sprintf('%s\n%s', fig_png, fig_pdf);
+end
 
 % Ask user before opening (prevents race condition with COM cleanup)
 answer = questdlg( ...
     sprintf(['Post-processing complete!\n\n' ...
     'Processed:  %d / %d case(s)   (%d error(s))\n\n' ...
     'Output file:\n%s\n\n' ...
+    'Figures:\n%s\n\n' ...
     'Open the Excel workbook now?'], ...
-    n_ok, N, n_err, out_path), ...
+    n_ok, N, n_err, out_path, dlg_fig_lines), ...
     'Post-Processing Complete', ...
     'Open Excel', 'Close', 'Open Excel');
 
@@ -507,6 +535,141 @@ try
 catch ME_com
     fprintf('      [WARN] COM formatting skipped : %s\n', ME_com.message);
     fprintf('             Data is saved but without visual formatting.\n');
+end
+end
+
+
+%% =========================================================================
+%  LOCAL FUNCTION: export_batch_summary_figure
+%  Multi-panel kinematic summary; PNG (600 dpi) + PDF (vector) + HTML (R2026a+),
+%  same base name as the Excel workbook.
+%% =========================================================================
+function export_batch_summary_figure(rows, out_path)
+N = numel(rows);
+if N < 1
+    return
+end
+
+[fp, fn, ~] = fileparts(out_path);
+png_path  = fullfile(fp, [fn '.png']);
+pdf_path  = fullfile(fp, [fn '.pdf']);
+html_path = fullfile(fp, [fn '.html']);
+
+case_names = cell(N, 1);
+v_steady   = nan(N, 1);
+tort       = nan(N, 1);
+d_trans    = nan(N, 1);
+max_h      = nan(N, 1);
+ok_flags   = false(N, 1);
+
+for i = 1:N
+    r = rows{i};
+    case_names{i} = char(string(r.Case_Name));
+    st = r.Status;
+    ok_flags(i) = ischar(st) && strcmp(st, 'OK');
+    v_steady(i) = postprocess_scalar_metric(r, 'Vsink_Steady_um_s');
+    tort(i)     = postprocess_scalar_metric(r, 'Tortuosity');
+    d_trans(i)  = postprocess_scalar_metric(r, 'D_trans_um2_s');
+    max_h(i)    = postprocess_scalar_metric(r, 'Max_Horiz_Disp_um');
+end
+
+col_ok  = [0.20 0.40 0.80];
+col_err = [0.78 0.78 0.78];
+bar_colors = zeros(N, 3);
+for i = 1:N
+    if ok_flags(i)
+        bar_colors(i, :) = col_ok;
+    else
+        bar_colors(i, :) = col_err;
+    end
+end
+
+fig = figure('Name', 'Batch Post-Process Summary', 'Color', 'w', ...
+    'Position', [80, 80, 1400, 900]);
+set(fig, 'DefaultAxesFontName', 'Arial', ...
+    'DefaultAxesFontSize', 10, ...
+    'DefaultAxesLineWidth', 0.8);
+
+ax1 = subplot(2, 2, 1);
+b1 = bar(ax1, 1:N, v_steady, 0.65, 'FaceColor', 'flat');
+b1.CData = bar_colors;
+set(ax1, 'XTick', 1:N, 'XTickLabel', case_names, 'TickDir', 'out', 'Box', 'off');
+if N > 4
+    xtickangle(ax1, 35);
+end
+ylabel(ax1, '{\itV}_{sink,ss} (μm/s)', 'FontName', 'Arial', 'FontSize', 11, 'Interpreter', 'tex');
+title(ax1, 'Steady-state sinking speed', 'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold');
+grid(ax1, 'on');
+hold(ax1, 'on');
+plot(ax1, NaN, NaN, 's', 'MarkerSize', 10, 'MarkerFaceColor', col_ok, ...
+    'MarkerEdgeColor', col_ok, 'DisplayName', 'OK');
+plot(ax1, NaN, NaN, 's', 'MarkerSize', 10, 'MarkerFaceColor', col_err, ...
+    'MarkerEdgeColor', [0.50 0.50 0.50], 'DisplayName', 'Error / skipped');
+leg = legend(ax1, 'Location', 'northeast', 'FontSize', 9, 'Box', 'off');
+set(leg, 'FontName', 'Arial');
+hold(ax1, 'off');
+
+ax2 = subplot(2, 2, 2);
+b2 = bar(ax2, 1:N, tort, 0.65, 'FaceColor', 'flat');
+b2.CData = bar_colors;
+set(ax2, 'XTick', 1:N, 'XTickLabel', case_names, 'TickDir', 'out', 'Box', 'off');
+if N > 4
+    xtickangle(ax2, 35);
+end
+ylabel(ax2, 'Tortuosity (—)', 'FontName', 'Arial', 'FontSize', 11);
+title(ax2, 'Path tortuosity', 'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold');
+grid(ax2, 'on');
+
+ax3 = subplot(2, 2, 3);
+b3 = bar(ax3, 1:N, d_trans, 0.65, 'FaceColor', 'flat');
+b3.CData = bar_colors;
+set(ax3, 'XTick', 1:N, 'XTickLabel', case_names, 'TickDir', 'out', 'Box', 'off');
+if N > 4
+    xtickangle(ax3, 35);
+end
+ylabel(ax3, '{\itD}_{trans} (μm^2/s)', 'FontName', 'Arial', 'FontSize', 11, 'Interpreter', 'tex');
+title(ax3, 'Translational diffusion (MSD fit)', 'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold');
+grid(ax3, 'on');
+
+ax4 = subplot(2, 2, 4);
+b4 = bar(ax4, 1:N, max_h, 0.65, 'FaceColor', 'flat');
+b4.CData = bar_colors;
+set(ax4, 'XTick', 1:N, 'XTickLabel', case_names, 'TickDir', 'out', 'Box', 'off');
+if N > 4
+    xtickangle(ax4, 35);
+end
+ylabel(ax4, 'Max horiz. displacement (μm)', 'FontName', 'Arial', 'FontSize', 11);
+title(ax4, 'Maximum horizontal drift', 'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold');
+grid(ax4, 'on');
+
+set(0, 'CurrentFigure', fig);
+sgtitle(sprintf('Batch kinematic summary  (%d case(s))', N), ...
+    'FontName', 'Arial', 'FontSize', 14, 'FontWeight', 'bold');
+
+drawnow;
+
+export_figure_png_pdf_html(fig, png_path, pdf_path, html_path);
+close(fig);
+
+fprintf('      Summary figure saved : %s | %s', png_path, pdf_path);
+if isfile(html_path)
+    fprintf(' | %s\n', html_path);
+else
+    fprintf('\n');
+end
+end
+
+
+%% =========================================================================
+%  LOCAL FUNCTION: postprocess_scalar_metric
+%% =========================================================================
+function x = postprocess_scalar_metric(r, fld)
+x = NaN;
+if isstruct(r) && isfield(r, fld)
+    v = r.(fld);
+    if isnumeric(v) && isscalar(v)
+        x = double(v);
+    end
 end
 end
 

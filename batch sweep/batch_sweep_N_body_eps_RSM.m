@@ -25,7 +25,10 @@
 %        to keep run time manageable (edit if needed).
 %      - Reduce cfg_base.T_obs for a quick pilot; restore for production.
 %
-%  Requires project root on the MATLAB path (or run from project root).
+%  Requires project root on the MATLAB path (this script adds it below).
+%  Path policy: main entry + run_simulation() use addpath(project root);
+%  batch/postprocess keep local addpath for standalone runs (see
+%  main_coupled_simulation.m header).
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-13

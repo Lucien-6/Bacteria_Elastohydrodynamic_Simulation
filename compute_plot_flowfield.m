@@ -596,10 +596,15 @@ drawnow;
 %% ======================================================================
 %  Step 14: Save
 %  ======================================================================
-png_file = fullfile(output_dir, 'flowfield_panels.png');
-exportgraphics(fig_flow, png_file, 'Resolution', 600);
+png_file  = fullfile(output_dir, 'flowfield_panels.png');
+pdf_file  = fullfile(output_dir, 'flowfield_panels.pdf');
+html_file = fullfile(output_dir, 'flowfield_panels.html');
+export_figure_png_pdf_html(fig_flow, png_file, pdf_file, html_file);
 close(fig_flow);
-logf('[FLOW] Flow field panel saved: %s (600 dpi)\n', png_file);
+logf('[FLOW] Flow field panel saved: %s (600 dpi)  |  %s (vector)\n', png_file, pdf_file);
+if isfile(html_file)
+    logf('[FLOW] Interactive HTML: %s\n', html_file);
+end
 
 end
 

@@ -1,11 +1,12 @@
 # Coupled Body-Pili elastohydrodynamic simulation — MATLAB project
 #
-# Release: 5.5.7 (2026-04-21)
+# Release: 5.5.8 (2026-04-22)
 #
 # This repository has no Python/pip dependencies. Simulation code is MATLAB-only.
 #
 # Runtime
 #   - MATLAB R2020b or later recommended (tested with modern releases).
+#   - Interactive HTML figure export (exportgraphics → .html) requires MATLAB R2026a or later; PNG/PDF work from R2020a (exportgraphics).
 #   - Statistics Toolbox: not required (code uses 'omitnan' in base MATLAB where applicable).
 #
 # MATLAB Add-On (required for capsule body-surface points in v5.5.0+)

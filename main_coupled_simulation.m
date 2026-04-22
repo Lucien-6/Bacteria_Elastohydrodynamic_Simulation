@@ -21,9 +21,16 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
+%  Documentation release: 5.5.8 (2026-04-22) — see README.md / CHANGELOG.md
 
 close all force;
 clear; clc;
+
+% Path policy (project root): main entry here + defensive addpath inside
+% run_simulation(). Post-processing and batch sweep scripts keep their own
+% addpath calls when run standalone — that layout is intentional.
+proj_root = fileparts(mfilename('fullpath'));
+addpath(proj_root);
 
 %% =====================================================================
 %  CONFIGURATION SOURCE
@@ -39,7 +46,7 @@ if ~isempty(config_file) && isfile(config_file)
     cfg = load_sim_config(config_file);
 else
     %% --- Inline parameter definitions ---
-    cfg.case_name = 'TwoPili-Active-HighFre-Test-Symmetry';
+    cfg.case_name = 'TwoPili-Active-HighFre-Test-Symmetry-Fast';
 
     % -------- Bacterial Body Geometry --------
     cfg.minor_axis = 0.4e-6;              % [m]   Semi-minor axis (body radius)
@@ -51,12 +58,12 @@ else
     %  See parse_pili_config.m for full field documentation.
     %  For a bare body with NO pili, use: pili_config = struct([]);
     pili_config(1).type        = 'linear';
-    pili_config(1).length_um   = 3;
+    pili_config(1).length_um   = 4;
     pili_config(1).deflection_z = pi/2;
     pili_config(1).deflection_x = pi/2;
     pili_config(1).site        = 3;
     pili_config(2).type        = 'linear';
-    pili_config(2).length_um   = 3;
+    pili_config(2).length_um   = 4;
     pili_config(2).deflection_z = pi/2;
     pili_config(2).deflection_x = pi/2;
     pili_config(2).site        = 5;
@@ -71,12 +78,12 @@ else
     % -------- Per-pili: Active Moment --------
     %  Options: struct('type','off')  (default)
     pili_config(1).active_moment = struct('type','traveling_wave', ...
-                  'amplitude_Nm', 2e-19, 'omega_Hz', 50, ...
-                  'wavenumber', 2*pi, 'phase_rad', 0, ... 
+                  'amplitude_Nm', 4e-19, 'omega_Hz', 100, ...
+                  'wavenumber', 4*pi, 'phase_rad', 0, ... 
                   'd1_amp', 1, 'd2_amp', 0, 'd3_amp', 0);
     pili_config(2).active_moment = struct('type','traveling_wave', ...
-                  'amplitude_Nm', 2e-19, 'omega_Hz', 50, ...
-                  'wavenumber', 2*pi, 'phase_rad', pi, ... 
+                  'amplitude_Nm', 4e-19, 'omega_Hz', 100, ...
+                  'wavenumber', 4*pi, 'phase_rad', 0, ... 
                   'd1_amp', 1, 'd2_amp', 0, 'd3_amp', 0);
 
     %  Custom:     struct('type','custom', 'fun', @my_moment_func)
@@ -110,12 +117,12 @@ else
     cfg.rho_fluid = 998.232;             % [kg/m^3] Fluid density
 
     % -------- Simulation Time & Numerics --------
-    cfg.T_obs  = 30.0;                    % [s]   Total observation time
+    cfg.T_obs  = 10.0;                    % [s]   Total observation time
     cfg.AbsTol = 1e-4;                    % ODE absolute tolerance
     cfg.RelTol = 1e-4;                    % ODE relative tolerance
     cfg.delta  = pi / 20;                 % [rad] Euler angle singularity threshold
     cfg.tlim   = 3600;                    % [s]   ODE timeout limit
-    cfg.dt     = 1e-2;                    % [s]   Output time step
+    cfg.dt     = 1e-3;                    % [s]   Output time step
 
     % -------- Brownian Motion --------
     cfg.enable_brown     = false;          % true = enable Brownian motion

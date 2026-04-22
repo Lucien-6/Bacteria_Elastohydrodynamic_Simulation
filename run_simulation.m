@@ -22,6 +22,14 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
+%  Log banner version: 5.5.8 (2026-04-22) — keep in sync with README / CHANGELOG
+%
+%  Path: defensive addpath(project root) so run_simulation(cfg) works when
+%  invoked without main_coupled_simulation.m. Unified policy = this line plus
+%  addpath in main_coupled_simulation; post_processing/ and batch sweep/
+%  retain separate addpath for standalone use.
+
+addpath(fileparts(mfilename('fullpath')));
 
 %% ---- Input parsing ----
 if ischar(cfg_or_path) || isstring(cfg_or_path)
@@ -139,7 +147,7 @@ end
 if exist(output_dir, 'dir')
     existing_files = dir(fullfile(output_dir, '*.*'));
     existing_files = existing_files(~[existing_files.isdir]);
-    data_exts = {'.mat', '.csv', '.png', '.mp4', '.log', '.json', '.txt'};
+    data_exts = {'.mat', '.csv', '.png', '.pdf', '.html', '.mp4', '.log', '.json', '.txt'};
     has_data  = any(cellfun(@(ext) any(endsWith({existing_files.name}, ext)), data_exts));
 
     if has_data
@@ -189,7 +197,7 @@ logf = @(varargin) dual_log(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 5.5.7\n');
+logf('  Version 5.5.8\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -538,10 +546,15 @@ if preview_initial
         return;
     end
 
-    % Save preview figure to disk before closing
-    preview_png = fullfile(output_dir, 'initial_pose.png');
-    exportgraphics(fig_preview, preview_png, 'Resolution', 600);
-    logf('[PREVIEW] Initial pose saved : %s\n', preview_png);
+    % Save preview figure to disk before closing (raster + vector + HTML on R2026a+)
+    preview_png  = fullfile(output_dir, 'initial_pose.png');
+    preview_pdf  = fullfile(output_dir, 'initial_pose.pdf');
+    preview_html = fullfile(output_dir, 'initial_pose.html');
+    export_figure_png_pdf_html(fig_preview, preview_png, preview_pdf, preview_html);
+    logf('[PREVIEW] Initial pose saved : %s  |  %s\n', preview_png, preview_pdf);
+    if isfile(preview_html)
+        logf('[PREVIEW] Interactive HTML : %s\n', preview_html);
+    end
     logf('[PREVIEW] User confirmed. Closing preview and continuing...\n\n');
     close(fig_preview);
 end
@@ -1212,11 +1225,16 @@ for ai = 1:numel(snap_axes)
     add_gravity_indicator_outside(fig_summary, snap_axes(ai), 12, 2.2);
 end
 
-% Save figure
-png_file = fullfile(output_dir, 'summary_plot.png');
-exportgraphics(fig_summary, png_file, 'Resolution', 600);
+% Save figure (raster + vector + HTML on R2026a+)
+png_file  = fullfile(output_dir, 'summary_plot.png');
+pdf_file  = fullfile(output_dir, 'summary_plot.pdf');
+html_file = fullfile(output_dir, 'summary_plot.html');
+export_figure_png_pdf_html(fig_summary, png_file, pdf_file, html_file);
 close(fig_summary);
-logf('[PLOT] Summary figure saved: %s\n', png_file);
+logf('[PLOT] Summary figure saved: %s  |  %s\n', png_file, pdf_file);
+if isfile(html_file)
+    logf('[PLOT] Interactive HTML: %s\n', html_file);
+end
 
 %% =====================================================================
 %  3D ANIMATION (saved to MP4)
@@ -1598,15 +1616,30 @@ logf('    Config : config.json\n');
 if enable_brown
     logf('    Seed   : brownian_rng_seed.txt\n');
 end
-logf('    Plot   : summary_plot.png\n');
+logf('    Plot   : summary_plot.png, summary_plot.pdf');
+if isfile(fullfile(output_dir, 'summary_plot.html'))
+    logf(', summary_plot.html\n');
+else
+    logf('\n');
+end
 if preview_initial
-    logf('    Pose   : initial_pose.png\n');
+    logf('    Pose   : initial_pose.png, initial_pose.pdf');
+    if isfile(fullfile(output_dir, 'initial_pose.html'))
+        logf(', initial_pose.html\n');
+    else
+        logf('\n');
+    end
 end
 if generate_animation
     logf('    Video  : bacteria_3d_motion.mp4\n');
 end
 if compute_flowfield
-    logf('    Flow   : flowfield_panels.png\n');
+    logf('    Flow   : flowfield_panels.png, flowfield_panels.pdf');
+    if isfile(fullfile(output_dir, 'flowfield_panels.html'))
+        logf(', flowfield_panels.html\n');
+    else
+        logf('\n');
+    end
 else
     logf('    Flow   : (skipped)\n');
 end

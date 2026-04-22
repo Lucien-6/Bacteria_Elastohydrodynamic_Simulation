@@ -2,8 +2,8 @@
 
 > **作者**: Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期**: 2026-02-06  
-> **更新日期**: 2026-04-21
-> **版本**: 5.5.7
+> **更新日期**: 2026-04-22
+> **版本**: 5.5.8
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`、`Brownian_Implementation_Plan.md`
 
 ---
@@ -85,7 +85,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 
 #### 输出与可视化
 
-- **多格式输出**：双通道日志、`.mat` 数据、PNG 图像、3D MP4 动画、JSON 配置快照；静态总览与流场 PNG 导出后自动 `close` 图窗，避免大批量仿真堆积窗口（v5.1.1）
+- **多格式输出**：双通道日志、`.mat` 数据、**PNG（600 dpi）+ 矢量 PDF + 可选交互式 HTML（MATLAB R2026a+，`exportgraphics`）**、3D MP4 动画、JSON 配置快照；统一由根目录 **`export_figure_png_pdf_html.m`** 封装；静态总览、初始姿态、流场及后处理批量汇总图均支持三格式；静态图导出后自动 `close` 图窗，避免大批量仿真堆积窗口（v5.1.1）
 - **三维可视化**：参数化光滑胞体表面（半透明，Gouraud 着色）+ 逐纤毛着色折线，含时间梯度
 - **流场可视化**：末状态双平面流场图（XZ + YZ，各含 3D 表面视图与 2D 着色图；速度大小 jet 着色 + 单层深灰归一化方向箭头，无白色衬底；箭头几何尺寸较 v3.3 基准放大 50%；胞体内部遮罩）
 - **动画布局**：三面板 1×3（3D + XZ 投影 + YZ 投影），动态图像尺寸；**v5.3.1 / v5.4.4** 起先探测 `getframe` 的实际物理像素，再在 **3840×2160** 编码器安全框内钳制输出尺寸；若 HiDPI 缩放下抓帧仍偏大，则写入前自动缩放，避免 Windows 上 MPEG-4 因帧过大或帧尺寸不一致而失败
@@ -105,7 +105,7 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 - **参数扫描套件**（`batch sweep/`）：8 个独立扫描脚本分别扫描初始倾斜角（`batch_sweep_alpha`：**无纤毛**胞体）、胞体长半轴（`batch_sweep_major_axis`：**无纤毛**）、纤毛长度（含 `site_list` 附着点）、纤毛杨氏模量、胞体 `N_body`（球体无纤毛）、纤毛 `seg_per_um`、胞体 RSM `**eps_body`**（`batch_sweep_eps_body_RSM`）、`**N_body**` × `**eps_body**` 嵌套标定（`batch_sweep_N_body_eps_RSM`），均采用 headless 无头模式批量调用 `run_simulation()`
 - **JSON 批量运行器**：`batch_run_from_json.m` 自动检索用户指定文件夹内全部 JSON 配置文件并依次执行，单工况失败自动跳过继续，运行结束输出对齐汇总表及批次日志
 - **布朗独立重复批处理**（`batch sweep/batch_repeat_brownian.m`）：同一工况、开启布朗运动时进行多次独立重复；结果保存在 `output/<case_name_base>/001/`、`002/`、…；默认关闭初始姿态预览、强制 `auto_confirm`；`**brown_rng_seed_mode`**：`timestamp` = 每次运行不指定种子，与单次模拟相同采用 `**MMddHHmmss**` 默认（`default` 为向后兼容别名）；`fixed` = `**cfg.brown_rng_seed = rng_seed_base + k**` 可复现批量（v5.2.0）
-- **批量结果后处理**（`post_processing/postprocess_cases.m`）：在父目录下多选含 `timeseries.csv` 的 Case 子文件夹，汇总沉降速度、最大水平位移、轨迹曲折度、MSD 拟合扩散系数等，导出 Excel 汇总表（Windows 下可选 COM 排版）；全英文交互界面
+- **批量结果后处理**（`post_processing/postprocess_cases.m`）：在父目录下多选含 `timeseries.csv` 的 Case 子文件夹，汇总沉降速度、最大水平位移、轨迹曲折度、MSD 拟合扩散系数等，导出 Excel 汇总表及**同主文件名**的批量汇总图（PNG / PDF / 可选 HTML，R2026a+）；Windows 下可选 COM 排版；全英文交互界面
 
 ---
 
@@ -170,9 +170,13 @@ output/MyCase/
 ├── timeseries.csv            % 标量时间序列（10 列，纯文本）
 ├── config.json               % 配置快照（可直接复用以复现运行）
 ├── summary_plot.png          % 静态总览图（600 dpi）
+├── summary_plot.pdf          % 同上，矢量 PDF（exportgraphics）
+├── summary_plot.html         % 同上，交互式 HTML（MATLAB R2026a+，若生成）
 ├── initial_pose.png          % 初始姿态预览图（600 dpi，预览开启时）
+├── initial_pose.pdf / .html  % 初始姿态矢量 / 交互式（规则同上）
 ├── bacteria_3d_motion.mp4    % 3D 运动动画（三面板 1×3，动态尺寸，动画开启时）
 ├── flowfield_panels.png      % 双平面流场 2×2 面板图（600 dpi）
+├── flowfield_panels.pdf / .html  % 流场面板矢量 / 交互式（规则同上）
 ├── brownian_rng_seed.txt     % 布朗开启时：twister 种子一行 + 复现说明（v5.2.0）
 └── simulation.log            % 完整运行日志
 ```
@@ -732,7 +736,7 @@ $$
 - 非空 `case_name` → `output/<case_name>/`
 - 为空 → `output/run_YYYYMMDD_HHMMSS/`
 
-**覆盖保护**（v3.1；v5.5.7 扩展白名单 `.json`/`.txt`）：当输出目录已包含仿真数据文件（`.mat`、`.csv`、`.log`、`.mp4`、`.png`、`.json`、`.txt`）时，弹出三选一对话框：
+**覆盖保护**（v3.1；v5.5.7 扩展 `.json`/`.txt`；**v5.5.8** 再扩展 **`.pdf`/`.html`**）：当输出目录已包含仿真数据文件（`.mat`、`.csv`、`.log`、`.mp4`、`.png`、`.pdf`、`.html`、`.json`、`.txt`）时，弹出三选一对话框：
 
 
 | 选项        | 行为                                                |
@@ -753,14 +757,21 @@ $$
 | `timeseries.csv`                | 纯文本             | 10 列标量时间序列（见下表）                                                                                                     |
 | `config.json`                   | JSON            | 配置参数快照（可直接作为输入复用以精确复现运行）                                                                                            |
 | `summary_plot.png`              | PNG 600 dpi     | 静态总览：CM 轨迹、沉降速度、倾斜角、快照三视图                                                                                           |
+| `summary_plot.pdf`              | PDF 矢量          | 与 `summary_plot.png` 同源（`exportgraphics`，`ContentType=vector`）                                                                  |
+| `summary_plot.html`             | HTML（R2026a+）   | 与上图同内容的交互式 web canvas（若当前版本支持且成功写出）                                                                                    |
 | `initial_pose.png`              | PNG 600 dpi     | 初始姿态预览三视图（`preview_initial = true` 时生成）                                                                             |
+| `initial_pose.pdf` / `.html`    | PDF / HTML      | 初始姿态：矢量 PDF；HTML 同上（R2026a+）                                                                                            |
 | `bacteria_3d_motion.mp4`        | MPEG-4 质量 100   | 3D 动画，三面板 1×3 布局（3D + XZ + YZ 投影），动态图像尺寸（**v5.3.1 / v5.4.4**：先探测物理抓帧尺寸，再在编码器安全框内钳制并在必要时缩放写入），含光滑胞体表面 + 着色纤毛 + CM 轨迹 |
 | `flowfield_panels.png`          | PNG 600 dpi     | 双平面流场 2×2 面板图：XZ + YZ，3D 表面视图 + 2D 着色图；jet 色图 + 单层深灰归一化箭头（v3.3.1 起无白边）                                              |
+| `flowfield_panels.pdf`          | PDF 矢量          | 与流场 PNG 同源                                                                                                               |
+| `flowfield_panels.html`         | HTML（R2026a+）   | 流场面板交互式导出（若支持且写出）                                                                                                        |
 | `simulation.log`                | 纯文本             | 带时间戳的完整双通道运行日志                                                                                                      |
 | `brownian_rng_seed.txt`（v5.2.0） | 纯文本             | 仅 `**enable_brown = true`**：twister 种子整数一行 + 复现说明（与 `config.json` 中 `brownian.rng_seed` 一致）                         |
 
 
-**图形窗口（v5.1.1）**：`summary_plot.png` 与 `flowfield_panels.png` 在写入磁盘后，对应 MATLAB figure 会立即 `close`，避免连续批量调用 `run_simulation` 时堆积可见图窗、拖慢交互与内存占用。动画渲染仍使用不可见图窗并在写完后关闭（既有行为）。
+**图形窗口（v5.1.1）**：`summary_plot` / `flowfield_panels` / `initial_pose` 等 figure 在 **PNG/PDF/HTML** 均写出后会被 `close`，避免连续批量调用 `run_simulation` 时堆积可见图窗。实现上由 **`export_figure_png_pdf_html.m`** 调用 **`exportgraphics`**（HTML 仅在 **R2026a+** 尝试）。仿真日志末尾 *Files saved* 仅在 **`isfile`** 为真时追加 `*.html` 文件名，避免误导。动画渲染仍使用不可见图窗并在写完后关闭（既有行为）。
+
+**路径策略（v5.5.8）**：`main_coupled_simulation.m` 在 `clear` 之后 **`addpath(项目根)`**；`run_simulation.m` 开头**防御性**再 `addpath` 一次，便于不经入口脚本直接调用；`post_processing/` 与 `batch sweep/` **独立入口**仍保留各自 `addpath`（见各文件头注释）。
 
 ### 17.3 results 结构体字段（物理单位）
 
@@ -861,8 +872,9 @@ $$
 ```
 Coupled_Body_Pili/
 │
-├── main_coupled_simulation.m           % 入口脚本：cfg 结构体定义 + 调用 run_simulation
-├── run_simulation.m                    % 仿真引擎：积分循环、布朗积分、后处理、输出
+├── main_coupled_simulation.m           % 入口脚本：cfg 结构体定义 + 调用 run_simulation；addpath(项目根)
+├── run_simulation.m                    % 仿真引擎：积分循环、布朗积分、后处理、输出；入口防御性 addpath(项目根)
+├── export_figure_png_pdf_html.m        % (v5.5.8) exportgraphics：PNG 600 dpi + 矢量 PDF + 可选 HTML（R2026a+）
 │
 ├── load_sim_config.m                   % JSON 配置文件 → cfg 结构体
 ├── save_sim_config.m                   % cfg 结构体 → JSON 配置快照
@@ -948,7 +960,7 @@ Coupled_Body_Pili/
 └── Cortez - 2018 - Regularized stokeslet segments.pdf
 ```
 
-总计：**54 个 `.m` 源文件**（根目录 **40** + `post_processing/` **1** + `batch sweep/` **10** + `_legacy/` **3**）+ **`config_example.json`** + **根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements` / `Brownian_Implementation_Plan`）+ 可选本地 `configs/`（默认被 `.gitignore` 忽略）。`_legacy/` 中 3 个 `_v0` 文件为冻结基线，仅供历史对照，不在默认仿真路径上。v5.5.4–v5.5.5 引入的一次性开发者脚本（`profile_short_run.m` / `compare_profiles.m` / `test_optimization_invariance.m` / `benchmark_direction1.m`）已在验证后从工作树移除（见 `CHANGELOG` [5.5.5] **Removed**）。
+总计：**55 个 `.m` 源文件**（根目录 **41** + `post_processing/` **1** + `batch sweep/` **10** + `_legacy/` **3**）+ **`config_example.json`** + **根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements` / `Brownian_Implementation_Plan`）+ 可选本地 `configs/`（默认被 `.gitignore` 忽略）。`_legacy/` 中 3 个 `_v0` 文件为冻结基线，仅供历史对照，不在默认仿真路径上。v5.5.4–v5.5.5 引入的一次性开发者脚本（`profile_short_run.m` / `compare_profiles.m` / `test_optimization_invariance.m` / `benchmark_direction1.m`）已在验证后从工作树移除（见 `CHANGELOG` [5.5.5] **Removed**）。
 
 ---
 
@@ -1180,6 +1192,7 @@ Coupled_Body_Pili/
 | 75  | **5.5.5**（2026-04-21）：**Direction 1 — `M_weighted` LU 分解复用**（非对称矩阵，非 Cholesky；经实测 `\|\|M-Mᵀ\|\|_F/\|\|M\|\|_F ≈ 0.56`，且 RSM+RSS 混合内核导致矩阵非正定，Cholesky 方案被证否）。`build_coupled_lin_sys.m` 用 `decomposition(M_weighted, 'lu', 'CheckCondition', false)` 一次 LU 同时服务 `AQ_trans = M\Q_trans_corr`（本函数）与 `apply_Ainv_u` 里的背景流场求解（经 `hydro.dM_weighted` 传递），避免每 RHS 调用两次独立的 O(N³) LU；`CheckCondition=false` 关闭 MATLAB 每次求解自动 `rcond` 估计（节省 O(N²)/次）。`ode_coupled_rhs.m::apply_Ainv_u` 优先读 `hydro.dM_weighted`，缺失时回退到 `hydro.M_weighted\` 保持向后兼容。**开发阶段**曾用 `benchmark_direction1.m` 测得（DOFs = 1807）：`bg=off` 中位 **767.5 ms → 731.6 ms (−4.7 %)**；`bg=uniform` 中位 **868.2 ms → 731.7 ms (−15.7 %)**（该基准脚本随后在清理中自工作树移除，数值见 `CHANGELOG`）。等价性：所有 D1 涉及量在 `Z0`/`Zp` 两状态与冻结 `_legacy/ode_coupled_rhs_v0.m` 参照一致；无 API 变更 | 2026-04-21 |
 | 76  | **5.5.6**（2026-04-21）：**布朗模块完善（零数值影响）+ 配置示例微调**。布朗：`validate_simulation_params.m` 新增两条警告（`enable_brown + 纤毛存在 + fixman_midpoint=false` 提示 Itô 漂移项被丢弃；`dt_B > 10% × min(τ_trans, τ_rot)` 的 Stokes-Einstein 球体粗估提示下调 `dt_B`），仅在 `enable_brown=true` 时激活；`compute_effective_body_brownian.m` 插入**只读诊断钩子**——对称化前相对 Frobenius 非对称性 `> 1e-6` 触发 `AsymmetryHigh`，量纲化后 `rcond(M_eff_dim) < 1e-10` 触发 `IllConditioned`；**Step 1→Step 5 数值流程一字不改**，输出签名 `[L_eff, D_eff, M_eff_dim]` 不变。`batch sweep/batch_repeat_brownian.m` seed 模式 `'default' → 'timestamp'`（自解释命名），`'default'` 保留为**静默向后兼容别名**，运行时归一化无警告无 deprecation。`Brownian_Implementation_Plan.md` 新增 §1.5 Scope & Simplifying Assumptions（明确建模范围与未建模项）与 §2.4.1 Stochastic Interpretation & Missing Drift（精确 Itô SDE、漂移遗漏量级、Fixman 中点恢复机理、实务决策矩阵）。配置：`config_example.json` 纤毛杨氏模量 `E = 1.768e7 → 3.279e8`（更硬纤毛，演示用）、`T_obs = 30.0 → 0.5` s（更短演示时长）。无 API 变更，无数值路径改动 | 2026-04-21 |
 | 77  | **5.5.7**（2026-04-21）：**日志/汇报/落盘专项完善（零数值影响）**。`run_simulation.m` `[PARAMS]` 段新增**每根纤毛** `intrinsic_curvature.type` / `active_moment.type`（`traveling_wave` 额外打印 `amplitude_Nm` / `frequency_Hz` / `wavelength`），以及**全局** `background_flow` 三路分支（`off` / `uniform` / `shear_z`，含 `U_max`、`direction`、`shear_axis`、`shear_height_m`）；新增两个本地辅助 `fmt_field_value` / `get_field_default` 做 `'(n/a)'` 容错。`Files saved` 清单补齐 `Config : config.json` 与（仅 `enable_brown=true`）`Seed : brownian_rng_seed.txt`，列宽统一；覆盖探测白名单 `data_exts` 扩充 `.json` / `.txt`；空 `case_name` 分支打印真实 `run-<MMddHHmmss>` 而非占位字符串。`save_sim_config.m` / `load_sim_config.m` **双向持久化** `compute_flowfield`（默认 `true`），解决从 `config.json` 重放时流场开关被静默翻回的配置-行为错配。`batch sweep/` 八个扫描脚本统一引入 `try/catch` 单次隔离 + 带时间戳的 `<script>_summary_<ts>.log`（含脚本名、扫描变量/栅格、每次 run 的 `OK`/`FAILED`/`ABORTED` 状态、墙钟时间、错误信息、最终成功/失败统计与产物路径）；两个 RSM 脚本的 `.mat` 同步保存 `run_status` / `run_walltime` / `run_errmsg`；修复 `batch_sweep_N_body_eps_RSM.m` 行首杂散字符 `d` 导致无法解析的语法错误。`post_processing/postprocess_cases.m` 弃用的 `datestr(now, …)` 两处调用改为 `datetime('now', 'Format', …)`。**无任何物理/ODE/线性系统/布朗内核/时间积分路径改动**；任意 v5.5.7 之前的工况以同参运行得到逐位等价的 `results.mat` 与 `timeseries.csv`，新增内容严格是可观测性与健壮性的扩充 | 2026-04-21 |
+| 78  | **5.5.8**（2026-04-22）：**期刊向导出扩展 + 可选交互式 HTML（零数值影响）**。新增 **`export_figure_png_pdf_html.m`**：`exportgraphics` 统一写出 **PNG（600 dpi）**、**矢量 PDF**、以及在 **MATLAB R2026a+** 下的 **交互式 `.html`**（web canvas）。适用于 `initial_pose`、`summary_plot`、`flowfield_panels` 及 **`postprocess_cases`** 与 Excel **同主文件名**的批量汇总图（2×2 柱状指标面板）。`main_coupled_simulation.m` / `run_simulation.m` 头注释明确路径策略（主入口 + `run_simulation` 防御性 `addpath(项目根)`；后处理与批扫脚本保留独立 `addpath`）。覆盖探测 `data_exts` 含 `.pdf`/`.html`；仿真结束 *Files saved* 与后处理完成信息**仅在 `isfile` 时列出 HTML**。根目录 `.m` 计数 **41**（总计 **55**） | 2026-04-22 |
 
 
 ---
@@ -1235,7 +1248,7 @@ $$
 | `CHANGELOG.md`     | 版本变更记录（Keep a Changelog 风格）                                           |
 | `USER_GUIDE.md`    | 简明用户指南：快速上手、主要输出、`flowfield_panels.png` 与流场参数说明                       |
 | `Brownian_Implementation_Plan.md` | 布朗实现补充：建模范围、Itô 漂移与 `fixman_midpoint`、`validate_simulation_params` / 批处理索引 |
-| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.5.7**，**2026-04-21**）；可选 **S2 Sampling Toolbox**（胞体球帽） |
+| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.5.8**，**2026-04-22**）；**R2026a+** 注记交互式 HTML 导出；可选 **S2 Sampling Toolbox**（胞体球帽） |
 
 
 长篇理论、公式与完整参数表仍以本文件为准。
