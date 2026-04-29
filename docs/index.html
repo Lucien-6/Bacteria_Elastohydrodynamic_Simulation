@@ -99,7 +99,7 @@ tailwind.config = {
 <aside id="sidebar" class="no-print fixed top-0 left-0 h-full w-64 bg-navy-900 text-gray-300 z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 overflow-y-auto">
   <div class="p-6 border-b border-navy-700">
     <h2 class="text-white font-bold text-lg leading-tight">Coupled Body-Pili</h2>
-    <p class="text-xs text-teal-500 mt-1">v5.5.8 &mdash; Documentation</p>
+    <p class="text-xs text-teal-500 mt-1">v6.1.0 &mdash; Documentation</p>
   </div>
   <nav class="p-4 space-y-1 text-sm">
     <a href="#hero"         class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Home</span><span class="zh">首页</span></a>
@@ -140,7 +140,7 @@ tailwind.config = {
 <section id="hero" class="hero-gradient text-white py-24 px-6 md:px-16 lg:px-24">
   <div class="max-w-4xl mx-auto text-center">
     <div class="inline-block bg-teal-600/30 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-3 py-1 rounded-full mb-6 tracking-wide">
-      VERSION 5.5.8 &bull; 2026-04-22
+      VERSION 6.1.0 &bull; 2026-04-29
     </div>
     <h1 class="text-3xl md:text-5xl font-extrabold leading-tight mb-4">
       <span class="en">Coupled Body-Pili<br>Elastohydrodynamic Simulation</span>
@@ -967,8 +967,8 @@ graph TD
       <button onclick="this.nextElementSibling.classList.toggle('open'); this.querySelector('svg').classList.toggle('rotate-180')"
         class="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 dark:hover:bg-navy-800 transition">
         <span class="font-semibold text-sm">
-          <span class="en">Project File Tree (55 <code>.m</code> sources incl. <code>_legacy/</code>)</span>
-          <span class="zh">项目文件树（55 个 <code>.m</code> 源文件，含 <code>_legacy/</code>）</span>
+          <span class="en">Project File Tree (60 <code>.m</code> sources incl. <code>_legacy/</code>)</span>
+          <span class="zh">项目文件树（60 个 <code>.m</code> 源文件，含 <code>_legacy/</code>）</span>
         </span>
         <svg class="w-5 h-5 text-gray-400 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
       </button>
@@ -976,7 +976,7 @@ graph TD
         <pre class="text-xs text-gray-600 dark:text-gray-400 font-mono leading-relaxed whitespace-pre">Coupled_Body_Pili/
 ├── main_coupled_simulation.m        % Entry point
 ├── run_simulation.m                 % Core simulation engine
-├── export_figure_png_pdf_html.m     % Figure export: PNG + PDF + HTML (R2026a+), v5.5.8
+├── export_figure_png_pdf_html.m     % Figure export: PNG + PDF + HTML (R2026a+)
 ├── init_coupled_params.m            % Parameter initialisation
 ├── init_coupled_state.m             % Initial state vector Z0
 ├── ode_coupled_rhs.m                % ODE right-hand side
@@ -993,17 +993,21 @@ graph TD
 ├── adaptive_basis_check.m           % Euler-angle singularity avoidance
 ├── compute_plot_flowfield.m         % Flow field visualisation
 ├── capsule_body_building.m          % Capsule body mesh
+├── custom_body_building.m           % Custom body point cloud (v6.0)
 ├── capsule_sphere_mesh_cache.m      % Ico/Quad mesh cache (v5.5)
 ├── snap_sphere_cap_count.m          % Cap count snap helper
 ├── capsule_sphere_cap_points.m      % Hemisphere cap points
 ├── sphere_particle_sample_cached.m  % ParticleSampleSphere cache (v5.5.1)
 ├── pili_building.m                  % Pili structure initialisation
+├── custom_pili_building.m           % Custom pili centerline (v6.0)
 ├── pili_type_building.m             % Pili shape generation
 ├── pili_directors.m                 % Euler angles → director frame
 ├── pili_euler_angles.m              % Director frame → Euler angles
 ├── pili_spatial_coords.m            % Pili node coordinates
 ├── compute_curvature_binormal.m     % Discrete curvature binormal
 ├── skew_matrix.m                    % 3×3 skew-symmetric matrix
+├── read_geometry_csv_mat.m          % Point cloud file reader (v6.0)
+├── rotation_between_vectors.m       % Rodrigues' rotation (v6.0)
 ├── unpack_state.m                   % Z → body + pili components
 ├── pack_state_rates.m               % Assemble dZ/dt
 ├── quat_kinematics.m                % Quaternion time derivative
@@ -1013,9 +1017,11 @@ graph TD
 ├── load_sim_config.m                % JSON → cfg struct
 ├── save_sim_config.m                % cfg → JSON
 ├── validate_simulation_params.m     % Pre-flight checks
+├── validate_custom_geometry.m       % Custom geometry validation (v6.0)
 ├── render_progress_bar.m            % Console progress bar
 ├── odetpbar.m                       % ODE OutputFcn progress
 ├── config_example.json              % Example JSON (tracked)
+├── config_custom_example.json       % Custom geometry JSON template (v6.0)
 ├── Brownian_Implementation_Plan.md  % Brownian scope & Itô / Fixman notes
 ├── configs/                         % Optional local JSON (gitignored)
 ├── post_processing/
@@ -1516,7 +1522,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
 
 <!-- Footer -->
 <footer class="bg-navy-900 text-gray-500 text-center py-8 text-xs">
-  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v5.5.8 &mdash; 2026-04-22</p>
+  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v6.1.0 &mdash; 2026-04-29</p>
   <p class="mt-1">Built by Lucien &bull; MIT License</p>
 </footer>
 

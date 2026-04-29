@@ -1,8 +1,8 @@
 ﻿# User Guide — Coupled Body-Pili Simulation
 
 > **Author:** Lucien (lucien-6@qq.com)  
-> **Version:** 5.5.8
-> **Updated:** 2026-04-22
+> **Version:** 6.1.0
+> **Updated:** 2026-04-29
 
 This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
 
@@ -30,6 +30,23 @@ This guide is a short entry point. **Full theory, parameters, and file map:** se
 3. Run.
 
 JSON must include the same **top-level sections** the loader expects: `case_name`, `body`, `pili`, `material`, `fluid`, `simulation`, `brownian`, `output`, `flowfield`, and **`background_flow`** (v5.0; use `"type": "off"` to disable). Optional per-pilus fields: **`intrinsic_curvature`**, **`active_moment`**. Optional **`body.eps_body`** for RSM regularisation override. See **`README.md`** §2.2 for the cfg ↔ JSON mapping table.
+
+### Option D — Custom geometry mode (v6.0)
+
+Import arbitrary 3D point clouds for both the body and pili:
+
+1. Copy **`config_custom_example.json`** as a template.
+2. Set `"geometry_mode": "custom"` at the top level.
+3. Under `"custom_geometry"`, specify:
+   - `"body_points_file"`: path to your body point cloud (`.csv`, `.txt`, or `.mat`; N×3 or 3×N).
+   - `"attachment_sites"`: array of `{ "position": [x,y,z], "direction": [dx,dy,dz], "label": "name" }`.
+   - `"pili"`: array of `{ "points_file": "...", "site_index": 1, "deflection_z": 0, "deflection_x": 0 }`.
+4. Set `config_file = 'config_custom_example.json'` in `main_coupled_simulation.m` and run.
+
+**Key constraints:**
+- Custom body and custom pili **must** be used together — mixing with parametric models is not allowed.
+- `alpha_0` and `eps_body` for custom mode are specified under the `custom_geometry` node.
+- The body surface is automatically triangulated (`alphaShape` + `convhulln` fallback) for `trisurf` visualization.
 
 ### Option C — Programmatic / batch
 
@@ -122,7 +139,11 @@ The script computes per-case summaries (e.g. sinking velocity statistics, maximu
 
 **v5.5.8:** **Publication exports + optional interactive HTML (zero numerical impact)** — New **`export_figure_png_pdf_html.m`** saves each exported figure as **PNG** (600 dpi), **PDF** (vector via `exportgraphics`), and on **MATLAB R2026a+** an **interactive `.html`** web canvas (pan/zoom/rotate per MathWorks docs). Applies to `initial_pose`, `summary_plot`, `flowfield_panels`, and the post-process Excel **same-stem** summary figure. **`main_coupled_simulation.m`** and **`run_simulation.m`** document a path policy: project root `addpath` at the main script plus a defensive `addpath` at the start of `run_simulation`; **`post_processing/`** and **`batch sweep/`** keep local `addpath` for standalone runs. Final *Files saved* / post-process completion text lists **`.html` only if the file exists** (`isfile`). Output-dir overwrite detection whitelists **`.pdf`** and **`.html`**. **`postprocess_cases.m`** now also writes the batch summary **`.png`/`.pdf`/optional `.html`** next to the workbook.
 
+**v6.0.0:** **Custom geometry model import** — New `geometry_mode = 'custom'` allows importing arbitrary 3D point clouds for both the bacterial body and its pili, replacing the parameterized capsule/analytic-pili models. Five new functions: `read_geometry_csv_mat.m` (point cloud file reader, `.csv`/`.txt`/`.mat`, auto-detects orientation), `rotation_between_vectors.m` (Rodrigues' rotation formula for vector alignment), `custom_body_building.m` (body point cloud processing: `alphaShape` + `convhulln` auto-triangulation, volume calculation, attachment sites), `custom_pili_building.m` (pili centerline processing: arc length, PCHIP resampling, Rodrigues direction alignment, additional rotations), `validate_custom_geometry.m` (custom geometry configuration validation). Six core functions modified: `init_coupled_params.m` (geometry mode dispatch), `load_sim_config.m`/`save_sim_config.m` (JSON custom node parsing/persistence), `validate_simulation_params.m` (mutual exclusion validation + custom dispatch), `run_simulation.m` (`trisurf` visualization + conditional logging), `main_coupled_simulation.m` (inline custom example). New `config_custom_example.json` template. **Custom body and custom pili must be used together** (no mixing with parametric models; validated at startup). **Parametric mode is fully backward-compatible** — `geometry_mode` defaults to `'parametric'`, existing configurations require no changes.
+
 **v5.5.7:** **Logging, reporting & persistence polish (zero numerical impact)** — `run_simulation.m` enriches the `[PARAMS]` section with per-pilus `intrinsic_curvature.type` / `active_moment.type` (with `traveling_wave` additionally printing `amplitude_Nm`, `frequency_Hz`, `wavelength`) and a global `Background flow` block covering the `off` / `uniform` / `shear_z` branches (with `U_max`, `direction`, `shear_axis`, `shear_height_m` as applicable). The final *Files saved* manifest now explicitly lists `Config : config.json` and — when `enable_brown = true` — `Seed : brownian_rng_seed.txt`, so the summary matches what is actually written to disk. The output-directory overwrite probe's file-type whitelist is extended with `.json` and `.txt`, and the empty-`case_name` branch in the parameters banner now prints the auto-generated `run-<MMddHHmmss>` identifier instead of the placeholder text. `save_sim_config.m` / `load_sim_config.m` now round-trip `output.compute_flowfield` (default `true`) so that reloading a saved config no longer silently re-enables flow-field computation. **All eight sweep drivers under `batch sweep/`** (`batch_sweep_alpha`, `batch_sweep_N_body`, `batch_sweep_major_axis`, `batch_sweep_pili_E`, `batch_sweep_pili_length`, `batch_sweep_seg_per_um`, `batch_sweep_eps_body_RSM`, `batch_sweep_N_body_eps_RSM`) now wrap each `run_simulation` call in `try/catch`, so a single failure no longer aborts the whole sweep, and each produces a persistent `batch sweep/<script>_summary_<YYYYMMDD_HHmmss>.log` with per-run status (`OK` / `FAILED` / `ABORTED`), wall-clock time, and the exception message on failure, plus a footer with elapsed time, success/failure counts, and CSV/MAT paths. The two RSM scripts additionally save `run_status`, `run_walltime`, and `run_errmsg` arrays inside their `.mat` outputs. A stray `d` character at the start of `batch_sweep_N_body_eps_RSM.m` (which previously made the script unparseable) is removed; `post_processing/postprocess_cases.m` replaces two deprecated `datestr(now, …)` calls with `datetime('now', 'Format', …)`. **No physics, ODE right-hand side, linear-system assembly, Brownian kernel, or time-stepping path is touched**, so any pre-5.5.7 case reproduces bit-exact `results.mat` and `timeseries.csv`; the new logs and summary lines are strictly additive.
+
+**v6.1.0:** **Dual-channel logger + default parameter unification** — `run_simulation.m` introduces two logger closures: `logf` (console + file dual-write, file entries carry `[HH:mm:ss]` timestamps; console remains timestamp-free) and `logf_file` (file-only, for high-frequency diagnostics). Logger handles are injected into `params` via `init_coupled_params` and removed before `.mat` serialisation. All `fprintf` / `warning` calls in `init_coupled_params.m`, `init_coupled_state.m`, `build_coupled_lin_sys.m`, `compute_effective_body_brownian.m`, `adaptive_basis_check.m`, and `validate_simulation_params.m` now write to `simulation.log` via `logf_h` (with `warning` retained for MATLAB's alert system). Animation progress is logged to file every 10%. Default parameters unified: `E` → `3.279e8` Pa, `N_body` → 300 (including `config_example.json`); both JSON templates now include `compute_flowfield: true`. **Fully backward-compatible** — all logger handle parameters are optional with safe fallbacks; no physics/ODE/linear-system/Brownian path modified.
 
 Tunable via `cfg`: `flowfield_grid_spacing`, `flowfield_grid_range`, `flowfield_quiver_skip`, `flowfield_chunk_size`.
 

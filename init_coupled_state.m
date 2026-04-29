@@ -1,4 +1,4 @@
-﻿function Z0 = init_coupled_state(params)
+﻿function Z0 = init_coupled_state(params, logf_h)
 %INIT_COUPLED_STATE  Initialise the global state vector Z0
 %
 %  Description:
@@ -10,10 +10,13 @@
 %
 %  Syntax:
 %    Z0 = init_coupled_state(params)
+%    Z0 = init_coupled_state(params, logf_h)
 %
 %  Inputs:
-%    params - Parameter structure (from init_coupled_params)
-%             Must include params.alpha_0 (tilt angle in rad)
+%    params  - Parameter structure (from init_coupled_params)
+%              Must include params.alpha_0 (tilt angle in rad)
+%    logf_h  - (Optional) Logger function handle. If omitted or empty,
+%              falls back to fprintf.
 %
 %  Outputs:
 %    Z0 - [n x 1] Initial global state vector
@@ -27,6 +30,10 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
+
+if nargin < 2 || isempty(logf_h)
+    logf_h = @(varargin) fprintf(varargin{:});
+end
 
 %% Body initial state
 X_cm_0 = [0; 0; 0];
@@ -109,6 +116,7 @@ for k = 1:M
     X_orig_lab = (R_body * params.pili_x0{k}')';
     max_err = max(abs(X_recon - X_orig_lab), [], 'all');
     if max_err > 1e-6
+        logf_h('[INIT] WARNING: Pili %d reconstruction error: %.2e (should be < 1e-6)\n', k, max_err);
         warning('init_coupled_state:GeometryMismatch', ...
             'Pili %d reconstruction error: %.2e (should be < 1e-6)', k, max_err);
     end
@@ -127,13 +135,14 @@ for k = 1:M
 
     dir_err = max(abs(D_basis_expected - D_basis_actual), [], 'all');
     if dir_err > 1e-10
+        logf_h('[INIT] WARNING: Pili %d first-segment director error: %.2e (should be < 1e-10)\n', k, dir_err);
         warning('init_coupled_state:DirectorMismatch', ...
             'Pili %d first-segment director error: %.2e (should be < 1e-10)', k, dir_err);
     end
 end
 
-fprintf('Initial state vector created: %d DOFs\n', n_total);
-fprintf('  Body tilt: alpha_0 = %.4f rad (%.1f deg), q_0 = [%.4f; %.4f; %.4f; %.4f]\n', ...
+logf_h('Initial state vector created: %d DOFs\n', n_total);
+logf_h('  Body tilt: alpha_0 = %.4f rad (%.1f deg), q_0 = [%.4f; %.4f; %.4f; %.4f]\n', ...
     alpha_0, rad2deg(alpha_0), q_0(1), q_0(2), q_0(3), q_0(4));
 
 end

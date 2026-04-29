@@ -17,54 +17,70 @@
 %  Created: 2026-03-17
 
 %% Build nested structure matching config_example.json layout
-j.case_name = cfg.case_name;
+j.case_name    = cfg.case_name;
+j.geometry_mode = cfg.geometry_mode;
 
-j.body.minor_axis = cfg.minor_axis;
-j.body.major_axis = cfg.major_axis;
-j.body.N_body     = cfg.N_body;
-j.body.alpha_0    = cfg.alpha_0;
-if isfield(cfg, 'eps_body') && ~isempty(cfg.eps_body)
-    j.body.eps_body = cfg.eps_body;
-end
-
-% Pili: convert [8 x M] matrix back to struct array
-M = size(cfg.Pili_Matrix, 2);
-type_names = {'linear', 'parabolic', 'circular', 'sinusoidal', 'spiral'};
-pili_arr = [];
-for k = 1:M
-    p_entry.type        = type_names{cfg.Pili_Matrix(1, k)};
-    p_entry.length_um   = cfg.Pili_Matrix(2, k);
-    p_entry.deflection_z = cfg.Pili_Matrix(3, k);
-    p_entry.deflection_x = cfg.Pili_Matrix(4, k);
-    sp = cfg.Pili_Matrix(5:7, k)';
-    sp(isnan(sp)) = [];
-    if isempty(sp)
-        p_entry.shape_params = [];
-    else
-        p_entry.shape_params = sp;
-    end
-    p_entry.site        = cfg.Pili_Matrix(8, k);
-
-    % Extended per-pili fields
-    if isfield(cfg, 'pili_ext') && k <= numel(cfg.pili_ext)
-        p_entry.intrinsic_curvature = cfg.pili_ext(k).intrinsic_curvature;
-        am_val = cfg.pili_ext(k).active_moment;
-        if isstruct(am_val) && isfield(am_val, 'fun')
-            am_val = rmfield(am_val, 'fun');
+switch cfg.geometry_mode
+    case 'custom'
+        % --- Custom geometry mode ---
+        j.custom_geometry = cfg.custom_geometry;
+        if isfield(cfg, 'alpha_0')
+            j.custom_geometry.alpha_0 = cfg.alpha_0;
         end
-        p_entry.active_moment = am_val;
-    end
+        if isfield(cfg, 'eps_body') && ~isempty(cfg.eps_body)
+            j.custom_geometry.eps_body = cfg.eps_body;
+        end
+        j.pili = [];
 
-    if isempty(pili_arr)
-        pili_arr = p_entry;
-    else
-        pili_arr(end+1) = p_entry; %#ok<AGROW>
-    end
-end
-if isempty(pili_arr)
-    j.pili = [];
-else
-    j.pili = pili_arr;
+    otherwise
+        % --- Parametric mode ---
+        j.body.minor_axis = cfg.minor_axis;
+        j.body.major_axis = cfg.major_axis;
+        j.body.N_body     = cfg.N_body;
+        j.body.alpha_0    = cfg.alpha_0;
+        if isfield(cfg, 'eps_body') && ~isempty(cfg.eps_body)
+            j.body.eps_body = cfg.eps_body;
+        end
+
+        % Pili: convert [8 x M] matrix back to struct array
+        M = size(cfg.Pili_Matrix, 2);
+        type_names = {'linear', 'parabolic', 'circular', 'sinusoidal', 'spiral'};
+        pili_arr = [];
+        for k = 1:M
+            p_entry.type        = type_names{cfg.Pili_Matrix(1, k)};
+            p_entry.length_um   = cfg.Pili_Matrix(2, k);
+            p_entry.deflection_z = cfg.Pili_Matrix(3, k);
+            p_entry.deflection_x = cfg.Pili_Matrix(4, k);
+            sp = cfg.Pili_Matrix(5:7, k)';
+            sp(isnan(sp)) = [];
+            if isempty(sp)
+                p_entry.shape_params = [];
+            else
+                p_entry.shape_params = sp;
+            end
+            p_entry.site        = cfg.Pili_Matrix(8, k);
+
+            % Extended per-pili fields
+            if isfield(cfg, 'pili_ext') && k <= numel(cfg.pili_ext)
+                p_entry.intrinsic_curvature = cfg.pili_ext(k).intrinsic_curvature;
+                am_val = cfg.pili_ext(k).active_moment;
+                if isstruct(am_val) && isfield(am_val, 'fun')
+                    am_val = rmfield(am_val, 'fun');
+                end
+                p_entry.active_moment = am_val;
+            end
+
+            if isempty(pili_arr)
+                pili_arr = p_entry;
+            else
+                pili_arr(end+1) = p_entry; %#ok<AGROW>
+            end
+        end
+        if isempty(pili_arr)
+            j.pili = [];
+        else
+            j.pili = pili_arr;
+        end
 end
 
 j.material.E       = cfg.E;

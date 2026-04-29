@@ -2,9 +2,9 @@
 
 > **作者**: Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期**: 2026-02-06  
-> **更新日期**: 2026-04-22
-> **版本**: 5.5.8
-> **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`、`Brownian_Implementation_Plan.md`
+> **更新日期**: 2026-04-29
+> **版本**: 6.1.0
+> **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`、`Brownian_Implementation_Plan.md`、`config_custom_example.json`
 
 ---
 
@@ -59,8 +59,10 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 #### 物理建模
 
 - **刚体胞体**：胶囊几何体（半球端盖 + 圆柱中段），四元数参数化姿态（无万向锁）
+- **自定义胞体几何（v6.0）**：`geometry_mode = 'custom'` 模式下支持导入任意 3D 点云作为胞体表面，自动三角化（`alphaShape` + `convhulln` 回退）并计算体积，`h_mean` 自动推导 RSM 正则化参数；支持用户定义附着位点（位置 + 方向 + 标签）；自定义胞体与自定义纤毛必须配套使用（不允许与参数化模型混用）
 - **胞体表面布点（v5.5）**：球帽在 MATLAB **S2 Sampling Toolbox**（Anton Semechko；File Exchange / Add-On）上生成——按面积权重得到目标帽点数后，若与 Ico/Quad 细分网格原生顶点数相差不超过 5，则将帽点数 **对齐到最近一档原生顶点数**；否则 **`N_\text{cap}<1000`** 时默认 **`ParticleSampleSphere`**，**`≥1000`** 时 **`SpiralSampleSphere`**；细分档位 **`k=0…4`** 的顶点数由 **`SubdivideSphericalMesh`** **实测**（`capsule_sphere_mesh_cache.m`），不依赖闭式公式。赤道 **`x=0`**（双精度严格为 0）上的点在平移前 **复制一份**，使左右半球帽各保留一圈。**圆柱中段**仍为轴向分圈 × 周向等角的规则格点；**v5.5.2** 起周向每圈点数 **`TN`** 在面积启发式估计后按 **`TN = max(round(TN/4)*4, 4)`** 对齐为 **4 的倍数**。**`ParticleSampleSphere` 设置（v5.5.1）**：采用工具箱默认容差（`Etol=1e-5`、`Dtol=1e-4`°、`Nitr=1e4`）；初始位置由 `SpiralSampleSphere(N, false)` 确定性生成，无随机初值依赖；`100 < SPN < 1000` 时结果经 `sphere_particle_sample_cached.m` 读写磁盘缓存（`cache/sphere_particle/spherical_points_NXXXX.mat`），避免重复迭代优化。仍与 Cortez 型 RSM「全局 **ε**」离散假设兼容
 - **弹性纤毛**：Kirchhoff 不可伸长弹性杆 + Euler 角参数化（Walker 2020）
+- **自定义纤毛几何（v6.0）**：`custom` 模式下支持导入任意 3D 中心线点云作为纤毛初始形态；自动弧长计算 + PCHIP 重采样至目标段密度；通过 Rodrigues 旋转（`rotation_between_vectors`）将纤毛根部切线对齐到附着位点方向，再施加可选 `deflection_z`/`deflection_x` 附加旋转
 - **内禀曲率**：per-pili 可配置静态固有曲率（`frozen`/`zero`/`constant`/`helix`）
 - **主动力矩**：per-pili 时变内部主动力矩（`off`/`traveling_wave`/`custom`），支持纤毛/鞭毛主动摆动模拟
 - **背景流场**：全局静态背景流（`off`/`uniform`/`shear_z`），与无量纲化方案自动兼容
@@ -86,12 +88,13 @@ RSS（Regularized Stokeslet Segments，正则化 Stokeslet 线段法）对正则
 #### 输出与可视化
 
 - **多格式输出**：双通道日志、`.mat` 数据、**PNG（600 dpi）+ 矢量 PDF + 可选交互式 HTML（MATLAB R2026a+，`exportgraphics`）**、3D MP4 动画、JSON 配置快照；统一由根目录 **`export_figure_png_pdf_html.m`** 封装；静态总览、初始姿态、流场及后处理批量汇总图均支持三格式；静态图导出后自动 `close` 图窗，避免大批量仿真堆积窗口（v5.1.1）
-- **三维可视化**：参数化光滑胞体表面（半透明，Gouraud 着色）+ 逐纤毛着色折线，含时间梯度
+- **三维可视化**：参数化光滑胞体表面（半透明，Gouraud 着色）+ 逐纤毛着色折线，含时间梯度；自定义几何胞体使用 `trisurf` 渲染自动三角化表面
 - **流场可视化**：末状态双平面流场图（XZ + YZ，各含 3D 表面视图与 2D 着色图；速度大小 jet 着色 + 单层深灰归一化方向箭头，无白色衬底；箭头几何尺寸较 v3.3 基准放大 50%；胞体内部遮罩）
 - **动画布局**：三面板 1×3（3D + XZ 投影 + YZ 投影），动态图像尺寸；**v5.3.1 / v5.4.4** 起先探测 `getframe` 的实际物理像素，再在 **3840×2160** 编码器安全框内钳制输出尺寸；若 HiDPI 缩放下抓帧仍偏大，则写入前自动缩放，避免 Windows 上 MPEG-4 因帧过大或帧尺寸不一致而失败
 
 #### 配置与工程
 
+- **几何模式切换（v6.0）**：`geometry_mode = 'parametric'`（默认，胶囊体 + 解析纤毛）或 `'custom'`（导入任意 3D 点云体 + 纤毛）；两种模式互斥，`validate_simulation_params.m` 启动时强制校验
 - **外部配置**：支持 JSON 配置文件，运行时自动保存配置快照至输出目录（可追溯复现）
 - **参数验证**：启动前自动执行参数合理性预检（错误聚合 + 警告分级）
 - **函数化封装**：`run_simulation()` 将全部仿真逻辑封装为可编程调用的函数
@@ -141,8 +144,9 @@ config_file = 'configs/my_case.json';    % 指向 JSON 配置文件
 
 **JSON 与程序架构（`load_sim_config.m` / `save_sim_config.m`）**
 
-- **顶层节**：`case_name`，`body`，`pili`（纤毛结构体数组或原始 `[8×M]` 矩阵），`material`，`fluid`，`simulation`，`brownian`，`output`，`flowfield`，`background_flow`（v5.0）。
-- `**body`**：`minor_axis`，`major_axis`，`N_body`，`alpha_0`；可选 `**eps_body**`（无量纲 RSM 胞体正则化长度 $`\varepsilon/L_0`$，覆盖 `init_coupled_params` 默认 `h_mean/2.6667`）。
+- **顶层节**：`case_name`，`geometry_mode`（v6.0：`'parametric'` 默认或 `'custom'`），`body`，`pili`（纤毛结构体数组或原始 `[8×M]` 矩阵），`material`，`fluid`，`simulation`，`brownian`，`output`，`flowfield`，`background_flow`（v5.0）。
+- `**body`**（仅 parametric 模式）：`minor_axis`，`major_axis`，`N_body`，`alpha_0`；可选 `**eps_body**`（无量纲 RSM 胞体正则化长度 $`\varepsilon/L_0`$，覆盖 `init_coupled_params` 默认 `h_mean/2.6667`）。
+- `**custom_geometry`**（仅 custom 模式）：`body_points_file`（胞体点云文件路径，支持 `.csv`/`.txt`/`.mat`），`L_0_override`（可选特征长度覆盖 [m]），`alpha_0`（初始倾斜角），`eps_body`（可选 RSM 正则化覆盖），`attachment_sites`（附着位点数组，每项含 `position` [m]、`direction` [方向向量]、`label` [字符串]），`pili`（纤毛数组，每项含 `points_file`、`site_index`、`deflection_z`/`deflection_x`）。详见 `config_custom_example.json`。
 - `**pili[]**`：每根纤毛至少含 `type`，`length_um`，`site`；可选 `deflection_z`，`deflection_x`，`shape_params`；v5.0 可选 `**intrinsic_curvature**`（字符串或对象）、`**active_moment**`（对象；`traveling_wave` 时含 `amplitude_Nm`，`omega_Hz`，`wavenumber`，可选 `phase_rad`，`d1_amp` / `d2_amp` / `d3_amp` 等；与 `init_coupled_params` 一致）。
 - `**simulation**`：`T_obs`，`AbsTol`，`RelTol`，`delta_frac`（内部得到 `cfg.delta = π/delta_frac`），`tlim`，`dt`，`seg_per_um`。
 - `**brownian**`：`enable` → `cfg.enable_brown`，`temperature` → `cfg.Temper`，`dt_B_ratio` → `cfg.dt_B = dt * dt_B_ratio`，`fixman_midpoint`；可选 `**rng_seed**` → `cfg.brown_rng_seed`（v5.2.0：正整数固定 twister 种子；省略或非正则用运行时刻 `**MMddHHmmss**` 整数默认种子）。
@@ -880,6 +884,7 @@ Coupled_Body_Pili/
 ├── save_sim_config.m                   % cfg 结构体 → JSON 配置快照
 ├── parse_pili_config.m                 % 纤毛命名结构体 → Pili_Matrix [8×M]
 ├── validate_simulation_params.m        % 参数合理性预检（错误聚合 + 警告分级）
+├── validate_custom_geometry.m          % (v6.0) 自定义几何配置校验（文件/附着位点/纤毛索引）
 │
 ├── init_coupled_params.m               % 参数初始化（无量纲化、几何、布朗参数）
 ├── init_coupled_state.m                % 初始状态向量 Z0
@@ -901,12 +906,14 @@ Coupled_Body_Pili/
 ├── coupled_active_moment.m             % (v5.0) Per-pili 时变主动力矩（off/traveling_wave/custom）
 │
 ├── capsule_body_building.m             % 胶囊/球体表面网格（球帽：S2 工具箱 + 对齐策略；柱面：规则格点）
+├── custom_body_building.m              % (v6.0) 自定义胞体点云处理：读取、三角化、体积计算、附着位点
 ├── capsule_sphere_mesh_cache.m         % Ico/Quad 细分球面缓存与原生顶点数（工具箱实测）
 ├── snap_sphere_cap_count.m             % 帽点数与 Ico/Quad 原生 N 在 ±5 内对齐
 ├── capsule_sphere_cap_points.m         % 单位球帽布点（网格全长 / Particle / Spiral）
 ├── sphere_particle_sample_cached.m     % (v5.5.1) ParticleSampleSphere 磁盘缓存（100 < N < 1000）
 │
 ├── pili_building.m                     % 纤毛结构初始化（刚度、曲率）
+├── custom_pili_building.m              % (v6.0) 自定义纤毛中心线处理：弧长、PCHIP 重采样、方向对齐
 ├── pili_type_building.m                % 纤毛形态生成（5 种类型）
 ├── compute_curvature_binormal.m        % 离散弹性杆曲率副法线 (Bergou 2008)
 │
@@ -914,6 +921,8 @@ Coupled_Body_Pili/
 ├── quat_multiply.m                     % Hamilton 四元数乘法
 ├── quat_kinematics.m                   % dq/dt = ½[0;Ω]⊗q
 ├── skew_matrix.m                       % 3×3 反对称叉积矩阵
+├── read_geometry_csv_mat.m             % (v6.0) 3D 点云文件读取（.csv/.txt/.mat，自动检测方向）
+├── rotation_between_vectors.m          % (v6.0) Rodrigues 旋转公式：向量对齐旋转矩阵
 │
 ├── pili_directors.m                    % Euler 角 → 标架 (d1, d2, d3)
 ├── pili_euler_angles.m                 % 标架 → Euler 角（逆运算）
@@ -946,6 +955,7 @@ Coupled_Body_Pili/
 │   └── …                               % 例如将 config_example.json 复制为 configs/my_case.json 再设 config_file
 │
 ├── config_example.json                 % 仓库内 JSON 配置模板（与 load/save_sim_config 对齐）
+├── config_custom_example.json          % (v6.0) 自定义几何 JSON 配置模板（custom_geometry 节）
 ├── Brownian_Implementation_Plan.md     % 布朗实现补充说明（范围、Itô 漂移与 Fixman、相关源码索引）
 │
 ├── _legacy/                            % (v5.5.4+) 冻结基线（仅供数值等价回归，不在运行路径上）
@@ -960,7 +970,7 @@ Coupled_Body_Pili/
 └── Cortez - 2018 - Regularized stokeslet segments.pdf
 ```
 
-总计：**55 个 `.m` 源文件**（根目录 **41** + `post_processing/` **1** + `batch sweep/` **10** + `_legacy/` **3**）+ **`config_example.json`** + **根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements` / `Brownian_Implementation_Plan`）+ 可选本地 `configs/`（默认被 `.gitignore` 忽略）。`_legacy/` 中 3 个 `_v0` 文件为冻结基线，仅供历史对照，不在默认仿真路径上。v5.5.4–v5.5.5 引入的一次性开发者脚本（`profile_short_run.m` / `compare_profiles.m` / `test_optimization_invariance.m` / `benchmark_direction1.m`）已在验证后从工作树移除（见 `CHANGELOG` [5.5.5] **Removed**）。
+总计：**60 个 `.m` 源文件**（根目录 **46** + `post_processing/` **1** + `batch sweep/` **10** + `_legacy/` **3**）+ **`config_example.json`** + **`config_custom_example.json`** + **根目录文档**（`README` / `CHANGELOG` / `USER_GUIDE` / `requirements` / `Brownian_Implementation_Plan`）+ 可选本地 `configs/`（默认被 `.gitignore` 忽略）。`_legacy/` 中 3 个 `_v0` 文件为冻结基线，仅供历史对照，不在默认仿真路径上。v5.5.4–v5.5.5 引入的一次性开发者脚本（`profile_short_run.m` / `compare_profiles.m` / `test_optimization_invariance.m` / `benchmark_direction1.m`）已在验证后从工作树移除（见 `CHANGELOG` [5.5.5] **Removed**）。
 
 ---
 
@@ -1193,6 +1203,8 @@ Coupled_Body_Pili/
 | 76  | **5.5.6**（2026-04-21）：**布朗模块完善（零数值影响）+ 配置示例微调**。布朗：`validate_simulation_params.m` 新增两条警告（`enable_brown + 纤毛存在 + fixman_midpoint=false` 提示 Itô 漂移项被丢弃；`dt_B > 10% × min(τ_trans, τ_rot)` 的 Stokes-Einstein 球体粗估提示下调 `dt_B`），仅在 `enable_brown=true` 时激活；`compute_effective_body_brownian.m` 插入**只读诊断钩子**——对称化前相对 Frobenius 非对称性 `> 1e-6` 触发 `AsymmetryHigh`，量纲化后 `rcond(M_eff_dim) < 1e-10` 触发 `IllConditioned`；**Step 1→Step 5 数值流程一字不改**，输出签名 `[L_eff, D_eff, M_eff_dim]` 不变。`batch sweep/batch_repeat_brownian.m` seed 模式 `'default' → 'timestamp'`（自解释命名），`'default'` 保留为**静默向后兼容别名**，运行时归一化无警告无 deprecation。`Brownian_Implementation_Plan.md` 新增 §1.5 Scope & Simplifying Assumptions（明确建模范围与未建模项）与 §2.4.1 Stochastic Interpretation & Missing Drift（精确 Itô SDE、漂移遗漏量级、Fixman 中点恢复机理、实务决策矩阵）。配置：`config_example.json` 纤毛杨氏模量 `E = 1.768e7 → 3.279e8`（更硬纤毛，演示用）、`T_obs = 30.0 → 0.5` s（更短演示时长）。无 API 变更，无数值路径改动 | 2026-04-21 |
 | 77  | **5.5.7**（2026-04-21）：**日志/汇报/落盘专项完善（零数值影响）**。`run_simulation.m` `[PARAMS]` 段新增**每根纤毛** `intrinsic_curvature.type` / `active_moment.type`（`traveling_wave` 额外打印 `amplitude_Nm` / `frequency_Hz` / `wavelength`），以及**全局** `background_flow` 三路分支（`off` / `uniform` / `shear_z`，含 `U_max`、`direction`、`shear_axis`、`shear_height_m`）；新增两个本地辅助 `fmt_field_value` / `get_field_default` 做 `'(n/a)'` 容错。`Files saved` 清单补齐 `Config : config.json` 与（仅 `enable_brown=true`）`Seed : brownian_rng_seed.txt`，列宽统一；覆盖探测白名单 `data_exts` 扩充 `.json` / `.txt`；空 `case_name` 分支打印真实 `run-<MMddHHmmss>` 而非占位字符串。`save_sim_config.m` / `load_sim_config.m` **双向持久化** `compute_flowfield`（默认 `true`），解决从 `config.json` 重放时流场开关被静默翻回的配置-行为错配。`batch sweep/` 八个扫描脚本统一引入 `try/catch` 单次隔离 + 带时间戳的 `<script>_summary_<ts>.log`（含脚本名、扫描变量/栅格、每次 run 的 `OK`/`FAILED`/`ABORTED` 状态、墙钟时间、错误信息、最终成功/失败统计与产物路径）；两个 RSM 脚本的 `.mat` 同步保存 `run_status` / `run_walltime` / `run_errmsg`；修复 `batch_sweep_N_body_eps_RSM.m` 行首杂散字符 `d` 导致无法解析的语法错误。`post_processing/postprocess_cases.m` 弃用的 `datestr(now, …)` 两处调用改为 `datetime('now', 'Format', …)`。**无任何物理/ODE/线性系统/布朗内核/时间积分路径改动**；任意 v5.5.7 之前的工况以同参运行得到逐位等价的 `results.mat` 与 `timeseries.csv`，新增内容严格是可观测性与健壮性的扩充 | 2026-04-21 |
 | 78  | **5.5.8**（2026-04-22）：**期刊向导出扩展 + 可选交互式 HTML（零数值影响）**。新增 **`export_figure_png_pdf_html.m`**：`exportgraphics` 统一写出 **PNG（600 dpi）**、**矢量 PDF**、以及在 **MATLAB R2026a+** 下的 **交互式 `.html`**（web canvas）。适用于 `initial_pose`、`summary_plot`、`flowfield_panels` 及 **`postprocess_cases`** 与 Excel **同主文件名**的批量汇总图（2×2 柱状指标面板）。`main_coupled_simulation.m` / `run_simulation.m` 头注释明确路径策略（主入口 + `run_simulation` 防御性 `addpath(项目根)`；后处理与批扫脚本保留独立 `addpath`）。覆盖探测 `data_exts` 含 `.pdf`/`.html`；仿真结束 *Files saved* 与后处理完成信息**仅在 `isfile` 时列出 HTML**。根目录 `.m` 计数 **41**（总计 **55**） | 2026-04-22 |
+| 79  | **6.0.0**（2026-04-29）：**自定义几何模型导入**。新增 `geometry_mode = 'custom'`：用户可导入任意 3D 点云作为胞体和纤毛几何，替代参数化胶囊/解析纤毛模型；自定义胞体与自定义纤毛**必须配套使用**（启动时校验，不允许混用）。新增 5 个函数：`read_geometry_csv_mat.m`（点云文件读取，支持 `.csv`/`.txt`/`.mat`，自动检测矩阵方向）、`rotation_between_vectors.m`（Rodrigues 旋转公式，向量对齐）、`custom_body_building.m`（胞体点云处理：`alphaShape` + `convhulln` 自动三角化、体积计算、附着位点）、`custom_pili_building.m`（纤毛中心线处理：弧长计算、PCHIP 重采样、Rodrigues 方向对齐、附加旋转）、`validate_custom_geometry.m`（自定义几何配置校验）。修改 6 个核心函数：`init_coupled_params.m`（`geometry_mode` 分发调度）、`load_sim_config.m` / `save_sim_config.m`（JSON 解析/持久化 custom 节）、`validate_simulation_params.m`（互斥校验 + custom 验证分发）、`run_simulation.m`（`trisurf` 可视化 + 条件日志）、`main_coupled_simulation.m`（内联 custom 示例）。新增 `config_custom_example.json` 配置模板。**参数化模式完全向后兼容**，`geometry_mode` 默认 `'parametric'`，现有工况无需任何修改 | 2026-04-29 |
+| 80  | **6.1.0**（2026-04-29）：**双通道日志系统 + 默认参数统一**。`run_simulation.m` 新增双通道日志器：`logf`（控制台+文件双写，文件条目含 `[HH:mm:ss]` 时间戳）与 `logf_file`（仅文件，高频诊断用）；日志句柄通过 `init_coupled_params` 注入 `params` 传递至子函数，保存 `.mat` 前 `rmfield` 移除不可序列化的函数句柄。`init_coupled_params.m`、`init_coupled_state.m`、`build_coupled_lin_sys.m`、`compute_effective_body_brownian.m`、`adaptive_basis_check.m`、`validate_simulation_params.m` 中所有 `fprintf` / `warning` 替换为 `logf_h` + 保留 `warning`，确保诊断信息完整写入 `simulation.log`；动画渲染进度每 10% 写入日志文件。默认参数统一：`E` 全局统一为 `3.279e8` Pa，`N_body` 全局统一为 300（含 `config_example.json`）；两个 JSON 模板补齐 `compute_flowfield: true`。**完全向后兼容**——所有日志句柄参数均可选，独立调用子函数时静默回退至 `fprintf` / no-op；无任何物理/ODE/线性系统/布朗内核/时间积分路径改动 | 2026-04-29 |
 
 
 ---
@@ -1248,7 +1260,7 @@ $$
 | `CHANGELOG.md`     | 版本变更记录（Keep a Changelog 风格）                                           |
 | `USER_GUIDE.md`    | 简明用户指南：快速上手、主要输出、`flowfield_panels.png` 与流场参数说明                       |
 | `Brownian_Implementation_Plan.md` | 布朗实现补充：建模范围、Itô 漂移与 `fixman_midpoint`、`validate_simulation_params` / 批处理索引 |
-| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**5.5.8**，**2026-04-22**）；**R2026a+** 注记交互式 HTML 导出；可选 **S2 Sampling Toolbox**（胞体球帽） |
+| `requirements.txt` | 运行环境说明（MATLAB 工程；无 Python/pip 依赖）；标注发布版本与日期（**6.1.0**，**2026-04-29**）；**R2026a+** 注记交互式 HTML 导出；可选 **S2 Sampling Toolbox**（胞体球帽） |
 
 
 长篇理论、公式与完整参数表仍以本文件为准。

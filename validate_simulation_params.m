@@ -1,4 +1,4 @@
-function validate_simulation_params(cfg)
+function validate_simulation_params(cfg, logf_h)
 %VALIDATE_SIMULATION_PARAMS  Pre-flight parameter sanity checks
 %
 %  Description:
@@ -10,21 +10,182 @@ function validate_simulation_params(cfg)
 %
 %  Syntax:
 %    validate_simulation_params(cfg)
+%    validate_simulation_params(cfg, logf_h)
 %
 %  Input:
-%    cfg - struct with fields matching user-configurable parameters:
+%    cfg    - struct with fields matching user-configurable parameters:
 %      T_obs, dt, minor_axis, major_axis, N_body, seg_per_um,
 %      Pili_Matrix, E, r_pili, mu, rho_bac, rho_fluid,
 %      AbsTol, RelTol, tlim, enable_brown, dt_B, Temper,
 %      animation_fps, sigma_p, fixman_midpoint
+%    logf_h - (Optional) Logger function handle for dual-channel output.
+%             If omitted or empty, falls back to warning-only.
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
 
+if nargin < 2 || isempty(logf_h)
+    logf_h = @(varargin) [];   % no-op fallback
+end
+
 errs  = {};
 warns = {};
 
-%% ---- Critical errors ----
+%% ---- Geometry mode dispatch ----
+geometry_mode = 'parametric';
+if isfield(cfg, 'geometry_mode')
+    geometry_mode = cfg.geometry_mode;
+end
+
+if strcmp(geometry_mode, 'custom')
+    %% ---- Custom geometry validation ----
+    if ~isfield(cfg, 'custom_geometry') || isempty(cfg.custom_geometry)
+        errs{end+1} = 'geometry_mode is ''custom'' but custom_geometry is not provided.';
+    else
+        [errs, warns] = validate_custom_geometry(cfg.custom_geometry, errs, warns);
+    end
+
+    % Enforce no-mixing: parametric-specific fields must NOT be set
+    if isfield(cfg, 'minor_axis') && isnumeric(cfg.minor_axis) && ~isnan(cfg.minor_axis) && cfg.minor_axis > 0
+        errs{end+1} = ['geometry_mode is ''custom'' but minor_axis is set. ', ...
+                        'Parametric body parameters must not be used in custom mode.'];
+    end
+    if isfield(cfg, 'major_axis') && isnumeric(cfg.major_axis) && ~isnan(cfg.major_axis) && cfg.major_axis > 0
+        errs{end+1} = ['geometry_mode is ''custom'' but major_axis is set. ', ...
+                        'Parametric body parameters must not be used in custom mode.'];
+    end
+    if isfield(cfg, 'N_body') && isnumeric(cfg.N_body) && ~isnan(cfg.N_body) && cfg.N_body > 0
+        errs{end+1} = ['geometry_mode is ''custom'' but N_body is set. ', ...
+                        'Parametric body parameters must not be used in custom mode.'];
+    end
+    if isfield(cfg, 'Pili_Matrix') && ~isempty(cfg.Pili_Matrix) && any(cfg.Pili_Matrix(:) ~= 0)
+        errs{end+1} = ['geometry_mode is ''custom'' but Pili_Matrix is non-empty. ', ...
+                        'Parametric pili parameters must not be used in custom mode.'];
+    end
+
+else
+    %% ---- Parametric mode validation (existing checks) ----
+
+    % Body geometry
+    if cfg.minor_axis <= 0
+        errs{end+1} = 'minor_axis must be > 0.';
+    end
+    if cfg.major_axis <= 0
+        errs{end+1} = 'major_axis must be > 0.';
+    elseif cfg.major_axis < cfg.minor_axis
+        errs{end+1} = sprintf('major_axis (%.2e) must be >= minor_axis (%.2e).', ...
+            cfg.major_axis, cfg.minor_axis);
+    end
+    if cfg.N_body < 10
+        errs{end+1} = sprintf('N_body = %d is too small for capsule geometry (minimum 10).', ...
+            cfg.N_body);
+    end
+
+    % Pili matrix (only if non-empty)
+    PM = cfg.Pili_Matrix;
+    if ~isempty(PM)
+        if size(PM, 1) ~= 8
+            errs{end+1} = sprintf('Pili_Matrix must have exactly 8 rows, got %d.', size(PM, 1));
+        else
+            for kk = 1:size(PM, 2)
+                if PM(2, kk) <= 0
+                    errs{end+1} = sprintf('Pili %d: length (row 2) must be > 0, got %g.', ...
+                        kk, PM(2, kk));
+                end
+                if PM(8, kk) < 1 || PM(8, kk) > 14 || floor(PM(8, kk)) ~= PM(8, kk)
+                    errs{end+1} = sprintf('Pili %d: attachment site (row 8) must be integer 1-14, got %g.', ...
+                        kk, PM(8, kk));
+                end
+                if PM(1, kk) < 1 || PM(1, kk) > 5 || floor(PM(1, kk)) ~= PM(1, kk)
+                    errs{end+1} = sprintf('Pili %d: type (row 1) must be integer 1-5, got %g.', ...
+                        kk, PM(1, kk));
+                end
+            end
+        end
+    end
+
+    % Pili duplicate attachment sites
+    if ~isempty(PM) && size(PM, 1) >= 8 && size(PM, 2) > 1
+        sites = PM(8, :);
+        [u_sites, ~, ic] = unique(sites);
+        counts = accumarray(ic, 1);
+        if any(counts > 1)
+            dup_sites = u_sites(counts > 1);
+            warns{end+1} = sprintf('Duplicate pili attachment sites detected: %s.', ...
+                mat2str(dup_sites));
+        end
+    end
+
+    % Per-pili: intrinsic curvature and active moment
+    M_pili = size(PM, 2);
+    if isfield(cfg, 'pili_ext') && M_pili > 0
+        valid_ic = {'frozen', 'zero', 'constant', 'helix'};
+        valid_am = {'off', 'traveling_wave', 'custom'};
+        for kk = 1:min(numel(cfg.pili_ext), M_pili)
+            pe = cfg.pili_ext(kk);
+            % Intrinsic curvature
+            if isfield(pe, 'intrinsic_curvature') && ~isempty(pe.intrinsic_curvature)
+                ic_val = pe.intrinsic_curvature;
+                if ischar(ic_val) || isstring(ic_val)
+                    ic_type = char(ic_val);
+                elseif isstruct(ic_val) && isfield(ic_val, 'type')
+                    ic_type = ic_val.type;
+                else
+                    ic_type = '';
+                end
+                if ~any(strcmp(ic_type, valid_ic))
+                    errs{end+1} = sprintf('Pili %d: intrinsic_curvature type must be one of {frozen, zero, constant, helix}, got ''%s''.', kk, ic_type);
+                end
+                if strcmp(ic_type, 'constant')
+                    if isstruct(ic_val) && isfield(ic_val, 'kappa')
+                        if numel(ic_val.kappa) ~= 3
+                            errs{end+1} = sprintf('Pili %d: intrinsic_curvature.kappa must be 3-element, got %d.', kk, numel(ic_val.kappa));
+                        end
+                    else
+                        errs{end+1} = sprintf('Pili %d: intrinsic_curvature ''constant'' requires .kappa field.', kk);
+                    end
+                end
+            end
+            % Active moment
+            if isfield(pe, 'active_moment') && isstruct(pe.active_moment)
+                am_val = pe.active_moment;
+                am_type = '';
+                if isfield(am_val, 'type'), am_type = am_val.type; end
+                if ~any(strcmp(am_type, valid_am))
+                    errs{end+1} = sprintf('Pili %d: active_moment type must be one of {off, traveling_wave, custom}, got ''%s''.', kk, am_type);
+                end
+                if strcmp(am_type, 'traveling_wave')
+                    if ~isfield(am_val, 'amplitude_Nm') || am_val.amplitude_Nm < 0
+                        errs{end+1} = sprintf('Pili %d: active_moment.amplitude_Nm must be >= 0.', kk);
+                    end
+                    if ~isfield(am_val, 'omega_Hz') || am_val.omega_Hz <= 0
+                        errs{end+1} = sprintf('Pili %d: active_moment.omega_Hz must be > 0.', kk);
+                    end
+                    if isfield(am_val, 'wavenumber') && am_val.wavenumber < 0
+                        warns{end+1} = sprintf(['Pili %d: active_moment.wavenumber = %.4g is negative. ' ...
+                            'Wave propagates in -s direction (from tip to root).'], kk, am_val.wavenumber);
+                    end
+                    if isfield(am_val, 'd3_amp') && am_val.d3_amp ~= 0
+                        warns{end+1} = sprintf(['Pili %d: active_moment.d3_amp = %.4g (non-zero). ' ...
+                            'This drives torsion rather than bending, which is unusual for standard pili beating.'], ...
+                            kk, am_val.d3_amp);
+                    end
+                    if isfield(am_val, 'phase_rad')
+                        if ~isnumeric(am_val.phase_rad) || ~isscalar(am_val.phase_rad) || ~isfinite(am_val.phase_rad)
+                            errs{end+1} = sprintf('Pili %d: active_moment.phase_rad must be a finite scalar.', kk);
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if M_pili == 0 && isfield(cfg, 'pili_ext') && ~isempty(cfg.pili_ext)
+        warns{end+1} = 'pili_ext is non-empty but no pili are defined (Pili_Matrix is empty).';
+    end
+end
+
+%% ---- Common validations (both modes) ----
 
 % Simulation time
 if cfg.T_obs <= 0
@@ -35,21 +196,6 @@ if cfg.dt <= 0
 elseif cfg.dt > cfg.T_obs
     errs{end+1} = sprintf('dt = %g > T_obs = %g: output step exceeds total time.', ...
         cfg.dt, cfg.T_obs);
-end
-
-% Body geometry
-if cfg.minor_axis <= 0
-    errs{end+1} = 'minor_axis must be > 0.';
-end
-if cfg.major_axis <= 0
-    errs{end+1} = 'major_axis must be > 0.';
-elseif cfg.major_axis < cfg.minor_axis
-    errs{end+1} = sprintf('major_axis (%.2e) must be >= minor_axis (%.2e).', ...
-        cfg.major_axis, cfg.minor_axis);
-end
-if cfg.N_body < 10
-    errs{end+1} = sprintf('N_body = %d is too small for capsule geometry (minimum 10).', ...
-        cfg.N_body);
 end
 
 % Material
@@ -77,29 +223,6 @@ if cfg.animation_fps <= 0
     errs{end+1} = 'animation_fps must be > 0.';
 end
 
-% Pili matrix (only if non-empty)
-PM = cfg.Pili_Matrix;
-if ~isempty(PM)
-    if size(PM, 1) ~= 8
-        errs{end+1} = sprintf('Pili_Matrix must have exactly 8 rows, got %d.', size(PM, 1));
-    else
-        for kk = 1:size(PM, 2)
-            if PM(2, kk) <= 0
-                errs{end+1} = sprintf('Pili %d: length (row 2) must be > 0, got %g.', ...
-                    kk, PM(2, kk));
-            end
-            if PM(8, kk) < 1 || PM(8, kk) > 14 || floor(PM(8, kk)) ~= PM(8, kk)
-                errs{end+1} = sprintf('Pili %d: attachment site (row 8) must be integer 1-14, got %g.', ...
-                    kk, PM(8, kk));
-            end
-            if PM(1, kk) < 1 || PM(1, kk) > 5 || floor(PM(1, kk)) ~= PM(1, kk)
-                errs{end+1} = sprintf('Pili %d: type (row 1) must be integer 1-5, got %g.', ...
-                    kk, PM(1, kk));
-            end
-        end
-    end
-end
-
 % Brownian
 if cfg.enable_brown
     if cfg.dt_B <= 0
@@ -112,22 +235,22 @@ if isfield(cfg, 'fixman_midpoint') && cfg.fixman_midpoint && ~cfg.enable_brown
     warns{end+1} = 'fixman_midpoint = true has no effect when enable_brown = false.';
 end
 
-%  Fixman recommended when Brownian is on AND pili are present.
-%  The simple Euler-Maruyama scheme drops the kB*T * div(M_eff) Ito drift,
-%  which becomes non-negligible when pili conformation strongly modulates
-%  the effective body mobility.  See Brownian_Implementation_Plan.md
-%  section 2.4.1 for a quantitative discussion and a decision matrix.
+has_pili = (~isempty(cfg.Pili_Matrix)) || ...
+    (strcmp(geometry_mode, 'custom') && isfield(cfg, 'custom_geometry') && ...
+     isstruct(cfg.custom_geometry) && isfield(cfg.custom_geometry, 'pili') && ...
+     ~isempty(cfg.custom_geometry.pili));
+
 if cfg.enable_brown && isfield(cfg, 'fixman_midpoint') && ~cfg.fixman_midpoint ...
-        && ~isempty(cfg.Pili_Matrix)
+        && has_pili
     warns{end+1} = ['Brownian enabled with pili present but fixman_midpoint = false: ', ...
         'the kB*T * div(M_eff) Ito drift term is omitted (simple Euler-Maruyama). ', ...
         'For long-time diffusion statistics or large-amplitude pili motion, ', ...
         'consider enabling fixman_midpoint (see Brownian_Implementation_Plan.md section 2.4.1).'];
 end
 
-%% ---- Warnings ----
+%% ---- Warnings (both modes) ----
 
-if cfg.N_body >= 10 && cfg.N_body < 100
+if strcmp(geometry_mode, 'parametric') && cfg.N_body >= 10 && cfg.N_body < 100
     warns{end+1} = sprintf('N_body = %d < 100: hydrodynamic accuracy may be poor.', cfg.N_body);
 end
 
@@ -153,13 +276,11 @@ if cfg.enable_brown && cfg.dt_B > 0 && cfg.dt_B >= cfg.dt
         cfg.dt_B, cfg.dt);
 end
 
-%  dt_B vs. Stokes-Einstein relaxation times (back-of-envelope spherical
-%  estimate; a factor-of-2 accuracy is sufficient for a warning).  We use
-%  the major semi-axis as a conservative radius so the warning triggers
-%  only when dt_B is clearly too coarse for accurate Brownian statistics.
+% dt_B vs. Stokes-Einstein (only in parametric mode where major_axis is known)
 if cfg.enable_brown && cfg.dt_B > 0 && isfield(cfg, 'Temper') ...
         && isfinite(cfg.Temper) && cfg.Temper > 0 && cfg.mu > 0 ...
-        && cfg.major_axis > 0 && cfg.minor_axis > 0
+        && isfield(cfg, 'major_axis') && isnumeric(cfg.major_axis) && ~isnan(cfg.major_axis) && cfg.major_axis > 0 ...
+        && isfield(cfg, 'minor_axis') && isnumeric(cfg.minor_axis) && ~isnan(cfg.minor_axis) && cfg.minor_axis > 0
     kB    = 1.380649e-23;
     a_eff = max(cfg.major_axis, cfg.minor_axis);
     D_T   = kB * cfg.Temper / (6 * pi * cfg.mu * a_eff);
@@ -172,18 +293,6 @@ if cfg.enable_brown && cfg.dt_B > 0 && isfield(cfg, 'Temper') ...
             'min(tau_trans, tau_rot) ~ %.3g s (Stokes-Einstein with a = %.2g m). ', ...
             'Consider dt_B <= %.3g s for accurate Brownian statistics.'], ...
             cfg.dt_B, tau_min, a_eff, 0.1 * tau_min);
-    end
-end
-
-% Pili duplicate attachment sites
-if ~isempty(PM) && size(PM, 1) >= 8 && size(PM, 2) > 1
-    sites = PM(8, :);
-    [u_sites, ~, ic] = unique(sites);
-    counts = accumarray(ic, 1);
-    if any(counts > 1)
-        dup_sites = u_sites(counts > 1);
-        warns{end+1} = sprintf('Duplicate pili attachment sites detected: %s.', ...
-            mat2str(dup_sites));
     end
 end
 
@@ -216,77 +325,10 @@ if isfield(cfg, 'background_flow') && isstruct(cfg.background_flow)
     end
 end
 
-% Per-pili: intrinsic curvature and active moment
-M_pili = size(PM, 2);
-if isfield(cfg, 'pili_ext') && M_pili > 0
-    valid_ic = {'frozen', 'zero', 'constant', 'helix'};
-    valid_am = {'off', 'traveling_wave', 'custom'};
-    for kk = 1:min(numel(cfg.pili_ext), M_pili)
-        pe = cfg.pili_ext(kk);
-        % Intrinsic curvature
-        if isfield(pe, 'intrinsic_curvature') && ~isempty(pe.intrinsic_curvature)
-            ic_val = pe.intrinsic_curvature;
-            if ischar(ic_val) || isstring(ic_val)
-                ic_type = char(ic_val);
-            elseif isstruct(ic_val) && isfield(ic_val, 'type')
-                ic_type = ic_val.type;
-            else
-                ic_type = '';
-            end
-            if ~any(strcmp(ic_type, valid_ic))
-                errs{end+1} = sprintf('Pili %d: intrinsic_curvature type must be one of {frozen, zero, constant, helix}, got ''%s''.', kk, ic_type);
-            end
-            if strcmp(ic_type, 'constant')
-                if isstruct(ic_val) && isfield(ic_val, 'kappa')
-                    if numel(ic_val.kappa) ~= 3
-                        errs{end+1} = sprintf('Pili %d: intrinsic_curvature.kappa must be 3-element, got %d.', kk, numel(ic_val.kappa));
-                    end
-                else
-                    errs{end+1} = sprintf('Pili %d: intrinsic_curvature ''constant'' requires .kappa field.', kk);
-                end
-            end
-        end
-        % Active moment
-        if isfield(pe, 'active_moment') && isstruct(pe.active_moment)
-            am_val = pe.active_moment;
-            am_type = '';
-            if isfield(am_val, 'type'), am_type = am_val.type; end
-            if ~any(strcmp(am_type, valid_am))
-                errs{end+1} = sprintf('Pili %d: active_moment type must be one of {off, traveling_wave, custom}, got ''%s''.', kk, am_type);
-            end
-            if strcmp(am_type, 'traveling_wave')
-                if ~isfield(am_val, 'amplitude_Nm') || am_val.amplitude_Nm < 0
-                    errs{end+1} = sprintf('Pili %d: active_moment.amplitude_Nm must be >= 0.', kk);
-                end
-                if ~isfield(am_val, 'omega_Hz') || am_val.omega_Hz <= 0
-                    errs{end+1} = sprintf('Pili %d: active_moment.omega_Hz must be > 0.', kk);
-                end
-                if isfield(am_val, 'wavenumber') && am_val.wavenumber < 0
-                    warns{end+1} = sprintf(['Pili %d: active_moment.wavenumber = %.4g is negative. ' ...
-                        'Wave propagates in -s direction (from tip to root).'], kk, am_val.wavenumber);
-                end
-                if isfield(am_val, 'd3_amp') && am_val.d3_amp ~= 0
-                    warns{end+1} = sprintf(['Pili %d: active_moment.d3_amp = %.4g (non-zero). ' ...
-                        'This drives torsion rather than bending, which is unusual for standard pili beating.'], ...
-                        kk, am_val.d3_amp);
-                end
-                if isfield(am_val, 'phase_rad')
-                    if ~isnumeric(am_val.phase_rad) || ~isscalar(am_val.phase_rad) || ~isfinite(am_val.phase_rad)
-                        errs{end+1} = sprintf('Pili %d: active_moment.phase_rad must be a finite scalar.', kk);
-                    end
-                end
-            end
-        end
-    end
-end
-
-if M_pili == 0 && isfield(cfg, 'pili_ext') && ~isempty(cfg.pili_ext)
-    warns{end+1} = 'pili_ext is non-empty but no pili are defined (Pili_Matrix is empty).';
-end
-
 %% ---- Report ----
 
 for i = 1:numel(warns)
+    logf_h('[VALIDATE] WARNING: %s\n', warns{i});
     warning('validate_params:SuboptimalValue', '[VALIDATE] WARNING: %s', warns{i});
 end
 

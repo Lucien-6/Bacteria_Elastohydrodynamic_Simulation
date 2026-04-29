@@ -4,7 +4,7 @@
     "body": {
         "minor_axis": 0.4e-6,
         "major_axis": 1.25e-6,
-        "N_body": 200,
+        "N_body": 300,
         "alpha_0": 0
     },
 
@@ -74,7 +74,8 @@
         "generate_animation": true,
         "animation_fps": 30,
         "animation_skip": 1,
-        "auto_confirm": false
+        "auto_confirm": false,
+        "compute_flowfield": true
     },
 
     "flowfield": {

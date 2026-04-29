@@ -8,6 +8,87 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [6.1.0] — 2026-04-29
+
+### Added
+
+- **Dual-channel logger (`logf` / `logf_file`)**: `run_simulation.m` now creates two logger closures — `logf` (console + file, `dual_log`) and `logf_file` (file only, `log_file_only`). Both write `[HH:mm:ss]` timestamps to the log file; console output remains timestamp-free for readability. The `logf` and `logf_file` handles are passed into `params` via `init_coupled_params` so sub-functions can write to `simulation.log` without needing direct access to the file handle.
+- **`init_coupled_params.m` — `logf` / `logf_file` Name-Value parameters**: Two new `inputParser` parameters with `fprintf` / no-op fallbacks allow the logger handles to be injected from `run_simulation` while keeping standalone / batch calls working without modification. Handles are stored as `params.logf` / `params.logf_file` and a local shorthand `logf_h` is used throughout the function body.
+- **`init_coupled_state.m` — `logf_h` parameter**: Optional second argument (function handle, `fprintf` fallback). All `fprintf` and `warning` calls replaced with `logf_h` for log-file capture while retaining `warning` for MATLAB's console alert system.
+- **`validate_simulation_params.m` — `logf_h` parameter**: Optional second argument (no-op fallback). Warning loop now writes to both `logf_h` (log file) and MATLAB `warning` (console).
+- **`build_coupled_lin_sys.m` — `get_params_logf` helper**: Euler-angle singularity `warning` now also writes to the log file via `logf_h = get_params_logf(params)` before calling MATLAB `warning`.
+- **`compute_effective_body_brownian.m` — `get_brown_logf` helper**: Three diagnostic warnings (`AsymmetryHigh`, `IllConditioned`, `NotPosDef`) now also write to the log file via `logf_h` before calling MATLAB `warning`.
+- **`adaptive_basis_check.m` — `get_basis_logf` helper**: `InsufficientRotation` warning now also writes to the log file via `logf_h` before calling MATLAB `warning`.
+- **Animation progress logging**: `run_simulation.m` logs animation frame progress to `simulation.log` every 10% (file-only via `logf_file`, no console echo), complementing the existing console-only `render_progress_bar`.
+
+### Changed
+
+- **Default `E` (Young's modulus)**: Unified to **`3.279e8` Pa** across `init_coupled_params.m`, `load_sim_config.m`, and `main_coupled_simulation.m` (previously `3.67e8` in `init_coupled_params` and `1.768e7` in `load_sim_config`).
+- **Default `N_body`**: Unified to **300** across `init_coupled_params.m`, `load_sim_config.m`, `main_coupled_simulation.m`, and `config_example.json` (previously 200 in `load_sim_config` / `config_example.json` and 300 in `init_coupled_params`).
+- **`init_coupled_params.m`**: All `fprintf` calls replaced with `logf_h` so parameter summary and diagnostic messages are captured in `simulation.log`. Documentation comments for `E` and `N_body` defaults updated to match new values.
+- **`run_simulation.m`**: `logf` / `logf_file` passed as Name-Value pairs to `init_coupled_params` and `logf` passed to `init_coupled_state` / `validate_simulation_params`. Before saving `.mat`, `params.logf` and `params.logf_file` are removed via `rmfield` (function handles are not serialisable).
+
+### Fixed
+
+- **`config_example.json` — `N_body`**: Updated from `200` to `300` to match the code default, so users who run directly from the example JSON get the standard body discretisation.
+- **`config_example.json` / `config_custom_example.json` — `compute_flowfield`**: Both JSON templates now include `"compute_flowfield": true` in the `output` section, matching the code default and ensuring reproducibility when reloading a saved config.
+- **Log-file completeness**: Previously, warnings and diagnostic messages from `init_coupled_params`, `init_coupled_state`, `build_coupled_lin_sys`, `compute_effective_body_brownian`, `adaptive_basis_check`, and `validate_simulation_params` were only visible on the MATLAB console (via `fprintf` / `warning`) and never written to `simulation.log`. All such messages are now captured in the log file with `[HH:mm:ss]` timestamps.
+
+### Compatibility
+
+- **Fully backward-compatible**: All logger handle parameters are optional with safe fallbacks (`fprintf` or no-op). Standalone calls to `init_coupled_params`, `init_coupled_state`, or `validate_simulation_params` without logger arguments work identically to before. Batch sweep scripts are unaffected.
+- No physics, ODE right-hand side, linear-system assembly, Brownian kernel, or time-stepping path is modified. Trajectory outputs (`results.mat`, `timeseries.csv`) are bit-exact for identical configurations.
+
+### Documentation
+
+- **`README.md`**, **`USER_GUIDE.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`docs/index.html`**, **`CHANGELOG.md`**: Version **6.1.0**, date **2026-04-29**.
+
+---
+
+## [6.0.0] — 2026-04-29
+
+### Added
+
+- **Custom geometry mode** (`geometry_mode = 'custom'`): Users can now import arbitrary 3D point clouds for both the bacterial body and its pili, moving beyond the existing parameterized capsule/analytic-pili models. Custom body and custom pili **must** be used together — mixing with parametric models is explicitly disallowed and validated at startup.
+- **`read_geometry_csv_mat.m`** (NEW): Utility to read 3D point cloud data from `.csv`, `.txt`, or `.mat` files. Handles header rows, comment lines (`%`/`#`), and auto-detects matrix orientation (3×N vs N×3). Issues a warning for ambiguous 3×3 matrices (assumes N×3 = 3 points). Returns a validated N×3 matrix.
+- **`rotation_between_vectors.m`** (NEW): Implements Rodrigues' rotation formula to compute the minimal 3×3 rotation matrix that aligns one 3D vector to another. Includes special handling for parallel and anti-parallel cases. Used by `custom_pili_building.m` to orient pili at attachment sites.
+- **`custom_body_building.m`** (NEW): Processes user-provided custom body point clouds. Reads data via `read_geometry_csv_mat`, computes characteristic point spacing (`h_mean`), automatically triangulates the surface for visualization using `alphaShape` (with `convhulln` fallback) via a local `auto_triangulate_surface` helper, calculates the enclosed volume, and processes user-defined attachment sites. Outputs a `body_meta` struct with volume, point spacing, triangulation, and attachment site data.
+- **`custom_pili_building.m`** (NEW): Constructs custom pili from user-provided centerline points. Reads data, calculates true arc length, resamples to the target segment density using PCHIP interpolation, aligns the pilus root tangent to the specified attachment site direction via `rotation_between_vectors`, applies optional `deflection_z`/`deflection_x` additional rotations, and translates to the body-local attachment point. Outputs a `Pili` struct formatted identically to `pili_building.m` for downstream compatibility.
+- **`validate_custom_geometry.m`** (NEW): Dedicated validation for custom geometry configurations. Checks file existence and integrity, verifies attachment site consistency (non-zero directions, unique labels), and ensures pili site indices are valid attachment site references.
+- **`config_custom_example.json`** (NEW): Full JSON configuration template for custom geometry mode, including `body_points_file`, `attachment_sites` (position + direction + label), and `pili` definitions (points_file + site_index + deflection angles).
+- **`init_coupled_params.m`**: Added `geometry_mode` and `custom_geometry` parameters to `inputParser`. Introduced `switch` statements to dispatch body construction to `capsule_body_building` (parametric) or `custom_body_building` (custom), and pili construction to `pili_building` or `custom_pili_building`. Dynamically determines `L_0` and `V_body` based on the chosen mode. Stores geometry-specific metadata (`body_type`, `body_faces`, `body_verts`, `custom_attachment_sites`). Added a guard to error if `V_body` is `NaN` or non-positive (e.g., due to triangulation failure).
+- **`load_sim_config.m`**: Reads the `geometry_mode` field. For `'custom'` mode, parses the `custom_geometry` node and explicitly sets parametric-specific fields (`minor_axis`, `major_axis`, `N_body`, `Pili_Matrix`) to `NaN` or empty to enforce the "no mixing" constraint. `alpha_0` and `eps_body` for custom mode are read from the `custom_geometry` node if present and promoted to the top-level `cfg` struct. `N_segments` derivation is now conditional on `geometry_mode`.
+- **`save_sim_config.m`**: Writes the `geometry_mode` field and uses a `switch` statement to correctly save either the `body`/`pili` nodes (for parametric mode) or the `custom_geometry` node (for custom mode). For custom mode, `alpha_0` and `eps_body` are moved back into the `custom_geometry` sub-struct for consistency.
+- **`validate_simulation_params.m`**: Added a top-level `geometry_mode` switch. For `'custom'` mode, calls `validate_custom_geometry.m` and includes explicit checks to error if any parametric-specific fields (`Pili_Matrix`, `minor_axis`, `major_axis`, `N_body`) are set. Common validations apply regardless of geometry mode. The Brownian Fixman midpoint warning now correctly checks for custom pili. The Stokes-Einstein `dt_B` warning applies only in parametric mode where `major_axis` is defined.
+- **`run_simulation.m`**: Unpacks `geometry_mode` and `custom_geometry_cfg` from `cfg`. Parameter validation passes these new fields. Logging conditionally prints geometry details. Visualization routines (initial pose preview, summary plots, and animation) use `trisurf()` with the automatically generated mesh for custom bodies, replacing `surf()` for parametric capsules. Axis limit calculations adapt for both geometry types.
+- **`main_coupled_simulation.m`**: Added comments explaining the `geometry_mode` options and a commented-out inline configuration example for custom mode. Inline parameter structure refined with an `if/else` block for parametric vs. custom-specific configuration, with common parameters defined outside the block. Explicit initialization of `cfg.alpha_0`, `cfg.Pili_Matrix`, and `cfg.pili_ext` in the custom branch ensures these top-level fields are always defined.
+
+### Changed
+
+- **"No mixing" enforcement**: When `geometry_mode = 'custom'`, any parametric-specific configuration fields (`Pili_Matrix`, `minor_axis`, `major_axis`, `N_body`) are explicitly rejected by `validate_simulation_params.m` with clear error messages.
+- **`custom_pili_building.m`**: Removed redundant `kb`/`kb0` (curvature binormal) computation since `init_coupled_params` recomputes all curvature information from scratch. These fields are now initialized to `zeros(3,0)` as placeholders.
+- **Custom body visualization**: The automatic surface triangulation (via `alphaShape` + `convhulln` fallback) generates `body_faces`/`body_verts` stored in `body_meta`, enabling `trisurf` rendering in `run_simulation.m` without requiring a separate mesh file.
+
+### Fixed
+
+- **Inline custom mode**: Missing `cfg.alpha_0`, `cfg.Pili_Matrix`, and `cfg.pili_ext` fields in the custom branch of `main_coupled_simulation.m` caused runtime "Reference to non-existent field" errors. All three fields are now explicitly initialized.
+- **Custom body volume `NaN` propagation**: If `custom_body_building.m` failed to triangulate, `V_body = NaN` would silently propagate to physical parameters. `init_coupled_params.m` now errors explicitly on invalid volume.
+- **Fixman midpoint warning in custom mode**: The warning for `enable_brown + pili + fixman_midpoint=false` was suppressed in custom mode because `cfg.Pili_Matrix` is `zeros(8,0)`. The check now also considers `cfg.custom_geometry.pili`.
+- **Custom mode log output**: `run_simulation.m` no longer prints `NaN` for parametric-specific fields (`major_axis`, `minor_axis`, `N_body`) in custom mode; logging is conditional on `geometry_mode`.
+- **`validate_custom_geometry.m` documentation**: Removed the misleading "volume plausibility" claim from the header (the function validates configuration only, not derived geometric properties).
+- **`read_geometry_csv_mat.m` 3×3 ambiguity**: Refined the MAT file reading logic to specifically distinguish 3×N (N>3) matrices from ambiguous 3×3 matrices (issues a warning, assumes N×3 = 3 points).
+
+### Compatibility
+
+- **Parametric mode is fully backward-compatible**: All existing inline configurations, JSON configurations, and batch sweep scripts produce identical results without any modification. The `geometry_mode` defaults to `'parametric'` when not specified, and all new code paths are gated behind this switch.
+- Custom geometry mode is a self-contained addition; no existing function signatures or output formats are changed.
+
+### Documentation
+
+- **`README.md`**, **`USER_GUIDE.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`docs/index.html`**, **`CHANGELOG.md`**: Version **6.0.0**, date **2026-04-29**; README feature-history row **79**; file structure and quick-start sections updated with custom geometry files and configuration; root `.m` file count **46** (total **60**).
+
+---
+
 ## [5.5.8] — 2026-04-22
 
 ### Added

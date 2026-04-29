@@ -22,7 +22,7 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Log banner version: 5.5.8 (2026-04-22) — keep in sync with README / CHANGELOG
+%  Log banner version: 6.1.0 (2026-04-29) — keep in sync with README / CHANGELOG
 %
 %  Path: defensive addpath(project root) so run_simulation(cfg) works when
 %  invoked without main_coupled_simulation.m. Unified policy = this line plus
@@ -44,9 +44,18 @@ output_dir = '';
 
 %% ---- Unpack cfg to local variables ----
 case_name              = cfg.case_name;
-minor_axis             = cfg.minor_axis;
-major_axis             = cfg.major_axis;
-N_body                 = cfg.N_body;
+geometry_mode          = get_cfg_field(cfg, 'geometry_mode', 'parametric');
+
+% Body geometry (parametric mode)
+if strcmp(geometry_mode, 'parametric')
+    minor_axis             = cfg.minor_axis;
+    major_axis             = cfg.major_axis;
+    N_body                 = cfg.N_body;
+else
+    minor_axis             = NaN;
+    major_axis             = NaN;
+    N_body                 = NaN;
+end
 alpha_0                = cfg.alpha_0;
 Pili_Matrix            = cfg.Pili_Matrix;
 seg_per_um             = cfg.seg_per_um;
@@ -106,6 +115,13 @@ else
     eps_body_cfg = [];
 end
 
+% Custom geometry config
+if strcmp(geometry_mode, 'custom') && isfield(cfg, 'custom_geometry')
+    custom_geometry_cfg = cfg.custom_geometry;
+else
+    custom_geometry_cfg = struct();
+end
+
 % ---- Brownian RNG (twister): must run before save_sim_config and ODE integration ----
 brown_rng_seed_used = NaN;
 if enable_brown
@@ -120,7 +136,7 @@ if enable_brown
     cfg.brown_rng_seed = brown_rng_seed_used;
 end
 
-if size(Pili_Matrix, 2) > 0
+if strcmp(geometry_mode, 'parametric') && size(Pili_Matrix, 2) > 0
     pili_lengths_um = Pili_Matrix(2, :);
     N_segments      = round(pili_lengths_um * seg_per_um);
     N_segments      = max(N_segments, 10);
@@ -192,12 +208,15 @@ log_fid  = fopen(log_file, 'w');
 if log_fid == -1
     error('Cannot create log file: %s', log_file);
 end
-logf = @(varargin) dual_log(log_fid, varargin{:});
+logf = @(varargin) dual_log(log_fid, varargin{:});  %#ok<NFFT>  % persistent closure
+
+% Log-file-only variant (no console echo) for high-frequency diagnostics
+logf_file = @(varargin) log_file_only(log_fid, varargin{:});
 
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 5.5.8\n');
+logf('  Version 6.1.0\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -223,8 +242,15 @@ if enable_brown
 end
 
 % --- Log all parameters ---
-logf('[PARAMS] Body: a = %.2f um, b = %.2f um, N_body = %d, alpha_0 = %.4f rad (%.1f deg)\n', ...
-    major_axis*1e6, minor_axis*1e6, N_body, alpha_0, rad2deg(alpha_0));
+if strcmp(geometry_mode, 'parametric')
+    logf('[PARAMS] Body: a = %.2f um, b = %.2f um, N_body = %d, alpha_0 = %.4f rad (%.1f deg)\n', ...
+        major_axis*1e6, minor_axis*1e6, N_body, alpha_0, rad2deg(alpha_0));
+else
+    logf('[PARAMS] Body: N_body from file, alpha_0 = %.4f rad (%.1f deg)\n', ...
+        alpha_0, rad2deg(alpha_0));
+    logf('[PARAMS] Custom body: %s\n', custom_geometry_cfg.body_points_file);
+end
+logf('[PARAMS] Geometry mode: %s\n', geometry_mode);
 logf('[PARAMS] Pili: M = %d, seg_per_um = %d, method = RSS+Rotlet\n', ...
     size(Pili_Matrix, 2), seg_per_um);
 for kk = 1:size(Pili_Matrix, 2)
@@ -318,14 +344,18 @@ val_cfg = struct( ...
     'AbsTol', AbsTol, 'RelTol', RelTol, 'tlim', tlim, ...
     'enable_brown', enable_brown, 'dt_B', dt_B, ...
     'animation_fps', animation_fps, 'sigma_p', sigma_p, ...
-    'fixman_midpoint', fixman_midpoint);
+    'fixman_midpoint', fixman_midpoint, ...
+    'geometry_mode', geometry_mode);
 if isfield(cfg, 'background_flow')
     val_cfg.background_flow = cfg.background_flow;
 end
 if isfield(cfg, 'pili_ext')
     val_cfg.pili_ext = cfg.pili_ext;
 end
-validate_simulation_params(val_cfg);
+if strcmp(geometry_mode, 'custom') && isfield(cfg, 'custom_geometry')
+    val_cfg.custom_geometry = cfg.custom_geometry;
+end
+validate_simulation_params(val_cfg, logf);
 logf('[VALIDATE] All parameter checks passed.\n');
 
 %% =====================================================================
@@ -336,6 +366,8 @@ logf('\n[INIT] Initialising simulation parameters...\n');
 t_init_start = tic;
 
 params = init_coupled_params( ...
+    'geometry_mode',    geometry_mode, ...
+    'custom_geometry',  custom_geometry_cfg, ...
     'N_body',       N_body, ...
     'minor_axis',   minor_axis, ...
     'major_axis',   major_axis, ...
@@ -356,14 +388,19 @@ params = init_coupled_params( ...
     'intrinsic_curvature', intrinsic_curvature_cfg, ...
     'active_moment',       active_moment_cfg, ...
     'background_flow',     background_flow_cfg, ...
-    'eps_body',            eps_body_cfg);
+    'eps_body',            eps_body_cfg, ...
+    'logf',                logf, ...
+    'logf_file',           logf_file);
 
 if enable_brown
     params.brown_rng_seed = brown_rng_seed_used;
 end
 
+% Logger handles are now stored inside params by init_coupled_params.
+% They will be removed before saving to .mat (see [SAVE] section).
+
 logf('[INIT] Building initial state vector...\n');
-Z0 = init_coupled_state(params);
+Z0 = init_coupled_state(params, logf);
 
 t_init_elapsed = toc(t_init_start);
 
@@ -463,8 +500,7 @@ if preview_initial
             Xp = X_pili_prev{kp};
             scatter3(ax_pv, Xp(:,1), Xp(:,2), Xp(:,3), ...
                      12, prev_pili_colors(kp,:), 'filled');
-            legend_entries{end+1} = sprintf('Pili %d (site %d)', ...
-                kp, Pili_Matrix(8, kp)); 
+            legend_entries{end+1} = sprintf('Pili %d', kp); 
         end
 
         % Formatting
@@ -472,8 +508,12 @@ if preview_initial
         pv_lim_y = [pv_min(2)-pv_margin(2), pv_max(2)+pv_margin(2)];
         pv_lim_z = [pv_min(3)-pv_margin(3), pv_max(3)+pv_margin(3)];
 
-        % Enforce minimum axis range: 6 * body full length (= 12 * major_axis)
-        pv_min_range = 4 * 2 * (major_axis * 1e6);
+        % Enforce minimum axis range
+        if strcmp(geometry_mode, 'parametric')
+            pv_min_range = 4 * 2 * (major_axis * 1e6);
+        else
+            pv_min_range = 4 * max(max(X_body_prev) - min(X_body_prev));
+        end
         if diff(pv_lim_x) < pv_min_range
             cx = mean(pv_lim_x); pv_lim_x = cx + [-1, 1] * pv_min_range / 2;
         end
@@ -940,6 +980,9 @@ logf('\n');
 
 logf('[SAVE] Saving simulation data...\n');
 
+% Remove function handles before saving (not serialisable to .mat)
+params = rmfield(params, {'logf', 'logf_file'});
+
 mat_file = fullfile(output_dir, 'simulation_results.mat');
 save(mat_file, 'results', 'params', '-v7.3');
 mat_info = dir(mat_file);
@@ -961,58 +1004,70 @@ csv_info = dir(csv_file);
 logf('[SAVE] CSV exported: %s (%.1f KB)\n', csv_file, csv_info.bytes/1e3);
 
 %% =====================================================================
-%  PRE-COMPUTE CAPSULE SURFACE MESH (for visualisation)
+%  PRE-COMPUTE BODY SURFACE MESH (for visualisation)
 %  =====================================================================
-%  Generate a smooth parametric capsule (spherocylinder) mesh in the body-
-%  local frame.  Units: micrometres [um].
-%  The mesh comprises: left hemisphere + cylinder + right hemisphere,
-%  concatenated along the meridional direction so that MATLAB's surf()
-%  renders a seamless surface.
+%  For parametric mode: Generate a smooth parametric capsule mesh.
+%  For custom mode: Use the triangulated mesh from custom_body_building.
+%  Units: micrometres [um].
 %  =====================================================================
 
-logf('[PLOT] Building capsule surface mesh for visualisation...\n');
+logf('[PLOT] Building body surface mesh for visualisation...\n');
 
-a_um = major_axis * 1e6;       % Semi-major axis [um]
-b_um = minor_axis * 1e6;       % Semi-minor axis (cap radius) [um]
+if strcmp(params.geometry_mode, 'parametric') && strcmp(params.body_type, 'capsule')
+    % --- Parametric capsule surface mesh ---
+    a_um = major_axis * 1e6;       % Semi-major axis [um]
+    b_um = minor_axis * 1e6;       % Semi-minor axis (cap radius) [um]
 
-n_circ = 36;                   % Circumferential resolution
-n_cap  = 12;                   % Meridional resolution per hemisphere cap
-n_cyl  = 10;                   % Axial resolution for cylinder section
+    n_circ = 36;                   % Circumferential resolution
+    n_cap  = 12;                   % Meridional resolution per hemisphere cap
+    n_cyl  = 10;                   % Axial resolution for cylinder section
 
-theta_cap = linspace(0, 2*pi, n_circ);
+    theta_cap = linspace(0, 2*pi, n_circ);
 
-% --- Left hemisphere (pole -> equator) ---
-phi_L = linspace(pi, pi/2, n_cap);
-[TH_L, PH_L] = meshgrid(theta_cap, phi_L);
-XL = b_um * cos(PH_L) - (a_um - b_um);
-YL = b_um * sin(PH_L) .* cos(TH_L);
-ZL = b_um * sin(PH_L) .* sin(TH_L);
+    % --- Left hemisphere (pole -> equator) ---
+    phi_L = linspace(pi, pi/2, n_cap);
+    [TH_L, PH_L] = meshgrid(theta_cap, phi_L);
+    XL = b_um * cos(PH_L) - (a_um - b_um);
+    YL = b_um * sin(PH_L) .* cos(TH_L);
+    ZL = b_um * sin(PH_L) .* sin(TH_L);
 
-% --- Cylinder section ---
-x_cyl_nodes = linspace(-(a_um - b_um), (a_um - b_um), n_cyl);
-[TH_C, XC_grid] = meshgrid(theta_cap, x_cyl_nodes);
-XC = XC_grid;
-YC = b_um * cos(TH_C);
-ZC = b_um * sin(TH_C);
+    % --- Cylinder section ---
+    x_cyl_nodes = linspace(-(a_um - b_um), (a_um - b_um), n_cyl);
+    [TH_C, XC_grid] = meshgrid(theta_cap, x_cyl_nodes);
+    XC = XC_grid;
+    YC = b_um * cos(TH_C);
+    ZC = b_um * sin(TH_C);
 
-% --- Right hemisphere (equator -> pole) ---
-phi_R = linspace(pi/2, 0, n_cap);
-[TH_R, PH_R] = meshgrid(theta_cap, phi_R);
-XR = b_um * cos(PH_R) + (a_um - b_um);
-YR = b_um * sin(PH_R) .* cos(TH_R);
-ZR = b_um * sin(PH_R) .* sin(TH_R);
+    % --- Right hemisphere (equator -> pole) ---
+    phi_R = linspace(pi/2, 0, n_cap);
+    [TH_R, PH_R] = meshgrid(theta_cap, phi_R);
+    XR = b_um * cos(PH_R) + (a_um - b_um);
+    YR = b_um * sin(PH_R) .* cos(TH_R);
+    ZR = b_um * sin(PH_R) .* sin(TH_R);
 
-% --- Concatenate into single continuous surface ---
-capsule_X0 = [XL; XC; XR];
-capsule_Y0 = [YL; YC; YR];
-capsule_Z0 = [ZL; ZC; ZR];
-mesh_size   = size(capsule_X0);
+    % --- Concatenate into single continuous surface ---
+    capsule_X0 = [XL; XC; XR];
+    capsule_Y0 = [YL; YC; YR];
+    capsule_Z0 = [ZL; ZC; ZR];
+    mesh_size   = size(capsule_X0);
 
-% Pre-flatten for fast rotation: [3 x N_mesh]
-capsule_flat = [capsule_X0(:)'; capsule_Y0(:)'; capsule_Z0(:)'];
+    % Pre-flatten for fast rotation: [3 x N_mesh]
+    capsule_flat = [capsule_X0(:)'; capsule_Y0(:)'; capsule_Z0(:)'];
 
-logf('[PLOT] Capsule mesh: %d x %d = %d vertices\n', ...
-    mesh_size(1), mesh_size(2), numel(capsule_X0));
+    body_mesh_type = 'parametric_surf';
+    logf('[PLOT] Capsule mesh: %d x %d = %d vertices\n', ...
+        mesh_size(1), mesh_size(2), numel(capsule_X0));
+
+else
+    % --- Custom body triangulated mesh ---
+    body_mesh_type = 'custom_trisurf';
+
+    % Convert vertices from [m] to [um]
+    custom_verts_um = params.body_verts * 1e6;
+
+    logf('[PLOT] Custom mesh: %d vertices, %d faces\n', ...
+        size(params.body_verts, 1), size(params.body_faces, 1));
+end
 
 % --- Colour palette (journal style) ---
 body_color    = [0.20 0.65 0.33];    % Forest green
@@ -1119,7 +1174,11 @@ for si = 1:n_snapshots
     if ti <= size(results.X_cm, 2)
         R_snap = quat_to_rotmat(results.q(:, ti));
         cm_um  = results.X_cm_um(:, ti);
-        pts_snap = R_snap * capsule_flat + cm_um;    % [3 x N_mesh]
+        if strcmp(body_mesh_type, 'parametric_surf')
+            pts_snap = R_snap * capsule_flat + cm_um;    % [3 x N_mesh]
+        else
+            pts_snap = R_snap * custom_verts_um' + cm_um; % [3 x N_verts]
+        end
         all_x = [all_x; pts_snap(1,:)']; 
         all_y = [all_y; pts_snap(2,:)']; 
         all_z = [all_z; pts_snap(3,:)']; 
@@ -1141,8 +1200,13 @@ ax_lim_x = [min(all_x) - margin_x, max(all_x) + margin_x];
 ax_lim_y = [min(all_y) - margin_y, max(all_y) + margin_y];
 ax_lim_z = [min(all_z) - margin_z, max(all_z) + margin_z];
 
-% Enforce minimum axis range: 4 * body full length (= 8 * major_axis)
-min_ax_range = 4 * 2 * a_um;
+% Enforce minimum axis range
+if strcmp(body_mesh_type, 'parametric_surf')
+    min_ax_range = 4 * 2 * a_um;
+else
+    body_extents = max(custom_verts_um) - min(custom_verts_um);
+    min_ax_range = 4 * max(body_extents);
+end
 if diff(ax_lim_x) < min_ax_range
     cx = mean(ax_lim_x); ax_lim_x = cx + [-1, 1] * min_ax_range / 2;
 end
@@ -1159,16 +1223,28 @@ for si = 1:n_snapshots
         R_snap = quat_to_rotmat(results.q(:, ti));
         cm_um  = results.X_cm_um(:, ti);
 
-        % Smooth capsule surface (gradient green)
-        pts_snap = R_snap * capsule_flat + cm_um;
-        Xs = reshape(pts_snap(1,:), mesh_size);
-        Ys = reshape(pts_snap(2,:), mesh_size);
-        Zs = reshape(pts_snap(3,:), mesh_size);
         snap_alpha = 0.15 + 0.30 * (si / n_snapshots);
-        for ai = 1:numel(snap_axes)
-            surf(snap_axes(ai), Xs, Ys, Zs, ...
-                 'FaceColor', body_cmap(si,:), 'FaceAlpha', snap_alpha, ...
-                 'EdgeColor', 'none');
+
+        % Body surface rendering (dispatch by mesh type)
+        if strcmp(body_mesh_type, 'parametric_surf')
+            pts_snap = R_snap * capsule_flat + cm_um;
+            Xs = reshape(pts_snap(1,:), mesh_size);
+            Ys = reshape(pts_snap(2,:), mesh_size);
+            Zs = reshape(pts_snap(3,:), mesh_size);
+            for ai = 1:numel(snap_axes)
+                surf(snap_axes(ai), Xs, Ys, Zs, ...
+                     'FaceColor', body_cmap(si,:), 'FaceAlpha', snap_alpha, ...
+                     'EdgeColor', 'none');
+            end
+        else
+            % Custom body: use trisurf with auto-generated triangulation
+            rotated_verts = (R_snap * custom_verts_um' + cm_um)';  % [V x 3]
+            for ai = 1:numel(snap_axes)
+                trisurf(snap_axes(ai), params.body_faces, ...
+                    rotated_verts(:,1), rotated_verts(:,2), rotated_verts(:,3), ...
+                    'FaceColor', body_cmap(si,:), 'FaceAlpha', snap_alpha, ...
+                    'EdgeColor', 'none');
+            end
         end
 
         % Pili polylines (per-pili gradient colours)
@@ -1259,14 +1335,18 @@ if generate_animation
     % Full-resolution CM trajectory for smooth rendering (all NT points)
     cm_traj_full_um = results.X_cm_um;
 
-    % Compute global axis limits from ALL frames (capsule + pili + CM)
+    % Compute global axis limits from ALL frames (body + pili + CM)
     all_x = cm_traj_um(1,:)';
     all_y = cm_traj_um(2,:)';
     all_z = cm_traj_um(3,:)';
     for idx = 1:n_frames
         ti   = frame_indices(idx);
         R_fi = quat_to_rotmat(results.q(:, ti));
-        pts  = R_fi * capsule_flat + results.X_cm_um(:, ti);  % [3 x N_mesh]
+        if strcmp(body_mesh_type, 'parametric_surf')
+            pts  = R_fi * capsule_flat + results.X_cm_um(:, ti);  % [3 x N_mesh]
+        else
+            pts  = R_fi * custom_verts_um' + results.X_cm_um(:, ti); % [3 x N_verts]
+        end
         all_x = [all_x; pts(1,:)']; 
         all_y = [all_y; pts(2,:)']; 
         all_z = [all_z; pts(3,:)']; 
@@ -1289,8 +1369,13 @@ if generate_animation
     ax_lim_y = [min(all_y) - margin_y, max(all_y) + margin_y];
     ax_lim_z = [min(all_z) - margin_z, max(all_z) + margin_z];
 
-    % Enforce minimum axis range: 4 * body full length (= 8 * major_axis)
-    min_ax_range = 4 * 2 * a_um;
+    % Enforce minimum axis range
+    if strcmp(body_mesh_type, 'parametric_surf')
+        min_ax_range = 4 * 2 * a_um;
+    else
+        body_extents = max(custom_verts_um) - min(custom_verts_um);
+        min_ax_range = 4 * max(body_extents);
+    end
     if diff(ax_lim_x) < min_ax_range
         cx = mean(ax_lim_x); ax_lim_x = cx + [-1, 1] * min_ax_range / 2;
     end
@@ -1447,10 +1532,6 @@ if generate_animation
         % --- Compute geometry once per frame ---
         R_fi  = quat_to_rotmat(results.q(:, ti));
         cm_um = results.X_cm_um(:, ti);
-        pts   = R_fi * capsule_flat + cm_um;       % [3 x N_mesh]
-        Xsurf_f = reshape(pts(1,:), mesh_size);
-        Ysurf_f = reshape(pts(2,:), mesh_size);
-        Zsurf_f = reshape(pts(3,:), mesh_size);
 
         % --- Draw bacterium on all three axes ---
         for ai = 1:3
@@ -1458,9 +1539,22 @@ if generate_animation
             cla(ax);
             hold(ax, 'on');
 
-            surf(ax, Xsurf_f, Ysurf_f, Zsurf_f, ...
-                 'FaceColor', body_color, 'FaceAlpha', body_alpha, ...
-                 'EdgeColor', 'none', 'FaceLighting', 'gouraud');
+            % Body surface rendering (dispatch by mesh type)
+            if strcmp(body_mesh_type, 'parametric_surf')
+                pts   = R_fi * capsule_flat + cm_um;       % [3 x N_mesh]
+                Xsurf_f = reshape(pts(1,:), mesh_size);
+                Ysurf_f = reshape(pts(2,:), mesh_size);
+                Zsurf_f = reshape(pts(3,:), mesh_size);
+                surf(ax, Xsurf_f, Ysurf_f, Zsurf_f, ...
+                     'FaceColor', body_color, 'FaceAlpha', body_alpha, ...
+                     'EdgeColor', 'none', 'FaceLighting', 'gouraud');
+            else
+                rotated_verts = (R_fi * custom_verts_um' + cm_um)';  % [V x 3]
+                trisurf(ax, params.body_faces, ...
+                    rotated_verts(:,1), rotated_verts(:,2), rotated_verts(:,3), ...
+                    'FaceColor', body_color, 'FaceAlpha', body_alpha, ...
+                    'EdgeColor', 'none', 'FaceLighting', 'gouraud');
+            end
 
             for k = 1:M_pili
                 Xp   = results.X_pili_um{k}(:,:,ti);
@@ -1551,6 +1645,11 @@ if generate_animation
 
         % In-place progress bar (console only)
         render_progress_bar('[ANIM]   ', fi, n_frames, t_anim_start);
+
+        % Log animation progress to file every 10% (file-only, no console echo)
+        if mod(fi, max(1, floor(n_frames / 10))) == 0 || fi == n_frames
+            logf_file('[ANIM] Frame %d / %d rendered\n', fi, n_frames);
+        end
     end
 
     close(vid);
@@ -1661,11 +1760,28 @@ end  % run_simulation
 
 %% ==================== Local Functions ====================
 
+function v = get_cfg_field(cfg, fname, default)
+%GET_CFG_FIELD  Return cfg.(fname) if present and non-empty, else default
+    if isstruct(cfg) && isfield(cfg, fname) && ~isempty(cfg.(fname))
+        v = cfg.(fname);
+    else
+        v = default;
+    end
+end
+
 function dual_log(fid, varargin)
-%DUAL_LOG  Write formatted message to both console and log file
+%DUAL_LOG  Write formatted message to both console and log file (with timestamp)
     msg = sprintf(varargin{:});
-    fprintf('%s', msg);           % Console
-    fprintf(fid, '%s', msg);      % File
+    ts  = char(datetime('now', 'Format', 'HH:mm:ss'));
+    fprintf('%s', msg);                    % Console (no timestamp — cleaner)
+    fprintf(fid, '[%s] %s', ts, msg);     % File (with timestamp)
+end
+
+function log_file_only(fid, varargin)
+%LOG_FILE_ONLY  Write formatted message to log file only (with timestamp)
+    msg = sprintf(varargin{:});
+    ts  = char(datetime('now', 'Format', 'HH:mm:ss'));
+    fprintf(fid, '[%s] %s', ts, msg);
 end
 
 function s = fmt_field_value(S, fname)

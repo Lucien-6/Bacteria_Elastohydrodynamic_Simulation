@@ -109,6 +109,10 @@ for k = 1:M
         % will re-trigger the event and retry).
         new_margin = min([theta_new; pi - theta_new]);
         if new_margin < delta / 2
+            logf_h = get_basis_logf(params);
+            logf_h('[ODE] WARNING: Pili %d basis rotation insufficient. ' ...
+                 'Post-rotation min(theta, pi-theta) = %.4f < delta/2 = %.4f. ' ...
+                 'ODE event will re-trigger.\n', k, new_margin, delta/2);
             warning('adaptive_basis_check:InsufficientRotation', ...
                 ['Pili %d: basis rotation was insufficient. ' ...
                  'Post-rotation min(theta, pi-theta) = %.4f < delta/2 = %.4f. ' ...
@@ -133,4 +137,16 @@ for k = 1:M
     idx = idx + 3 * N_k;
 end
 
+end
+
+
+%% ==================== Local Helper Function ====================
+
+function logf_h = get_basis_logf(params)
+%GET_BASIS_LOGF  Retrieve logf handle from params, or fallback to fprintf
+    if isstruct(params) && isfield(params, 'logf') && ~isempty(params.logf)
+        logf_h = params.logf;
+    else
+        logf_h = @(varargin) fprintf(varargin{:});
+    end
 end

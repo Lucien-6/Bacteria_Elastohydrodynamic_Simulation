@@ -40,29 +40,51 @@ j = jsondecode(raw);
 %% Map nested JSON fields to flat cfg with defaults
 cfg.case_name  = get_json(j, 'case_name', '');
 
-% Body
-jb = get_json(j, 'body', struct());
-cfg.minor_axis = get_json(jb, 'minor_axis', 0.4e-6);
-cfg.major_axis = get_json(jb, 'major_axis', 1.25e-6);
-cfg.N_body     = get_json(jb, 'N_body',     200);
-cfg.alpha_0    = get_json(jb, 'alpha_0',    0);
-cfg.eps_body   = get_json(jb, 'eps_body',   []);
+% Geometry mode: 'parametric' (default) or 'custom'
+cfg.geometry_mode = get_json(j, 'geometry_mode', 'parametric');
 
-% Pili — accept struct array (named) or raw matrix
-jp = get_json(j, 'pili', []);
-if isstruct(jp) && ~isempty(jp)
-    [cfg.Pili_Matrix, cfg.pili_ext] = parse_pili_config(jp);
-elseif isnumeric(jp) && ~isempty(jp)
-    cfg.Pili_Matrix = jp;
-    cfg.pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {});
-else
-    cfg.Pili_Matrix = zeros(8, 0);
-    cfg.pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {});
+switch cfg.geometry_mode
+    case 'custom'
+        % --- Custom geometry mode ---
+        jcg = get_json(j, 'custom_geometry', struct());
+        cfg.custom_geometry = jcg;
+
+        % Set parametric placeholders to NaN/empty (enforce no-mixing)
+        cfg.minor_axis   = NaN;
+        cfg.major_axis   = NaN;
+        cfg.N_body       = NaN;
+        cfg.Pili_Matrix  = zeros(8, 0);
+        cfg.pili_ext     = struct('intrinsic_curvature', {}, 'active_moment', {});
+
+        % Default alpha_0 and eps_body for custom mode
+        cfg.alpha_0  = get_json(jcg, 'alpha_0', 0);
+        cfg.eps_body = get_json(jcg, 'eps_body', []);
+
+    otherwise
+        % --- Parametric mode (default) ---
+        jb = get_json(j, 'body', struct());
+        cfg.minor_axis = get_json(jb, 'minor_axis', 0.4e-6);
+        cfg.major_axis = get_json(jb, 'major_axis', 1.25e-6);
+        cfg.N_body     = get_json(jb, 'N_body',     300);
+        cfg.alpha_0    = get_json(jb, 'alpha_0',    0);
+        cfg.eps_body   = get_json(jb, 'eps_body',   []);
+
+        % Pili — accept struct array (named) or raw matrix
+        jp = get_json(j, 'pili', []);
+        if isstruct(jp) && ~isempty(jp)
+            [cfg.Pili_Matrix, cfg.pili_ext] = parse_pili_config(jp);
+        elseif isnumeric(jp) && ~isempty(jp)
+            cfg.Pili_Matrix = jp;
+            cfg.pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {});
+        else
+            cfg.Pili_Matrix = zeros(8, 0);
+            cfg.pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {});
+        end
 end
 
 % Material
 jm = get_json(j, 'material', struct());
-cfg.E       = get_json(jm, 'E',       1.768e7);
+cfg.E       = get_json(jm, 'E',       3.279e8);
 cfg.r_pili  = get_json(jm, 'r_pili',  3e-9);
 cfg.sigma_p = get_json(jm, 'sigma_p', 0.2);
 
@@ -128,11 +150,16 @@ cfg.background_flow.shear_axis     = get_json(jbg, 'shear_axis', [0, 0, 1]);
 cfg.background_flow.shear_height_m = get_json(jbg, 'shear_height_m', 0);
 
 %% Derive N_segments
-if size(cfg.Pili_Matrix, 2) > 0
-    pili_lengths_um  = cfg.Pili_Matrix(2, :);
-    cfg.N_segments   = max(round(pili_lengths_um * cfg.seg_per_um), 10);
+if strcmp(cfg.geometry_mode, 'custom')
+    % Custom mode: N_segments derived from actual pili lengths (computed later)
+    cfg.N_segments = zeros(1, 0);
 else
-    cfg.N_segments   = zeros(1, 0);
+    if size(cfg.Pili_Matrix, 2) > 0
+        pili_lengths_um  = cfg.Pili_Matrix(2, :);
+        cfg.N_segments   = max(round(pili_lengths_um * cfg.seg_per_um), 10);
+    else
+        cfg.N_segments   = zeros(1, 0);
+    end
 end
 cfg.NT = round(cfg.T_obs / cfg.dt) + 1;
 

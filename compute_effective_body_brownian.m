@@ -50,6 +50,9 @@
 
 n_state = size(lin_sys, 1);
 
+% Retrieve logger handle (if available in params)
+logf_h = get_brown_logf(params);
+
 %% Step 2: Probe with unit body forces/torques
 %  lin_sys = -Xi_gen, so to get Xi_gen^{-1} * e_i we solve:
 %    lin_sys * z_dot = -e_i
@@ -72,6 +75,10 @@ asym_abs  = norm(M_eff_dimless - M_eff_dimless', 'fro');
 sym_scale = max(norm(M_eff_dimless, 'fro'), eps);
 rel_asym  = asym_abs / sym_scale;
 if rel_asym > 1e-6
+    logf_h('[BROWN] WARNING: M_eff_dimless relative asymmetry = %.2e (expected <1e-8 from ' ...
+         'LU round-off alone). Possible lin_sys assembly bug or ' ...
+         'extreme conditioning; silent symmetrisation will still be applied.\n', ...
+        rel_asym);
     warning('compute_effective_body_brownian:AsymmetryHigh', ...
         ['M_eff_dimless relative asymmetry = %.2e (expected <1e-8 from ', ...
          'LU round-off alone). Possible lin_sys assembly bug or ', ...
@@ -109,6 +116,8 @@ M_eff_dim = 0.5 * (M_eff_dim + M_eff_dim');
 %  the cost is negligible.
 rc_mobility = rcond(M_eff_dim);
 if ~isfinite(rc_mobility) || rc_mobility < 1e-10
+    logf_h('[BROWN] WARNING: M_eff_dim rcond = %.2e (< 1e-10): effective mobility is ' ...
+         'nearly singular, Cholesky factor may be unreliable.\n', rc_mobility);
     warning('compute_effective_body_brownian:IllConditioned', ...
         ['M_eff_dim rcond = %.2e (< 1e-10): effective mobility is ', ...
          'nearly singular, Cholesky factor may be unreliable.'], rc_mobility);
@@ -126,6 +135,7 @@ D_eff = 0.5 * (D_eff + D_eff');
 if flag ~= 0
     eigvals = eig(D_eff);
     min_eig = min(eigvals);
+    logf_h('[BROWN] WARNING: 2*D_eff not positive definite (min eigenvalue = %.2e). Regularising...\n', min_eig);
     warning('compute_effective_body_brownian:NotPosDef', ...
         '2*D_eff not positive definite (min eigenvalue = %.2e). Regularising...', min_eig);
     reg = max(eps(norm(D_eff, 'fro')), abs(min_eig) * (1 + 1e-6));
@@ -134,4 +144,16 @@ end
 
 L_eff = chol(2 * D_eff, 'lower');
 
+end
+
+
+%% ==================== Local Helper Function ====================
+
+function logf_h = get_brown_logf(params)
+%GET_BROWN_LOGF  Retrieve logf handle from params, or fallback to fprintf
+    if isstruct(params) && isfield(params, 'logf') && ~isempty(params.logf)
+        logf_h = params.logf;
+    else
+        logf_h = @(varargin) fprintf(varargin{:});
+    end
 end

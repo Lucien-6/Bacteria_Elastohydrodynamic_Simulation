@@ -420,6 +420,8 @@ for k = 1:M
     sP = sin(phi1);    cP = cos(phi1);
 
     if abs(sT) < 1e-12
+        logf_h = get_params_logf(params);
+        logf_h('[ODE] WARNING: sin(theta_1) = %.2e for pili %d -- Euler angle singularity.\n', sT, k);
         warning('build_coupled_lin_sys:SingularTheta', ...
             'sin(theta_1) = %.2e for pili %d -- Euler angle singularity.', sT, k);
         sT = sign(sT + 1e-20) * 1e-12;
@@ -457,3 +459,13 @@ end
 %  Note: the former local helper get_trapezoidal_weight is superseded by
 %  params.quad_weights, precomputed once in init_coupled_params.  This
 %  eliminates per-call iteration over all pili points at every ODE RHS.
+
+
+function logf_h = get_params_logf(params)
+%GET_PARAMS_LOGF  Retrieve logf handle from params, or fallback to fprintf
+    if isstruct(params) && isfield(params, 'logf') && ~isempty(params.logf)
+        logf_h = params.logf;
+    else
+        logf_h = @(varargin) fprintf(varargin{:});
+    end
+end
