@@ -6,10 +6,10 @@
 %
 %        D_lab^{(1)} = R_body * D_local{k}
 %
-%    The ODE enforces clamped BCs at the rate (kinematic) level only.
-%    This function acts as a geometric projection step (analogous to
-%    quaternion renormalisation) to keep the constraint satisfied at
-%    the position level.
+%    For clamped pili, all three first-segment Euler angles (theta_1,
+%    phi_1, psi_1) are projected.  For free_torsion pili, only theta_1
+%    and phi_1 are projected; psi_1 is left free to evolve under the
+%    torsional dynamics (elastic moment + motor torque).
 %
 %    Call after each ODE integration interval and after quaternion
 %    renormalisation.
@@ -58,10 +58,18 @@ for k = 1:M
 
     [theta_c, phi_c, psi_c] = pili_euler_angles(d1_basis, d2_basis, d3_basis);
 
-    % Overwrite first-segment angles
-    Z(idx)          = theta_c;
-    Z(idx + N_k)    = phi_c;
-    Z(idx + 2*N_k)  = psi_c;
+    % Overwrite first-segment angles based on root coupling type
+    rc_k = 'clamped';
+    if isfield(params, 'root_coupling') && numel(params.root_coupling) >= k
+        rc_k = params.root_coupling{k};
+    end
+
+    Z(idx)       = theta_c;     % theta_1 always projected
+    Z(idx + N_k) = phi_c;       % phi_1 always projected
+    if strcmp(rc_k, 'clamped')
+        Z(idx + 2*N_k) = psi_c;  % psi_1 projected only for clamped
+    end
+    % free_torsion: psi_1 is NOT projected — it evolves freely
 
     idx = idx + 3 * N_k;
 end

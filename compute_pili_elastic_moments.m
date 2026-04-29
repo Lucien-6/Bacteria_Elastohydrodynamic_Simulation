@@ -1,5 +1,5 @@
 ﻿function [kappa1, kappa2, kappa3] = compute_pili_elastic_moments( ...
-        d1, d2, d3, N_k, sigma, kb0_k)
+        d1, d2, d3, N_k, sigma, kb0_k, root_coupling_k)
 %COMPUTE_PILI_ELASTIC_MOMENTS  Elastic curvature deviation for one pilus
 %
 %  Description:
@@ -10,6 +10,8 @@
 %  Syntax:
 %    [kappa1, kappa2, kappa3] = compute_pili_elastic_moments( ...
 %        d1, d2, d3, N_k, sigma, kb0_k)
+%    [kappa1, kappa2, kappa3] = compute_pili_elastic_moments( ...
+%        d1, d2, d3, N_k, sigma, kb0_k, root_coupling_k)
 %
 %  Inputs:
 %    d1    - [N_k x 3] First director (rot_k basis)
@@ -18,6 +20,8 @@
 %    N_k   - Number of segments
 %    sigma - Poisson's ratio
 %    kb0_k - [N_k+1 x 3] Intrinsic curvature at nodes
+%    root_coupling_k - (Optional) 'clamped' (default) | 'free_torsion'
+%                      Root boundary condition type for this pilus.
 %
 %  Outputs:
 %    kappa1 - [N_k x 1] d1-curvature deviation
@@ -25,16 +29,22 @@
 %    kappa3 - [N_k x 1] Twist deviation / (1 + sigma)
 %
 %  Note:
-%    The root segment (index 1) elastic moment is set to zero here as a
-%    placeholder for the clamped-end constraint.  It is overwritten by the
-%    clamped boundary condition equations in ode_coupled_rhs (lin_sys Step 7)
-%    and must not be interpreted as a free-end condition.
+%    For clamped coupling, all three root-segment moments are set to zero
+%    as placeholders overwritten by the clamped boundary condition equations
+%    in ode_coupled_rhs (lin_sys Step 7).
+%    For free_torsion coupling, kappa1 and kappa2 are still zeroed (theta_1
+%    and phi_1 are constrained), but kappa3(1) is preserved — the torsional
+%    elastic moment drives the free psi_1 dynamics.
 %
 %  References:
 %    [1] Walker et al. (2020), Physical Review E, Eqs. (11)-(12).
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
+
+if nargin < 7 || isempty(root_coupling_k)
+    root_coupling_k = 'clamped';
+end
 
 %% Approximate directors at nodes (Walker's crude method)
 d1NC = [d1; d1(end,:)];
@@ -51,10 +61,15 @@ kappa1_full = dot(d3NC, d2NCds, 2) - kb0_k(:, 1);
 kappa2_full = dot(d1NC, d3NCds, 2) - kb0_k(:, 2);
 kappa3_full = dot(d2NC, d1NCds, 2) - kb0_k(:, 3);
 
-%% Set root-segment moment to zero (placeholder, overwritten by clamped BC)
+%% Set root-segment moments based on root coupling type
+% kappa1(1) and kappa2(1) are always zeroed (theta_1, phi_1 constrained)
 kappa1_full(1) = 0;
 kappa2_full(1) = 0;
-kappa3_full(1) = 0;
+if strcmp(root_coupling_k, 'free_torsion')
+    % Preserve kappa3(1): torsional elastic moment drives psi_1 dynamics
+else
+    kappa3_full(1) = 0;  % clamped: overwritten by BC
+end
 
 %% Return segment values
 kappa1 = kappa1_full(1:N_k);

@@ -25,20 +25,26 @@
 %      .site           - Attachment site index, 1-14
 %      .intrinsic_curvature - (Optional) 'frozen' | struct with .type etc.
 %      .active_moment       - (Optional) struct('type','off') | etc.
+%      .root_coupling       - (Optional) 'clamped' (default) | 'free_torsion'
+%      .motor_torque        - (Optional) struct('type','off') |
+%                            struct('type','constant','torque_pN_nm',val,
+%                                   'max_omega_Hz',val)
 %
 %  Output:
 %    Pili_Matrix - [8 x M] numeric matrix:
 %      Row 1: type, Row 2: length [um], Row 3: deflection Z [rad],
 %      Row 4: deflection X [rad], Rows 5-7: shape params, Row 8: site
-%    pili_ext    - [1 x M] struct array with .intrinsic_curvature and
-%                  .active_moment per pili (default: 'frozen' / 'off')
+%    pili_ext    - [1 x M] struct array with .intrinsic_curvature,
+%                  .active_moment, .root_coupling, and .motor_torque
+%                  per pili (defaults: 'frozen' / 'off' / 'clamped' / off)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
 
 if isempty(pili_cfg)
     Pili_Matrix = zeros(8, 0);
-    pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {});
+    pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {}, ...
+                         'root_coupling', {}, 'motor_torque', {});
     return;
 end
 
@@ -140,6 +146,20 @@ for k = 1:M
         pili_ext(k).active_moment = pc.active_moment;
     else
         pili_ext(k).active_moment = struct('type', 'off');
+    end
+
+    % --- Root coupling type ---
+    if isfield(pc, 'root_coupling') && ~isempty(pc.root_coupling)
+        pili_ext(k).root_coupling = char(pc.root_coupling);
+    else
+        pili_ext(k).root_coupling = 'clamped';
+    end
+
+    % --- Motor torque (only meaningful for free_torsion) ---
+    if isfield(pc, 'motor_torque') && ~isempty(pc.motor_torque)
+        pili_ext(k).motor_torque = pc.motor_torque;
+    else
+        pili_ext(k).motor_torque = struct('type', 'off');
     end
 end
 

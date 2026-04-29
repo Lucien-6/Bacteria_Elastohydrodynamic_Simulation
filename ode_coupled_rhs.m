@@ -36,8 +36,19 @@ N_segs = params.N_segments;
 sigma  = params.sigma;
 Eg     = params.Eg;
 g_hat  = params.g_hat(:);
+M_pili = params.M_pili;
 
-%% Steps 1-7: Build coupled linear system (geometry + hydrodynamics + clamped BC)
+% Determine root coupling type for each pilus (default: clamped)
+rc = cell(M_pili, 1);
+for k = 1:M_pili
+    if isfield(params, 'root_coupling') && numel(params.root_coupling) >= k
+        rc{k} = params.root_coupling{k};
+    else
+        rc{k} = 'clamped';
+    end
+end
+
+%% Steps 1-7: Build coupled linear system (geometry + hydrodynamics + root BC)
 has_bg_flow = ~strcmp(params.bg_flow.type, 'off');
 if has_bg_flow
     [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params);
@@ -51,11 +62,11 @@ R_global = zeros(n_state, 1);
 R_global(1:3) = -Eg * g_hat;
 
 row_offset = 6;
-for k = 1:params.M_pili
+for k = 1:M_pili
     N_k = N_segs(k);
     [kappa1, kappa2, kappa3] = compute_pili_elastic_moments( ...
         geom.d1_basis{k}, geom.d2_basis{k}, geom.d3_basis{k}, ...
-        N_k, sigma, params.kb0{k});
+        N_k, sigma, params.kb0{k}, rc{k});
     idx_k = row_offset + (1:3*N_k)';
     R_global(idx_k) = reshape([kappa1'; kappa2'; kappa3'], [], 1);
 
@@ -66,8 +77,38 @@ for k = 1:params.M_pili
         d3_k  = geom.d3_basis{k};
         [d1N_k, d2N_k, d3N_k] = compute_node_directors(d1_k, d2_k, d3_k, N_k);
         M_act = coupled_active_moment(t, k, N_k, d1_k, d2_k, d3_k, ...
-                                      d1N_k, d2N_k, d3N_k, params.am_cfg{k});
+                                      d1N_k, d2N_k, d3N_k, params.am_cfg{k}, rc{k});
         R_global(idx_k) = R_global(idx_k) - M_act(:);
+    end
+
+    %% Step 8d: Apply motor torque for free-torsion pili
+    if strcmp(rc{k}, 'free_torsion') && isfield(params, 'motor_cfg') && ...
+            ~strcmp(params.motor_cfg{k}.type, 'off')
+        mc_k = params.motor_cfg{k};
+        switch mc_k.type
+            case 'constant'
+                tau_motor = mc_k.torque_dimless;
+                % Speed-limiting: estimate current psi_1 rate from previous step
+                % On first call, dpsi1_prev is absent -> assume zero speed
+                omega_motor = 0;
+                if isfield(params, 'dpsi1_prev') && ~isempty(params.dpsi1_prev{k})
+                    omega_motor = params.dpsi1_prev{k};
+                end
+                % Linear torque reduction as omega approaches max_omega
+                max_om = mc_k.max_omega_dimless;
+                if abs(omega_motor) < max_om
+                    tau_eff = tau_motor * (1 - abs(omega_motor) / max_om);
+                else
+                    tau_eff = 0;
+                end
+                % Apply motor torque to pili root (d3/torsional component)
+                r3 = row_offset + 3;
+                R_global(r3) = R_global(r3) + tau_eff;
+                % Apply reaction torque to body (Newton's 3rd law)
+                if isfield(geom, 'J_euler3') && ~isempty(geom.J_euler3{k})
+                    R_global(4:6) = R_global(4:6) - geom.J_euler3{k}' * tau_eff;
+                end
+        end
     end
 
     row_offset = row_offset + 3 * N_k;
@@ -80,19 +121,29 @@ if has_bg_flow
     R_global = R_global - back;
 end
 
-%% Apply clamped BC RHS zeros
+%% Apply root BC RHS zeros
 col_offset = 6;
-for k = 1:params.M_pili
+for k = 1:M_pili
     N_k = N_segs(k);
     r1 = col_offset + 1;
-    R_global(r1)   = 0;
-    R_global(r1+1) = 0;
-    R_global(r1+2) = 0;
+    R_global(r1)   = 0;      % theta_1 always zeroed
+    R_global(r1+1) = 0;      % phi_1 always zeroed
+    if strcmp(rc{k}, 'clamped')
+        R_global(r1+2) = 0;  % psi_1 zeroed for clamped
+    end
+    % free_torsion: r1+2 preserved (elastic moment + motor torque)
     col_offset = col_offset + 3 * N_k;
 end
 
 %% Step 9: Solve
 z_dot = lin_sys \ R_global;
+
+% Store dpsi1 for motor torque speed-limiting on next call
+for k = 1:M_pili
+    N_k = N_segs(k);
+    psi1_col = 6 + 3*sum(N_segs(1:k-1)) + 2*N_k + 1;
+    params.dpsi1_prev{k} = z_dot(psi1_col);
+end
 
 %% Step 10: Pack state rates
 V     = z_dot(1:3);

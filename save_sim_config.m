@@ -68,6 +68,19 @@ switch cfg.geometry_mode
                     am_val = rmfield(am_val, 'fun');
                 end
                 p_entry.active_moment = am_val;
+
+                % Root coupling type
+                if isfield(cfg.pili_ext(k), 'root_coupling')
+                    p_entry.root_coupling = cfg.pili_ext(k).root_coupling;
+                end
+                % Motor torque configuration
+                if isfield(cfg.pili_ext(k), 'motor_torque')
+                    mt_val = cfg.pili_ext(k).motor_torque;
+                    if isstruct(mt_val) && isfield(mt_val, 'fun')
+                        mt_val = rmfield(mt_val, 'fun');
+                    end
+                    p_entry.motor_torque = mt_val;
+                end
             end
 
             if isempty(pili_arr)

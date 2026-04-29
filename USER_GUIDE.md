@@ -1,7 +1,7 @@
 ﻿# User Guide — Coupled Body-Pili Simulation
 
 > **Author:** Lucien (lucien-6@qq.com)  
-> **Version:** 6.1.0
+> **Version:** 7.0.0
 > **Updated:** 2026-04-29
 
 This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
@@ -145,6 +145,8 @@ The script computes per-case summaries (e.g. sinking velocity statistics, maximu
 
 **v6.1.0:** **Dual-channel logger + default parameter unification** — `run_simulation.m` introduces two logger closures: `logf` (console + file dual-write, file entries carry `[HH:mm:ss]` timestamps; console remains timestamp-free) and `logf_file` (file-only, for high-frequency diagnostics). Logger handles are injected into `params` via `init_coupled_params` and removed before `.mat` serialisation. All `fprintf` / `warning` calls in `init_coupled_params.m`, `init_coupled_state.m`, `build_coupled_lin_sys.m`, `compute_effective_body_brownian.m`, `adaptive_basis_check.m`, and `validate_simulation_params.m` now write to `simulation.log` via `logf_h` (with `warning` retained for MATLAB's alert system). Animation progress is logged to file every 10%. Default parameters unified: `E` → `3.279e8` Pa, `N_body` → 300 (including `config_example.json`); both JSON templates now include `compute_flowfield: true`. **Fully backward-compatible** — all logger handle parameters are optional with safe fallbacks; no physics/ODE/linear-system/Brownian path modified.
 
+**v7.0.0:** **Free-torsion root coupling + constant motor torque model** — Per-pilus root boundary condition now supports `'free_torsion'` alongside the default `'clamped'`. In free-torsion mode, the root-segment twist angle ψ₁ is free to evolve under elastic + motor moments (θ₁ and φ₁ remain kinematically constrained). Motor torque model (`motor_torque.type ∈ {'off', 'constant'}`) applies a torsional moment at the root segment with optional stall-speed limiting (`max_omega_Hz`). Reaction torque (Newton's Third Law) is automatically applied to the body's angular momentum. Eleven core functions modified: `build_coupled_lin_sys.m` (conditional root BC), `compute_pili_elastic_moments.m` (preserve κ₃(1) for free_torsion), `coupled_active_moment.m` (preserve M₃(1)), `ode_coupled_rhs.m` (motor torque + reaction + dpsi1_prev), `enforce_clamped_geometry.m` (conditional ψ₁ projection), `init_coupled_params.m` (root_coupling/motor_torque addParameter + nondimensionalisation), `validate_simulation_params.m` (new validation rules), `parse_pili_config.m`, `save_sim_config.m`, `run_simulation.m`, `main_coupled_simulation.m`. New `config_motor_flagella_example.json` template. **Clamped mode fully backward-compatible** — default behaviour unchanged.
+
 Tunable via `cfg`: `flowfield_grid_spacing`, `flowfield_grid_range`, `flowfield_quiver_skip`, `flowfield_chunk_size`.
 
 ---
@@ -199,13 +201,40 @@ Physical units are automatically converted to dimensionless at initialisation.
 
 ---
 
-## 7. Version and changes
+## 7. New in v7.0: Free-Torsion Root Coupling & Motor Torque
+
+Per-pilus root boundary condition and active motor torque are configured in `main_coupled_simulation.m` (inline) or in JSON config. **`config_motor_flagella_example.json`** is a dedicated template for motor-driven flagella.
+
+### Root coupling
+
+```matlab
+pili_config(1).root_coupling = 'clamped';         % Default: all 3 Euler angles locked
+% pili_config(2).root_coupling = 'free_torsion';   % θ₁, φ₁ locked; ψ₁ free (motor-driven flagellum)
+```
+
+In JSON, under each `pili[]` entry: `"root_coupling": "clamped"` (default) or `"root_coupling": "free_torsion"`.
+
+### Motor torque (only meaningful for `free_torsion`)
+
+```matlab
+pili_config(2).motor_torque = struct('type', 'off');           % Default: no motor
+% pili_config(2).motor_torque = struct('type', 'constant', ...
+%     'torque_pN_nm', 2000, 'max_omega_Hz', 300);             % 2000 pN·nm, stall at 300 Hz
+```
+
+In JSON: `"motor_torque": { "type": "off" }` or `"motor_torque": { "type": "constant", "torque_pN_nm": 2000, "max_omega_Hz": 300 }`.
+
+Physical units are automatically converted to dimensionless at initialisation. For `'constant'` motor torque, the effective torque is linearly reduced as `|dψ₁/dt|` approaches `max_omega_Hz` (speed-limiting). A reaction torque (Newton's Third Law) is applied to the body's angular momentum.
+
+---
+
+## 8. Version and changes
 
 - Current version is printed at the start of `simulation.log` and listed at the top of `README.md` / this file.
 - See **`CHANGELOG.md`** for release notes.
 
 ---
 
-## 8. License
+## 9. License
 
 MIT License — see `README.md` (license section).

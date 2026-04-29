@@ -22,7 +22,7 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Log banner version: 6.1.0 (2026-04-29) — keep in sync with README / CHANGELOG
+%  Log banner version: 7.0.0 (2026-04-29) — keep in sync with README / CHANGELOG
 %
 %  Path: defensive addpath(project root) so run_simulation(cfg) works when
 %  invoked without main_coupled_simulation.m. Unified policy = this line plus
@@ -99,9 +99,21 @@ end
 if isfield(cfg, 'pili_ext') && ~isempty(cfg.pili_ext)
     intrinsic_curvature_cfg = {cfg.pili_ext.intrinsic_curvature};
     active_moment_cfg       = {cfg.pili_ext.active_moment};
+    if isfield(cfg.pili_ext, 'root_coupling')
+        root_coupling_cfg = {cfg.pili_ext.root_coupling};
+    else
+        root_coupling_cfg = {};
+    end
+    if isfield(cfg.pili_ext, 'motor_torque')
+        motor_torque_cfg = {cfg.pili_ext.motor_torque};
+    else
+        motor_torque_cfg = {};
+    end
 else
     intrinsic_curvature_cfg = {};
     active_moment_cfg       = {};
+    root_coupling_cfg       = {};
+    motor_torque_cfg        = {};
 end
 if isfield(cfg, 'background_flow')
     background_flow_cfg = cfg.background_flow;
@@ -216,7 +228,7 @@ logf_file = @(varargin) log_file_only(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 6.1.0\n');
+logf('  Version 7.0.0\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -387,6 +399,8 @@ params = init_coupled_params( ...
     'fixman_midpoint', fixman_midpoint, ...
     'intrinsic_curvature', intrinsic_curvature_cfg, ...
     'active_moment',       active_moment_cfg, ...
+    'root_coupling',       root_coupling_cfg, ...
+    'motor_torque',        motor_torque_cfg, ...
     'background_flow',     background_flow_cfg, ...
     'eps_body',            eps_body_cfg, ...
     'logf',                logf, ...

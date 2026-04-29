@@ -80,6 +80,8 @@ addParameter(p, 'enable_brown', false,  @(x) islogical(x) || (isnumeric(x) && is
 addParameter(p, 'fixman_midpoint', false, @(x) islogical(x) || (isnumeric(x) && isscalar(x)));
 addParameter(p, 'intrinsic_curvature', {}, @iscell);
 addParameter(p, 'active_moment', {}, @iscell);
+addParameter(p, 'root_coupling', {}, @iscell);
+addParameter(p, 'motor_torque', {}, @iscell);
 addParameter(p, 'background_flow', struct('type','off'), @isstruct);
 addParameter(p, 'eps_body', [], @(x) isempty(x) || (isnumeric(x) && isscalar(x) && isfinite(x) && x > 0));
 addParameter(p, 'logf', @(varargin) fprintf(varargin{:}), @(x) isa(x, 'function_handle'));
@@ -445,6 +447,43 @@ if M_pili > 0 && strcmp(geometry_mode, 'parametric')
         end
     end
 
+    %% Configure root coupling and motor torque (per-pili)
+    params.root_coupling = cell(M_pili, 1);
+    params.motor_cfg    = cell(M_pili, 1);
+    rc_input  = p.Results.root_coupling;
+    mt_input  = p.Results.motor_torque;
+    for k = 1:M_pili
+        % Root coupling type
+        if k <= numel(rc_input) && ~isempty(rc_input{k})
+            params.root_coupling{k} = char(rc_input{k});
+        else
+            params.root_coupling{k} = 'clamped';
+        end
+
+        % Motor torque configuration
+        mt_k = struct('type', 'off');
+        if k <= numel(mt_input) && ~isempty(mt_input{k})
+            mt_k = mt_input{k};
+        end
+
+        switch mt_k.type
+            case 'off'
+                params.motor_cfg{k} = mt_k;
+
+            case 'constant'
+                % Nondimensionalise: torque_dimless = torque [N*m] / (EI / L_0)
+                %   torque_pN_nm * 1e-21 gives N*m
+                mt_k.torque_dimless = mt_k.torque_pN_nm * 1e-21 / (EI / L_0);
+                % Nondimensionalise: max_omega_dimless = max_omega [Hz] * 2*pi * T_0
+                mt_k.max_omega_dimless = mt_k.max_omega_Hz * 2 * pi * T_0;
+                params.motor_cfg{k} = mt_k;
+
+            otherwise
+                error('init_coupled_params:BadMT', ...
+                    'Unknown motor_torque type ''%s'' for pili %d.', mt_k.type, k);
+        end
+    end
+
 else
     % --- Custom pili geometry ---
     if strcmp(geometry_mode, 'custom') && isfield(custom_cfg, 'pili') && ~isempty(custom_cfg.pili)
@@ -595,6 +634,40 @@ else
             end
         end
 
+        %% Configure root coupling and motor torque — custom mode
+        params.root_coupling = cell(M_pili, 1);
+        params.motor_cfg    = cell(M_pili, 1);
+        rc_input  = p.Results.root_coupling;
+        mt_input  = p.Results.motor_torque;
+        for k = 1:M_pili
+            % Root coupling type
+            if k <= numel(rc_input) && ~isempty(rc_input{k})
+                params.root_coupling{k} = char(rc_input{k});
+            else
+                params.root_coupling{k} = 'clamped';
+            end
+
+            % Motor torque configuration
+            mt_k = struct('type', 'off');
+            if k <= numel(mt_input) && ~isempty(mt_input{k})
+                mt_k = mt_input{k};
+            end
+
+            switch mt_k.type
+                case 'off'
+                    params.motor_cfg{k} = mt_k;
+
+                case 'constant'
+                    mt_k.torque_dimless = mt_k.torque_pN_nm * 1e-21 / (EI / L_0);
+                    mt_k.max_omega_dimless = mt_k.max_omega_Hz * 2 * pi * T_0;
+                    params.motor_cfg{k} = mt_k;
+
+                otherwise
+                    error('init_coupled_params:BadMT', ...
+                        'Unknown motor_torque type ''%s'' for pili %d.', mt_k.type, k);
+            end
+        end
+
     else
         % No pili (either mode)
         params.N_segments = [];
@@ -606,6 +679,8 @@ else
         params.kb0        = {};
         params.pili_x0    = {};
         params.am_cfg     = {};
+        params.root_coupling = {};
+        params.motor_cfg  = {};
         ic_input          = {};
     end
 end
@@ -751,8 +826,20 @@ if params.M_pili > 0
             end
         end
         am_k_type = params.am_cfg{k}.type;
-        logf_h('  Pili %d: intrinsic_curvature = %s, active_moment = %s\n', ...
-            k, ic_k_type, am_k_type);
+        rc_k = params.root_coupling{k};
+        mt_k_type = params.motor_cfg{k}.type;
+        if strcmp(rc_k, 'clamped')
+            logf_h('  Pili %d: intrinsic_curvature = %s, active_moment = %s, root_coupling = clamped\n', ...
+                k, ic_k_type, am_k_type);
+        else
+            logf_h('  Pili %d: intrinsic_curvature = %s, active_moment = %s, root_coupling = free_torsion, motor_torque = %s\n', ...
+                k, ic_k_type, am_k_type, mt_k_type);
+            if strcmp(mt_k_type, 'constant')
+                logf_h('          motor: torque = %.2f pN*nm, max_omega = %.1f Hz (dimless: tau=%.4e, w_max=%.4e)\n', ...
+                    params.motor_cfg{k}.torque_pN_nm, params.motor_cfg{k}.max_omega_Hz, ...
+                    params.motor_cfg{k}.torque_dimless, params.motor_cfg{k}.max_omega_dimless);
+            end
+        end
     end
 end
 logf_h('=============================================================\n\n');

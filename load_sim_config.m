@@ -54,7 +54,8 @@ switch cfg.geometry_mode
         cfg.major_axis   = NaN;
         cfg.N_body       = NaN;
         cfg.Pili_Matrix  = zeros(8, 0);
-        cfg.pili_ext     = struct('intrinsic_curvature', {}, 'active_moment', {});
+        cfg.pili_ext     = struct('intrinsic_curvature', {}, 'active_moment', {}, ...
+                                     'root_coupling', {}, 'motor_torque', {});
 
         % Default alpha_0 and eps_body for custom mode
         cfg.alpha_0  = get_json(jcg, 'alpha_0', 0);
@@ -75,10 +76,12 @@ switch cfg.geometry_mode
             [cfg.Pili_Matrix, cfg.pili_ext] = parse_pili_config(jp);
         elseif isnumeric(jp) && ~isempty(jp)
             cfg.Pili_Matrix = jp;
-            cfg.pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {});
+            cfg.pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {}, ...
+                                     'root_coupling', {}, 'motor_torque', {});
         else
             cfg.Pili_Matrix = zeros(8, 0);
-            cfg.pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {});
+            cfg.pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {}, ...
+                                     'root_coupling', {}, 'motor_torque', {});
         end
 end
 

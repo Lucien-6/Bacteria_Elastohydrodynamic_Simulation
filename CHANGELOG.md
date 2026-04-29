@@ -8,6 +8,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [7.0.0] — 2026-04-29
+
+### Added
+
+- **Free-torsion root coupling (`root_coupling = 'free_torsion'`)**: Per-pilus root boundary condition now supports two modes — `'clamped'` (default, all three Euler angles θ₁, φ₁, ψ₁ kinematically locked to the body) and `'free_torsion'` (θ₁ and φ₁ locked, but ψ₁ free to rotate under its own moment balance). The free-torsion mode models a "clamped-torsion-free" boundary condition suitable for motor-driven rotating flagella.
+- **Motor torque (`motor_torque`)**: Per-pilus active torsional moment applied at the root segment. Currently supports `'off'` (default, no motor) and `'constant'` (user-specified torque magnitude in pN·nm with optional stall-speed limit). For `'constant'` mode, the motor torque is nondimensionalised at initialisation; the effective torque is linearly reduced as the current dψ₁/dt approaches `max_omega_Hz` (speed-limiting model). A reaction torque (Newton's Third Law) is applied to the bacterial body's angular momentum via `J_euler(3,:)`.
+- **`parse_pili_config.m` — `root_coupling` / `motor_torque` fields**: The `pili_ext` struct now includes `root_coupling` (default `'clamped'`) and `motor_torque` (default `struct('type', 'off')`) per pilus, parsed from user-friendly pili configuration structs.
+- **`init_coupled_params.m` — `root_coupling` / `motor_torque` Name-Value parameters**: Two new `inputParser` parameters accept cell arrays per pilus. Nondimensionalisation converts `torque_pN_nm` → `torque_dimless` (scaled by EI/L₀) and `max_omega_Hz` → `max_omega_dimless` (scaled by 2π·T₀). Parameter summary now prints per-pilus `root_coupling` type and `motor_torque` details.
+- **`validate_simulation_params.m` — root coupling & motor torque validation**: New rules ensure `root_coupling` ∈ {`'clamped'`, `'free_torsion'`}; validate `motor_torque.type` ∈ {`'off'`, `'constant'`}; for `'constant'` check `torque_pN_nm` finite non-zero and `max_omega_Hz` > 0; warn if motor torque is specified for a clamped pilus (no physical effect).
+- **`build_coupled_lin_sys.m` — conditional root BC**: Root boundary condition assembly (Step 7) now branches on `params.root_coupling{k}`. `'clamped'` retains the original 3-row replacement (θ₁, φ₁, ψ₁). `'free_torsion'` replaces only 2 rows (θ₁, φ₁); the ψ₁ row is left as the natural moment-balance equation. `J_euler(3,:)` is stored in `geom.J_euler3{k}` for downstream reaction-torque computation.
+- **`compute_pili_elastic_moments.m` — conditional κ₃(1) zeroing**: For `'clamped'`, `kappa3_full(1)` is zeroed (overwritten by BC). For `'free_torsion'`, `kappa3_full(1)` is preserved — the torsional elastic moment contributes to the ψ₁ dynamics equation. New optional 7th argument `root_coupling_k` (default `'clamped'`).
+- **`coupled_active_moment.m` — conditional M_active(:,1) zeroing**: For `'clamped'`, all three components (d₁, d₂, d₃) of `M_active(:,1)` are zeroed. For `'free_torsion'`, only bending components (d₁, d₂) are zeroed; the torsional component (d₃) is preserved and drives free ψ₁ dynamics. New optional 11th argument `root_coupling_k` (default `'clamped'`).
+- **`ode_coupled_rhs.m` — motor torque application**: New Step 8d applies motor torque for free-torsion pili. Calculates `tau_eff` from `params.motor_cfg{k}.torque_dimless` with speed-limiting (linear reduction if `abs(omega_motor)` approaches `max_omega_dimless`). Applies `tau_eff` to `R_global(r3)` (pilus torsional force) and the reaction torque `J_euler3{k}' * tau_eff` to `R_global(4:6)` (body angular moment). Root BC RHS zeros: `R_global(r1)` and `R_global(r1+1)` always zeroed; `R_global(r1+2)` only zeroed for `'clamped'` pili. After the linear solve, `z_dot(psi1_col)` is stored in `params.dpsi1_prev{k}` for the next time step's speed-limiting estimate.
+- **`enforce_clamped_geometry.m` — conditional ψ₁ projection**: For `'clamped'`, all three root-segment Euler angles (θ_c, φ_c, ψ_c) are projected to match the body orientation. For `'free_torsion'`, only θ_c and φ_c are projected; ψ_c is left untouched (free to evolve dynamically).
+- **`save_sim_config.m` — `root_coupling` / `motor_torque` persistence**: Per-pilus `root_coupling` and `motor_torque` fields are now written to the JSON output (stripping non-serialisable `fun` handles from motor configs).
+- **`run_simulation.m` — root_coupling / motor_torque extraction**: Extracts `root_coupling_cfg` and `motor_torque_cfg` cell arrays from `cfg.pili_ext` and passes them as Name-Value pairs to `init_coupled_params`, following the same pattern as `intrinsic_curvature_cfg` / `active_moment_cfg`.
+- **`main_coupled_simulation.m` — inline examples**: Commented-out inline configuration examples for `root_coupling` and `motor_torque` per pilus. Updated `pili_ext` default struct to include new fields.
+- **`config_motor_flagella_example.json`** (NEW): Dedicated example configuration for motor-driven flagella with free-torsion coupling — one clamped pilus + one free-torsion pilus with constant motor torque (2000 pN·nm, stall speed 300 Hz).
+
+### Changed
+
+- **§13 "固支边界条件" → §13 "根部边界条件"**: The README section title and content are updated to reflect that the root boundary condition is no longer exclusively clamped — free-torsion is now a supported alternative per pilus.
+- **§15 "时间积分"**: The algorithm pseudo-code Step 9 is updated from "施加固支边界条件" to "施加根部边界条件"; Steps 7b and 8 are extended with motor torque logic.
+
+### Compatibility
+
+- **Fully backward-compatible**: `root_coupling` defaults to `'clamped'` and `motor_torque` defaults to `struct('type', 'off')` for all pili when not specified. Existing configurations (inline or JSON) produce identical results without any modification. The `'clamped'` code path is bit-exact with the pre-v7.0 code at all checkpoints — only the branching logic was added, not the arithmetic.
+
+### Documentation
+
+- **`README.md`**, **`USER_GUIDE.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`docs/index.html`**, **`CHANGELOG.md`**: Version **7.0.0**, date **2026-04-29**.
+
+---
+
 ## [6.1.0] — 2026-04-29
 
 ### Added

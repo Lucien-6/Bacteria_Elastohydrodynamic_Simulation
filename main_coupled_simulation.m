@@ -21,7 +21,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Documentation release: 6.1.0 (2026-04-29) — see README.md / CHANGELOG.md
+%  Documentation release: 7.0.0 (2026-04-29) — see README.md / CHANGELOG.md
 
 close all force;
 clear; clc;
@@ -108,6 +108,21 @@ else
         %  Custom:     struct('type','custom', 'fun', @my_moment_func)
         % pili_config(1).active_moment = struct('type', 'off');
 
+        % -------- Per-pili: Root Coupling & Motor Torque --------
+        %  root_coupling: 'clamped' (default) | 'free_torsion'
+        %    clamped     - Position + all orientations locked to body (standard)
+        %    free_torsion - Position + bending locked, twist (psi_1) free
+        %  motor_torque: only meaningful for free_torsion pili
+        %    struct('type','off')  (default)
+        %    struct('type','constant','torque_pN_nm',2000,'max_omega_Hz',300)
+        %      - Constant motor torque with linear speed limiting
+        %      - torque_pN_nm: output torque [pN*nm] (positive=CCW, negative=CW)
+        %      - max_omega_Hz: stall speed [Hz]
+        pili_config(1).root_coupling = 'clamped';
+        % pili_config(1).root_coupling = 'free_torsion';
+        % pili_config(1).motor_torque  = struct('type','constant', ...
+        %     'torque_pN_nm', 2000, 'max_omega_Hz', 300);
+
         [cfg.Pili_Matrix, cfg.pili_ext] = parse_pili_config(pili_config);
 
         % Legacy raw-matrix alternative (uncomment to use instead):
@@ -133,7 +148,8 @@ else
 
         % Placeholder parametric fields (required by run_simulation.m unpacking)
         cfg.Pili_Matrix = zeros(8, 0);
-        cfg.pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {});
+        cfg.pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {}, ...
+                                     'root_coupling', {}, 'motor_torque', {});
 
         % cfg.custom_geometry.body_points_file = 'geometry/my_body_points.csv';
         % cfg.custom_geometry.L_0_override = 1.0e-6;

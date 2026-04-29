@@ -1,4 +1,4 @@
-function M_active = coupled_active_moment(t, k, N_k, d1, d2, d3, d1N, d2N, d3N, am_cfg)
+function M_active = coupled_active_moment(t, k, N_k, d1, d2, d3, d1N, d2N, d3N, am_cfg, root_coupling_k)
 %COUPLED_ACTIVE_MOMENT  Per-pili time-varying active internal moments
 %
 %  Description:
@@ -21,6 +21,8 @@ function M_active = coupled_active_moment(t, k, N_k, d1, d2, d3, d1N, d2N, d3N, 
 %  Syntax:
 %    M_active = coupled_active_moment(t, k, N_k, d1, d2, d3, ...
 %                                     d1N, d2N, d3N, am_cfg)
+%    M_active = coupled_active_moment(t, k, N_k, d1, d2, d3, ...
+%                                     d1N, d2N, d3N, am_cfg, root_coupling_k)
 %
 %  Inputs:
 %    t      - Current dimensionless time
@@ -43,11 +45,15 @@ function M_active = coupled_active_moment(t, k, N_k, d1, d2, d3, d1N, d2N, d3N, 
 %                          typically zero for standard flagellar/pili beating.
 %             For 'custom':
 %               .fun - Function handle: fun(t, k, N_k, d1, d2, d3, d1N, d2N, d3N)
+%    root_coupling_k - (Optional) 'clamped' (default) | 'free_torsion'
+%                      Root boundary condition type for this pilus.
 %
 %  Outputs:
 %    M_active - [3 x N_k] Integrated active moments in local director basis.
 %               Row 1: d1 component, Row 2: d2 component, Row 3: d3 component.
-%               First segment is set to zero (overwritten by clamped BC).
+%               For clamped coupling, first segment is zeroed (overwritten by BC).
+%               For free_torsion, only bending components (rows 1-2) of the
+%               first segment are zeroed; torsional component (row 3) is preserved.
 %
 %  References:
 %    [1] Walker et al. (2020), Physical Review E.
@@ -55,6 +61,10 @@ function M_active = coupled_active_moment(t, k, N_k, d1, d2, d3, d1N, d2N, d3N, 
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-03
+
+if nargin < 11 || isempty(root_coupling_k)
+    root_coupling_k = 'clamped';
+end
 
 if strcmp(am_cfg.type, 'off')
     M_active = zeros(3, N_k);
@@ -112,6 +122,11 @@ switch am_cfg.type
             'Unknown active_moment type: ''%s'' for pili %d.', am_cfg.type, k);
 end
 
-M_active(:, 1) = 0;
+if strcmp(root_coupling_k, 'clamped')
+    M_active(:, 1) = 0;     % All components zeroed (overwritten by clamped BC)
+else
+    M_active(1:2, 1) = 0;   % Bending components zeroed (theta_1, phi_1 constrained)
+    % M_active(3, 1) preserved — torsional component drives free psi_1 dynamics
+end
 
 end

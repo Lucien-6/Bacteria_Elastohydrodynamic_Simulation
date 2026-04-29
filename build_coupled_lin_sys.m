@@ -6,7 +6,8 @@ function [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params)
 %    elastohydrodynamic problem:
 %      lin_sys * z_dot = R
 %    where lin_sys encodes the hydrodynamic resistance (mobility
-%    inversion + force/moment balance) and clamped boundary conditions.
+%    inversion + force/moment balance) and root boundary conditions
+%    (clamped or free-torsion per pili).
 %
 %    This function extracts Steps 1-7 of ode_coupled_rhs.m into a
 %    reusable subroutine, shared by ode_coupled_rhs (deterministic
@@ -406,7 +407,7 @@ if nargout >= 3
     hydro.n_trans        = n_trans;
 end
 
-%% Step 7: Apply clamped boundary conditions
+%% Step 7: Apply root boundary conditions (clamped or free-torsion)
 col_offset = 6;
 row_offset = 6;
 
@@ -441,13 +442,33 @@ for k = 1:M
                       cP/sT,      sP/sT,     0];
     J_euler = J_euler_basis * rot_k;
 
-    lin_sys(r1, :) = 0;
-    lin_sys(r2, :) = 0;
-    lin_sys(r3, :) = 0;
+    rc_k = 'clamped';
+    if isfield(params, 'root_coupling') && numel(params.root_coupling) >= k
+        rc_k = params.root_coupling{k};
+    end
 
-    lin_sys(r1, theta1_col) = 1;   lin_sys(r1, omega_cols) = -J_euler(1,:);
-    lin_sys(r2, phi1_col)   = 1;   lin_sys(r2, omega_cols) = -J_euler(2,:);
-    lin_sys(r3, psi1_col)   = 1;   lin_sys(r3, omega_cols) = -J_euler(3,:);
+    if strcmp(rc_k, 'clamped')
+        % Full clamped BC: replace 3 rows (theta_1, phi_1, psi_1 all locked)
+        lin_sys(r1, :) = 0;
+        lin_sys(r2, :) = 0;
+        lin_sys(r3, :) = 0;
+
+        lin_sys(r1, theta1_col) = 1;   lin_sys(r1, omega_cols) = -J_euler(1,:);
+        lin_sys(r2, phi1_col)   = 1;   lin_sys(r2, omega_cols) = -J_euler(2,:);
+        lin_sys(r3, psi1_col)   = 1;   lin_sys(r3, omega_cols) = -J_euler(3,:);
+
+    elseif strcmp(rc_k, 'free_torsion')
+        % Free-torsion BC: replace only 2 rows (theta_1, phi_1 locked; psi_1 free)
+        lin_sys(r1, :) = 0;
+        lin_sys(r2, :) = 0;
+        % r3 row is kept: elastic moment balance equation drives psi_1 dynamics
+
+        lin_sys(r1, theta1_col) = 1;   lin_sys(r1, omega_cols) = -J_euler(1,:);
+        lin_sys(r2, phi1_col)   = 1;   lin_sys(r2, omega_cols) = -J_euler(2,:);
+    end
+
+    % Save J_euler(3,:) for reaction torque computation in ode_coupled_rhs
+    geom.J_euler3{k} = J_euler(3,:);
 
     col_offset = col_offset + 3 * N_k;
     row_offset = row_offset + 3 * N_k;
