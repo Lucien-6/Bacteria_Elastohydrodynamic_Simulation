@@ -21,7 +21,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Documentation release: 7.0.2 (2026-04-30) — see README.md / CHANGELOG.md
+%  Documentation release: 7.0.4 (2026-04-30) — see README.md / CHANGELOG.md
 
 close all force;
 clear; clc;
@@ -48,7 +48,7 @@ addpath(proj_root);
 %    Custom body and custom pili MUST be used together (no mixing).
 %    Use config_custom_example.json as a template, or set
 %    cfg.geometry_mode = 'custom' and cfg.custom_geometry below.
-config_file = '';    % e.g. 'configs/my_case.json' or 'config_custom_example.json'
+config_file = 'F:\Bacteria Sinking\Simulation\STOKES\Stokes Brown Flexible\Coupled_Body_Pili\config_test_custom.json';    % e.g. 'configs/my_case.json' or 'config_custom_example.json'
 
 if ~isempty(config_file) && isfile(config_file)
     %% --- External JSON configuration ---

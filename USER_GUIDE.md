@@ -1,7 +1,7 @@
 ﻿# User Guide — Coupled Body-Pili Simulation
 
 > **Author:** Lucien (lucien-6@qq.com)  
-> **Version:** 7.0.2
+> **Version:** 7.0.4
 > **Updated:** 2026-04-30
 
 This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
@@ -47,6 +47,7 @@ Import arbitrary 3D point clouds for both the body and pili:
 - Custom body and custom pili **must** be used together — mixing with parametric models is not allowed.
 - `alpha_0` and `eps_body` for custom mode are specified under the `custom_geometry` node.
 - The body surface is automatically triangulated (`alphaShape` + `convhulln` fallback) for `trisurf` visualization.
+- CSV geometry files support comma-separated, space-separated, and tab-separated delimiters (v7.0.3 fix).
 
 ### Option C — Programmatic / batch
 

@@ -101,6 +101,13 @@ function pts = read_csv_points(file_path)
               'No data lines found in CSV file: %s', file_path);
     end
 
+    % Normalise separators: replace commas and tabs with spaces so that
+    % sscanf('%f') can parse the line regardless of delimiter style.
+    for i = 1:numel(raw_lines)
+        raw_lines{i} = strrep(raw_lines{i}, ',', ' ');
+        raw_lines{i} = strrep(raw_lines{i}, char(9), ' ');   % tab → space
+    end
+
     % Detect header: if the first line cannot be parsed as 3 numbers,
     % treat it as a header and skip it.
     start_row = 1;

@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [7.0.3] — 2026-04-30
+
+### Fixed
+
+- **`read_geometry_csv_mat.m` — CSV comma-delimiter parsing**: The local `read_csv_points` helper used `sscanf(line, '%f')` to parse numeric values from each line. MATLAB's `sscanf` with `%f` only treats whitespace (space, tab, newline) as field delimiters — commas are not recognised, causing comma-separated CSV data (e.g. `1.0e-6,0.0,3.98e-7`) to be silently truncated after the first number. Each subsequent data line yielded fewer than 3 values and was skipped, resulting in a "Point data must have 3 columns, got 0" error for all CSV geometry files. **Fix**: before header detection and numeric parsing, all data lines are normalised by replacing commas (`,`) and tabs (`\t`) with spaces, so `sscanf('%f')` correctly extracts every numerical field regardless of the original delimiter style. This makes the function accept comma-separated, space-separated, tab-separated, and mixed-delimiter CSV files without changing the output for any previously working format.
+
+---
+
 ## [7.0.2] — 2026-04-30
 
 ### Fixed
