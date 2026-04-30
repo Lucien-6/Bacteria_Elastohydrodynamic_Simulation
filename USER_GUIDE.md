@@ -1,8 +1,8 @@
 ﻿# User Guide — Coupled Body-Pili Simulation
 
 > **Author:** Lucien (lucien-6@qq.com)  
-> **Version:** 7.0.0
-> **Updated:** 2026-04-29
+> **Version:** 7.0.2
+> **Updated:** 2026-04-30
 
 This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
 

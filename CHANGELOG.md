@@ -8,6 +8,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [7.0.2] — 2026-04-30
+
+### Fixed
+
+- **`adaptive_basis_check.m` — `sprintf` string syntax error (line 114)**: In a prior edit, invisible Unicode characters (zero-width spaces or non-breaking spaces) were introduced around the line-continuation `...` operators in the `InsufficientRotation` warning block, causing MATLAB's parser to emit `'意外的 ''Post-rotation min(theta, pi-theta)...''。'` (unexpected string end). The affected `logf_h` and `warning` calls were rewritten using explicit `sprintf` string construction to eliminate multi-line string concatenation and the associated hidden-character issue.
+- **Warnings restored to MATLAB default display format**: In v6.1.0, duplicate `warning()` calls were removed from `validate_simulation_params.m` and `init_coupled_state.m` to eliminate redundant console output. However, this caused all warning messages to appear in black (plain `fprintf`) rather than MATLAB's built-in orange warning color. The native `warning()` calls are now restored alongside the existing `logf_h` calls, preserving both the colored console output and the log-file record.
+
+### Changed
+
+- **`init_coupled_params.m` — log output cleanup**: Removed the redundant "Print summary" parameter block (~90 lines) and the "Computed adaptive gap distance" log lines. All derived parameter information is now centrally reported in `run_simulation.m`'s `[INIT]` section, eliminating duplicate log entries.
+- **`main_coupled_simulation.m` — log header and `[PARAMS]` deduplication**: Trimmed duplicate log banners and redundant `[PARAMS]` blocks so the console log is clean and non-repetitive.
+
+### Documentation
+
+- **`README.md`**, **`CHANGELOG.md`**, **`USER_GUIDE.md`**, **`requirements.txt`**, **`docs/index.html`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**: Version **7.0.2**, date **2026-04-30**.
+
+---
+
+## [7.0.1] — 2026-04-30
+
+### Fixed
+
+- **`pili_type_building.m` — Type 4 & 5 arc-length uniform resampling**: Types 4 (expansive sinusoidal) and 5 (conical spiral) previously sampled nodes at equal intervals of the curve parameter (x or t), producing **non-uniform arc lengths** between consecutive nodes. This violated the constant-segment-length assumption (`ds = L/N_seg`) of the inextensible Kirchhoff rod framework, causing cumulative reconstruction errors (up to 0.47 L₀ in Type 5). Both types now use **PCHIP-based arc-length uniform resampling**: a fine parameter sweep (Δ = 1e-4 over [0, 6]) computes cumulative arc length at sub-nanometer resolution; PCHIP interpolation then directly maps uniform arc-length targets to each coordinate component, bypassing the indirect arc-length → parameter → coordinate path. The sampling strategy ensures all `Ntail` nodes are equally spaced in arc length (`ds = L_helix / (Ntail-1)`), matching `pili_spatial_coords`'s reconstruction assumption (`ds = ell_k / N_k`). Types 1, 2, 3 remain unchanged (naturally arc-length uniform or explicitly arc-length-parameterised). The function header now documents the sampling strategy per type. An error is raised if the fine sweep's maximum arc length is shorter than the target `L_helix`. Reconstruction error for `[0.1, 0.5, 2π]` conical spiral reduced from ~0.47 to ~0.0135 L₀ (remaining error is due to PCHIP smoothing of the coordinate data; further reduction requires coordinate-level arc-length enforcement).
+
+### Changed
+
+- **`pili_type_building.m` — search range extended**: Fine parameter sweep range expanded from `[0, 4]` to `[0, 6]` (both Type 4 and 5), ensuring longer pili are fully covered.
+- **`pili_type_building.m` — arc-length target**: Uniform sampling now uses the exact user-specified `L_helix_m` as the arc-length target (not the nearest discrete match `L_actual`), ensuring `ds = L/N_seg` is consistent with `pili_building.m`'s `ell = L/(N-1)`.
+
+### Compatibility
+
+- **Backward-compatible for Types 1, 2, 3**: Code paths unchanged; bit-exact results for existing configurations using these types.
+- **Geometry change for Types 4, 5**: Node positions shift from parameter-uniform to arc-length-uniform distribution. The curve shape itself is unchanged — only the point spacing along the curve changes. Physical quantities (curvature, forces, moments) become more accurate because the constant-ds assumption is now satisfied.
+
+---
+
 ## [7.0.0] — 2026-04-29
 
 ### Added

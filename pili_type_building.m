@@ -1,4 +1,4 @@
-﻿function Pili_str = pili_type_building(PM, Ntail)
+function Pili_str = pili_type_building(PM, Ntail)
 %PILI_TYPE_BUILDING  Generate single-pilus 3D morphology coordinates
 %
 %  Description:
@@ -31,6 +31,13 @@
 %    Type 3 (Circular) : PM(5) = arc angle [rad].
 %    Type 4 (Sinusoid) : PM(5) = amplitude factor a, PM(6) = frequency b.
 %    Type 5 (Spiral)   : PM(5) = a, PM(6) = b, PM(7) = c (spiral params).
+%
+%  Sampling strategy:
+%    Types 1, 3 naturally produce arc-length-uniform nodes.
+%    Type 2 uses an explicit arc-length → x polynomial inversion.
+%    Types 4, 5 use arc-length uniform resampling via PCHIP interpolation
+%      to ensure all nodes are equally spaced in arc length, which is
+%      required by the inextensible Kirchhoff rod framework (constant ds).
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2024-10-10
@@ -90,47 +97,81 @@ switch Pili_Type
         rytail = L_helix / Angle_Circle .* (1.0 - cos(Dtheta));
         rztail = zeros(1, Ntail);
 
-    case 4  % Expansive sinusoidal
+    case 4  % Expansive sinusoidal — arc-length uniform resampling
         a = PM(5);
         b = PM(6);
-        x = 0 : 0.001 : 4;
-        y = a .* x .* cos(b * x);
-        n = length(x);
-        L = zeros(1, n);
-        for i = 2:n
-            L(i) = L(i-1) + sqrt((x(i)-x(i-1))^2 + (y(i)-y(i-1))^2);
-        end
-        [~, index] = min(abs(L_helix - L));
-        XEnd   = x(index);
-        rxtail = 0.0 : XEnd/(Ntail-1) : XEnd;
-        rytail = a .* rxtail .* cos(b .* rxtail);
-        rztail = zeros(1, Ntail);
-        rxtail = rxtail .* 1e-6;
-        rytail = rytail .* 1e-6;
-        rztail = rztail .* 1e-6;
+        L_helix_m = L_helix * 1e-6;         % Target arc length [m]
 
-    case 5  % Conical spiral
+        % Fine parameter sweep with sub-nanometer arc-length resolution
+        x_fine = 0 : 1e-4 : 6;
+        y_fine = a .* x_fine .* cos(b .* x_fine);
+        n_fine = length(x_fine);
+
+        % Cumulative arc length [m]
+        L_fine_m = zeros(1, n_fine);
+        for i = 2:n_fine
+            L_fine_m(i) = L_fine_m(i-1) + 1e-6 * sqrt((x_fine(i)-x_fine(i-1))^2 + ...
+                (y_fine(i)-y_fine(i-1))^2);
+        end
+
+        % Truncate to the region where arc length >= target (ensures extrapolation-free)
+        idx_past = find(L_fine_m >= L_helix_m, 1, 'first');
+        if isempty(idx_past)
+            error('pili_type_building:SpiralTooShort', ...
+                'Type 4: arc length at max parameter (6) is %.4f um, shorter than target %.4f um.', ...
+                L_fine_m(end)/1e-6, L_helix);
+        end
+        idx_use = idx_past;                  % Include the point just past target
+
+        % Uniform arc-length targets [m] — use exact target L_helix_m
+        s_uniform = (0 : Ntail-1) * L_helix_m / (Ntail-1);
+
+        % Directly interpolate coordinates from arc length (PCHIP)
+        rxtail = interp1(L_fine_m(1:idx_use), x_fine(1:idx_use) * 1e-6, ...
+            s_uniform, 'pchip');
+        rytail = interp1(L_fine_m(1:idx_use), y_fine(1:idx_use) * 1e-6, ...
+            s_uniform, 'pchip');
+        rztail = zeros(1, Ntail);
+
+    case 5  % Conical spiral — arc-length uniform resampling
         a = PM(5);
         b = PM(6);
         c = PM(7);
-        t = 0 : 0.001 : 4;
-        x = a .* t .* cos(c .* t);
-        y = a .* t .* sin(c .* t);
-        z = b .* t;
-        n = length(t);
-        L = zeros(1, n);
-        for i = 2:n
-            L(i) = L(i-1) + sqrt((x(i)-x(i-1))^2 + (y(i)-y(i-1))^2 + (z(i)-z(i-1))^2);
+        L_helix_m = L_helix * 1e-6;         % Target arc length [m]
+
+        % Fine parameter sweep with sub-nanometer arc-length resolution
+        t_fine = 0 : 1e-4 : 6;
+        x_fine = b .* t_fine;                % axial [μm]
+        y_fine = a .* t_fine .* cos(c .* t_fine);  % transverse [μm]
+        z_fine = a .* t_fine .* sin(c .* t_fine);  % transverse [μm]
+
+        % Cumulative arc length [m] — compute directly in meters
+        n_fine = length(t_fine);
+        L_fine_m = zeros(1, n_fine);
+        for i = 2:n_fine
+            L_fine_m(i) = L_fine_m(i-1) + 1e-6 * sqrt((x_fine(i)-x_fine(i-1))^2 + ...
+                (y_fine(i)-y_fine(i-1))^2 + (z_fine(i)-z_fine(i-1))^2);
         end
-        [~, index] = min(abs(L_helix - L));
-        tEnd   = t(index);
-        t      = 0.0 : tEnd/(Ntail-1) : tEnd;
-        rytail = a .* t .* cos(c .* t);
-        rztail = a .* t .* sin(c .* t);
-        rxtail = b .* t;
-        rxtail = rxtail .* 1e-6;
-        rytail = rytail .* 1e-6;
-        rztail = rztail .* 1e-6;
+
+        % Truncate to the region where arc length >= target (ensures extrapolation-free)
+        idx_past = find(L_fine_m >= L_helix_m, 1, 'first');
+        if isempty(idx_past)
+            error('pili_type_building:SpiralTooShort', ...
+                'Type 5: arc length at max parameter (6) is %.4f um, shorter than target %.4f um.', ...
+                L_fine_m(end)/1e-6, L_helix);
+        end
+        idx_use = idx_past;                  % Include the point just past target
+
+        % Uniform arc-length targets [m] — use exact target L_helix_m
+        s_uniform = (0 : Ntail-1) * L_helix_m / (Ntail-1);
+
+        % Directly interpolate coordinates from arc length (PCHIP)
+        rxtail = interp1(L_fine_m(1:idx_use), x_fine(1:idx_use) * 1e-6, ...
+            s_uniform, 'pchip');
+        rytail = interp1(L_fine_m(1:idx_use), y_fine(1:idx_use) * 1e-6, ...
+            s_uniform, 'pchip');
+        rztail = interp1(L_fine_m(1:idx_use), z_fine(1:idx_use) * 1e-6, ...
+            s_uniform, 'pchip');
 
     otherwise
         error('pili_type_building:InvalidType', ...

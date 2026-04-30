@@ -1,4 +1,4 @@
-﻿function Z0 = init_coupled_state(params, logf_h)
+function Z0 = init_coupled_state(params, logf_h)
 %INIT_COUPLED_STATE  Initialise the global state vector Z0
 %
 %  Description:
@@ -140,9 +140,5 @@ for k = 1:M
             'Pili %d first-segment director error: %.2e (should be < 1e-10)', k, dir_err);
     end
 end
-
-logf_h('Initial state vector created: %d DOFs\n', n_total);
-logf_h('  Body tilt: alpha_0 = %.4f rad (%.1f deg), q_0 = [%.4f; %.4f; %.4f; %.4f]\n', ...
-    alpha_0, rad2deg(alpha_0), q_0(1), q_0(2), q_0(3), q_0(4));
 
 end

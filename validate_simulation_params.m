@@ -186,31 +186,43 @@ else
                 end
             end
             % Motor torque
-            if isfield(pe, 'motor_torque') && isstruct(pe.motor_torque)
+            if isfield(pe, 'motor_torque') && ~isempty(pe.motor_torque)
+                % Convert shorthand string to struct for validation
                 mt_val = pe.motor_torque;
-                valid_mt = {'off', 'constant'};
-                mt_type = '';
-                if isfield(mt_val, 'type'), mt_type = mt_val.type; end
-                if ~any(strcmp(mt_type, valid_mt))
-                    errs{end+1} = sprintf('Pili %d: motor_torque type must be one of {off, constant}, got ''%s''.', kk, mt_type);
+                if ischar(mt_val) || isstring(mt_val)
+                    mt_val = struct('type', char(mt_val));
                 end
-                if strcmp(mt_type, 'constant')
-                    if ~isfield(mt_val, 'torque_pN_nm') || ~isfinite(mt_val.torque_pN_nm) || mt_val.torque_pN_nm == 0
-                        errs{end+1} = sprintf('Pili %d: motor_torque.torque_pN_nm must be a finite non-zero value.', kk);
+                if ~isstruct(mt_val)
+                    errs{end+1} = sprintf('Pili %d: motor_torque must be a struct or string, got %s.', kk, class(mt_val));
+                else
+                    valid_mt = {'off', 'constant'};
+                    mt_type = '';
+                    if isfield(mt_val, 'type'), mt_type = mt_val.type; end
+                    if ~any(strcmp(mt_type, valid_mt))
+                        errs{end+1} = sprintf('Pili %d: motor_torque type must be one of {off, constant}, got ''%s''.', kk, mt_type);
                     end
-                    if ~isfield(mt_val, 'max_omega_Hz') || ~isfinite(mt_val.max_omega_Hz) || mt_val.max_omega_Hz <= 0
-                        errs{end+1} = sprintf('Pili %d: motor_torque.max_omega_Hz must be > 0.', kk);
+                    if strcmp(mt_type, 'constant')
+                        if ~isfield(mt_val, 'torque_pN_nm') || ~isfinite(mt_val.torque_pN_nm) || mt_val.torque_pN_nm == 0
+                            errs{end+1} = sprintf('Pili %d: motor_torque.torque_pN_nm must be a finite non-zero value.', kk);
+                        end
+                        if ~isfield(mt_val, 'max_omega_Hz') || ~isfinite(mt_val.max_omega_Hz) || mt_val.max_omega_Hz <= 0
+                            errs{end+1} = sprintf('Pili %d: motor_torque.max_omega_Hz must be > 0.', kk);
+                        end
                     end
-                end
-                % Warn if motor_torque specified for clamped pili
-                if ~strcmp(mt_type, 'off')
+                    % Cross-validate: motor_torque vs root_coupling
                     rc_actual = 'clamped';
                     if isfield(pe, 'root_coupling') && ~isempty(pe.root_coupling)
                         rc_actual = char(pe.root_coupling);
                     end
-                    if strcmp(rc_actual, 'clamped')
-                        warns{end+1} = sprintf(['Pili %d: motor_torque is specified but root_coupling = clamped. ' ...
-                            'Motor torque has no effect on clamped pili.'], kk);
+                    if ~strcmp(mt_type, 'off')
+                        if strcmp(rc_actual, 'clamped')
+                            errs{end+1} = sprintf(['Pili %d: motor_torque is active (''%s'') but root_coupling = clamped. ' ...
+                                'Motor torque has no effect on clamped pili. ' ...
+                                'Set root_coupling = ''free_torsion'' to enable torsional dynamics.'], kk, mt_type);
+                        end
+                    elseif strcmp(rc_actual, 'free_torsion')
+                        warns{end+1} = sprintf(['Pili %d: root_coupling = free_torsion but motor_torque = off. ' ...
+                            'Psi_1 will evolve purely under elastic torsion (no active driving).'], kk);
                     end
                 end
             end
@@ -366,7 +378,7 @@ end
 
 for i = 1:numel(warns)
     logf_h('[VALIDATE] WARNING: %s\n', warns{i});
-    warning('validate_params:SuboptimalValue', '[VALIDATE] WARNING: %s', warns{i});
+    warning('validate_params:SuboptimalValue', '%s', warns{i});
 end
 
 if ~isempty(errs)

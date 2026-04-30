@@ -143,6 +143,7 @@ switch geometry_mode
         params.body_type   = 'capsule';
         params.body_faces  = [];       % No triangulation needed; surf() formula used
         params.body_verts  = [];
+        params.dim.volume  = V_body;
 
         % L_0 is major_axis for parametric mode
         L_0 = p.Results.major_axis;
@@ -171,6 +172,7 @@ switch geometry_mode
         params.body_faces  = body_meta.faces;
         params.body_verts  = body_meta.vertices;
         params.custom_attachment_sites = body_meta.attachment_sites;
+        params.dim.volume  = V_body;
 
         % L_0: use override if provided, else use suggested
         if isnan(L_0)
@@ -240,10 +242,6 @@ eps_body_dim     = params.eps_body * L_0;
 eps_pili_dim     = eps_pili_dimless * L_0;
 dis              = 1.1 * (eps_body_dim + eps_pili_dim);
 params.dim.dis   = dis;
-
-logf_h('Computed adaptive gap distance:\n');
-logf_h('  eps_body = %.2e m, eps_pili = %.2e m\n', eps_body_dim, eps_pili_dim);
-logf_h('  dis = 1.1 * (eps_body + eps_pili) = %.2e m\n\n', dis);
 
 %% Build pili geometry (dispatch by geometry_mode)
 switch geometry_mode
@@ -744,104 +742,5 @@ end
 %  The old body-only routine compute_body_brownian_params.m has been
 %  removed; its functionality is fully superseded by the new method.
 params.brown_fixman_midpoint = logical(p.Results.fixman_midpoint);
-if params.brown_enabled
-    logf_h('Brownian motion enabled (full-system effective friction, computed per step).\n');
-    logf_h('  Fixman midpoint correction: %s\n', mat2str(params.brown_fixman_midpoint));
-end
-
-%% Print summary
-logf_h('\n');
-logf_h('=============================================================\n');
-logf_h('  Coupled Body-Pili Simulation Parameters\n');
-logf_h('=============================================================\n');
-logf_h('  Geometry mode : %s\n', geometry_mode);
-if strcmp(geometry_mode, 'parametric')
-    logf_h('  Body : N_body = %d, a = %.2f um, b = %.2f um\n', ...
-        params.N_body, p.Results.major_axis*1e6, p.Results.minor_axis*1e6);
-else
-    logf_h('  Body : N_body = %d (custom, from file)\n', params.N_body);
-end
-logf_h('  Pili : M = %d', params.M_pili);
-if params.M_pili > 0
-    logf_h(', N_seg = [');
-    logf_h('%d ', params.N_segments);
-    logf_h('], ell = [');
-    logf_h('%.2f ', params.ell);
-    logf_h(']');
-end
-logf_h('\n');
-logf_h('  Scales : L0 = %.2e m, T0 = %.2e s, EI = %.2e N*m^2\n', L_0, T_0, EI);
-logf_h('  Eg = %.4f, eps_slender = %.2e, sigma = %.1f\n', ...
-    params.Eg, params.epsilon, params.sigma);
-logf_h('  alpha_0 = %.4f rad (%.1f deg) — initial body tilt\n', ...
-    params.alpha_0, rad2deg(params.alpha_0));
-logf_h('  F_sink = %.2e N, F_0 = %.2e N\n', F_sink, F_0);
-logf_h('  V_body = %.4e m^3\n', V_body);
-logf_h('  State vector size : %d DOFs\n', 7 + 3*sum(params.N_segments));
-logf_h('-------------------------------------------------------------\n');
-logf_h('  Mobility Method : RSM (body) + RSS (pili) + Rotlet  [Cortez 2018]\n');
-logf_h('  Regularisation Parameters\n');
-logf_h('  Body spacing : h_min = %.4f L0, h_mean = %.4f L0\n', ...
-    params.body_h_min, params.body_h_mean);
-logf_h('  Body  : eps_body = %.4f L0 = %.1f nm (eps/h_mean = %.4f)\n', ...
-    params.eps_body, params.eps_body * L_0 * 1e9, params.eps_body / params.body_h_mean);
-if params.M_pili > 0
-    eps_pili_dim_print = params.epsilon * L_0;
-    for k = 1:params.M_pili
-        ds_k    = params.ell(k) / params.N_segments(k);
-        ds_nm   = ds_k * L_0 * 1e9;
-        eps_nm  = eps_pili_dim_print * 1e9;
-        logf_h('  Pili %d: N_seg = %d, ds = %.4f L0 (%.2f nm)\n', ...
-            k, params.N_segments(k), ds_k, ds_nm);
-        logf_h('          eps_pili = %.4f L0 (%.1f nm = r_pili), ds/eps = %.1f\n', ...
-            params.epsilon, eps_nm, ds_nm / eps_nm);
-    end
-    logf_h('  Gap : dis = 1.1*(eps_body + eps_pili) = %.1f nm\n', dis * 1e9);
-    logf_h('  Note: eps_ij = eps_j (determined by force point j)\n');
-    logf_h('    Body force -> any point: eps = %.1f nm\n', ...
-        params.eps_body * L_0 * 1e9);
-    logf_h('    Pili force -> any point: eps = %.1f nm (physical radius)\n', ...
-        eps_pili_dim_print * 1e9);
-end
-logf_h('  Brownian : %s', mat2str(params.brown_enabled));
-if params.brown_enabled
-    logf_h('  (T = %.2f K = %.2f deg C, Fixman = %s)', ...
-        p.Results.Temper, p.Results.Temper - 273.15, ...
-        mat2str(params.brown_fixman_midpoint));
-end
-logf_h('\n');
-logf_h('-------------------------------------------------------------\n');
-logf_h('  Background flow : %s', params.bg_flow.type);
-if ~strcmp(params.bg_flow.type, 'off')
-    logf_h('  (U_max = %.2e m/s, U_dimless = %.2e)', ...
-        bg_input.U_max, params.bg_flow.U_max_dimless);
-end
-logf_h('\n');
-if params.M_pili > 0
-    for k = 1:params.M_pili
-        ic_k_type = 'frozen';
-        if k <= numel(ic_input) && ~isempty(ic_input{k})
-            if isstruct(ic_input{k}), ic_k_type = ic_input{k}.type;
-            elseif ischar(ic_input{k}), ic_k_type = ic_input{k};
-            end
-        end
-        am_k_type = params.am_cfg{k}.type;
-        rc_k = params.root_coupling{k};
-        mt_k_type = params.motor_cfg{k}.type;
-        if strcmp(rc_k, 'clamped')
-            logf_h('  Pili %d: intrinsic_curvature = %s, active_moment = %s, root_coupling = clamped\n', ...
-                k, ic_k_type, am_k_type);
-        else
-            logf_h('  Pili %d: intrinsic_curvature = %s, active_moment = %s, root_coupling = free_torsion, motor_torque = %s\n', ...
-                k, ic_k_type, am_k_type, mt_k_type);
-            if strcmp(mt_k_type, 'constant')
-                logf_h('          motor: torque = %.2f pN*nm, max_omega = %.1f Hz (dimless: tau=%.4e, w_max=%.4e)\n', ...
-                    params.motor_cfg{k}.torque_pN_nm, params.motor_cfg{k}.max_omega_Hz, ...
-                    params.motor_cfg{k}.torque_dimless, params.motor_cfg{k}.max_omega_dimless);
-            end
-        end
-    end
-end
-logf_h('=============================================================\n\n');
 
 end

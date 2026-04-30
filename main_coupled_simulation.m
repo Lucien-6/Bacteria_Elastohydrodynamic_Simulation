@@ -21,7 +21,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Documentation release: 7.0.0 (2026-04-29) — see README.md / CHANGELOG.md
+%  Documentation release: 7.0.2 (2026-04-30) — see README.md / CHANGELOG.md
 
 close all force;
 clear; clc;
@@ -65,7 +65,7 @@ else
     if strcmp(cfg.geometry_mode, 'parametric')
         % ===== Parametric Mode: Capsule Body + Analytic Pili =====
 
-        cfg.case_name = 'OnePili-Active-Test';
+        cfg.case_name = 'OnePili-Rotate-Active-Test';
 
         % -------- Bacterial Body Geometry --------
         cfg.minor_axis = 0.4e-6;              % [m]   Semi-minor axis (body radius)
@@ -76,11 +76,12 @@ else
         % -------- Pili Configuration (struct array) --------
         %  See parse_pili_config.m for full field documentation.
         %  For a bare body with NO pili, use: pili_config = struct([]);
-        pili_config(1).type        = 'linear';
+        pili_config(1).type        = 'Spiral';
         pili_config(1).length_um   = 4;
+        pili_config(1).shape_params = [0.1, 1, 2*pi];
         pili_config(1).deflection_z = 0;
         pili_config(1).deflection_x = 0;
-        pili_config(1).site        = 5;
+        pili_config(1).site        = 1;
         % pili_config(2).type        = 'linear';
         % pili_config(2).length_um   = 4;
         % pili_config(2).deflection_z = pi/2;
@@ -96,10 +97,10 @@ else
         
         % -------- Per-pili: Active Moment --------
         %  Options: struct('type','off')  (default)
-        pili_config(1).active_moment = struct('type','traveling_wave', ...
-                      'amplitude_Nm', 3e-19, 'omega_Hz', 50, ...
-                      'wavenumber', 2*pi, 'phase_rad', 0, ... 
-                      'd1_amp', 1, 'd2_amp', 0, 'd3_amp', 0);
+        % pili_config(1).active_moment = struct('type','traveling_wave', ...
+        %               'amplitude_Nm', 3e-19, 'omega_Hz', 50, ...
+        %               'wavenumber', 2*pi, 'phase_rad', 0, ... 
+        %               'd1_amp', 1, 'd2_amp', 0, 'd3_amp', 0);
         % pili_config(2).active_moment = struct('type','traveling_wave', ...
         %               'amplitude_Nm', 2e-19, 'omega_Hz', 50, ...
         %               'wavenumber', 2*pi, 'phase_rad', 0, ... 
@@ -118,10 +119,10 @@ else
         %      - Constant motor torque with linear speed limiting
         %      - torque_pN_nm: output torque [pN*nm] (positive=CCW, negative=CW)
         %      - max_omega_Hz: stall speed [Hz]
-        pili_config(1).root_coupling = 'clamped';
-        % pili_config(1).root_coupling = 'free_torsion';
-        % pili_config(1).motor_torque  = struct('type','constant', ...
-        %     'torque_pN_nm', 2000, 'max_omega_Hz', 300);
+        % pili_config(1).root_coupling = 'clamped';
+        pili_config(1).root_coupling = 'free_torsion';
+        pili_config(1).motor_torque  = struct('type','constant', ...
+            'torque_pN_nm', 1, 'max_omega_Hz', 500);
 
         [cfg.Pili_Matrix, cfg.pili_ext] = parse_pili_config(pili_config);
 
@@ -178,7 +179,7 @@ else
     cfg.rho_fluid = 998.232;             % [kg/m^3] Fluid density
 
     % -------- Simulation Time & Numerics --------
-    cfg.T_obs  = 60.0;                    % [s]   Total observation time
+    cfg.T_obs  = 20.0;                    % [s]   Total observation time
     cfg.AbsTol = 1e-4;                    % ODE absolute tolerance
     cfg.RelTol = 1e-4;                    % ODE relative tolerance
     cfg.delta  = pi / 20;                 % [rad] Euler angle singularity threshold

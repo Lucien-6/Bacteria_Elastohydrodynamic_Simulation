@@ -107,6 +107,9 @@ for k = 1:M_pili
                 % Apply reaction torque to body (Newton's 3rd law)
                 if isfield(geom, 'J_euler3') && ~isempty(geom.J_euler3{k})
                     R_global(4:6) = R_global(4:6) - geom.J_euler3{k}' * tau_eff;
+                else
+                    warning('ode_coupled_rhs:MissingJ_euler3', ...
+                        'J_euler3{%d} absent — motor reaction torque silently discarded (Newton''s 3rd law violated).', k);
                 end
         end
     end

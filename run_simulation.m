@@ -22,7 +22,7 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Log banner version: 7.0.0 (2026-04-29) — keep in sync with README / CHANGELOG
+%  Log banner version: 7.0.2 (2026-04-30) — keep in sync with README / CHANGELOG
 %
 %  Path: defensive addpath(project root) so run_simulation(cfg) works when
 %  invoked without main_coupled_simulation.m. Unified policy = this line plus
@@ -228,7 +228,7 @@ logf_file = @(varargin) log_file_only(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 7.0.0\n');
+logf('  Version 7.0.2\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -418,6 +418,11 @@ Z0 = init_coupled_state(params, logf);
 
 t_init_elapsed = toc(t_init_start);
 
+% --- Derived quantities from parameter structure ---
+L_0_dim = params.scales.L_0;
+F_sink_N = params.Eg * params.scales.F_0;
+V_body_m3 = params.dim.volume;
+
 % Log derived scales
 logf('[INIT] Characteristic scales:\n');
 logf('[INIT]   L_0 = %.4e m  (length)\n',           params.scales.L_0);
@@ -432,16 +437,70 @@ if ~isempty(eps_body_cfg)
     logf('[INIT]   eps_body (RSM override, L0): %.6f  (h_mean = %.6f)\n', ...
         params.eps_body, params.body_h_mean);
 end
-for kk = 1:params.M_pili
-    logf('[INIT]   Pili %d: ell = %.4f L_0, N_seg = %d, ds = %.4f L_0\n', ...
-        kk, params.ell(kk), params.N_segments(kk), ...
-        params.ell(kk) / params.N_segments(kk));
-end
 logf('[INIT]   alpha_0 = %.4f rad (%.1f deg) — initial body tilt\n', ...
     params.alpha_0, rad2deg(params.alpha_0));
+logf('[INIT]   F_sink = %.2e N, F_0 = %.2e N\n', F_sink_N, params.scales.F_0);
+logf('[INIT]   V_body = %.4e m^3\n', V_body_m3);
+logf('[INIT]   q_0 = [%.4f; %.4f; %.4f; %.4f]\n', Z0(4), Z0(5), Z0(6), Z0(7));
 logf('[INIT] State vector : %d DOFs\n', length(Z0));
 logf('[INIT] Total points : %d (body + pili)\n', ...
     params.N_body + sum(params.N_segments + 1));
+logf('[INIT] -------------------------------------------------------------\n');
+logf('[INIT] Mobility Method : RSM (body) + RSS (pili) + Rotlet  [Cortez 2018]\n');
+logf('[INIT] Regularisation Parameters\n');
+logf('[INIT]   Body spacing : h_min = %.4f L0, h_mean = %.4f L0\n', ...
+    params.body_h_min, params.body_h_mean);
+logf('[INIT]   Body  : eps_body = %.4f L0 = %.1f nm (eps/h_mean = %.4f)\n', ...
+    params.eps_body, params.eps_body * L_0_dim * 1e9, params.eps_body / params.body_h_mean);
+if params.M_pili > 0
+    for kk = 1:params.M_pili
+        ds_k    = params.ell(kk) / params.N_segments(kk);
+        ds_nm   = ds_k * L_0_dim * 1e9;
+        eps_nm  = params.epsilon * L_0_dim * 1e9;
+        logf('[INIT]   Pili %d: ell = %.4f L_0, N_seg = %d, ds = %.4f L_0 (%.2f nm)\n', ...
+            kk, params.ell(kk), params.N_segments(kk), ds_k, ds_nm);
+        logf('[INIT]          eps_pili = %.4f L0 (%.1f nm = r_pili), ds/eps = %.1f\n', ...
+            params.epsilon, eps_nm, ds_nm / eps_nm);
+    end
+    dis_dim_nm = params.dim.dis * 1e9;
+    logf('[INIT]   Gap : dis = 1.1*(eps_body + eps_pili) = %.1f nm\n', dis_dim_nm);
+    logf('[INIT]   Note: eps_ij = eps_j (determined by force point j)\n');
+    logf('[INIT]     Body force -> any point: eps = %.1f nm\n', ...
+        params.eps_body * L_0_dim * 1e9);
+    logf('[INIT]     Pili force -> any point: eps = %.1f nm (physical radius)\n', ...
+        params.epsilon * L_0_dim * 1e9);
+end
+logf('[INIT] -------------------------------------------------------------\n');
+logf('[INIT] Background flow : %s', params.bg_flow.type);
+if ~strcmp(params.bg_flow.type, 'off')
+    logf('  (U_max_dimless = %.2e)', params.bg_flow.U_max_dimless);
+end
+logf('\n');
+if params.M_pili > 0
+    for kk = 1:params.M_pili
+        ic_kk_type = 'frozen';
+        if kk <= numel(intrinsic_curvature_cfg) && ~isempty(intrinsic_curvature_cfg{kk})
+            if isstruct(intrinsic_curvature_cfg{kk}), ic_kk_type = intrinsic_curvature_cfg{kk}.type;
+            elseif ischar(intrinsic_curvature_cfg{kk}) || isstring(intrinsic_curvature_cfg{kk}), ic_kk_type = char(intrinsic_curvature_cfg{kk});
+            end
+        end
+        am_kk_type = params.am_cfg{kk}.type;
+        rc_kk = params.root_coupling{kk};
+        mt_kk_type = params.motor_cfg{kk}.type;
+        if strcmp(rc_kk, 'clamped')
+            logf('[INIT]   Pili %d: intrinsic_curvature = %s, active_moment = %s, root_coupling = clamped\n', ...
+                kk, ic_kk_type, am_kk_type);
+        else
+            logf('[INIT]   Pili %d: intrinsic_curvature = %s, active_moment = %s, root_coupling = free_torsion, motor_torque = %s\n', ...
+                kk, ic_kk_type, am_kk_type, mt_kk_type);
+            if strcmp(mt_kk_type, 'constant')
+                logf('[INIT]          motor: torque = %.2f pN*nm, max_omega = %.1f Hz (dimless: tau=%.4e, w_max=%.4e)\n', ...
+                    params.motor_cfg{kk}.torque_pN_nm, params.motor_cfg{kk}.max_omega_Hz, ...
+                    params.motor_cfg{kk}.torque_dimless, params.motor_cfg{kk}.max_omega_dimless);
+            end
+        end
+    end
+end
 logf('[INIT] Initialisation completed in %.2f s\n\n', t_init_elapsed);
 
 %% =====================================================================
