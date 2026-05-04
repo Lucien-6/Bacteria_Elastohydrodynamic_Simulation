@@ -75,6 +75,7 @@ addParameter(p, 'Pili_Matrix', [1; 3; 0; 0; NaN; NaN; NaN; 1], @isnumeric);
 addParameter(p, 'seg_per_um',  10,     @isnumeric);
 addParameter(p, 'delta',       pi/20,  @isnumeric);
 addParameter(p, 'alpha_0',    pi/2,   @isnumeric);
+addParameter(p, 'initial_orientation', [], @(x) isempty(x) || isstruct(x));
 addParameter(p, 'Temper',      293.15,  @isnumeric);
 addParameter(p, 'enable_brown', false,  @(x) islogical(x) || (isnumeric(x) && isscalar(x)));
 addParameter(p, 'fixman_midpoint', false, @(x) islogical(x) || (isnumeric(x) && isscalar(x)));
@@ -170,9 +171,17 @@ switch geometry_mode
 
         params.body_type   = 'custom';
         params.body_faces  = body_meta.faces;
-        params.body_verts  = body_meta.vertices;
+        params.body_verts  = body_meta.vertices;         % [m] body-local frame
         params.custom_attachment_sites = body_meta.attachment_sites;
         params.dim.volume  = V_body;
+
+        % Persist the alphaShape for downstream visualisation (flow-field
+        % SDF masking in custom mode).  Empty if convhulln fallback was used.
+        if isfield(body_meta, 'alpha_shape')
+            params.body_alpha_shape = body_meta.alpha_shape;
+        else
+            params.body_alpha_shape = [];
+        end
 
         % L_0: use override if provided, else use suggested
         if isnan(L_0)
@@ -186,6 +195,14 @@ end
 
 % Nondimensionalise body coordinates
 params.body_local = body_coords_m / L_0;
+
+% Nondimensionalised triangulation vertices for visualisation modules
+% (compute_plot_flowfield uses these for SDF masking in custom mode).
+if strcmp(geometry_mode, 'custom') && ~isempty(params.body_verts)
+    params.body_verts_local = params.body_verts / L_0;   % [L_0]
+else
+    params.body_verts_local = [];
+end
 
 % Store L_0 and derived scales
 T_0 = 8 * pi * p.Results.mu * L_0^4 / EI;         % Time scale [s]
@@ -209,13 +226,59 @@ params.sigma   = p.Results.sigma;
 params.g_hat   = [0; 0; -1];                       % Gravity direction
 params.delta   = p.Results.delta;
 
-% Initial body tilt angle (validated to [-pi/2, pi/2])
-alpha_0_input = p.Results.alpha_0;
-if alpha_0_input < -pi/2 || alpha_0_input > pi/2
-    error('init_coupled_params:InvalidAlpha0', ...
-        'alpha_0 = %.4f rad is outside valid range [-pi/2, pi/2].', alpha_0_input);
+%% Resolve initial body orientation
+%  Priority: initial_orientation (if non-empty) overrides alpha_0.
+%  In parametric mode, initial_orientation is always empty, so the
+%  alpha_0-derived quaternion is used (legacy behaviour).
+alpha_0_input         = p.Results.alpha_0;
+init_orient_input     = p.Results.initial_orientation;
+orientation_source    = 'alpha_0';
+
+if ~isempty(init_orient_input)
+    % Only meaningful in custom mode
+    if ~strcmp(geometry_mode, 'custom')
+        error('init_coupled_params:OrientationModeMismatch', ...
+            'initial_orientation is only supported in geometry_mode = ''custom''.');
+    end
+    % Warn if alpha_0 was also explicitly non-default
+    if abs(alpha_0_input) > 1e-12
+        warning('init_coupled_params:ConflictingOrientation', ...
+            ['Both initial_orientation and alpha_0 (%.4f rad) are set; ', ...
+             'initial_orientation takes precedence and alpha_0 is ignored.'], ...
+            alpha_0_input);
+    end
+    q_0_init = parse_initial_orientation(init_orient_input);
+    orientation_source = 'initial_orientation';
+    params.alpha_0 = NaN;    % not applicable under explicit orientation
+else
+    % Legacy alpha_0 path (validated to [-pi/2, pi/2])
+    if alpha_0_input < -pi/2 || alpha_0_input > pi/2
+        error('init_coupled_params:InvalidAlpha0', ...
+            'alpha_0 = %.4f rad is outside valid range [-pi/2, pi/2].', alpha_0_input);
+    end
+    params.alpha_0 = alpha_0_input;
+
+    % Custom-mode warning: alpha_0 inherits the parametric convention
+    % (rotate body frame about +Y so that body-X tilts by alpha_0 toward
+    % +Z).  This only corresponds to physical long-axis tilt if the user
+    % point cloud has its longest extent along body-X.  Otherwise,
+    % initial_orientation should be used instead (m16).
+    if strcmp(geometry_mode, 'custom') && abs(alpha_0_input) > 1e-12
+        warning('init_coupled_params:CustomAlpha0Assumption', ...
+            ['Custom mode: alpha_0 = %.4f rad rotates the body about +Y ', ...
+             'assuming the long axis is body-X. For arbitrary custom ', ...
+             'bodies, prefer specifying custom_geometry.initial_orientation ', ...
+             '(quaternion / axis_angle / euler_zyx).'], alpha_0_input);
+    end
+
+    % alpha_0: rotation about +Y by theta_Y = -alpha_0
+    theta_Y  = -alpha_0_input;
+    q_0_init = [cos(theta_Y/2); 0; sin(theta_Y/2); 0];
+    q_0_init = q_0_init / norm(q_0_init);
 end
-params.alpha_0 = alpha_0_input;
+
+params.q_0_init            = q_0_init;
+params.orientation_source  = orientation_source;
 
 %% Compute body surface characteristic spacing for RSM regularisation
 X_body_local = params.body_local';                  % [N_body x 3]
@@ -537,6 +600,16 @@ else
             cos_theta0 = max(-1, min(1, tangents_k(:, 3)));
             theta0 = acos(cos_theta0);
             phi0   = atan2(tangents_k(:, 2), tangents_k(:, 1));
+            % Initial twist psi0 = 0 for custom pili.
+            % Rationale: the user-supplied centerline defines the tangent
+            % field t(s), but there is no unique natural binormal for an
+            % arbitrary 3D curve (Frenet frames fail for straight segments,
+            % and parallel-transport frames require a seed).  We therefore
+            % adopt psi0 = 0 in the spherical-angle (theta, phi, psi)
+            % parameterisation as a canonical starting point, consistent
+            % with the parametric branch.  If the user needs an intrinsic
+            % twist, they should use intrinsic_curvature = 'constant' /
+            % 'helix' (see parse_pili_config and USER_GUIDE).
             psi0   = zeros(N_segments(k), 1);
 
             [d1_0, d2_0, d3_0] = pili_directors(theta0, phi0, psi0);
@@ -742,5 +815,24 @@ end
 %  The old body-only routine compute_body_brownian_params.m has been
 %  removed; its functionality is fully superseded by the new method.
 params.brown_fixman_midpoint = logical(p.Results.fixman_midpoint);
+
+%% Run token for cross-step persistent caches in ode_coupled_rhs
+%  ode_coupled_rhs.m keeps a persistent dpsi_1 cache for motor speed-
+%  limiting (free_torsion + constant motor torque).  The cache must be
+%  reset between independent simulations sharing the same MATLAB session;
+%  comparing this token lets that function detect a fresh `params` and
+%  flush the cache automatically.  `tic` is a high-resolution monotonic
+%  counter, so collisions across runs are practically impossible.
+params.run_token = uint64(tic);
+
+%% Per-pilus dpsi_1 cache (placeholder, see ode_coupled_rhs persistent block)
+%  Initialised here so that downstream code can reference the field if
+%  needed; the authoritative cross-step state lives in the persistent
+%  variable inside ode_coupled_rhs.m.
+if M_pili > 0
+    params.dpsi1_prev = cell(M_pili, 1);
+else
+    params.dpsi1_prev = {};
+end
 
 end

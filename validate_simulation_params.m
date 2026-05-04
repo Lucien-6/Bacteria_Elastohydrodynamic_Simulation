@@ -58,13 +58,21 @@ if strcmp(geometry_mode, 'custom')
         errs{end+1} = ['geometry_mode is ''custom'' but N_body is set. ', ...
                         'Parametric body parameters must not be used in custom mode.'];
     end
-    if isfield(cfg, 'Pili_Matrix') && ~isempty(cfg.Pili_Matrix) && any(cfg.Pili_Matrix(:) ~= 0)
+    % v7.1: stricter check — any non-empty Pili_Matrix with actual columns is rejected
+    if isfield(cfg, 'Pili_Matrix') && ~isempty(cfg.Pili_Matrix) && size(cfg.Pili_Matrix, 2) > 0
         errs{end+1} = ['geometry_mode is ''custom'' but Pili_Matrix is non-empty. ', ...
                         'Parametric pili parameters must not be used in custom mode.'];
     end
 
 else
     %% ---- Parametric mode validation (existing checks) ----
+
+    % initial_orientation is custom-mode-only
+    if isfield(cfg, 'initial_orientation') && ~isempty(cfg.initial_orientation)
+        errs{end+1} = ['initial_orientation is only supported in ', ...
+                       'geometry_mode = ''custom''. In parametric mode, ', ...
+                       'use alpha_0 instead.'];
+    end
 
     % Body geometry
     if cfg.minor_axis <= 0
@@ -119,119 +127,21 @@ else
     % Per-pili: intrinsic curvature and active moment
     M_pili = size(PM, 2);
     if isfield(cfg, 'pili_ext') && M_pili > 0
-        valid_ic = {'frozen', 'zero', 'constant', 'helix'};
-        valid_am = {'off', 'traveling_wave', 'custom'};
-        for kk = 1:min(numel(cfg.pili_ext), M_pili)
-            pe = cfg.pili_ext(kk);
-            % Intrinsic curvature
-            if isfield(pe, 'intrinsic_curvature') && ~isempty(pe.intrinsic_curvature)
-                ic_val = pe.intrinsic_curvature;
-                if ischar(ic_val) || isstring(ic_val)
-                    ic_type = char(ic_val);
-                elseif isstruct(ic_val) && isfield(ic_val, 'type')
-                    ic_type = ic_val.type;
-                else
-                    ic_type = '';
-                end
-                if ~any(strcmp(ic_type, valid_ic))
-                    errs{end+1} = sprintf('Pili %d: intrinsic_curvature type must be one of {frozen, zero, constant, helix}, got ''%s''.', kk, ic_type);
-                end
-                if strcmp(ic_type, 'constant')
-                    if isstruct(ic_val) && isfield(ic_val, 'kappa')
-                        if numel(ic_val.kappa) ~= 3
-                            errs{end+1} = sprintf('Pili %d: intrinsic_curvature.kappa must be 3-element, got %d.', kk, numel(ic_val.kappa));
-                        end
-                    else
-                        errs{end+1} = sprintf('Pili %d: intrinsic_curvature ''constant'' requires .kappa field.', kk);
-                    end
-                end
-            end
-            % Active moment
-            if isfield(pe, 'active_moment') && isstruct(pe.active_moment)
-                am_val = pe.active_moment;
-                am_type = '';
-                if isfield(am_val, 'type'), am_type = am_val.type; end
-                if ~any(strcmp(am_type, valid_am))
-                    errs{end+1} = sprintf('Pili %d: active_moment type must be one of {off, traveling_wave, custom}, got ''%s''.', kk, am_type);
-                end
-                if strcmp(am_type, 'traveling_wave')
-                    if ~isfield(am_val, 'amplitude_Nm') || am_val.amplitude_Nm < 0
-                        errs{end+1} = sprintf('Pili %d: active_moment.amplitude_Nm must be >= 0.', kk);
-                    end
-                    if ~isfield(am_val, 'omega_Hz') || am_val.omega_Hz <= 0
-                        errs{end+1} = sprintf('Pili %d: active_moment.omega_Hz must be > 0.', kk);
-                    end
-                    if isfield(am_val, 'wavenumber') && am_val.wavenumber < 0
-                        warns{end+1} = sprintf(['Pili %d: active_moment.wavenumber = %.4g is negative. ' ...
-                            'Wave propagates in -s direction (from tip to root).'], kk, am_val.wavenumber);
-                    end
-                    if isfield(am_val, 'd3_amp') && am_val.d3_amp ~= 0
-                        warns{end+1} = sprintf(['Pili %d: active_moment.d3_amp = %.4g (non-zero). ' ...
-                            'This drives torsion rather than bending, which is unusual for standard pili beating.'], ...
-                            kk, am_val.d3_amp);
-                    end
-                    if isfield(am_val, 'phase_rad')
-                        if ~isnumeric(am_val.phase_rad) || ~isscalar(am_val.phase_rad) || ~isfinite(am_val.phase_rad)
-                            errs{end+1} = sprintf('Pili %d: active_moment.phase_rad must be a finite scalar.', kk);
-                        end
-                    end
-                end
-            end
-            % Root coupling
-            valid_rc = {'clamped', 'free_torsion'};
-            if isfield(pe, 'root_coupling') && ~isempty(pe.root_coupling)
-                rc_val = char(pe.root_coupling);
-                if ~any(strcmp(rc_val, valid_rc))
-                    errs{end+1} = sprintf('Pili %d: root_coupling must be one of {clamped, free_torsion}, got ''%s''.', kk, rc_val);
-                end
-            end
-            % Motor torque
-            if isfield(pe, 'motor_torque') && ~isempty(pe.motor_torque)
-                % Convert shorthand string to struct for validation
-                mt_val = pe.motor_torque;
-                if ischar(mt_val) || isstring(mt_val)
-                    mt_val = struct('type', char(mt_val));
-                end
-                if ~isstruct(mt_val)
-                    errs{end+1} = sprintf('Pili %d: motor_torque must be a struct or string, got %s.', kk, class(mt_val));
-                else
-                    valid_mt = {'off', 'constant'};
-                    mt_type = '';
-                    if isfield(mt_val, 'type'), mt_type = mt_val.type; end
-                    if ~any(strcmp(mt_type, valid_mt))
-                        errs{end+1} = sprintf('Pili %d: motor_torque type must be one of {off, constant}, got ''%s''.', kk, mt_type);
-                    end
-                    if strcmp(mt_type, 'constant')
-                        if ~isfield(mt_val, 'torque_pN_nm') || ~isfinite(mt_val.torque_pN_nm) || mt_val.torque_pN_nm == 0
-                            errs{end+1} = sprintf('Pili %d: motor_torque.torque_pN_nm must be a finite non-zero value.', kk);
-                        end
-                        if ~isfield(mt_val, 'max_omega_Hz') || ~isfinite(mt_val.max_omega_Hz) || mt_val.max_omega_Hz <= 0
-                            errs{end+1} = sprintf('Pili %d: motor_torque.max_omega_Hz must be > 0.', kk);
-                        end
-                    end
-                    % Cross-validate: motor_torque vs root_coupling
-                    rc_actual = 'clamped';
-                    if isfield(pe, 'root_coupling') && ~isempty(pe.root_coupling)
-                        rc_actual = char(pe.root_coupling);
-                    end
-                    if ~strcmp(mt_type, 'off')
-                        if strcmp(rc_actual, 'clamped')
-                            errs{end+1} = sprintf(['Pili %d: motor_torque is active (''%s'') but root_coupling = clamped. ' ...
-                                'Motor torque has no effect on clamped pili. ' ...
-                                'Set root_coupling = ''free_torsion'' to enable torsional dynamics.'], kk, mt_type);
-                        end
-                    elseif strcmp(rc_actual, 'free_torsion')
-                        warns{end+1} = sprintf(['Pili %d: root_coupling = free_torsion but motor_torque = off. ' ...
-                            'Psi_1 will evolve purely under elastic torsion (no active driving).'], kk);
-                    end
-                end
-            end
-        end
+        [errs, warns] = validate_pili_ext(cfg.pili_ext, M_pili, errs, warns);
     end
 
     if M_pili == 0 && isfield(cfg, 'pili_ext') && ~isempty(cfg.pili_ext)
         warns{end+1} = 'pili_ext is non-empty but no pili are defined (Pili_Matrix is empty).';
     end
+end
+
+%% ---- Per-pili extended field validation for custom mode ----
+if strcmp(geometry_mode, 'custom') ...
+        && isfield(cfg, 'pili_ext') && ~isempty(cfg.pili_ext) ...
+        && isfield(cfg, 'custom_geometry') && isstruct(cfg.custom_geometry) ...
+        && isfield(cfg.custom_geometry, 'pili') && ~isempty(cfg.custom_geometry.pili)
+    M_pili_custom = numel(cfg.pili_ext);
+    [errs, warns] = validate_pili_ext(cfg.pili_ext, M_pili_custom, errs, warns);
 end
 
 %% ---- Common validations (both modes) ----
@@ -387,4 +297,136 @@ if ~isempty(errs)
         'Parameter validation failed with %d error(s):\n%s', numel(errs), msg);
 end
 
+end
+
+
+%% ==================== Local helper functions ====================
+
+function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns)
+%VALIDATE_PILI_EXT  Validate per-pilus extended fields (intrinsic_curvature,
+%                   active_moment, root_coupling, motor_torque).
+%
+%  Used by both the parametric branch (M_pili = size(Pili_Matrix, 2))
+%  and the custom branch (M_pili = numel(custom_geometry.pili)).
+
+    valid_ic = {'frozen', 'zero', 'constant', 'helix'};
+    valid_am = {'off', 'traveling_wave', 'custom'};
+    valid_rc = {'clamped', 'free_torsion'};
+    valid_mt = {'off', 'constant'};
+
+    for kk = 1:min(numel(pili_ext), M_pili)
+        pe = pili_ext(kk);
+
+        % ---- Intrinsic curvature ----
+        if isfield(pe, 'intrinsic_curvature') && ~isempty(pe.intrinsic_curvature)
+            ic_val = pe.intrinsic_curvature;
+            if ischar(ic_val) || isstring(ic_val)
+                ic_type = char(ic_val);
+            elseif isstruct(ic_val) && isfield(ic_val, 'type')
+                ic_type = ic_val.type;
+            else
+                ic_type = '';
+            end
+            if ~any(strcmp(ic_type, valid_ic))
+                errs{end+1} = sprintf(['Pili %d: intrinsic_curvature type must be ', ...
+                    'one of {frozen, zero, constant, helix}, got ''%s''.'], kk, ic_type);
+            end
+            if strcmp(ic_type, 'constant')
+                if isstruct(ic_val) && isfield(ic_val, 'kappa')
+                    if numel(ic_val.kappa) ~= 3
+                        errs{end+1} = sprintf(['Pili %d: intrinsic_curvature.kappa must be ', ...
+                            '3-element, got %d.'], kk, numel(ic_val.kappa));
+                    end
+                else
+                    errs{end+1} = sprintf(['Pili %d: intrinsic_curvature ''constant'' ', ...
+                        'requires .kappa field.'], kk);
+                end
+            end
+        end
+
+        % ---- Active moment ----
+        if isfield(pe, 'active_moment') && isstruct(pe.active_moment)
+            am_val = pe.active_moment;
+            am_type = '';
+            if isfield(am_val, 'type'), am_type = am_val.type; end
+            if ~any(strcmp(am_type, valid_am))
+                errs{end+1} = sprintf(['Pili %d: active_moment type must be one of ', ...
+                    '{off, traveling_wave, custom}, got ''%s''.'], kk, am_type);
+            end
+            if strcmp(am_type, 'traveling_wave')
+                if ~isfield(am_val, 'amplitude_Nm') || am_val.amplitude_Nm < 0
+                    errs{end+1} = sprintf('Pili %d: active_moment.amplitude_Nm must be >= 0.', kk);
+                end
+                if ~isfield(am_val, 'omega_Hz') || am_val.omega_Hz <= 0
+                    errs{end+1} = sprintf('Pili %d: active_moment.omega_Hz must be > 0.', kk);
+                end
+                if isfield(am_val, 'wavenumber') && am_val.wavenumber < 0
+                    warns{end+1} = sprintf(['Pili %d: active_moment.wavenumber = %.4g is ', ...
+                        'negative. Wave propagates in -s direction (from tip to root).'], ...
+                        kk, am_val.wavenumber);
+                end
+                if isfield(am_val, 'd3_amp') && am_val.d3_amp ~= 0
+                    warns{end+1} = sprintf(['Pili %d: active_moment.d3_amp = %.4g (non-zero). ', ...
+                        'This drives torsion rather than bending.'], kk, am_val.d3_amp);
+                end
+                if isfield(am_val, 'phase_rad')
+                    if ~isnumeric(am_val.phase_rad) || ~isscalar(am_val.phase_rad) || ~isfinite(am_val.phase_rad)
+                        errs{end+1} = sprintf('Pili %d: active_moment.phase_rad must be a finite scalar.', kk);
+                    end
+                end
+            end
+        end
+
+        % ---- Root coupling ----
+        if isfield(pe, 'root_coupling') && ~isempty(pe.root_coupling)
+            rc_val = char(pe.root_coupling);
+            if ~any(strcmp(rc_val, valid_rc))
+                errs{end+1} = sprintf(['Pili %d: root_coupling must be one of ', ...
+                    '{clamped, free_torsion}, got ''%s''.'], kk, rc_val);
+            end
+        end
+
+        % ---- Motor torque ----
+        if isfield(pe, 'motor_torque') && ~isempty(pe.motor_torque)
+            mt_val = pe.motor_torque;
+            if ischar(mt_val) || isstring(mt_val)
+                mt_val = struct('type', char(mt_val));
+            end
+            if ~isstruct(mt_val)
+                errs{end+1} = sprintf('Pili %d: motor_torque must be a struct or string, got %s.', ...
+                    kk, class(mt_val));
+            else
+                mt_type = '';
+                if isfield(mt_val, 'type'), mt_type = mt_val.type; end
+                if ~any(strcmp(mt_type, valid_mt))
+                    errs{end+1} = sprintf(['Pili %d: motor_torque type must be one of ', ...
+                        '{off, constant}, got ''%s''.'], kk, mt_type);
+                end
+                if strcmp(mt_type, 'constant')
+                    if ~isfield(mt_val, 'torque_pN_nm') || ~isfinite(mt_val.torque_pN_nm) || mt_val.torque_pN_nm == 0
+                        errs{end+1} = sprintf('Pili %d: motor_torque.torque_pN_nm must be a finite non-zero value.', kk);
+                    end
+                    if ~isfield(mt_val, 'max_omega_Hz') || ~isfinite(mt_val.max_omega_Hz) || mt_val.max_omega_Hz <= 0
+                        errs{end+1} = sprintf('Pili %d: motor_torque.max_omega_Hz must be > 0.', kk);
+                    end
+                end
+
+                rc_actual = 'clamped';
+                if isfield(pe, 'root_coupling') && ~isempty(pe.root_coupling)
+                    rc_actual = char(pe.root_coupling);
+                end
+                if ~strcmp(mt_type, 'off')
+                    if strcmp(rc_actual, 'clamped')
+                        errs{end+1} = sprintf(['Pili %d: motor_torque is active (''%s'') but ', ...
+                            'root_coupling = clamped. Motor torque has no effect on clamped ', ...
+                            'pili. Set root_coupling = ''free_torsion'' to enable torsional dynamics.'], ...
+                            kk, mt_type);
+                    end
+                elseif strcmp(rc_actual, 'free_torsion')
+                    warns{end+1} = sprintf(['Pili %d: root_coupling = free_torsion but ', ...
+                        'motor_torque = off. Psi_1 will evolve purely under elastic torsion.'], kk);
+                end
+            end
+        end
+    end
 end

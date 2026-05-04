@@ -3,20 +3,37 @@
 
     "geometry_mode": "custom",
 
+    "_comment_geometry": [
+        "Paths are relative to the project root (run_simulation.m addpath policy).",
+        "Re-generate these files with geometry/generate_example_geometry.m or the",
+        "pre-shipped CSV copies in geometry/ after cloning.",
+        "User-supplied pili centerlines MUST have equal-length segments (checked)."
+    ],
+
     "custom_geometry": {
-        "body_points_file": "geometry/my_body_points.csv",
-        "L_0_override": 1.0e-6,
-        "alpha_0": 0,
+        "body_points_file": "geometry/example_body_capsule.csv",
+        "L_0_override": null,
+        "L_0_suggest_mode": "volume",
         "eps_body": null,
+
+        "_comment_orientation": [
+            "Custom-mode only: initial_orientation overrides alpha_0 when set.",
+            "Accepts exactly one of {quaternion:[w,x,y,z],",
+            "                        axis_angle:{axis:[x,y,z], angle_rad:t},",
+            "                        euler_zyx:[yaw,pitch,roll]}."
+        ],
+        "initial_orientation": {
+            "euler_zyx": [0.0, 0.0, 0.0]
+        },
 
         "attachment_sites": [
             {
-                "position": [-1.0e-6, 0, 0],
+                "position": [-1.25e-6, 0, 0],
                 "direction": [-1, 0, 0],
                 "label": "left_pole"
             },
             {
-                "position": [1.0e-6, 0, 0],
+                "position": [1.25e-6, 0, 0],
                 "direction": [1, 0, 0],
                 "label": "right_pole"
             }
@@ -24,16 +41,24 @@
 
         "pili": [
             {
-                "points_file": "geometry/my_pilus_1_centerline.csv",
+                "points_file": "geometry/example_pilus_linear.csv",
                 "site_index": 1,
                 "deflection_z": 0,
-                "deflection_x": 0
+                "deflection_x": 0,
+                "intrinsic_curvature": "frozen",
+                "active_moment": { "type": "off" },
+                "root_coupling": "clamped",
+                "motor_torque":  { "type": "off" }
             },
             {
-                "points_file": "geometry/my_pilus_2_centerline.csv",
+                "points_file": "geometry/example_pilus_helix.csv",
                 "site_index": 2,
                 "deflection_z": 0.1,
-                "deflection_x": 0
+                "deflection_x": 0,
+                "intrinsic_curvature": "frozen",
+                "active_moment": { "type": "off" },
+                "root_coupling": "clamped",
+                "motor_torque":  { "type": "off" }
             }
         ]
     },
@@ -51,7 +76,7 @@
     },
 
     "simulation": {
-        "T_obs": 30.0,
+        "T_obs": 5.0,
         "AbsTol": 1e-4,
         "RelTol": 1e-4,
         "delta_frac": 20,
@@ -73,7 +98,7 @@
         "animation_fps": 30,
         "animation_skip": 1,
         "auto_confirm": false,
-        "compute_flowfield": true
+        "compute_flowfield": false
     },
 
     "flowfield": {

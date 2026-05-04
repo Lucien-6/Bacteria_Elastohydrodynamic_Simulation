@@ -48,7 +48,23 @@ L_helix   = PM(2);   % Length of pilus [um]
 theta     = PM(3);   % Deflection angle from Z-axis [rad]
 gama      = PM(4);   % Deflection angle from X-axis [rad]
 
-% Build deflection rotation matrix
+% Build deflection rotation matrix.
+% Note: RX below uses a LEFT-HANDED sign convention for gama (the standard
+% right-handed form would flip the signs of the two sin(gama) entries).
+% This convention is project-internal and preserved because legacy
+% trajectories and tests depend on it.
+%
+% Parametric-mode semantics (for cross-reference with custom_pili_building.m):
+%   - The pilus is constructed along the +X axis, so X IS the initial
+%     tangent direction here.
+%   - deflection_z (theta) rotates about Z (perpendicular to the tangent)
+%     => TILT of the tangent direction.
+%   - deflection_x (gama) rotates about X (the tangent itself)
+%     => TWIST around the pilus axis (a linear pilus is invariant).
+% custom_pili_building.m applies rotations in a local basis with e3 equal
+% to the aligned tangent, so its deflection_z/_x axes are SWAPPED relative
+% to the parametric names.  When porting a non-zero deflection between
+% modes, swap deflection_x <-> deflection_z.
 RZ = [ cos(theta), -sin(theta), 0;
        sin(theta),  cos(theta), 0;
        0,           0,          1];

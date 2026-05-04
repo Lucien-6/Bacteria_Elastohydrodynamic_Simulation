@@ -10,7 +10,20 @@
 %    Supported flow profiles:
 %      'off'      - Zero flow everywhere (default)
 %      'uniform'  - Spatially uniform velocity
-%      'shear_z'  - Piecewise-linear shear along a specified axis
+%      'shear_z'  - Piecewise-linear shear with constant-velocity plateaus
+%
+%  Notes on shear_z geometry:
+%    The translational profile is u(z) = U_max * max(0, min(z/H, 1)) along
+%    the chosen 'direction' axis, with z = X . shear_axis.  The flow is
+%    linear (rate U_max/H) only inside the shear layer 0 < z < H; below
+%    z = 0 it is identically zero, and above z = H it is the constant
+%    plateau u = U_max.  Consequently the local fluid vorticity 2*Omega
+%    = U_max/H * (shear_axis x direction) exists only in 0 < z < H, and
+%    is set to zero on segment midpoints lying outside that interval.
+%    The plateau half-spaces are therefore irrotational and translate
+%    rigidly, mimicking a finite-thickness Couette layer rather than an
+%    unbounded linear shear.  This avoids unphysical ambient torques on
+%    pili that wander far above or below the shear band.
 %
 %  Syntax:
 %    u_bg = coupled_background_flow(X_all, geom, params)

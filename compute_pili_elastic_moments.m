@@ -7,6 +7,15 @@
 %    intrinsic curvature) using the Kirchhoff rod model.  Follows
 %    Walker (2020) dz_free_space.m lines 219-242.
 %
+%    Node-centred director frames are obtained from the shared utility
+%    compute_node_directors (segment-mean + SVD polar decomposition with
+%    det<0 correction), guaranteeing the same nodal geometry used by
+%    build_coupled_lin_sys (B-Tau block) and coupled_active_moment.
+%    The previous "duplicate-end" approximation is therefore replaced
+%    by the SVD-projected interpolation.  Both reduce to identical
+%    continuum limits as N_k -> infinity, but the SVD variant preserves
+%    rotational consistency at all finite resolutions.
+%
 %  Syntax:
 %    [kappa1, kappa2, kappa3] = compute_pili_elastic_moments( ...
 %        d1, d2, d3, N_k, sigma, kb0_k)
@@ -46,12 +55,18 @@ if nargin < 7 || isempty(root_coupling_k)
     root_coupling_k = 'clamped';
 end
 
-%% Approximate directors at nodes (Walker's crude method)
-d1NC = [d1; d1(end,:)];
-d2NC = [d2; d2(end,:)];
-d3NC = [d3; d3(end,:)];
+%% Node-centred directors via shared SVD-projected interpolation
+%  compute_node_directors returns [(N_k+1) x 3] arrays consistent with the
+%  nodal frames used in build_coupled_lin_sys (B-Tau block) and
+%  coupled_active_moment.  This guarantees a single, shared geometric
+%  representation across the elastic, hydrodynamic, and active-moment
+%  paths — see README §3.0 / defect history #35.
+[d1NC, d2NC, d3NC] = compute_node_directors(d1, d2, d3, N_k);
 
-%% Finite-difference derivatives
+%% Finite-difference derivatives along arc length (ds = 1/N_k)
+%  Forward difference on the first row replicates the boundary handling
+%  used by Walker (2020): the first node-centred derivative borrows the
+%  forward stencil so that kappa(1) is well defined on the open root end.
 d1NCds = [d1NC(2,:)-d1NC(1,:); d1NC(2:end,:)-d1NC(1:end-1,:)] * N_k;
 d2NCds = [d2NC(2,:)-d2NC(1,:); d2NC(2:end,:)-d2NC(1:end-1,:)] * N_k;
 d3NCds = [d3NC(2,:)-d3NC(1,:); d3NC(2:end,:)-d3NC(1:end-1,:)] * N_k;

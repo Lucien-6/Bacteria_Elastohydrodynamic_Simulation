@@ -30,6 +30,38 @@ switch cfg.geometry_mode
         if isfield(cfg, 'eps_body') && ~isempty(cfg.eps_body)
             j.custom_geometry.eps_body = cfg.eps_body;
         end
+        if isfield(cfg, 'initial_orientation') && ~isempty(cfg.initial_orientation)
+            j.custom_geometry.initial_orientation = cfg.initial_orientation;
+        end
+
+        % Re-inject per-pilus extended fields into custom_geometry.pili,
+        % so the saved JSON round-trips back through load_sim_config.
+        if isfield(cfg, 'pili_ext') && ~isempty(cfg.pili_ext) ...
+                && isfield(j.custom_geometry, 'pili') ...
+                && ~isempty(j.custom_geometry.pili)
+            pili_raw = normalise_json_struct_array(j.custom_geometry.pili);
+            M_ext = numel(cfg.pili_ext);
+            for kk = 1:min(numel(pili_raw), M_ext)
+                pe = cfg.pili_ext(kk);
+                pili_raw(kk).intrinsic_curvature = pe.intrinsic_curvature;
+                am_val = pe.active_moment;
+                if isstruct(am_val) && isfield(am_val, 'fun')
+                    am_val = rmfield(am_val, 'fun');
+                end
+                pili_raw(kk).active_moment = am_val;
+                if isfield(pe, 'root_coupling')
+                    pili_raw(kk).root_coupling = pe.root_coupling;
+                end
+                if isfield(pe, 'motor_torque')
+                    mt_val = pe.motor_torque;
+                    if isstruct(mt_val) && isfield(mt_val, 'fun')
+                        mt_val = rmfield(mt_val, 'fun');
+                    end
+                    pili_raw(kk).motor_torque = mt_val;
+                end
+            end
+            j.custom_geometry.pili = pili_raw;
+        end
         j.pili = [];
 
     otherwise

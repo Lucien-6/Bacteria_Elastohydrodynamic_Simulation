@@ -1,8 +1,8 @@
 ﻿# User Guide — Coupled Body-Pili Simulation
 
-> **Author:** Lucien (lucien-6@qq.com)  
-> **Version:** 7.0.4
-> **Updated:** 2026-04-30
+> **Author:** Lucien (lucien-6@qq.com)
+> **Version:** 7.2.0
+> **Updated:** 2026-05-04
 
 This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
 
@@ -31,23 +31,38 @@ This guide is a short entry point. **Full theory, parameters, and file map:** se
 
 JSON must include the same **top-level sections** the loader expects: `case_name`, `body`, `pili`, `material`, `fluid`, `simulation`, `brownian`, `output`, `flowfield`, and **`background_flow`** (v5.0; use `"type": "off"` to disable). Optional per-pilus fields: **`intrinsic_curvature`**, **`active_moment`**. Optional **`body.eps_body`** for RSM regularisation override. See **`README.md`** §2.2 for the cfg ↔ JSON mapping table.
 
-### Option D — Custom geometry mode (v6.0)
+### Option D — Custom geometry mode (v6.0, extended in v7.1)
 
 Import arbitrary 3D point clouds for both the body and pili:
 
 1. Copy **`config_custom_example.json`** as a template.
 2. Set `"geometry_mode": "custom"` at the top level.
-3. Under `"custom_geometry"`, specify:
-   - `"body_points_file"`: path to your body point cloud (`.csv`, `.txt`, or `.mat`; N×3 or 3×N).
+3. Pre-shipped example files live under `geometry/`:
+   - `example_body_sphere.csv`, `example_body_capsule.csv`
+   - `example_pilus_linear.csv`, `example_pilus_helix.csv`
+   - regenerate with `geometry/generate_example_geometry.m`.
+4. Under `"custom_geometry"`, specify:
+   - `"body_points_file"`: body point cloud (`.csv`, `.txt`, or `.mat`; N×3 or 3×N).
    - `"attachment_sites"`: array of `{ "position": [x,y,z], "direction": [dx,dy,dz], "label": "name" }`.
-   - `"pili"`: array of `{ "points_file": "...", "site_index": 1, "deflection_z": 0, "deflection_x": 0 }`.
-4. Set `config_file = 'config_custom_example.json'` in `main_coupled_simulation.m` and run.
+   - `"pili"`: array of `{ "points_file": "...", "site_index": 1, "deflection_z": 0, "deflection_x": 0, "intrinsic_curvature": ..., "active_moment": {...}, "root_coupling": "...", "motor_torque": {...} }`.
+   - (optional) `"initial_orientation"`: exactly one of
+     `{ "quaternion": [w,x,y,z] }`, `{ "axis_angle": {"axis":[x,y,z], "angle_rad": t} }`, or `{ "euler_zyx": [yaw,pitch,roll] }`.
+   - (optional) `"L_0_suggest_mode"`: `"volume"` (default; equivalent-sphere radius from triangulated volume) or `"extent"` (half the largest bounding-box extent).
+5. Set `config_file = 'config_custom_example.json'` in `main_coupled_simulation.m` and run. Alternatively leave `config_file` empty and use the inline custom block inside `main_coupled_simulation.m` — both paths reference the same pre-shipped example files.
 
-**Key constraints:**
+**Key constraints and semantics:**
 - Custom body and custom pili **must** be used together — mixing with parametric models is not allowed.
-- `alpha_0` and `eps_body` for custom mode are specified under the `custom_geometry` node.
-- The body surface is automatically triangulated (`alphaShape` + `convhulln` fallback) for `trisurf` visualization.
-- CSV geometry files support comma-separated, space-separated, and tab-separated delimiters (v7.0.3 fix).
+- `alpha_0` and `eps_body` for custom mode live under the `custom_geometry` node. `alpha_0` inherits the parametric convention (rotation about +Y assuming body-X is the long axis); for arbitrary custom bodies, prefer `initial_orientation`, which **overrides** `alpha_0` when present.
+- **Pili segment uniformity (v7.1):** every user-supplied pilus centerline file **must** be pre-discretised with equal-length segments (relative spread ≤ 1e-3). Non-uniform inputs are rejected.
+- **Pili deflection (v7.1):** in custom mode, `deflection_z` / `deflection_x` are now applied in the pilus **local basis** (built via Gram-Schmidt around the aligned root tangent), instead of the lab frame after alignment. The local basis uses `e3` = aligned tangent and `e1` = bending-plane normal, so `deflection_z` rotates about `e3` (a TWIST around the tangent) and `deflection_x` rotates about `e1` (a TILT in the bending plane). **Naming caveat:** in parametric mode the pilus is built along `+X`, so parametric `deflection_x` is a TWIST (rotation about the tangent) and parametric `deflection_z` is a TILT — the geometric roles are **swapped** between the two modes. The `RX` matrix keeps the same left-handed sign convention in both modes; when porting a non-zero deflection from parametric to custom (or vice versa), swap `deflection_x` ↔ `deflection_z`.
+- **`root_dir` semantic (v7.1):** stores the **actual** first-segment tangent after alignment + deflection (previously stored the raw `site.direction`).
+- **Alignment diagnostic (v7.1):** the rotation angle used to align the centerline's first segment to `site.direction` is logged per pilus; if it exceeds 45°, a warning is printed so users can verify the pilus file orientation.
+- **Per-pilus extended physics (v7.1):** `intrinsic_curvature`, `active_moment`, `root_coupling`, and `motor_torque` now flow through the custom JSON/inline path identically to parametric mode.
+- **Custom-mode twist (psi0):** the initial twist angle for custom pili is `psi0 = 0` because a generic 3D centerline does not uniquely define a natural binormal. Use `intrinsic_curvature = "constant"` / `"helix"` to request a non-zero intrinsic twist.
+- **Duplicate-point handling (v7.1):** both body and pili centerline readers automatically remove consecutive / near-duplicate points (tol = 1e-6 of bounding-box extent) and error out if fewer than the minimum required distinct points remain.
+- The body surface is automatically triangulated (`alphaShape` with a logarithmic alpha scan, `convhulln` fallback) for `trisurf` visualisation and divergence-theorem volume computation. A non-closed-surface diagnostic (Euler characteristic check) warns when the triangulation is non-manifold.
+- **Flow field in custom mode (v7.1):** `compute_plot_flowfield.m` now builds an alphaShape-based interior mask and renders the body via `trisurf` using the stored triangulation — the previous `major_axis` / `minor_axis` hard dependency has been removed.
+- CSV geometry files support comma-separated, space-separated, and tab-separated delimiters, with comment lines starting with `#` or `%`. N×2 inputs are rejected by default; pass `AllowPlanar2D = true` to the reader to permit Z=0 padding.
 
 ### Option C — Programmatic / batch
 
@@ -148,6 +163,10 @@ The script computes per-case summaries (e.g. sinking velocity statistics, maximu
 
 **v7.0.0:** **Free-torsion root coupling + constant motor torque model** — Per-pilus root boundary condition now supports `'free_torsion'` alongside the default `'clamped'`. In free-torsion mode, the root-segment twist angle ψ₁ is free to evolve under elastic + motor moments (θ₁ and φ₁ remain kinematically constrained). Motor torque model (`motor_torque.type ∈ {'off', 'constant'}`) applies a torsional moment at the root segment with optional stall-speed limiting (`max_omega_Hz`). Reaction torque (Newton's Third Law) is automatically applied to the body's angular momentum. Eleven core functions modified: `build_coupled_lin_sys.m` (conditional root BC), `compute_pili_elastic_moments.m` (preserve κ₃(1) for free_torsion), `coupled_active_moment.m` (preserve M₃(1)), `ode_coupled_rhs.m` (motor torque + reaction + dpsi1_prev), `enforce_clamped_geometry.m` (conditional ψ₁ projection), `init_coupled_params.m` (root_coupling/motor_torque addParameter + nondimensionalisation), `validate_simulation_params.m` (new validation rules), `parse_pili_config.m`, `save_sim_config.m`, `run_simulation.m`, `main_coupled_simulation.m`. New `config_motor_flagella_example.json` template. **Clamped mode fully backward-compatible** — default behaviour unchanged.
 
+**v7.2.0 (2026-05-04):** **Audit-driven correctness fixes for the v7.0 free-torsion + motor-torque feature, plus a JSON-schema robustness fix surfaced while testing the v7.0 demo.** (i) Reaction torque on the body in `ode_coupled_rhs.m` is now `−τ_eff · d₃_lab(seg 1)` (was `−τ_eff · J_euler(3,:)'`), restoring Newton's third law and angular-momentum balance in the body+pilus system. (ii) The motor speed-limiting `1 − |ω|/ω_max` curve previously stored its previous-step `dψ_1/dt` in `params.dpsi1_prev` — but MATLAB structs are pass-by-value, so the cache was always empty and the motor effectively ran at constant maximum torque. The cache now lives in a `persistent DPSI1_PREV` cell array inside `ode_coupled_rhs.m`, gated by a `params.run_token` set in `init_coupled_params.m` (high-resolution `tic`-based token) so independent simulations in the same MATLAB session self-flush; `run_simulation.m` also issues `clear ode_coupled_rhs` at the integration loop start as a defensive reset. (iii) `enforce_clamped_geometry.m` gains an optional third argument `force_full_projection`; `init_coupled_state.m` now calls it with `true` so ψ₁ is projected to a self-consistent value at t = 0 even for free_torsion pili (necessary whenever `alpha_0 ≠ 0` or a custom `initial_orientation` is set). All runtime callers leave the flag at default `false`, preserving free ψ₁ evolution. (iv) `load_sim_config.m` parametric path now passes the JSON `pili[]` value through `normalise_json_struct_array.m` before delegating to `parse_pili_config.m`, fixing a case where heterogeneous field sets across pili entries (the canonical case in `config_motor_flagella_example.json`) caused `jsondecode` to return a cell array of structs that the old `isstruct(jp)` test silently demoted to "no pili" — symptom: initial-pose preview showed only the body. Numeric `[8 x M]` `Pili_Matrix` and homogeneous-fields struct arrays continue to work unchanged. **Cleanup**: BC-RHS-zeroing loop's `col_offset` renamed to `row_offset_bc` (cosmetic, bit-exact). **Demo retune**: `config_motor_flagella_example.json` now ships `T_obs = 1.0 s` and `dt = 0.001 s` so the motor stall transient and individual rotations are visible in the saved animation (rotation period ≈ 3.33 ms at `max_omega_Hz = 300`). **Compatibility**: clamped configurations are bit-exact; existing free_torsion numerical results should be regenerated; JSON parse path is now a strict superset of the v7.1 behaviour.
+
+**v7.1.0 (2026-05-04):** **Custom-geometry hardening pass (I/O, diagnostics, pili kinematics, JSON configurability, flow-field renderer).** New helpers `parse_initial_orientation.m` (quaternion / axis_angle / euler_zyx → scalar-first unit quaternion; custom-mode only, overrides `alpha_0`) and `normalise_json_struct_array.m` (reconciles `jsondecode` cell-vs-struct dichotomy). New pre-shipped sample geometry under `geometry/` (`example_body_sphere.csv`, `example_body_capsule.csv`, `example_pilus_linear.csv`, `example_pilus_helix.csv`) plus `generate_example_geometry.m` so the inline + JSON custom examples run out of the box. **New strict requirement**: user-supplied pilus centerlines must be pre-discretised with equal-length segments (relative spread ≤ 1e-3), otherwise rejected at validation. `read_geometry_csv_mat.m` rewritten with `readmatrix` + `detectImportOptions` and pre-allocated fallback. `custom_body_building.m` adds `uniquetol` deduplication, a 15-point logarithmic alpha-shape scan with non-manifold rejection, an Euler-characteristic warning for non-closed surfaces, and `L_0_suggested` defaulting to the equivalent-sphere radius (`L_0_suggest_mode = 'volume' | 'extent'`). `custom_pili_building.m` rewritten to deduplicate, enforce segment uniformity, apply `deflection_z`/`deflection_x` in a Gram-Schmidt **local basis** (`e3` = aligned tangent → `deflection_z` is a twist about the tangent; `e1` = bending-plane normal → `deflection_x` is a tilt), store the **actual** post-transform first-segment tangent in `root_dir`, log the alignment angle, and warn if it exceeds 45°. **Naming caveat**: the parametric pili builder binds `deflection_x` to a twist and `deflection_z` to a tilt (axis roles swapped relative to custom); porting a non-zero deflection between modes requires swapping `deflection_x` ↔ `deflection_z`. Per-pilus extended physics (`intrinsic_curvature`, `active_moment`, `root_coupling`, `motor_torque`) now flow identically through the custom JSON/inline path via a shared `validate_pili_ext` helper and `save_sim_config.m` round-tripping. `compute_plot_flowfield.m` dispatches on `params.body_type` through a new `build_body_visualization` helper: custom bodies use an `alphaShape` `inShape` interior mask (bounding-sphere fallback), are rendered with `trisurf(params.body_faces, …)`, and have their 2D silhouettes extracted by a generic SDF-level contour — `major_axis` / `minor_axis` references are gone from the custom path. `main_coupled_simulation.m` inline custom block now explicitly promotes `cfg.custom_geometry.initial_orientation` to the top-level `cfg.initial_orientation`, matching the JSON path. **Compatibility**: parametric configurations are bit-exact; v6.x–v7.0.x custom configurations with non-uniform pili segments or non-zero custom-mode `deflection_*` need to be re-discretised or re-tuned per the above rules.
+
 Tunable via `cfg`: `flowfield_grid_spacing`, `flowfield_grid_range`, `flowfield_quiver_skip`, `flowfield_chunk_size`.
 
 ---
@@ -225,7 +244,22 @@ pili_config(2).motor_torque = struct('type', 'off');           % Default: no mot
 
 In JSON: `"motor_torque": { "type": "off" }` or `"motor_torque": { "type": "constant", "torque_pN_nm": 2000, "max_omega_Hz": 300 }`.
 
-Physical units are automatically converted to dimensionless at initialisation. For `'constant'` motor torque, the effective torque is linearly reduced as `|dψ₁/dt|` approaches `max_omega_Hz` (speed-limiting). A reaction torque (Newton's Third Law) is applied to the body's angular momentum.
+Physical units are automatically converted to dimensionless at initialisation. For `'constant'` motor torque, the effective torque is linearly reduced as `|dψ₁/dt|` approaches `max_omega_Hz` (speed-limiting), using the previous-RHS-call `dψ₁/dt` cached in a persistent variable inside `ode_coupled_rhs.m` (the cache is reset between independent simulations via the `params.run_token` mechanism). A reaction torque equal to `-τ · d₃_lab` is applied to the body's lab-frame angular momentum, in accordance with Newton's third law on the physical motor torque (see *Notes on physics*).
+
+### Interaction with `active_moment` and `intrinsic_curvature` (v7.2.0)
+
+When `root_coupling = 'free_torsion'` is combined with an `active_moment` whose `d3_amp` is non-zero, the d₃ component of the integrated active moment at segment 1 is **preserved** (it would otherwise be discarded by the clamped BC).  In that case the ψ₁ evolution at the root segment is driven by the **superposition** of three sources:
+
+1. **Elastic torsion**: `κ₃(1) − κ₃₀(1)` (depends on `intrinsic_curvature`).
+2. **Active d₃ moment**: the integrated travelling-wave / custom contribution along d₃, evaluated at segment 1.
+3. **Motor torque**: `τ_eff` from `motor_torque.type = 'constant'`, with optional speed-limiting.
+
+This is the intended design — it lets a single pilus model both an internal travelling-wave drive and a bulk motor — but users who only want a "pure motor" should set `active_moment.d3_amp = 0` (or leave `active_moment.type = 'off'`).
+
+### Notes on physics (v7.2.0 corrections)
+
+- The reaction torque on the body is `−τ · d₃_lab(seg 1)` — i.e. the lab-frame tangent of the pilus root segment.  Releases ≤ v7.0.x used `−τ · J_euler(3,:)'` instead, which is the kinematic mapping `ω → ψ̇` rather than a physical direction; this violated angular-momentum balance whenever the two vectors disagreed (always, except at θ₁ = π/2 + φ₁ = 0).
+- For a non-trivial initial body orientation (`alpha_0 ≠ 0` or a custom `initial_orientation`), `init_coupled_state.m` now calls `enforce_clamped_geometry(..., true)` so that ψ₁ is projected to a self-consistent value at t = 0 even for free_torsion pili.  ψ₁ then evolves freely from that starting point during the run.
 
 ---
 

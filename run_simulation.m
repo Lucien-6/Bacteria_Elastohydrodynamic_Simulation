@@ -22,7 +22,7 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Log banner version: 7.0.4 (2026-04-30) — keep in sync with README / CHANGELOG
+%  Log banner version: 7.2.0 (2026-05-04) — keep in sync with README / CHANGELOG
 %
 %  Path: defensive addpath(project root) so run_simulation(cfg) works when
 %  invoked without main_coupled_simulation.m. Unified policy = this line plus
@@ -134,6 +134,13 @@ else
     custom_geometry_cfg = struct();
 end
 
+% Initial orientation (C2): custom-mode-only general quaternion/axis/Euler override
+if isfield(cfg, 'initial_orientation') && ~isempty(cfg.initial_orientation)
+    initial_orientation_cfg = cfg.initial_orientation;
+else
+    initial_orientation_cfg = [];
+end
+
 % ---- Brownian RNG (twister): must run before save_sim_config and ODE integration ----
 brown_rng_seed_used = NaN;
 if enable_brown
@@ -228,7 +235,7 @@ logf_file = @(varargin) log_file_only(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 7.0.4\n');
+logf('  Version 7.2.0\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -367,6 +374,9 @@ end
 if strcmp(geometry_mode, 'custom') && isfield(cfg, 'custom_geometry')
     val_cfg.custom_geometry = cfg.custom_geometry;
 end
+if isfield(cfg, 'initial_orientation')
+    val_cfg.initial_orientation = cfg.initial_orientation;
+end
 validate_simulation_params(val_cfg, logf);
 logf('[VALIDATE] All parameter checks passed.\n');
 
@@ -384,6 +394,7 @@ params = init_coupled_params( ...
     'minor_axis',   minor_axis, ...
     'major_axis',   major_axis, ...
     'alpha_0',      alpha_0, ...
+    'initial_orientation', initial_orientation_cfg, ...
     'mu',           mu, ...
     'E',            E, ...
     'r_pili',       r_pili, ...
@@ -713,6 +724,7 @@ end
 
 % --- Integration loop ---
 clear odetpbar;                    % Reset persistent vars from prior runs
+clear ode_coupled_rhs;             % Reset DPSI1_PREV motor-speed cache
 tic_total        = tic;
 T_achieved       = 0;
 last_Z           = Z0;

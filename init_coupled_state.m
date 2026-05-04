@@ -38,26 +38,14 @@ end
 %% Body initial state
 X_cm_0 = [0; 0; 0];
 
-% Compute initial quaternion from tilt angle alpha_0
-%   alpha_0 : angle between body long axis and +X axis in XZ plane
-%   Body long axis is X in body frame (capsule_body_building convention).
-%   To map body-X -> (cos(alpha_0), 0, sin(alpha_0)) in lab frame,
-%   rotate about Y by theta_Y = -alpha_0.
-%
-%   Proof:  R_Y(theta_Y) * [1;0;0] = [cos(theta_Y); 0; -sin(theta_Y)]
-%           Setting this equal to [cos(alpha_0); 0; sin(alpha_0)] gives
-%           theta_Y = -alpha_0.
-%
-%   Quaternion: q = [cos(theta_Y/2); 0; sin(theta_Y/2); 0]
-%
-%   Special cases:
-%     alpha_0 =  pi/2  -> theta_Y = -pi/2 -> vertical (+Z)
-%     alpha_0 =  0     -> theta_Y = 0      -> horizontal (+X)
-%     alpha_0 = -pi/2  -> theta_Y = pi/2   -> inverted (-Z)
-alpha_0   = params.alpha_0;
-theta_Y   = -alpha_0;
-q_0       = [cos(theta_Y/2); 0; sin(theta_Y/2); 0];
-q_0       = q_0 / norm(q_0);              % Ensure unit quaternion
+% Initial quaternion is pre-resolved in init_coupled_params:
+%   - Parametric mode        : derived from alpha_0 (Y-axis tilt)
+%   - Custom mode, alpha_0   : same Y-axis tilt convention
+%   - Custom mode, explicit  : user-supplied initial_orientation
+%                              (quaternion / axis_angle / euler_zyx)
+% See parse_initial_orientation.m for the custom-mode spec.
+q_0 = params.q_0_init(:);
+q_0 = q_0 / max(norm(q_0), eps);          % Ensure unit quaternion
 
 %% Build state vector
 M      = params.M_pili;
@@ -77,7 +65,8 @@ for k = 1:M
     N_k   = N_segs(k);
     rot_k = params.rot{k};
 
-    % Original pili coords are in the default body frame (long axis along Z).
+    % Pili coords in params.pili_x0{k} are in the body-local frame
+    % (parametric: body-X is the long axis; custom: user-defined axes).
     % Rotate them to the lab frame matching the initial body orientation.
     coords_k_orig = params.pili_x0{k};              % [(N_k+1) x 3]
     coords_k = (R_body * coords_k_orig')';          % [(N_k+1) x 3] in lab frame
@@ -105,7 +94,16 @@ end
 %  account for the body rotation when alpha_0 != 0.  The enforce step
 %  overwrites the first-segment (theta, phi, psi) to be exactly consistent
 %  with the clamped boundary condition at the position level.
-Z0 = enforce_clamped_geometry(Z0, params);
+%
+%  We pass force_full_projection = true so that ψ_1 is projected even for
+%  free_torsion pili.  Otherwise, with alpha_0 ≠ 0 (or any non-identity
+%  initial body orientation), the first-segment director frame would not
+%  match the BC requirement at t = 0, triggering a spurious torsional
+%  elastic energy that "releases" during the first ODE step.  At runtime
+%  (run_simulation main loop, post-quaternion-renorm, post-Brownian-kick)
+%  the function is called WITHOUT this flag so free_torsion ψ_1 keeps
+%  evolving freely as designed.
+Z0 = enforce_clamped_geometry(Z0, params, true);
 
 %% Verify reconstruction consistency
 geom = reconstruct_geometry(Z0, params);

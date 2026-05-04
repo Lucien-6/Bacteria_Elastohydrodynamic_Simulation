@@ -9,7 +9,17 @@
 %    To run with inline parameters:  edit the defaults below, then Run.
 %    To run from a JSON config file: set config_file to the path.
 %    To automate parameter sweeps:   see batch sweep/ folder (batch_sweep_alpha.m etc.).
-%    Default inline demo: TwoPili-Active-HighFre-Test-Symmetry (edit the cfg block below).
+%
+%    CURRENT INLINE DEMO (intentional, non-default physics):
+%      case_name = 'OnePili-Rotate-Active-Test'.  A single free-torsion
+%      flagellum driven by a constant motor torque.  Buoyancy is OFF on
+%      purpose: rho_bac = rho_fluid = 998.232 kg/m^3 isolates motor-driven
+%      rotation and propulsion from gravitational sinking.  This is NOT
+%      the documented project default — the README sinking workflow uses
+%      rho_bac = 1180 kg/m^3.  Likewise T_obs = 20 s and dt = 0.01 s are
+%      tuned for the high-frequency motor diagnostic (README defaults:
+%      T_obs = 30 s, dt = 0.1 s).  Edit the rho_bac / dt / T_obs / cfg
+%      lines below to reproduce the standard sinking-bacterium scenario.
 %
 %  Output unit convention:
 %    Time [s] | Length [um] | Velocity [um/s] | Force [pN] | Angle [rad]
@@ -21,7 +31,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Documentation release: 7.0.4 (2026-04-30) — see README.md / CHANGELOG.md
+%  Documentation release: 7.2.0 (2026-05-04) — see README.md / CHANGELOG.md
 
 close all force;
 clear; clc;
@@ -46,9 +56,10 @@ addpath(proj_root);
 %
 %  'custom': Import arbitrary 3D point clouds for both body and pili.
 %    Custom body and custom pili MUST be used together (no mixing).
-%    Use config_custom_example.json as a template, or set
-%    cfg.geometry_mode = 'custom' and cfg.custom_geometry below.
-config_file = 'F:\Bacteria Sinking\Simulation\STOKES\Stokes Brown Flexible\Coupled_Body_Pili\config_test_custom.json';    % e.g. 'configs/my_case.json' or 'config_custom_example.json'
+%    Use config_custom_example.json (which references geometry/*.csv) as
+%    a template, or set cfg.geometry_mode = 'custom' and fill the inline
+%    custom-mode block below.
+config_file = '';    % e.g. 'config_custom_example.json' for the custom demo
 
 if ~isempty(config_file) && isfile(config_file)
     %% --- External JSON configuration ---
@@ -141,26 +152,67 @@ else
     else
         % ===== Custom Mode: Import arbitrary body/pili point clouds =====
         %  Custom body and custom pili MUST be used together (no mixing).
-        %  Uncomment and edit the block below to configure custom geometry:
+        %  The block below mirrors config_custom_example.json and uses the
+        %  pre-shipped geometry/example_*.csv files so the example runs
+        %  out of the box.  Edit paths / parameters for your own geometry.
+        %  IMPORTANT: user-supplied pili centerlines MUST be pre-discretised
+        %  with EQUAL-LENGTH segments; this is enforced at validation.
 
         cfg.case_name = 'Custom-Geometry-Run';
-        cfg.alpha_0   = 0;                    % [rad] Initial tilt angle in XZ plane
-        % cfg.eps_body = [];                  % [L0] RSM regularisation override (empty = auto)
 
         % Placeholder parametric fields (required by run_simulation.m unpacking)
         cfg.Pili_Matrix = zeros(8, 0);
         cfg.pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {}, ...
                                      'root_coupling', {}, 'motor_torque', {});
 
-        % cfg.custom_geometry.body_points_file = 'geometry/my_body_points.csv';
-        % cfg.custom_geometry.L_0_override = 1.0e-6;
-        % cfg.custom_geometry.attachment_sites(1).position = [-1.0e-6, 0, 0];
-        % cfg.custom_geometry.attachment_sites(1).direction = [-1, 0, 0];
-        % cfg.custom_geometry.attachment_sites(1).label = 'left_pole';
-        % cfg.custom_geometry.pili(1).points_file = 'geometry/my_pilus_centerline.csv';
-        % cfg.custom_geometry.pili(1).site_index = 1;
-        % cfg.custom_geometry.pili(1).deflection_z = 0;
-        % cfg.custom_geometry.pili(1).deflection_x = 0;
+        % -------- Custom body --------
+        cfg.custom_geometry.body_points_file = 'geometry/example_body_capsule.csv';
+        cfg.custom_geometry.L_0_override     = [];    % empty = auto (volume-based)
+        cfg.custom_geometry.L_0_suggest_mode = 'volume';  % 'volume' | 'extent'
+        cfg.eps_body                          = [];   % RSM regularisation override
+
+        % -------- Initial orientation (quaternion / axis_angle / euler_zyx) --------
+        %   Omit or set to [] to fall back on cfg.alpha_0 (legacy Y-axis tilt).
+        cfg.custom_geometry.initial_orientation = struct( ...
+            'euler_zyx', [0.0, 0.0, 0.0] );           % [yaw, pitch, roll] rad
+        cfg.initial_orientation = cfg.custom_geometry.initial_orientation;  % lift to top level for run_simulation
+        cfg.alpha_0 = 0;                               % ignored when initial_orientation set
+
+        % -------- Attachment sites --------
+        cfg.custom_geometry.attachment_sites(1).position  = [-1.25e-6; 0; 0];
+        cfg.custom_geometry.attachment_sites(1).direction = [-1; 0; 0];
+        cfg.custom_geometry.attachment_sites(1).label     = 'left_pole';
+        cfg.custom_geometry.attachment_sites(2).position  = [ 1.25e-6; 0; 0];
+        cfg.custom_geometry.attachment_sites(2).direction = [ 1; 0; 0];
+        cfg.custom_geometry.attachment_sites(2).label     = 'right_pole';
+
+        % -------- Custom pili (each centerline MUST have uniform segments) --------
+        cfg.custom_geometry.pili(1).points_file        = 'geometry/example_pilus_linear.csv';
+        cfg.custom_geometry.pili(1).site_index         = 1;
+        cfg.custom_geometry.pili(1).deflection_z       = 0;
+        cfg.custom_geometry.pili(1).deflection_x       = 0;
+        cfg.custom_geometry.pili(1).intrinsic_curvature = 'frozen';
+        cfg.custom_geometry.pili(1).active_moment       = struct('type', 'off');
+        cfg.custom_geometry.pili(1).root_coupling       = 'clamped';
+        cfg.custom_geometry.pili(1).motor_torque        = struct('type', 'off');
+
+        cfg.custom_geometry.pili(2).points_file        = 'geometry/example_pilus_helix.csv';
+        cfg.custom_geometry.pili(2).site_index         = 2;
+        cfg.custom_geometry.pili(2).deflection_z       = 0.1;
+        cfg.custom_geometry.pili(2).deflection_x       = 0;
+        cfg.custom_geometry.pili(2).intrinsic_curvature = 'frozen';
+        cfg.custom_geometry.pili(2).active_moment       = struct('type', 'off');
+        cfg.custom_geometry.pili(2).root_coupling       = 'clamped';
+        cfg.custom_geometry.pili(2).motor_torque        = struct('type', 'off');
+
+        % Populate top-level cfg.pili_ext from per-pilus custom config so
+        % the extended fields propagate identically to the parametric path.
+        for kp = 1:numel(cfg.custom_geometry.pili)
+            cfg.pili_ext(kp).intrinsic_curvature = cfg.custom_geometry.pili(kp).intrinsic_curvature;
+            cfg.pili_ext(kp).active_moment       = cfg.custom_geometry.pili(kp).active_moment;
+            cfg.pili_ext(kp).root_coupling       = cfg.custom_geometry.pili(kp).root_coupling;
+            cfg.pili_ext(kp).motor_torque        = cfg.custom_geometry.pili(kp).motor_torque;
+        end
 
         cfg.background_flow.type           = 'off';
     end
@@ -175,10 +227,15 @@ else
 
     % -------- Fluid Properties --------
     cfg.mu        = 1e-3;                 % [Pa*s]   Dynamic viscosity (water)
-    cfg.rho_bac   = 998.232;              % [kg/m^3] Bacteria density
-    cfg.rho_fluid = 998.232;             % [kg/m^3] Fluid density
+    % NOTE: rho_bac = rho_fluid disables buoyancy; intentional for the
+    % motor-driven flagella demo above.  Use cfg.rho_bac = 1180 (kg/m^3,
+    % README default) to recover the standard sinking-bacterium physics.
+    cfg.rho_bac   = 998.232;              % [kg/m^3] Bacteria density (= fluid: zero gravity)
+    cfg.rho_fluid = 998.232;              % [kg/m^3] Fluid density
 
     % -------- Simulation Time & Numerics --------
+    % NOTE: T_obs / dt below are tuned for the high-frequency motor demo;
+    % README defaults are T_obs = 30 s, dt = 0.1 s for sinking studies.
     cfg.T_obs  = 20.0;                    % [s]   Total observation time
     cfg.AbsTol = 1e-4;                    % ODE absolute tolerance
     cfg.RelTol = 1e-4;                    % ODE relative tolerance

@@ -31,7 +31,7 @@
             "root_coupling": "free_torsion",
             "motor_torque": {
                 "type": "constant",
-                "torque_pN_nm": 2000,
+                "torque_pN_nm": 20,
                 "max_omega_Hz": 300
             }
         }
@@ -50,12 +50,14 @@
     },
 
     "simulation": {
-        "T_obs": 0.5,
+        "_comment_T_obs": "v7.2.0 raised T_obs from 0.5 s to 1.0 s so the motor speed-limiting transient develops fully (omega rises from 0 to ~max_omega_Hz over a few milliseconds; the rotor then spins at near-stall speed for the remainder, giving a clearly-visible flagellum rotation in the animation).",
+        "T_obs": 1.0,
         "AbsTol": 1e-4,
         "RelTol": 1e-4,
         "delta_frac": 20,
         "tlim": 3600,
-        "dt": 0.1,
+        "_comment_dt": "v7.2.0 reduced dt from 0.1 s to 0.001 s. For max_omega_Hz = 300 Hz the rotation period is ~3.33 ms, so dt = 1 ms gives ~3 frames per rotation — a workable animation cadence (further reduction yields smoother frames at proportionally higher cost). dt only sets the post-processing sampling stride; ode15s adapts its internal step automatically.",
+        "dt": 0.001,
         "seg_per_um": 10
     },
 

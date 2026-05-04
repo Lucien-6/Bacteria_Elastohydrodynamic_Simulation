@@ -186,8 +186,8 @@ X_cm_um     = X_cm * L_to_um;
 half_range  = grid_range_um / 2;
 um_s_factor = U_0 * 1e6;
 
-b_dl = params.dim.minor_axis / L_0;
-c_dl = params.dim.major_axis / L_0 - b_dl;
+% ---- Build body visualisation descriptor (dispatches parametric / custom) ----
+body_vis = build_body_visualization(params, L_0);
 
 % ---- Body kernel data ----
 body_data.X  = X_all(1:N_body, :);
@@ -250,7 +250,7 @@ Nz_xz = length(z_vec_xz);
 grid_xz_dl = [XG_xz(:)*um_to_L, YG_xz(:)*um_to_L, ZG_xz(:)*um_to_L];
 
 [Ux_xz, ~, Uz_xz, Umag_xz, mask_xz, dist_xz] = evaluate_plane_velocity( ...
-    grid_xz_dl, [Nz_xz, Nx_xz], X_cm, R_body, b_dl, c_dl, ...
+    grid_xz_dl, [Nz_xz, Nx_xz], X_cm, R_body, body_vis, ...
     body_data, seg_data, um_s_factor, chunk_size, '[FLOW-XZ] ');
 
 logf('[FLOW] XZ velocity range: [%.4e, %.4e] um/s\n', ...
@@ -272,7 +272,7 @@ Nz_yz = length(z_vec_yz);
 grid_yz_dl = [XG_yz(:)*um_to_L, YG_yz(:)*um_to_L, ZG_yz(:)*um_to_L];
 
 [~, Uy_yz, Uz_yz, Umag_yz, mask_yz, dist_yz] = evaluate_plane_velocity( ...
-    grid_yz_dl, [Nz_yz, Ny_yz], X_cm, R_body, b_dl, c_dl, ...
+    grid_yz_dl, [Nz_yz, Ny_yz], X_cm, R_body, body_vis, ...
     body_data, seg_data, um_s_factor, chunk_size, '[FLOW-YZ] ');
 
 t_flow_elapsed = toc(t_flow_start);
@@ -280,53 +280,17 @@ logf('[FLOW] YZ velocity range: [%.4e, %.4e] um/s  (total compute: %.1f s)\n', .
     min(Umag_yz(:), [], 'omitnan'), max(Umag_yz(:), [], 'omitnan'), t_flow_elapsed);
 
 %% ======================================================================
-%  Step 11: Build 3D capsule surface mesh for visualisation
+%  Step 11: Build 3D body surface mesh for visualisation (mode-aware)
 %  ======================================================================
-a_um = params.dim.major_axis * 1e6;
-b_um = params.dim.minor_axis * 1e6;
-
-n_circ = 36;
-n_cap  = 12;
-n_cyl  = 10;
-
-theta_cap = linspace(0, 2*pi, n_circ);
-
-phi_L = linspace(pi, pi/2, n_cap);
-[TH_L, PH_L] = meshgrid(theta_cap, phi_L);
-XL = b_um * cos(PH_L) - (a_um - b_um);
-YL = b_um * sin(PH_L) .* cos(TH_L);
-ZL = b_um * sin(PH_L) .* sin(TH_L);
-
-x_cyl = linspace(-(a_um - b_um), (a_um - b_um), n_cyl);
-[TH_C, XC_grid] = meshgrid(theta_cap, x_cyl);
-XC = XC_grid;
-YC = b_um * cos(TH_C);
-ZC = b_um * sin(TH_C);
-
-phi_R = linspace(pi/2, 0, n_cap);
-[TH_R, PH_R] = meshgrid(theta_cap, phi_R);
-XR = b_um * cos(PH_R) + (a_um - b_um);
-YR = b_um * sin(PH_R) .* cos(TH_R);
-ZR = b_um * sin(PH_R) .* sin(TH_R);
-
-capsule_X0 = [XL; XC; XR];
-capsule_Y0 = [YL; YC; YR];
-capsule_Z0 = [ZL; ZC; ZR];
-mesh_size  = size(capsule_X0);
-
-capsule_flat = [capsule_X0(:)'; capsule_Y0(:)'; capsule_Z0(:)'];
-pts_3d = R_body * capsule_flat + X_cm_um;
-Xsurf = reshape(pts_3d(1,:), mesh_size);
-Ysurf = reshape(pts_3d(2,:), mesh_size);
-Zsurf = reshape(pts_3d(3,:), mesh_size);
+body_mesh = build_body_mesh(body_vis, params, R_body, X_cm_um);
 
 %% ======================================================================
-%  Step 12: Extract capsule outlines for 2D subplots
+%  Step 12: Extract body outlines for 2D subplots (mode-aware)
 %  ======================================================================
-[cap_xz_h, cap_xz_v] = extract_capsule_outline( ...
-    dist_xz, [Nz_xz, Nx_xz], x_vec_xz, z_vec_xz, b_dl);
-[cap_yz_h, cap_yz_v] = extract_capsule_outline( ...
-    dist_yz, [Nz_yz, Ny_yz], y_vec_yz, z_vec_yz, b_dl);
+[cap_xz_h, cap_xz_v] = extract_body_outline( ...
+    dist_xz, [Nz_xz, Nx_xz], x_vec_xz, z_vec_xz, body_vis);
+[cap_yz_h, cap_yz_v] = extract_body_outline( ...
+    dist_yz, [Nz_yz, Ny_yz], y_vec_yz, z_vec_yz, body_vis);
 
 %% ======================================================================
 %  Step 13: Create 2x2 panel figure
@@ -372,9 +336,7 @@ surface(ax1, XG_xz, YG_xz, ZG_xz, Umag_xz_s, ...
     'FaceColor', 'texturemap', 'EdgeColor', 'none', ...
     'FaceAlpha', 'texturemap', 'AlphaData', alpha_xz_3d);
 
-surf(ax1, Xsurf, Ysurf, Zsurf, ...
-     'FaceColor', body_color, 'FaceAlpha', body_alpha, ...
-     'EdgeColor', 'none', 'FaceLighting', 'gouraud');
+render_body_mesh(ax1, body_mesh, body_color, body_alpha);
 
 for k = 1:M_pili
     Xp   = geom.X_pili{k} * L_to_um;
@@ -419,9 +381,7 @@ surface(ax2, XG_yz, YG_yz, ZG_yz, Umag_yz_s, ...
     'FaceColor', 'texturemap', 'EdgeColor', 'none', ...
     'FaceAlpha', 'texturemap', 'AlphaData', alpha_yz_3d);
 
-surf(ax2, Xsurf, Ysurf, Zsurf, ...
-     'FaceColor', body_color, 'FaceAlpha', body_alpha, ...
-     'EdgeColor', 'none', 'FaceLighting', 'gouraud');
+render_body_mesh(ax2, body_mesh, body_color, body_alpha);
 
 for k = 1:M_pili
     Xp   = geom.X_pili{k} * L_to_um;
@@ -613,11 +573,11 @@ end
 %  LOCAL FUNCTION: evaluate_plane_velocity
 %  =====================================================================
 function [Ux, Uy, Uz, Umag, inside_mask, dist_field] = evaluate_plane_velocity( ...
-    grid_pts_dl, grid_size, X_cm, R_body, b_dl, c_dl, ...
+    grid_pts_dl, grid_size, X_cm, R_body, body_vis, ...
     body_data, seg_data, um_s_factor, chunk_size, progress_tag)
 %EVALUATE_PLANE_VELOCITY  Stokes velocity on a planar evaluation grid
 %
-%  Performs capsule-interior masking and evaluates the RSM (body) plus
+%  Performs body-interior masking and evaluates the RSM (body) plus
 %  RSS+Rotlet (pili) velocity kernels at all exterior grid points.
 %
 %  Inputs:
@@ -625,7 +585,10 @@ function [Ux, Uy, Uz, Umag, inside_mask, dist_field] = evaluate_plane_velocity( 
 %    grid_size     [1 x 2]  [Nrows, Ncols] of the grid
 %    X_cm          [3 x 1]  Body CM (dimensionless)
 %    R_body        [3 x 3]  Body rotation matrix
-%    b_dl, c_dl             Capsule SDF parameters (dimensionless)
+%    body_vis      struct   Body visualisation descriptor (see
+%                             build_body_visualization): .type,
+%                             .b_dl, .c_dl  (parametric) OR
+%                             .alpha_shape_dl, .verts_local_dl, .faces (custom)
 %    body_data     struct   .X, .fx, .fy, .fz, .e2
 %    seg_data      struct   Pili segment data (.active, .y0, .y1, ...)
 %    um_s_factor   scalar   Velocity unit conversion factor
@@ -636,21 +599,20 @@ function [Ux, Uy, Uz, Umag, inside_mask, dist_field] = evaluate_plane_velocity( 
 %    Ux, Uy, Uz  [Nrows x Ncols]  Velocity components [um/s] (NaN inside)
 %    Umag         [Nrows x Ncols]  Velocity magnitude [um/s]
 %    inside_mask  [Nrows x Ncols]  Logical mask (true = interior)
-%    dist_field   [N x 1]          Capsule distance field (dimensionless)
+%    dist_field   [N x 1]          Signed-distance-like field used for
+%                                   contour extraction.  Level-set convention
+%                                   depends on body_vis.type (see
+%                                   extract_body_outline).
 
-if nargin < 11 || isempty(progress_tag), progress_tag = ''; end
+if nargin < 10 || isempty(progress_tag), progress_tag = ''; end
 show_progress = ~isempty(progress_tag);
 
 Nrows = grid_size(1);
 Ncols = grid_size(2);
 
-% ---- Capsule SDF masking ----
-X_local    = (R_body' * (grid_pts_dl - X_cm(:)').')';
-x_cl       = max(-c_dl, min(c_dl, X_local(:,1)));
-dist_field = sqrt((X_local(:,1) - x_cl).^2 + ...
-                   X_local(:,2).^2 + X_local(:,3).^2);
-
-inside_mask = reshape(dist_field <= b_dl, [Nrows, Ncols]);
+% ---- Body interior masking (mode-aware) ----
+[inside_mask_vec, dist_field] = body_inside_mask(grid_pts_dl, X_cm, R_body, body_vis);
+inside_mask = reshape(inside_mask_vec, [Nrows, Ncols]);
 outside_idx = find(~inside_mask(:));
 N_eval      = length(outside_idx);
 X_eval      = grid_pts_dl(outside_idx, :);
@@ -832,28 +794,259 @@ end
 
 
 %% =====================================================================
-%  LOCAL FUNCTION: extract_capsule_outline
+%  LOCAL FUNCTION: build_body_visualization
 %  =====================================================================
-function [cap_h, cap_v] = extract_capsule_outline(dist_field, grid_size, h_vec, v_vec, b_dl)
-%EXTRACT_CAPSULE_OUTLINE  Largest contour of capsule SDF at level b_dl
+function body_vis = build_body_visualization(params, L_0)
+%BUILD_BODY_VISUALIZATION  Mode-aware body descriptor for flow-field plot.
+%
+%  Returns a struct with the data that evaluate_plane_velocity,
+%  build_body_mesh, and extract_body_outline need to render the body and
+%  mask its interior.  For parametric mode, stores capsule SDF params.
+%  For custom mode, stores dimensionless vertices/faces and an alphaShape
+%  reconstructed in the body-local frame for inShape() masking.
 
-dist_grid = reshape(dist_field, grid_size);
-C = contourc(h_vec, v_vec, dist_grid, [b_dl b_dl]);
+    body_vis = struct('type', '');
 
-max_pts = 0;
-cap_h   = [];
-cap_v   = [];
-kk = 1;
-while kk < size(C, 2)
-    n_pts = C(2, kk);
-    if n_pts > max_pts
-        max_pts = n_pts;
-        cap_h = C(1, kk+1 : kk+n_pts);
-        cap_v = C(2, kk+1 : kk+n_pts);
+    body_type = 'capsule';
+    if isfield(params, 'body_type') && ~isempty(params.body_type)
+        body_type = params.body_type;
     end
-    kk = kk + n_pts + 1;
+    body_vis.type = body_type;
+
+    switch body_type
+        case 'capsule'
+            body_vis.b_dl = params.dim.minor_axis / L_0;
+            body_vis.c_dl = params.dim.major_axis / L_0 - body_vis.b_dl;
+            body_vis.a_um = params.dim.major_axis * 1e6;
+            body_vis.b_um = params.dim.minor_axis * 1e6;
+
+        case 'custom'
+            if ~isfield(params, 'body_verts_local') || isempty(params.body_verts_local)
+                error('compute_plot_flowfield:MissingCustomVerts', ...
+                    ['Custom geometry mode expects params.body_verts_local ', ...
+                     '(set in init_coupled_params).']);
+            end
+            body_vis.verts_local_dl = params.body_verts_local;     % [L_0]
+            body_vis.faces          = params.body_faces;           % index triangulation
+            body_vis.verts_m        = params.body_verts;           % [m]
+
+            % Build alphaShape in dimensionless body-local frame (used for
+            % inShape() interior masking).  If construction fails, we fall
+            % back to a bounding-sphere approximation at evaluation time.
+            body_vis.alpha_shape_dl = [];
+            try
+                shp_local = alphaShape(body_vis.verts_local_dl);
+                % Prefer the critical alpha that yields a single watertight
+                % region — matches the construction in custom_body_building.
+                alpha_crit = criticalAlpha(shp_local, 'all-points');
+                if isfinite(alpha_crit) && alpha_crit > 0
+                    shp_local.Alpha = alpha_crit;
+                end
+                body_vis.alpha_shape_dl = shp_local;
+            catch
+                body_vis.alpha_shape_dl = [];
+            end
+
+            % Cache a bounding sphere for fallback masking
+            centroid = mean(body_vis.verts_local_dl, 1);
+            body_vis.bound_center_dl = centroid(:);
+            body_vis.bound_radius_dl = max(sqrt(sum( ...
+                (body_vis.verts_local_dl - centroid).^2, 2)));
+
+        otherwise
+            error('compute_plot_flowfield:UnknownBodyType', ...
+                'Unknown params.body_type = ''%s''.', body_type);
+    end
 end
 
+
+%% =====================================================================
+%  LOCAL FUNCTION: body_inside_mask
+%  =====================================================================
+function [inside_mask_vec, dist_field] = body_inside_mask( ...
+    grid_pts_dl, X_cm, R_body, body_vis)
+%BODY_INSIDE_MASK  Return interior mask + SDF-like field for outline plotting.
+%
+%  The SDF sign convention is: values <= 0 indicate interior, values > 0
+%  indicate exterior.  For parametric capsule, dist_field is the classic
+%  signed distance (radius - b_dl).  For custom mode, dist_field is the
+%  double() of the inside mask minus 0.5, so contourc at level 0 gives
+%  the body silhouette on the plane.
+
+    % Transform grid to body-local dimensionless frame
+    X_local = (R_body.' * (grid_pts_dl - X_cm(:).').').';
+
+    switch body_vis.type
+        case 'capsule'
+            x_cl = max(-body_vis.c_dl, min(body_vis.c_dl, X_local(:,1)));
+            d_cap = sqrt((X_local(:,1) - x_cl).^2 + ...
+                          X_local(:,2).^2 + X_local(:,3).^2);
+            inside_mask_vec = d_cap <= body_vis.b_dl;
+            dist_field      = d_cap - body_vis.b_dl;     % SDF: < 0 interior
+
+        case 'custom'
+            if ~isempty(body_vis.alpha_shape_dl)
+                try
+                    inside_mask_vec = inShape(body_vis.alpha_shape_dl, ...
+                        X_local(:,1), X_local(:,2), X_local(:,3));
+                catch
+                    inside_mask_vec = bound_sphere_inside(X_local, body_vis);
+                end
+            else
+                inside_mask_vec = bound_sphere_inside(X_local, body_vis);
+            end
+            % Binary SDF-like field centred on 0.5 -> 0 at boundary
+            dist_field = double(inside_mask_vec) - 0.5;   % < 0 exterior
+            dist_field = -dist_field;                     % < 0 interior (match capsule convention)
+
+        otherwise
+            error('compute_plot_flowfield:UnknownBodyType', ...
+                'Unknown body_vis.type = ''%s''.', body_vis.type);
+    end
+
+    inside_mask_vec = logical(inside_mask_vec);
+end
+
+
+function mask_vec = bound_sphere_inside(X_local, body_vis)
+    d = sqrt(sum((X_local - body_vis.bound_center_dl.').^2, 2));
+    mask_vec = d <= body_vis.bound_radius_dl;
+end
+
+
+%% =====================================================================
+%  LOCAL FUNCTION: build_body_mesh
+%  =====================================================================
+function body_mesh = build_body_mesh(body_vis, params, R_body, X_cm_um)
+%BUILD_BODY_MESH  Construct body surface mesh in lab-frame micrometres.
+%
+%  Returns a struct with fields that render_body_mesh dispatches on:
+%    .type = 'capsule'  : .Xsurf, .Ysurf, .Zsurf   (surf-style grid)
+%    .type = 'custom'   : .X, .Y, .Z, .faces       (trisurf-style)
+
+    body_mesh.type = body_vis.type;
+
+    switch body_vis.type
+        case 'capsule'
+            a_um = body_vis.a_um;
+            b_um = body_vis.b_um;
+
+            n_circ = 36;
+            n_cap  = 12;
+            n_cyl  = 10;
+
+            theta_cap = linspace(0, 2*pi, n_circ);
+
+            phi_L = linspace(pi, pi/2, n_cap);
+            [TH_L, PH_L] = meshgrid(theta_cap, phi_L);
+            XL = b_um * cos(PH_L) - (a_um - b_um);
+            YL = b_um * sin(PH_L) .* cos(TH_L);
+            ZL = b_um * sin(PH_L) .* sin(TH_L);
+
+            x_cyl = linspace(-(a_um - b_um), (a_um - b_um), n_cyl);
+            [TH_C, XC_grid] = meshgrid(theta_cap, x_cyl);
+            XC = XC_grid;
+            YC = b_um * cos(TH_C);
+            ZC = b_um * sin(TH_C);
+
+            phi_R = linspace(pi/2, 0, n_cap);
+            [TH_R, PH_R] = meshgrid(theta_cap, phi_R);
+            XR = b_um * cos(PH_R) + (a_um - b_um);
+            YR = b_um * sin(PH_R) .* cos(TH_R);
+            ZR = b_um * sin(PH_R) .* sin(TH_R);
+
+            capsule_X0 = [XL; XC; XR];
+            capsule_Y0 = [YL; YC; YR];
+            capsule_Z0 = [ZL; ZC; ZR];
+            mesh_size  = size(capsule_X0);
+
+            capsule_flat = [capsule_X0(:).'; capsule_Y0(:).'; capsule_Z0(:).'];
+            pts_3d = R_body * capsule_flat + X_cm_um;
+            body_mesh.Xsurf = reshape(pts_3d(1,:), mesh_size);
+            body_mesh.Ysurf = reshape(pts_3d(2,:), mesh_size);
+            body_mesh.Zsurf = reshape(pts_3d(3,:), mesh_size);
+
+        case 'custom'
+            verts_um = body_vis.verts_m * 1e6;          % body-local [um]
+            pts_lab  = R_body * verts_um.' + X_cm_um;   % lab frame [um]
+            body_mesh.X     = pts_lab(1, :).';
+            body_mesh.Y     = pts_lab(2, :).';
+            body_mesh.Z     = pts_lab(3, :).';
+            body_mesh.faces = body_vis.faces;
+
+        otherwise
+            error('compute_plot_flowfield:UnknownBodyType', ...
+                'Unknown body_vis.type = ''%s''.', body_vis.type);
+    end
+
+    % Suppress "unused" lint warning when body_mesh.type = 'custom' but
+    % params field is unused in that branch.
+    assert(isstruct(params));
+end
+
+
+%% =====================================================================
+%  LOCAL FUNCTION: render_body_mesh
+%  =====================================================================
+function render_body_mesh(ax, body_mesh, body_color, body_alpha)
+%RENDER_BODY_MESH  Draw the body surface on the given axes.
+
+    switch body_mesh.type
+        case 'capsule'
+            surf(ax, body_mesh.Xsurf, body_mesh.Ysurf, body_mesh.Zsurf, ...
+                'FaceColor', body_color, 'FaceAlpha', body_alpha, ...
+                'EdgeColor', 'none', 'FaceLighting', 'gouraud');
+        case 'custom'
+            if isempty(body_mesh.faces) || size(body_mesh.faces, 2) ~= 3
+                % Degenerate triangulation -> fall back to scatter
+                scatter3(ax, body_mesh.X, body_mesh.Y, body_mesh.Z, ...
+                    8, body_color, 'filled', 'MarkerFaceAlpha', body_alpha);
+            else
+                trisurf(body_mesh.faces, body_mesh.X, body_mesh.Y, body_mesh.Z, ...
+                    'FaceColor', body_color, 'FaceAlpha', body_alpha, ...
+                    'EdgeColor', 'none', 'FaceLighting', 'gouraud', ...
+                    'Parent', ax);
+            end
+        otherwise
+            error('compute_plot_flowfield:UnknownBodyType', ...
+                'Unknown body_mesh.type = ''%s''.', body_mesh.type);
+    end
+end
+
+
+%% =====================================================================
+%  LOCAL FUNCTION: extract_body_outline
+%  =====================================================================
+function [cap_h, cap_v] = extract_body_outline(dist_field, grid_size, h_vec, v_vec, body_vis)
+%EXTRACT_BODY_OUTLINE  Largest body-silhouette contour on a 2D plane.
+%
+%  For parametric capsule, dist_field is the classic SDF (< 0 interior),
+%  so we use level 0.  For custom mode, dist_field is binary-derived;
+%  using level 0 still produces a usable outline because dist_field was
+%  shifted to (0.5 - mask).
+
+    dist_grid = reshape(dist_field, grid_size);
+    C = contourc(h_vec, v_vec, dist_grid, [0 0]);
+
+    max_pts = 0;
+    cap_h   = [];
+    cap_v   = [];
+    kk = 1;
+    while kk < size(C, 2)
+        n_pts = C(2, kk);
+        if n_pts > max_pts
+            max_pts = n_pts;
+            cap_h = C(1, kk+1 : kk+n_pts);
+            cap_v = C(2, kk+1 : kk+n_pts);
+        end
+        kk = kk + n_pts + 1;
+    end
+
+    % Suppress unused-parameter warning (body_vis reserved for future
+    % custom-mode outline refinements, e.g. projected convex hull).
+    if isempty(body_vis.type)
+        error('compute_plot_flowfield:BadBodyVis', 'body_vis.type is empty.');
+    end
 end
 
 

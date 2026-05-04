@@ -54,12 +54,16 @@ switch cfg.geometry_mode
         cfg.major_axis   = NaN;
         cfg.N_body       = NaN;
         cfg.Pili_Matrix  = zeros(8, 0);
-        cfg.pili_ext     = struct('intrinsic_curvature', {}, 'active_moment', {}, ...
-                                     'root_coupling', {}, 'motor_torque', {});
+
+        % Parse per-pilus extended fields from custom_geometry.pili (M1)
+        cfg.pili_ext = parse_custom_pili_ext(get_json(jcg, 'pili', []));
 
         % Default alpha_0 and eps_body for custom mode
         cfg.alpha_0  = get_json(jcg, 'alpha_0', 0);
         cfg.eps_body = get_json(jcg, 'eps_body', []);
+
+        % Initial orientation (C2) — overrides alpha_0 when set
+        cfg.initial_orientation = get_json(jcg, 'initial_orientation', []);
 
     otherwise
         % --- Parametric mode (default) ---
@@ -70,18 +74,35 @@ switch cfg.geometry_mode
         cfg.alpha_0    = get_json(jb, 'alpha_0',    0);
         cfg.eps_body   = get_json(jb, 'eps_body',   []);
 
-        % Pili — accept struct array (named) or raw matrix
+        % initial_orientation is a custom-mode-only feature; leave empty
+        cfg.initial_orientation = [];
+
+        % Pili — accept struct array (named), cell-array-of-struct (heterogeneous
+        % JSON), or raw matrix.  jsondecode emits a cell array when the JSON
+        % objects in `pili` have different field sets (e.g. one entry has
+        % `motor_torque` and another does not, as in
+        % config_motor_flagella_example.json).  normalise_json_struct_array
+        % collapses both shapes into a single struct array using the union of
+        % fields.  Raw [8 x M] numeric matrices are still accepted for
+        % backward compatibility.
         jp = get_json(j, 'pili', []);
-        if isstruct(jp) && ~isempty(jp)
-            [cfg.Pili_Matrix, cfg.pili_ext] = parse_pili_config(jp);
-        elseif isnumeric(jp) && ~isempty(jp)
+        if isnumeric(jp) && ~isempty(jp)
             cfg.Pili_Matrix = jp;
             cfg.pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {}, ...
                                      'root_coupling', {}, 'motor_torque', {});
-        else
+        elseif isempty(jp)
             cfg.Pili_Matrix = zeros(8, 0);
             cfg.pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {}, ...
                                      'root_coupling', {}, 'motor_torque', {});
+        else
+            jp_norm = normalise_json_struct_array(jp);
+            if isempty(jp_norm)
+                cfg.Pili_Matrix = zeros(8, 0);
+                cfg.pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {}, ...
+                                         'root_coupling', {}, 'motor_torque', {});
+            else
+                [cfg.Pili_Matrix, cfg.pili_ext] = parse_pili_config(jp_norm);
+            end
         end
 end
 
@@ -178,5 +199,73 @@ function v = get_json(s, fname, default)
         end
     else
         v = default;
+    end
+end
+
+
+function ext = parse_custom_pili_ext(pili_json)
+%PARSE_CUSTOM_PILI_EXT  Build pili_ext struct array from custom-mode JSON.
+%
+%  Extracts per-pilus optional fields (intrinsic_curvature, active_moment,
+%  root_coupling, motor_torque) from custom_geometry.pili and returns a
+%  struct array with the same schema as parse_pili_config (parametric mode).
+%  Missing fields are filled with the same defaults as parse_pili_config:
+%  intrinsic_curvature = 'frozen', active_moment = struct('type','off'),
+%  root_coupling = 'clamped', motor_torque = struct('type','off').
+%
+%  Inputs:
+%    pili_json - JSON-decoded pili array (struct array / cell array / [])
+%
+%  Output:
+%    ext - [1 x M] struct array with fields .intrinsic_curvature,
+%          .active_moment, .root_coupling, .motor_torque
+%          (M = 0 if pili_json is empty)
+
+    if isempty(pili_json)
+        ext = struct('intrinsic_curvature', {}, 'active_moment', {}, ...
+                     'root_coupling', {}, 'motor_torque', {});
+        return;
+    end
+
+    % Handle JSON heterogeneous arrays (cell-of-struct)
+    pili = normalise_json_struct_array(pili_json);
+    M    = numel(pili);
+
+    if M == 0
+        ext = struct('intrinsic_curvature', {}, 'active_moment', {}, ...
+                     'root_coupling', {}, 'motor_torque', {});
+        return;
+    end
+
+    ext(M) = struct('intrinsic_curvature', 'frozen', ...
+                    'active_moment', struct('type', 'off'), ...
+                    'root_coupling', 'clamped', ...
+                    'motor_torque', struct('type', 'off'));
+    for k = 1:M
+        p = pili(k);
+
+        if isfield(p, 'intrinsic_curvature') && ~isempty(p.intrinsic_curvature)
+            ext(k).intrinsic_curvature = p.intrinsic_curvature;
+        else
+            ext(k).intrinsic_curvature = 'frozen';
+        end
+
+        if isfield(p, 'active_moment') && ~isempty(p.active_moment)
+            ext(k).active_moment = p.active_moment;
+        else
+            ext(k).active_moment = struct('type', 'off');
+        end
+
+        if isfield(p, 'root_coupling') && ~isempty(p.root_coupling)
+            ext(k).root_coupling = char(p.root_coupling);
+        else
+            ext(k).root_coupling = 'clamped';
+        end
+
+        if isfield(p, 'motor_torque') && ~isempty(p.motor_torque)
+            ext(k).motor_torque = p.motor_torque;
+        else
+            ext(k).motor_torque = struct('type', 'off');
+        end
     end
 end

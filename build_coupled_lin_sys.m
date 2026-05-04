@@ -467,7 +467,11 @@ for k = 1:M
         lin_sys(r2, phi1_col)   = 1;   lin_sys(r2, omega_cols) = -J_euler(2,:);
     end
 
-    % Save J_euler(3,:) for reaction torque computation in ode_coupled_rhs
+    % Diagnostic export of J_euler(3,:), the omega -> dot_psi kinematic
+    % row.  The production simulation does NOT consume this field — the
+    % motor reaction torque in ode_coupled_rhs.m uses d3_lab of segment 1
+    % per Newton's third law (v7.2.0).  Retained for offline diagnostics
+    % and post-hoc analyses that need the kinematic projection vector.
     geom.J_euler3{k} = J_euler(3,:);
 
     col_offset = col_offset + 3 * N_k;
