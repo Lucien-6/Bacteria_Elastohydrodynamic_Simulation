@@ -114,6 +114,17 @@ tailwind.config = {
     <a href="#references"   class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">References &amp; License</span><span class="zh">参考文献</span></a>
   </nav>
   <div class="p-4 border-t border-navy-700 mt-4 space-y-3">
+    <div class="text-xs text-gray-400 space-y-1">
+      <p class="uppercase tracking-wide text-gray-500">
+        <span class="en">Repository Docs</span><span class="zh">仓库文档</span>
+      </p>
+      <a href="../README.md" class="block hover:text-white transition">README</a>
+      <a href="../README.zh-CN.md" class="block hover:text-white transition">README.zh-CN</a>
+      <a href="theory.md" class="block hover:text-white transition">Theory</a>
+      <a href="theory.zh-CN.md" class="block hover:text-white transition">Theory.zh-CN</a>
+      <a href="../USER_GUIDE.md" class="block hover:text-white transition">User Guide</a>
+      <a href="../CHANGELOG.md" class="block hover:text-white transition">Changelog</a>
+    </div>
     <!-- Language toggle -->
     <button onclick="toggleLang()" class="flex items-center gap-2 text-xs text-gray-400 hover:text-white transition w-full">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
@@ -400,7 +411,7 @@ tailwind.config = {
         </h3>
         <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
           <li><span class="en">No explicit motor reaction term in <code>R_global(4:6)</code>; motor enters the pilus root d₃ moment row only.</span><span class="zh">不在 <code>R_global(4:6)</code> 写入马达反力矩项；马达仅进入纤毛根部 d₃ 力矩平衡行。</span></li>
-          <li><span class="en">README §11 κ formulas corrected; §A.3 torsional-scaling note expanded.</span><span class="zh">README §11 κ 公式修正；§A.3 扭转标度说明扩充。</span></li>
+          <li><span class="en"><a class="text-teal-600 dark:text-teal-400 hover:underline" href="theory.md">Theory document</a> κ formulas corrected; torsional-scaling note expanded.</span><span class="zh"><a class="text-teal-600 dark:text-teal-400 hover:underline" href="theory.zh-CN.md">理论文档</a>中的 κ 公式已修正；扭转标度说明已扩充。</span></li>
           <li><span class="en"><code>validate_simulation_params</code>: stall warning for motors near speed limit.</span><span class="zh"><code>validate_simulation_params</code>：接近失速时的马达告警。</span></li>
         </ul>
       </div>
@@ -1062,7 +1073,7 @@ graph TD
 ├── odetpbar.m                       % ODE OutputFcn progress
 ├── config_example.json              % Example JSON (tracked)
 ├── config_custom_example.json       % Custom geometry JSON template (v6.0)
-├── Brownian_Implementation_Plan.md  % Brownian scope & Itô / Fixman notes
+├── docs/theory.md                   % Theory, Brownian scope, and Itô / Fixman notes
 ├── configs/                         % Optional local JSON (gitignored)
 ├── post_processing/
 │   └── postprocess_cases.m          % Batch post-processing → Excel (v5.1)

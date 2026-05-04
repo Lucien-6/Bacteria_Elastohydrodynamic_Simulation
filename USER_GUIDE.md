@@ -1,10 +1,10 @@
 ﻿# User Guide — Coupled Body-Pili Simulation
 
-> **Author:** Lucien (lucien-6@qq.com)
+> **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))
 > **Version:** 7.3.1
 > **Updated:** 2026-05-04
 
-This guide is a short entry point. **Full theory, parameters, and file map:** see `README.md`.
+This guide focuses on running simulations and interpreting outputs. **Project entry:** see `README.md`; **theory and numerical model:** see `docs/theory.md`; **release history:** see `CHANGELOG.md`.
 
 ---
 
@@ -29,7 +29,7 @@ This guide is a short entry point. **Full theory, parameters, and file map:** se
 2. In `main_coupled_simulation.m`, set `config_file` to your JSON path.
 3. Run.
 
-JSON must include the same **top-level sections** the loader expects: `case_name`, `body`, `pili`, `material`, `fluid`, `simulation`, `brownian`, `output`, `flowfield`, and **`background_flow`** (v5.0; use `"type": "off"` to disable). Optional per-pilus fields: **`intrinsic_curvature`**, **`active_moment`**. Optional **`body.eps_body`** for RSM regularisation override. See **`README.md`** §2.2 for the cfg ↔ JSON mapping table.
+JSON must include the same **top-level sections** the loader expects: `case_name`, `body`, `pili`, `material`, `fluid`, `simulation`, `brownian`, `output`, `flowfield`, and **`background_flow`** (v5.0; use `"type": "off"` to disable). Optional per-pilus fields: **`intrinsic_curvature`**, **`active_moment`**. Optional **`body.eps_body`** for RSM regularisation override. Use **`config_example.json`**, **`config_custom_example.json`**, and **`config_motor_flagella_example.json`** as the authoritative cfg ↔ JSON templates.
 
 ### Option D — Custom geometry mode (v6.0, extended in v7.1)
 
@@ -51,6 +51,7 @@ Import arbitrary 3D point clouds for both the body and pili:
 5. Set `config_file = 'config_custom_example.json'` in `main_coupled_simulation.m` and run. Alternatively leave `config_file` empty and use the inline custom block inside `main_coupled_simulation.m` — both paths reference the same pre-shipped example files.
 
 **Key constraints and semantics:**
+
 - Custom body and custom pili **must** be used together — mixing with parametric models is not allowed.
 - `alpha_0` and `eps_body` for custom mode live under the `custom_geometry` node. `alpha_0` inherits the parametric convention (rotation about +Y assuming body-X is the long axis); for arbitrary custom bodies, prefer `initial_orientation`, which **overrides** `alpha_0` when present.
 - **Pili segment uniformity (v7.1):** every user-supplied pilus centerline file **must** be pre-discretised with equal-length segments (relative spread ≤ 1e-3). Non-uniform inputs are rejected.
@@ -78,7 +79,7 @@ Use `batch sweep/` scripts or `batch_run_from_json.m` for unattended sweeps. The
 
 **v5.2.0:** **Brownian RNG** — default twister seed is **local wall-clock `MMddHHmmss`** as an integer (`brown_rng_seed_from_clock.m`); set **`cfg.brown_rng_seed`** or JSON **`brownian.rng_seed`** to fix a seed. When Brownian is on, the realised seed is saved in **`config.json`**, **`brownian_rng_seed.txt`**, **`simulation.log`**, and **`results.brown_rng_seed`** / **`params.brown_rng_seed`** in `simulation_results.mat`.
 
-**v5.3.0:** **Body RSM default** — if **`body.eps_body`** is omitted, the simulator uses **`eps_body = h_mean / 2.6667`** (see `README.md` §8.5). **`batch_sweep_N_body_eps_RSM.m`** performs a nested **`N_body` × `k`** sweep (`eps_body = k·h_mean`) vs Stokes settling and writes CSV/MAT summaries under `batch sweep/`.
+**v5.3.0:** **Body RSM default** — if **`body.eps_body`** is omitted, the simulator uses **`eps_body = h_mean / 2.6667`** (see `docs/theory.md` §5.1). **`batch_sweep_N_body_eps_RSM.m`** performs a nested **`N_body` × `k`** sweep (`eps_body = k·h_mean`) vs Stokes settling and writes CSV/MAT summaries under `batch sweep/`.
 
 **v5.3.1 / v5.4.4:** **MP4 animation** — the exporter now probes the **actual physical pixel size** returned by **`getframe`**, clamps the encoded frame size to a codec-safe **3840×2160** even-valued box, and resizes frames on write if Windows HiDPI scaling still returns oversized captures. This avoids **`VideoWriter`** failures caused by frame dimensions that remain too large after logical figure resizing.
 
@@ -89,7 +90,7 @@ Use `batch sweep/` scripts or `batch_run_from_json.m` for unattended sweeps. The
 Under `output/<case_name>/` (or timestamped folder):
 
 | File | Role |
-|------|------|
+| --- | --- |
 | `simulation_results.mat` | Full state and results |
 | `timeseries.csv` | Scalar time series for external tools |
 | `config.json` | Snapshot of the run configuration |
@@ -163,7 +164,7 @@ The script computes per-case summaries (e.g. sinking velocity statistics, maximu
 
 **v7.0.0:** **Free-torsion root coupling + constant motor torque model** — Per-pilus root boundary condition now supports `'free_torsion'` alongside the default `'clamped'`. In free-torsion mode, the root-segment twist angle ψ₁ is free to evolve under elastic + motor moments (θ₁ and φ₁ remain kinematically constrained). Motor torque model (`motor_torque.type ∈ {'off', 'constant'}`) applies a torsional moment at the root segment with optional stall-speed limiting (`max_omega_Hz`). **As of v7.3.0+,** the motor enters the pilus root **d₃ moment-balance row** only; explicit **body-side** reaction terms in the **system** angular-momentum rows `R_global(4:6)` were removed after audit (those rows already represent the full hydrodynamic moment on the coupled body+pilus assembly — see **v7.3.0** below). Releases v7.0–v7.2 experimented with `−τ·J_euler(3,:)'` and `−τ·d₃_lab` on `R_global(4:6)`; neither is retained in production. Eleven core functions modified at introduction: `build_coupled_lin_sys.m` (conditional root BC), `compute_pili_elastic_moments.m` (preserve κ₃(1) for free_torsion), `coupled_active_moment.m` + `ode_coupled_rhs.m` + `enforce_clamped_geometry.m` + `init_coupled_params.m` + `validate_simulation_params.m` + configuration I/O and runners. New `config_motor_flagella_example.json` template. **Clamped mode fully backward-compatible** — default behaviour unchanged.
 
-**v7.3.0 (2026-05-04):** **Second physics audit — system vs. internal motor torque** — Removes any motor **reaction** contribution from `R_global(4:6)`. Those rows are the **full** body+pilus system angular-momentum balance (`B_global` rows 4–6 sum `r×f` with quadrature weights over every hydrodynamic point). The motor coupling between body and pilus is **internal**: action/reaction torques cancel in the system sum, so adding `−τ·d₃` or `−τ·J_euler(3,:)'` over-constrained the body's rotation. Production code applies **only** `+τ_eff` to the pilus segment-1 d₃ moment row; the body's angular response follows from the coupled Stokes solve and root kinematics (θ₁, φ₁ locked to body Ω). Also ships: README §11 κ correction; `pili_building` site-map comments; `custom_pili_building` `DeflectionAxisSwap` warning; `compute_plot_flowfield` shape checks; `validate_simulation_params` stall-curve warning for motors near stall; `coupled_background_flow` hot-path vectorisation; README §A.3 `ℓ_k` derivation for torsional resistance. **`free_torsion + motor`** trajectories differ from v7.0–v7.2; **`clamped`** and **`free_torsion` without motor** remain bit-exact vs. prior baselines where applicable.
+**v7.3.0 (2026-05-04):** **Second physics audit — system vs. internal motor torque** — Removes any motor **reaction** contribution from `R_global(4:6)`. Those rows are the **full** body+pilus system angular-momentum balance (`B_global` rows 4–6 sum `r×f` with quadrature weights over every hydrodynamic point). The motor coupling between body and pilus is **internal**: action/reaction torques cancel in the system sum, so adding `−τ·d₃` or `−τ·J_euler(3,:)'` over-constrained the body's rotation. Production code applies **only** `+τ_eff` to the pilus segment-1 d₃ moment row; the body's angular response follows from the coupled Stokes solve and root kinematics (θ₁, φ₁ locked to body Ω). Also ships: theory-document κ correction; `pili_building` site-map comments; `custom_pili_building` `DeflectionAxisSwap` warning; `compute_plot_flowfield` shape checks; `validate_simulation_params` stall-curve warning for motors near stall; `coupled_background_flow` hot-path vectorisation; torsional-resistance scale derivation in `docs/theory.md`. **`free_torsion + motor`** trajectories differ from v7.0–v7.2; **`clamped`** and **`free_torsion` without motor** remain bit-exact vs. prior baselines where applicable.
 
 **v7.3.1 (2026-05-04):** **Documentation & project website sync** — Version banners aligned across this guide, `README.md`, `CHANGELOG.md`, `requirements.txt`, `run_simulation.m`, `main_coupled_simulation.m`, and `docs/index.html`. §7 motor narrative and the project website are updated to match the v7.3.0 system-angular-momentum correction. No code or numerical changes relative to v7.3.0.
 
@@ -270,11 +271,11 @@ This is the intended design — it lets a single pilus model both an internal tr
 
 ## 8. Version and changes
 
-- Current version is printed at the start of `simulation.log` and listed at the top of `README.md` / this file.
+- Current version is printed at the start of `simulation.log` and listed at the top of `README.md` / `README.zh-CN.md` / this file.
 - See **`CHANGELOG.md`** for release notes.
 
 ---
 
 ## 9. License
 
-MIT License — see `README.md` (license section).
+MIT License — see `LICENSE`.
