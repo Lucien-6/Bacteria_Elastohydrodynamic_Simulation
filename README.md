@@ -104,6 +104,7 @@ Results are written under `output/<case_name>/` or an automatically timestamped 
 
 - [`README.zh-CN.md`](README.zh-CN.md): Chinese version of this entry page.
 - [`USER_GUIDE.md`](USER_GUIDE.md): practical run guide, output notes, custom geometry notes, and batch workflow notes.
+- [`USER_GUIDE.zh-CN.md`](USER_GUIDE.zh-CN.md): Chinese version of the user guide.
 - [`docs/theory.md`](docs/theory.md): theory, numerical model, nondimensionalization, linear system, Brownian dynamics, and validation notes.
 - [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md): Chinese version of the theory document.
 - [`CHANGELOG.md`](CHANGELOG.md): release history and compatibility notes.

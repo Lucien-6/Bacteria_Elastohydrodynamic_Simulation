@@ -99,7 +99,8 @@ cfg.auto_confirm = true;
 ## 文档导航
 
 - [`README.md`](README.md)：英文入口页。
-- [`USER_GUIDE.md`](USER_GUIDE.md)：实际运行步骤、输出说明、自定义几何和批处理说明。
+- [`USER_GUIDE.md`](USER_GUIDE.md)：英文用户指南。
+- [`USER_GUIDE.zh-CN.md`](USER_GUIDE.zh-CN.md)：中文用户指南，包含运行步骤、输出说明、自定义几何和批处理说明。
 - [`docs/theory.md`](docs/theory.md)：英文理论文档，包含模型、无量纲化、线性系统、布朗动力学和验证说明。
 - [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)：中文理论文档。
 - [`CHANGELOG.md`](CHANGELOG.md)：版本变更与兼容性记录。
