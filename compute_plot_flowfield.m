@@ -1,4 +1,4 @@
-﻿function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_opts)
+function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_opts)
 %COMPUTE_PLOT_FLOWFIELD  Compute and plot flow field panels at final state
 %
 %  Description:
@@ -45,6 +45,33 @@ grid_spacing_um = get_flow_opt(flow_opts, 'grid_spacing_um', 0.05);
 grid_range_um   = get_flow_opt(flow_opts, 'grid_range_um',   10.0);
 quiver_skip     = get_flow_opt(flow_opts, 'quiver_skip',     5);
 chunk_size      = get_flow_opt(flow_opts, 'chunk_size',      2000);
+
+%% ---- Sanity check: params must be in sync with Z_final ----
+%  Step 4 below reconstructs pili node velocities from dpsi_k/dphi_k/
+%  dtheta_k using the per-pilus local basis params.rot{k}.  This basis
+%  may be rotated mid-simulation by adaptive_basis_check.m when an
+%  Euler-angle singularity is approached, in which case the Z vector
+%  must be interpreted in the CURRENT params.rot{k} basis.  This
+%  function is normally invoked on (Z_final, params) at simulation
+%  end, when the two are guaranteed consistent.  We assert minimal
+%  shape coherence here so that any future intermediate-time call
+%  with stale params.rot triggers a clear error instead of silently
+%  producing incorrect velocities.
+if ~iscell(params.rot) || numel(params.rot) ~= params.M_pili
+    error('compute_plot_flowfield:RotShapeMismatch', ...
+        ['params.rot must be a cell array of length M_pili = %d, got %d. ', ...
+         'This usually indicates params/Z desynchronisation; the function ', ...
+         'expects params.rot{k} to be the local basis under which Z''s ', ...
+         'pilus Euler angles are expressed.'], ...
+        params.M_pili, numel(params.rot));
+end
+% Z layout: [X_cm(3); q(4); theta_1..N_k; phi_1..N_k; psi_1..N_k]_{k=1..M_pili}
+expected_Z_len = 7 + 3*sum(params.N_segments);
+if numel(Z_final) ~= expected_Z_len
+    error('compute_plot_flowfield:ZShapeMismatch', ...
+        'numel(Z_final) = %d does not match the expected layout 7 + 3*sum(N_segs) = %d.', ...
+        numel(Z_final), expected_Z_len);
+end
 
 %% ---- Dimensional conversions ----
 L_0     = params.scales.L_0;

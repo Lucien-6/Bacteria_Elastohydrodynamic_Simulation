@@ -1,4 +1,4 @@
-﻿function Pili = pili_building(Pili_Matrix, seg_per_um, major_axis, minor_axis, dis, E, r_pili)
+function Pili = pili_building(Pili_Matrix, seg_per_um, major_axis, minor_axis, dis, E, r_pili)
 %PILI_BUILDING  Initialize pili structures for discrete elastic rod simulation
 %
 %  Description:
@@ -143,13 +143,25 @@ function [rxP, ryP, rzP, SPoint, PV] = pili_location_single( ...
 %PILI_LOCATION_SINGLE  Apply attachment-site transformation for one pilus
 %
 %  All coordinates are in body-local frame (body centre at origin).
+%  The capsule has cylinder spanning x in [-(a-b), +(a-b)] (a=major, b=minor)
+%  with hemispherical caps at the two ends.  The "side" attachments
+%  (sites 2-5, 7-10, 11-14) are placed on the capsule cylindrical
+%  surface (radial distance b+dis from the long axis) and point in
+%  the corresponding outward Cartesian direction.
 %
-%  Attachment site map:
-%     1      : Left pole  (-x)
-%     2-5    : Left hemisphere side  (y+, z-, y-, z+)
-%     6      : Right pole (+x)
-%     7-10   : Right hemisphere side (y+, z-, y-, z+)
-%     11-14  : Middle cylinder side  (y+, z-, y-, z+)
+%  Attachment site map (X = long axis):
+%     1      : Left pole       SPoint = (-(a+dis), 0, 0)         outward = -x
+%     2-5    : Left  cap-cylinder junction (x = -(a-b))          (y+, z-, y-, z+)
+%     6      : Right pole      SPoint = (+(a+dis), 0, 0)         outward = +x
+%     7-10   : Right cap-cylinder junction (x = +(a-b))          (y+, z-, y-, z+)
+%     11-14  : Cylinder midpoint           (x = 0)               (y+, z-, y-, z+)
+%
+%  Note: sites 2-5 and 7-10 are NOT on the curved hemisphere surface
+%  proper — they are at the cylinder/cap junction circle, just inside
+%  each cap.  They share the same outward direction as their cylinder
+%  midpoint counterparts (11-14); only the X coordinate of the root
+%  differs.  This naming is preserved for backward compatibility with
+%  earlier Pili_Matrix configs.
 
 switch NSite
     case 1   % Left pole

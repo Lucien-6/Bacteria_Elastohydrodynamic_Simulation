@@ -31,7 +31,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Documentation release: 7.2.0 (2026-05-04) — see README.md / CHANGELOG.md
+%  Documentation release: 7.3.1 (2026-05-04) — see README.md / CHANGELOG.md
 
 close all force;
 clear; clc;

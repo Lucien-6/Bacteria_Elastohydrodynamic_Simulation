@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Coupled Body-Pili elastohydrodynamic simulation v7.3.1 (MATLAB): RSM+RSS Stokes flow, Kirchhoff pili, Brownian dynamics, free-torsion motors, JSON config.">
 <title>Coupled Body-Pili Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -99,11 +99,12 @@ tailwind.config = {
 <aside id="sidebar" class="no-print fixed top-0 left-0 h-full w-64 bg-navy-900 text-gray-300 z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 overflow-y-auto">
   <div class="p-6 border-b border-navy-700">
     <h2 class="text-white font-bold text-lg leading-tight">Coupled Body-Pili</h2>
-    <p class="text-xs text-teal-500 mt-1">v7.2.0 &mdash; Documentation</p>
+    <p class="text-xs text-teal-500 mt-1">v7.3.1 &mdash; Documentation</p>
   </div>
   <nav class="p-4 space-y-1 text-sm">
     <a href="#hero"         class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Home</span><span class="zh">首页</span></a>
     <a href="#overview"     class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Project Overview</span><span class="zh">项目概述</span></a>
+    <a href="#releases"    class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Recent releases (v7.3)</span><span class="zh">v7.3 更新说明</span></a>
     <a href="#theory"       class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Theoretical Foundations</span><span class="zh">理论基础</span></a>
     <a href="#brownian"     class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Brownian Dynamics</span><span class="zh">布朗动力学</span></a>
     <a href="#newfeatures"  class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">New in v5.0</span><span class="zh">v5.0 新功能</span></a>
@@ -140,7 +141,7 @@ tailwind.config = {
 <section id="hero" class="hero-gradient text-white py-24 px-6 md:px-16 lg:px-24">
   <div class="max-w-4xl mx-auto text-center">
     <div class="inline-block bg-teal-600/30 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-3 py-1 rounded-full mb-6 tracking-wide">
-      VERSION 7.2.0 &bull; 2026-05-04
+      VERSION 7.3.1 &bull; 2026-05-04
     </div>
     <h1 class="text-3xl md:text-5xl font-extrabold leading-tight mb-4">
       <span class="en">Coupled Body-Pili<br>Elastohydrodynamic Simulation</span>
@@ -155,12 +156,14 @@ tailwind.config = {
       sinking in Stokes flow. Combines regularized Stokeslet methods (RSM + RSS + Rotlet segments),
       Kirchhoff elastic rods with configurable intrinsic curvature and time-varying active moments,
       full-system effective-friction Brownian dynamics, steady background flow, adaptive Euler-angle
-      singularity avoidance, 3D visualization and animation, JSON configuration, 8 batch parameter-sweep
-      scripts, and automated post-processing to Excel summaries.</span>
+      singularity avoidance, 3D visualization and animation,
+      JSON configuration, 8 batch parameter-sweep
+      scripts, and automated post-processing to Excel summaries.
+      <strong class="text-teal-200 font-medium">v7.0+</strong> adds per-pilus <code>free_torsion</code> roots with optional flagellar motor torque (system-level hydrodynamics corrected in <strong class="text-teal-200 font-medium">v7.3.0</strong>).</span>
       <span class="zh">一个基于 MATLAB 的仿真框架，用于模拟携带弹性纤毛的胶囊状细菌在 Stokes 流体中的沉降运动。
       融合正则化 Stokeslet 方法（RSM + RSS + Rotlet 线段）、Kirchhoff 弹性杆（可配置固有曲率与时变主动力矩）、
       全系统有效摩擦布朗动力学、稳态背景流场、自适应欧拉角奇点规避、三维可视化与动画、
-      JSON 配置系统、8 个批量参数扫描脚本，以及自动化后处理 Excel 汇总。</span>
+      JSON 配置系统、8 个批量参数扫描脚本，以及自动化后处理 Excel 汇总。<strong class="text-teal-200 font-medium">v7.0+</strong> 起支持逐根 <code>free_torsion</code> 根部与可选鞭毛马达力矩（<strong class="text-teal-200 font-medium">v7.3.0</strong> 修正系统级角动量方程处理）。</span>
     </p>
     <div class="flex flex-wrap justify-center gap-4">
       <a href="#usage" class="bg-teal-600 hover:bg-teal-700 text-white font-semibold px-6 py-3 rounded-lg transition shadow-lg">
@@ -219,10 +222,10 @@ tailwind.config = {
           </p>
           <p>
             <strong class="text-gray-800 dark:text-gray-200">
-              <span class="en">Clamped boundary</span><span class="zh">固支边界</span>
+              <span class="en">Root boundary</span><span class="zh">根部边界</span>
             </strong> &mdash;
-            <span class="en">Pili root rigidly attached to the body surface; dual enforcement via kinematic rate constraints + geometric projection.</span>
-            <span class="zh">纤毛根部刚性连接于胞体表面；通过运动学速率约束与几何投影双重保障固支条件。</span>
+            <span class="en">Default <code>clamped</code> coupling: rigid attachment with kinematic rate constraints + geometric projection. Optional per-pilus <code>free_torsion</code> mode frees the root twist ψ₁ for motor-driven flagella (v7.0+; hydrodynamic coupling refined in v7.3.0 — see <a href="#releases" class="text-teal-600 dark:text-teal-400 underline">Recent releases</a>).</span>
+            <span class="zh">默认 <code>clamped</code>：运动学速率约束与几何投影双重固连。可选逐根 <code>free_torsion</code>：放松根部扭转 ψ₁，用于马达驱动鞭毛（v7.0+；v7.3.0 修正系统角动量行处理，见<a href="#releases" class="text-teal-600 dark:text-teal-400 underline">版本公告</a>）。</span>
           </p>
           <p>
             <strong class="text-gray-800 dark:text-gray-200">
@@ -363,6 +366,43 @@ tailwind.config = {
           <span class="en"><code>post_processing/postprocess_cases.m</code>: multi-select Case folders under a parent directory, read <code>timeseries.csv</code> + <code>config.json</code>, export kinematic metrics to one Excel workbook (optional Windows COM styling).</span>
           <span class="zh"><code>post_processing/postprocess_cases.m</code>：在父目录下多选含 <code>timeseries.csv</code> 的 Case 子文件夹，读取 <code>config.json</code>，将运动学指标汇总导出至单个 Excel（Windows 下可选 COM 排版）。</span>
         </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION: RECENT RELEASES (v7.3.x) ==================== -->
+<section id="releases" class="py-16 px-6 md:px-16 lg:px-24 bg-white dark:bg-navy-900 border-y border-gray-200 dark:border-navy-700">
+  <div class="max-w-5xl mx-auto">
+    <h2 class="text-2xl md:text-3xl font-bold mb-2">
+      <span class="en">Recent releases (v7.3.x)</span><span class="zh">最近版本（v7.3.x）</span>
+    </h2>
+    <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
+      <span class="en">The v7.3 train addresses a second physics audit of the <code>free_torsion</code> + motor model, documentation fixes, validator warnings, and a hot-path vectorisation in background-flow RHS assembly. <strong>v7.3.1</strong> is a documentation, help-file, requirements, run-banner, and website synchronisation release (no code change vs. v7.3.0). See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code> for full detail.</span>
+      <span class="zh">v7.3 系列针对 <code>free_torsion</code> + 马达模型进行二次物理审查，并修正文档、增强校验与背景流热路径向量化。<strong>v7.3.1</strong> 为文档、帮助文件、依赖说明、运行条幅与本站点同步发布（相对 v7.3.0 无代码改动）。完整说明见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
+    </p>
+    <div class="grid md:grid-cols-2 gap-6">
+      <div class="rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.3.1 &mdash; 2026-05-04</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Current docs &amp; website release</span><span class="zh">当前文档与网站发布</span>
+        </h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400">
+          <span class="en">Aligned version/date banners across <code>README.md</code>, <code>CHANGELOG.md</code>, <code>USER_GUIDE.md</code>, <code>requirements.txt</code>, run banners, and this page. Historical v7.2 reaction-torque wording is now explicitly marked as superseded by v7.3.0. Regenerate <code>free_torsion + motor</code> results produced before v7.3.0.</span>
+          <span class="zh">统一 <code>README.md</code>、<code>CHANGELOG.md</code>、<code>USER_GUIDE.md</code>、<code>requirements.txt</code>、运行条幅与本页版本/日期信息；并明确标注 v7.2 历史“反力矩”表述已被 v7.3.0 推翻。v7.3.0 之前的 <code>free_torsion + motor</code> 算例建议重新计算。</span>
+        </p>
+      </div>
+      <div class="rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-800 p-6">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">v7.3.0 &mdash; 2026-05-04</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Motor torque &amp; system angular momentum</span><span class="zh">马达力矩与系统角动量行</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">No explicit motor reaction term in <code>R_global(4:6)</code>; motor enters the pilus root d₃ moment row only.</span><span class="zh">不在 <code>R_global(4:6)</code> 写入马达反力矩项；马达仅进入纤毛根部 d₃ 力矩平衡行。</span></li>
+          <li><span class="en">README §11 κ formulas corrected; §A.3 torsional-scaling note expanded.</span><span class="zh">README §11 κ 公式修正；§A.3 扭转标度说明扩充。</span></li>
+          <li><span class="en"><code>validate_simulation_params</code>: stall warning for motors near speed limit.</span><span class="zh"><code>validate_simulation_params</code>：接近失速时的马达告警。</span></li>
+        </ul>
       </div>
     </div>
   </div>
@@ -1522,7 +1562,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
 
 <!-- Footer -->
 <footer class="bg-navy-900 text-gray-500 text-center py-8 text-xs">
-  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v7.2.0 &mdash; 2026-05-04</p>
+  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v7.3.1 &mdash; 2026-05-04</p>
   <p class="mt-1">Built by Lucien &bull; MIT License</p>
 </footer>
 

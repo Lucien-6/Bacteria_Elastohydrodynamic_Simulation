@@ -145,26 +145,42 @@ for k = 1:M_pili
                 else
                     tau_eff = 0;
                 end
-                % Apply motor torque to pili root (d3/torsional component)
+                % Apply motor torque to pili root (d3/torsional component).
+                % The +tau enters the segment-1 d3 moment-balance row, which
+                % under free_torsion is the natural equation driving dpsi_1.
                 r3 = row_offset + 3;
                 R_global(r3) = R_global(r3) + tau_eff;
-                % Apply reaction torque to body (Newton's 3rd law).
+
+                % NOTE (v7.3.0): NO term is added to R_global(4:6).
                 %
-                % The motor exerts +tau along d3_lab on segment 1 of pilus k;
-                % the body therefore receives -tau * d3_lab in the lab frame.
-                % Rows 4-6 of R_global are the body lab-frame angular-momentum
-                % equation (cf. B_global rows 4-6 in build_coupled_lin_sys.m,
-                % which integrate r x f about the centre of mass), so the
-                % physically correct reaction is the lab-frame d3 of segment 1.
+                % Rows 4-6 of R_global are the FULL SYSTEM angular-momentum
+                % balance: B_global rows 4-6 (built in build_coupled_lin_sys.m)
+                % sum r x f over body + every pilus node with quadrature
+                % weights, i.e. they enforce sum(r x f_on_fluid) = 0.
                 %
-                % Earlier versions (<= v7.0.x) used J_euler(3,:)' here, which
-                % is the kinematic mapping  omega -> dot_psi  (i.e. M^{-1} of
-                % the ZYZ Euler-angle parameterisation), not the d3 vector.
-                % That choice violated angular-momentum balance whenever
-                % J_euler(3,:)' deviated from d3_lab (it always has a zero
-                % z-component, while d3_lab generally does not).
-                d3_lab_seg1 = geom.d3{k}(1, :)';
-                R_global(4:6) = R_global(4:6) - tau_eff * d3_lab_seg1;
+                % The motor torque between body and pilus is INTERNAL: the
+                % action +tau on the pilus and the reaction -tau on the
+                % body cancel exactly when summed over the whole body+pilus
+                % system, so by Newton's third law no contribution belongs
+                % in the system moment equation.  Adding any term there is
+                % equivalent to claiming an external moment on the
+                % body+pilus that does not exist, and over-prescribes the
+                % body's rotation rate.
+                %
+                % The body's reaction motion is propagated implicitly: the
+                % motor enters the pilus moment-balance row above, drives
+                % dpsi_1, and through the global mobility solve and the
+                % root kinematic constraints (theta_1, phi_1 locked to
+                % body Omega) the body's angular velocity adjusts
+                % self-consistently.
+                %
+                % Earlier versions added either
+                %   -tau_eff * J_euler(3,:)'   (v7.0.x)
+                % or
+                %   -tau_eff * d3_lab_seg1     (v7.2.x)
+                % to R_global(4:6).  Both injected an internal torque into
+                % the system equation and were physically incorrect.
+                % Removed in v7.3.0; see CHANGELOG.
         end
     end
 

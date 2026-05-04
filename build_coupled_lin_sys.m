@@ -468,10 +468,13 @@ for k = 1:M
     end
 
     % Diagnostic export of J_euler(3,:), the omega -> dot_psi kinematic
-    % row.  The production simulation does NOT consume this field — the
-    % motor reaction torque in ode_coupled_rhs.m uses d3_lab of segment 1
-    % per Newton's third law (v7.2.0).  Retained for offline diagnostics
-    % and post-hoc analyses that need the kinematic projection vector.
+    % row.  Production code (v7.3.0+) does NOT add any motor reaction
+    % term to R_global(4:6) — the system moment balance must remain
+    % free of internal motor torques, which cancel by Newton's third
+    % law (see ode_coupled_rhs.m §"NOTE (v7.3.0)").  This field is
+    % retained purely for offline diagnostics that compare the
+    % omega -> dot_psi projection against d3_lab (e.g. the legacy
+    % discrepancy probed by tests/test_motor_reaction_torque.m).
     geom.J_euler3{k} = J_euler(3,:);
 
     col_offset = col_offset + 3 * N_k;

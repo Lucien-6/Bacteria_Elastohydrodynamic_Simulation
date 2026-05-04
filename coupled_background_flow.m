@@ -1,4 +1,4 @@
-﻿function u_bg = coupled_background_flow(X_all, geom, params)
+function u_bg = coupled_background_flow(X_all, geom, params)
 %COUPLED_BACKGROUND_FLOW  Evaluate steady background flow at all hydro points
 %
 %  Description:
@@ -88,38 +88,37 @@ end
 
 u_bg = zeros(n_total_dof, 1);
 
-for i = 1:N_total
-    u_bg(3*(i-1)+1 : 3*i) = u_trans(i, :)';
-end
+% Vectorised translational block: each row of u_trans (size [N_total x 3])
+% becomes consecutive (x,y,z) triples in u_bg(1:3*N_total).
+u_bg(1:3*N_total) = reshape(u_trans.', [], 1);
 
 twist_offset = 3 * N_total;
 seg_count    = 0;
 pt_offset    = params.N_body;
 
+% Hoist invariant fields once.
+omega_half = 0.5 * omega_lab(:)';        % [1 x 3]
+is_shear   = strcmp(bg.type, 'shear_z');
+if is_shear
+    s_axis_row = bg.shear_axis(:)';
+    H_shear    = bg.shear_height_dimless;
+end
+
 for k = 1:M
     N_k   = N_segs(k);
-    d3_k  = geom.d3{k};
+    d3_k  = geom.d3{k};                  % [N_k x 3]
 
-    if strcmp(bg.type, 'shear_z')
-        s_axis = bg.shear_axis(:)';
+    % Vectorised dot(d3_k(j,:), omega_half) over j.
+    twist_vals = d3_k * omega_half.';    % [N_k x 1]
+
+    if is_shear
         X_k    = geom.X_pili{k};
-        Z_seg  = 0.5 * (X_k(1:N_k,:) + X_k(2:N_k+1,:)) * s_axis';
-        H      = bg.shear_height_dimless;
-        inside = (Z_seg > 0) & (Z_seg < H);
-
-        for j = 1:N_k
-            if inside(j)
-                Omega_half = 0.5 * omega_lab;
-            else
-                Omega_half = [0, 0, 0];
-            end
-            u_bg(twist_offset + seg_count + j) = dot(d3_k(j,:), Omega_half);
-        end
-    else
-        for j = 1:N_k
-            u_bg(twist_offset + seg_count + j) = dot(d3_k(j,:), 0.5 * omega_lab);
-        end
+        Z_seg  = 0.5 * (X_k(1:N_k,:) + X_k(2:N_k+1,:)) * s_axis_row';
+        inside = (Z_seg > 0) & (Z_seg < H_shear);
+        twist_vals = twist_vals .* inside;
     end
+
+    u_bg(twist_offset + seg_count + (1:N_k)) = twist_vals;
 
     seg_count  = seg_count + N_k;
     pt_offset  = pt_offset + N_k + 1;

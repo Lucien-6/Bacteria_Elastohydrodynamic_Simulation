@@ -127,7 +127,12 @@ else
     % Per-pili: intrinsic curvature and active moment
     M_pili = size(PM, 2);
     if isfield(cfg, 'pili_ext') && M_pili > 0
-        [errs, warns] = validate_pili_ext(cfg.pili_ext, M_pili, errs, warns);
+        % Build aux struct for stall-curve diagnostics (parametric mode):
+        % pili lengths sit in row 2 of Pili_Matrix in microns.
+        aux.pili_lengths_m = PM(2, 1:M_pili) * 1e-6;       % [1 x M_pili] in m
+        aux.r_pili         = cfg.r_pili;
+        aux.mu             = cfg.mu;
+        [errs, warns] = validate_pili_ext(cfg.pili_ext, M_pili, errs, warns, aux);
     end
 
     if M_pili == 0 && isfield(cfg, 'pili_ext') && ~isempty(cfg.pili_ext)
@@ -141,7 +146,11 @@ if strcmp(geometry_mode, 'custom') ...
         && isfield(cfg, 'custom_geometry') && isstruct(cfg.custom_geometry) ...
         && isfield(cfg.custom_geometry, 'pili') && ~isempty(cfg.custom_geometry.pili)
     M_pili_custom = numel(cfg.pili_ext);
-    [errs, warns] = validate_pili_ext(cfg.pili_ext, M_pili_custom, errs, warns);
+    % Custom mode: pili lengths require reading user files; skip stall
+    % diagnostics in the validator.  init_coupled_params will still log
+    % each pilus length, and the stall check could be re-enabled there.
+    aux_custom = struct();    % empty -> no stall check inside validator
+    [errs, warns] = validate_pili_ext(cfg.pili_ext, M_pili_custom, errs, warns, aux_custom);
 end
 
 %% ---- Common validations (both modes) ----
@@ -302,17 +311,33 @@ end
 
 %% ==================== Local helper functions ====================
 
-function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns)
+function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
 %VALIDATE_PILI_EXT  Validate per-pilus extended fields (intrinsic_curvature,
 %                   active_moment, root_coupling, motor_torque).
 %
 %  Used by both the parametric branch (M_pili = size(Pili_Matrix, 2))
 %  and the custom branch (M_pili = numel(custom_geometry.pili)).
+%
+%  aux (optional) is a struct with auxiliary info used for the
+%  stall-curve diagnostic on free_torsion + constant motors.  Fields:
+%    .pili_lengths_m  - [1 x M_pili] pili total lengths [m]
+%    .r_pili          - pili radius [m]
+%    .mu              - dynamic viscosity [Pa·s]
+%  An empty aux disables the stall-curve check (used by the custom-mode
+%  call where centreline lengths require reading the user files).
+
+    if nargin < 5
+        aux = struct();
+    end
 
     valid_ic = {'frozen', 'zero', 'constant', 'helix'};
     valid_am = {'off', 'traveling_wave', 'custom'};
     valid_rc = {'clamped', 'free_torsion'};
     valid_mt = {'off', 'constant'};
+
+    aux_has_lengths = isstruct(aux) && isfield(aux, 'pili_lengths_m') && ...
+                      isfield(aux, 'r_pili') && isfield(aux, 'mu') && ...
+                      ~isempty(aux.pili_lengths_m);
 
     for kk = 1:min(numel(pili_ext), M_pili)
         pe = pili_ext(kk);
@@ -421,6 +446,51 @@ function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns)
                             'root_coupling = clamped. Motor torque has no effect on clamped ', ...
                             'pili. Set root_coupling = ''free_torsion'' to enable torsional dynamics.'], ...
                             kk, mt_type);
+                    end
+
+                    % --- Stall-curve diagnostic (Issue #7+#9, v7.3.0) ---
+                    %
+                    % The motor model is tau_eff = tau_motor*(1 - |omega|/omega_max).
+                    % In steady state, motor torque balances RFT torsional drag:
+                    %     tau_motor*(1 - omega/omega_max) = xi_t * omega
+                    % with xi_t ~ 4*pi*mu*r_pili^2*L_pilus (no-slip rotational drag
+                    % of a slender rod about its own axis, RFT leading order).
+                    % Solving: omega_steady = tau_motor / (xi_t + tau_motor/omega_max)
+                    % => omega_steady/omega_max = tau_motor / (xi_t*omega_max + tau_motor)
+                    %
+                    % If this ratio is too close to 1 the motor is operating at
+                    % stall, where:
+                    %   (a) the speed-limiter dominates dynamics so the
+                    %       DPSI1_PREV explicit-lag approximation in
+                    %       ode_coupled_rhs.m may visibly slow convergence;
+                    %   (b) results become highly sensitive to the empirical
+                    %       linear stall curve and rarely represent real
+                    %       biological motors well.
+                    if strcmp(mt_type, 'constant') && strcmp(rc_actual, 'free_torsion') && ...
+                       aux_has_lengths && kk <= numel(aux.pili_lengths_m) && ...
+                       isfield(mt_val, 'torque_pN_nm') && isfinite(mt_val.torque_pN_nm) && ...
+                       isfield(mt_val, 'max_omega_Hz') && mt_val.max_omega_Hz > 0
+                        L_k         = aux.pili_lengths_m(kk);            % [m]
+                        tau_motor_N = abs(mt_val.torque_pN_nm) * 1e-21;  % pN·nm -> N·m
+                        omega_max   = 2*pi * mt_val.max_omega_Hz;        % Hz -> rad/s
+                        xi_t        = 4*pi*aux.mu*aux.r_pili^2*L_k;      % N·m·s/rad
+                        ratio       = tau_motor_N / (xi_t*omega_max + tau_motor_N);
+                        if ratio >= 0.7
+                            warns{end+1} = sprintf(['Pili %d: motor is operating ', ...
+                                'near stall (omega_steady/omega_max ~ %.2f). The ', ...
+                                'speed-limiter dominates dynamics; the explicit-lag ', ...
+                                'approximation for tau_eff(dpsi_1) in ode_coupled_rhs.m ', ...
+                                'may slow convergence and make the ode15s step shrink. ', ...
+                                'Consider a larger max_omega_Hz, smaller torque_pN_nm, ', ...
+                                'or a longer pilus.'], kk, ratio);
+                        elseif ratio >= 0.4
+                            warns{end+1} = sprintf(['Pili %d: motor steady-state ', ...
+                                'speed reaches ~%.0f%% of max_omega_Hz under RFT drag ', ...
+                                'alone. Body+pilus hydrodynamic feedback may push this ', ...
+                                'higher; if step size shrinks unexpectedly, increase ', ...
+                                'max_omega_Hz or check stall behaviour.'], ...
+                                kk, 100*ratio);
+                        end
                     end
                 elseif strcmp(rc_actual, 'free_torsion')
                     warns{end+1} = sprintf(['Pili %d: root_coupling = free_torsion but ', ...

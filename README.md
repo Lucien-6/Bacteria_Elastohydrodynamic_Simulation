@@ -3,7 +3,7 @@
 > **作者**: Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期**: 2026-02-06  
 > **更新日期**: 2026-05-04  
-> **版本**: 7.2.0
+> **版本**: 7.3.1
 > **配套文档**: `CHANGELOG.md`、`USER_GUIDE.md`、`requirements.txt`、`Brownian_Implementation_Plan.md`、`config_custom_example.json`、`config_motor_flagella_example.json`
 
 ---
@@ -576,15 +576,23 @@ $`\mathbf{B}_{\text{global}} \in \mathbb{R}^{n_{\text{dof}} \times n_{\text{forc
 
 ## 11. 弹性恢复力矩（Kirchhoff 弹性杆）
 
-`compute_pili_elastic_moments.m` 计算离散曲率与固有曲率的偏差。v5.0 起，固有曲率 $`\kappa_{\alpha,0}`$ 可通过 `intrinsic_curvature` 配置为 `'frozen'`（保持初始几何）、`'zero'`、`'constant'`（用户指定常数向量）或 `'helix'`（螺旋曲率）：
+`compute_pili_elastic_moments.m` 计算离散曲率与固有曲率的偏差。v5.0 起，固有曲率 $`\kappa_{\alpha,0}`$ 可通过 `intrinsic_curvature` 配置为 `'frozen'`（保持初始几何）、`'zero'`、`'constant'`（用户指定常数向量）或 `'helix'`（螺旋曲率）。
+
+设 Darboux 向量为 $`\mathbf{U} = \kappa_1 \mathbf{d}_1 + \kappa_2 \mathbf{d}_2 + \kappa_3 \mathbf{d}_3`$，则方向子的弧长导数满足 $`\mathbf{d}_\alpha' = \mathbf{U} \times \mathbf{d}_\alpha`$，从而代码使用如下投影提取曲率分量（与 Walker 2020 约定一致）：
 
 $$
-\kappa_\alpha^{(j)} = \mathbf{d}_\alpha^{(j)} \cdot \mathbf{d}*3'^{(j)} - \kappa*{\alpha,0}^{(j)}, \quad \alpha = 1, 2
+\kappa_1^{(j)} = \mathbf{d}_3^{(j)} \cdot \mathbf{d}_2'^{(j)} - \kappa_{1,0}^{(j)}
 $$
 
 $$
-\kappa_3^{(j)} = \frac{1}{1+\sigma}\left(\mathbf{d}_2^{(j)} \cdot \mathbf{d}*1'^{(j)} - \kappa*{3,0}^{(j)}\right)
+\kappa_2^{(j)} = \mathbf{d}_1^{(j)} \cdot \mathbf{d}_3'^{(j)} - \kappa_{2,0}^{(j)}
 $$
+
+$$
+\kappa_3^{(j)} = \frac{1}{1+\sigma}\left(\mathbf{d}_2^{(j)} \cdot \mathbf{d}_1'^{(j)} - \kappa_{3,0}^{(j)}\right)
+$$
+
+> 历史注记：v7.2 及以前版本的 README 在此处误写为 $`\kappa_\alpha = \mathbf{d}_\alpha \cdot \mathbf{d}_3'`$（$`\alpha=1,2`$），与代码实现及 Walker 2020 的 $`\mathbf{U} \times \mathbf{d}_\alpha`$ 推导都不一致。v7.3.0 修正为上述形式。
 
 ---
 
@@ -1002,7 +1010,7 @@ Coupled_Body_Pili/
 
 - $`Q`$ 矩阵：结构相同（基底速度 + Euler 角速率）
 - $`B`$ 矩阵：力平衡使用梯形求积权重；力矩平衡使用 $`\ell^3`$ 标度
-- $`\tilde{A}_{\text{twist}}`$：包含额外的 $`\ell_k`$ 因子以确保量纲一致性
+- $`\tilde{A}_{\text{twist}}`$：系数 $`\ell_k\varepsilon_k^2/2 = \varepsilon^2/(2\ell_k)`$，承担"全局尺度 ↔ 每根 Walker 尺度"的转换（与力矩行的 $`\ell_k^3`$ 配合，保证 $`L\dot z=R`$ 量纲齐次，详见 A.3）
 - 弹性力矩：曲率偏差公式与 Walker 的离散算子一致
 
 ---
@@ -1199,11 +1207,14 @@ Coupled_Body_Pili/
 | 57  | 全系统有效摩擦张量布朗动力学（v4.0）：布朗扩散张量不再基于孤立胞体预计算，而是在每个布朗步通过 probing method 从完整体-纤毛耦合线性系统动态提取有效 6×6 迁移率（隐式 Schur 补缩并纤毛自由度），纤毛数量与长度自然抑制热扩散；新增 `build_coupled_lin_sys.m`（提取 `ode_coupled_rhs` Steps 1-7 为可复用子程序）和 `compute_effective_body_brownian.m`（探测 + 量纲转换 + Cholesky）；可选 Fixman 中点修正消除构型相关漂移；删除旧 body-only `compute_body_brownian_params.m`；修复 `main_coupled_simulation.m` 缺失 `fixman_midpoint` 参数 | 2026-03-31 |
 
 
-#### v5.x — 物理功能扩展与后处理
+#### v5.x–v7.x — 物理功能扩展、审查与文档同步
+
+> **历史勘误（v7.3.1）**：下表早期条目保留发布当时的历史语境；其中 v7.2.0 关于 `R_global(4:6) -= tau_eff * d3_lab(seg 1)` 的“反作用力矩”说明已被 v7.3.0 推翻。当前生产代码不向 `R_global(4:6)` 添加任何马达反作用项；马达只进入纤毛根段 d3 自然力矩平衡行，系统角动量行保持不含内部力矩。
 
 
 | #   | 功能                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 日期         |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 88  | **7.3.1**（2026-05-04）：**文档、帮助文件、依赖说明与项目网页同步优化（零数值影响）**。统一 `README.md`、`USER_GUIDE.md`、`requirements.txt`、`CHANGELOG.md`、`run_simulation.m`、`main_coupled_simulation.m` 与 `docs/index.html` 的版本/日期信息；将 v7.2.0 关于“马达反作用力矩”的历史表述明确标记为已被 v7.3.0 的系统角动量审查推翻；网页 `docs/index.html` 更新为当前 v7.3.x 项目状态，突出 `free_torsion + motor` 的正确物理处理、custom geometry、Brownian dynamics、RSM/RSS/Rotlet 耦合、JSON 配置、批量后处理和输出体系。**兼容性**：无任何 MATLAB 数值路径、API、JSON schema 或输出结构变化；相对 v7.3.0 仅为文档与网站发布 | 2026-05-04 |
 | 58  | 内禀曲率 + 主动力矩 + 背景流场三合一物理功能扩展（v5.0）：新增 `coupled_background_flow.m`（稳态背景流 off/uniform/shear_z）和 `coupled_active_moment.m`（per-pili 时变主动力矩 off/traveling_wave/custom）；`build_coupled_lin_sys` 新增可选 `hydro` 输出；`ode_coupled_rhs` 整合主动力矩减去和背景流 B·Ainv·u_bg 贡献；`init_coupled_params` 新增三组 Name-Value 配置（内禀曲率 frozen/zero/constant/helix、主动力矩、背景流）并自动无量纲化；`parse_pili_config` 新增 `pili_ext` 第二输出透传扩展字段；`load/save_sim_config` 解析/写入新 JSON 节；`validate_simulation_params` 新增完整参数验证规则；`main_coupled_simulation` 新增内联配置示例。所有新功能默认关闭，完全向后兼容 | 2026-04-03 |
 | 59  | 批量仿真结果后处理（v5.1）：新增 `post_processing/postprocess_cases.m`，父目录下多选含 `timeseries.csv` 的 Case 子文件夹，汇总沉降速度、最大水平位移、轨迹曲折度、MSD 拟合扩散系数等，导出 Excel；英文界面；Windows 下可选 Excel COM 排版；`run_simulation` 日志横幅版本号同步为 **5.1.0**                                                                                                                                                                                                                                                                                                                      | 2026-04-07 |
 | 60  | 批量友好图窗管理（v5.1.1）：`exportgraphics` 保存 `summary_plot.png` / `flowfield_panels.png` 后立即 `close` 对应 figure（`run_simulation.m`、`compute_plot_flowfield.m`），避免大批量仿真堆积 MATLAB 图窗；日志横幅版本号 **5.1.1**                                                                                                                                                                                                                                                                                                                                     | 2026-04-08 |
@@ -1227,6 +1238,7 @@ Coupled_Body_Pili/
 | 78  | **5.5.8**（2026-04-22）：**期刊向导出扩展 + 可选交互式 HTML（零数值影响）**。新增 **`export_figure_png_pdf_html.m`**：`exportgraphics` 统一写出 **PNG（600 dpi）**、**矢量 PDF**、以及在 **MATLAB R2026a+** 下的 **交互式 `.html`**（web canvas）。适用于 `initial_pose`、`summary_plot`、`flowfield_panels` 及 **`postprocess_cases`** 与 Excel **同主文件名**的批量汇总图（2×2 柱状指标面板）。`main_coupled_simulation.m` / `run_simulation.m` 头注释明确路径策略（主入口 + `run_simulation` 防御性 `addpath(项目根)`；后处理与批扫脚本保留独立 `addpath`）。覆盖探测 `data_exts` 含 `.pdf`/`.html`；仿真结束 *Files saved* 与后处理完成信息**仅在 `isfile` 时列出 HTML**。根目录 `.m` 计数 **41**（总计 **55**） | 2026-04-22 |
 | 79  | **6.0.0**（2026-04-29）：**自定义几何模型导入**。新增 `geometry_mode = 'custom'`：用户可导入任意 3D 点云作为胞体和纤毛几何，替代参数化胶囊/解析纤毛模型；自定义胞体与自定义纤毛**必须配套使用**（启动时校验，不允许混用）。新增 5 个函数：`read_geometry_csv_mat.m`（点云文件读取，支持 `.csv`/`.txt`/`.mat`，自动检测矩阵方向）、`rotation_between_vectors.m`（Rodrigues 旋转公式，向量对齐）、`custom_body_building.m`（胞体点云处理：`alphaShape` + `convhulln` 自动三角化、体积计算、附着位点）、`custom_pili_building.m`（纤毛中心线处理：弧长计算、PCHIP 重采样、Rodrigues 方向对齐、附加旋转）、`validate_custom_geometry.m`（自定义几何配置校验）。修改 6 个核心函数：`init_coupled_params.m`（`geometry_mode` 分发调度）、`load_sim_config.m` / `save_sim_config.m`（JSON 解析/持久化 custom 节）、`validate_simulation_params.m`（互斥校验 + custom 验证分发）、`run_simulation.m`（`trisurf` 可视化 + 条件日志）、`main_coupled_simulation.m`（内联 custom 示例）。新增 `config_custom_example.json` 配置模板。**参数化模式完全向后兼容**，`geometry_mode` 默认 `'parametric'`，现有工况无需任何修改 | 2026-04-29 |
 | 84  | **7.0.3**（2026-04-30）：**CSV 解析分隔符修复**。修复 `read_geometry_csv_mat.m` 中 `read_csv_points` 的逗号分隔符解析 Bug：MATLAB `sscanf('%f')` 不识别逗号为数值分隔符，导致所有逗号分隔的 CSV 几何文件（体点云与纤毛中心线）静默解析失败（每行仅提取第一个数后截断，最终报告 "Point data must have 3 columns, got 0"）；修复方案为在 `sscanf` 解析前将逗号和制表符统一替换为空格，使函数接受逗号分隔、空格分隔、制表符分隔及混合分隔的 CSV 文件。**数值路径无任何改动**；此前纯空间分隔的 CSV 文件解析不受影响 | 2026-04-30 |
+| 87  | **7.3.0**（2026-05-04）：**v7.2 审查后续修复**。在对 v7.2 的二次深度审查中确认 v7.0/v7.2 把"马达反作用力矩"加入 `R_global(4:6)` 的做法在物理上始终错误——`R_global(4:6)` 是**整个系统**（胞体 + 全部纤毛节点）的角动量平衡（`B_global(4:6,:)` 用求积权重对所有点的 `r × f` 求和），而胞体↔纤毛之间的马达力矩是**内部**力偶，按牛顿第三定律在系统总和中相互抵消，写入系统方程等同于凭空注入外力矩、过约束胞体转动。**修复（Issue #1，物理）**：`ode_coupled_rhs.m` 不再向 `R_global(4:6)` 添加 `−τ · d3_lab` 或 `−τ · J_euler(3,:)'`；马达 `+τ` 仍施加于纤毛段 1 的 d3 力矩平衡行（驱动 `dψ_1/dt`），胞体反应运动经全局 mobility 求解 + 根部运动学约束（θ₁, φ₁ 锁定 Ω）隐式自洽传播。`geom.J_euler3{k}` 仅保留作诊断之用；`tests/test_motor_reaction_torque.m` 改写为只打印两候选向量与 v7.3.0 规则的取证脚本。**修复（Issue #3，文档）**：`README` §11 的 `κ_α` 公式由错误的 `d_α · d_3'` 形式更正为与代码及 Walker 2020 一致的 `κ_1 = d_3 · d_2'`、`κ_2 = d_1 · d_3'`、`κ_3 = (d_2 · d_1' − κ_{3,0})/(1+σ)`，并显式给出 Darboux 向量定义。**修复（Issue #4 / #5，注释/可用性）**：`pili_building.m` 明确 sites 2-5/7-10 位于胶囊圆柱-球冠**交界处**而非曲面本体；`custom_pili_building.m` 对非零 `deflection_z`/`deflection_x` 抛出 `DeflectionAxisSwap` 警告，提示 custom 模式两轴语义与 parametric 模式相反。**修复（Issue #8，鲁棒性）**：`compute_plot_flowfield.m` 增加 `numel(params.rot) == M_pili` 与 `numel(Z) == 7+3·sum(N_segs)` 的形状自检，防止未来在中间时刻误用导致 `params.rot` 与 `Z` 不同步。**新增（Issue #7+#9，校验）**：`validate_simulation_params.m` 为 `free_torsion + motor_torque = constant` 配置加入失速曲线诊断——估算 `ω_steady/ω_max ≈ τ_motor / (4πμ r_pili² L_pilus · ω_max + τ_motor)`，超过 0.4 触发提示，超过 0.7 强烈建议调参，避免 `DPSI1_PREV` 显式滞后近似在接近失速点拖慢 `ode15s`。**性能（Issue #10）**：`coupled_background_flow.m` 把段间扭转率内层循环替换为 `d3_k * Ω_half'` 矩阵积、`reshape(u_trans.', [], 1)` 平展平移块，热路径数值等价向量化。**文档（Issue #12）**：`README` §A.3 重新推导 `Ã_twist` 的 `ℓ_k` 因子——明确该因子来源于"全局尺度 ↔ 每根 Walker 2020 尺度"的两步无量纲化转换（`c_t·Δs_k → ε²/2`，再除 `ℓ_k` 因 `ε_k = ε/ℓ_k`），与 `build_coupled_lin_sys.m` 中力矩行的 `ℓ_k³` 配合保证 `L ż = R` 量纲齐次；§13.4 对应条目同步更新。**兼容性**：`free_torsion + motor_torque ≠ off` 配置的胞体 Ω 与 `dψ_1/dt` 数值会与 v7.0–v7.2 不同（去除虚假外力矩），需重新生成；`clamped` 路径与 `free_torsion + motor = off` 路径 bit-exact 不变 | 2026-05-04 |
 | 86  | **7.2.0**（2026-05-04）：**自由扭转 / 马达力矩功能审查与修复**。针对 v7.0 引入的 `root_coupling = 'free_torsion'` + `motor_torque` 功能，经全面审查发现并修复三处问题。**修复（Issue 2，物理）**：`ode_coupled_rhs.m` 中胞体反作用力矩由 `R_global(4:6) -= J_euler(3,:)' * tau_eff` 改为 `R_global(4:6) -= tau_eff * d3_lab(seg 1)`（`geom.d3{k}(1,:)`），严格符合牛顿第三定律——`J_euler(3,:)` 是 `ω → ψ̇` 的运动学反演（始终 z 分量为零），与物理上的 d₃_lab 仅在 θ₁ = π/2 + φ₁ = 0 时巧合一致；旧实现违反系统总角动量守恒。**修复（Issue 1，跨步状态）**：MATLAB struct 按值传递导致 `params.dpsi1_prev{k} = z_dot(psi1_col)` 在函数返回时丢失，跨 ODE 调用记忆完全失效，致使马达"线性速度限制"功能事实上等同于"恒定满力矩"。改用 `ode_coupled_rhs.m` 内 `persistent DPSI1_PREV LAST_RUN_TOKEN` 实现跨步缓存，由 `init_coupled_params.m` 注入的 `params.run_token = uint64(tic)` 在同 MATLAB 会话内的多个仿真间自动失效（防串台）；`run_simulation.m` 主积分循环开始处补 `clear ode_coupled_rhs` 作为防御性显式重置，同 `clear odetpbar` 模式。**修复（Issue 3，初值）**：当 `alpha_0 ≠ 0` 或 custom `initial_orientation` 非单位时，free_torsion 纤毛 ψ₁ 初值为零无法满足 BC `D_lab = R_body · D_local`，触发 `init_coupled_state` 方向自检警告并在 t=0 时引入虚假扭转弹性能。`enforce_clamped_geometry.m` 新增可选第三参数 `force_full_projection`（默认 `false`）；`init_coupled_state.m` 改为 `enforce_clamped_geometry(Z0, params, true)`，在初始化时**强制全投影 ψ₁**（让 free_torsion ψ₁ 从自洽 BC 起步），运行时所有调用保留默认 `false` 行为以维持 ψ₁ 自由演化。**新增**：`init_coupled_params.m` 新增 `params.run_token` 与 `params.dpsi1_prev` 占位字段。**修复（次生 BUG，JSON Schema）**：`load_sim_config.m` 在 parametric 模式下解析 `pili[]` 数组时仅判断 `isstruct(jp)`，而 MATLAB `jsondecode` 在 JSON 数组对象**字段集不一致**时（例如 `config_motor_flagella_example.json` 的两根菌毛——一根有 `root_coupling`/`motor_torque`、一根没有）会返回 cell-array-of-struct 而非 struct array，导致解析失败、走入 fallback `Pili_Matrix = zeros(8, 0)`，**所有菌毛被静默丢弃**（症状：初始姿态预览中只有胞体而无菌毛）。v7.1.0 已在 custom 路径上引入 `normalise_json_struct_array.m` 处理此问题，现将 parametric 路径同样接入，对 cell array / struct array / 数字矩阵三种输入形态做统一规范化后再调用 `parse_pili_config`。**清理**：`ode_coupled_rhs.m` BC RHS 零化循环的 `col_offset` 变量更名 `row_offset_bc`（仅纠正命名歧义，数值 bit-exact 不变）；`build_coupled_lin_sys.m` 中 `geom.J_euler3{k}` 注释更新为"诊断/测试用，已不在生产 RHS 中读取"。**演示参数**：`config_motor_flagella_example.json` `T_obs: 0.5 → 1.0` s 与 `dt: 0.1 → 0.001` s（适配 `max_omega_Hz = 300` 的 ~3.33 ms 转动周期，每周期 ~3 帧），新增 `_comment_T_obs` / `_comment_dt` 字段记录改动理由（`load_sim_config` 容忍未知字段）。**文档**：`USER_GUIDE.md` §7 新增 *Interaction with `active_moment` and `intrinsic_curvature`* 子节（free_torsion + d3_amp ≠ 0 + motor 三源叠加驱动 ψ₁）与 *Notes on physics (v7.2.0 corrections)*；`CHANGELOG.md` 新增完整 [7.2.0] 条目。**兼容性**：`clamped` 模式 bit-exact 不受影响；既有 `free_torsion` 仿真结果应重新生成（旧反作用力矩方向系统性偏差不可忽略）；既有以"同质字段"或纯数字矩阵形式提供的 `pili[]` 行为不变 | 2026-05-04 |
 | 85  | **7.1.0**（2026-05-04）：**自定义几何专项硬化**。对 `custom` 模式做了一次全面加固，覆盖 I/O、几何诊断、纤毛运动学正确性、JSON 可配置性与流场可视化五大方面。**新增**：`parse_initial_orientation.m`（将 `quaternion` / `axis_angle` / `euler_zyx` 转为标量优先单位四元数，custom 模式下覆盖 `alpha_0`）、`normalise_json_struct_array.m`（调和 `jsondecode` 的 cell/struct 二义性）、`geometry/` 样例 CSV（`example_body_sphere.csv`、`example_body_capsule.csv`、`example_pilus_linear.csv`、`example_pilus_helix.csv`）与生成器 `generate_example_geometry.m`；**新增强制约束**——用户纤毛中心线必须等长分段（相对偏差 ≤ 1e-3），同时 `custom_pili_building.m` 记录并在 > 45° 时警告根部对齐角。**重写**：`read_geometry_csv_mat.m` 改用 `readmatrix` + `detectImportOptions`（`CommentStyle = {'#','%'}`）并预分配手动回退路径，消除 `[all_data; vals']` 的 O(N²) 扩张；`custom_body_building.m` 用 `uniquetol` 去重、15 点对数 alpha 扫描 + 非流形剔除、Euler 示性数诊断，`L_0_suggested` 默认改为等效球半径（`'volume'`；可切 `'extent'`）；`custom_pili_building.m` 先去重再 PCHIP 重采样，`deflection_z/_x` 改在由 Gram-Schmidt 构造的局部基（`e3` = 对齐切向，`e1` = 弯曲面法向）中施加，`root_dir` 存储所有变换后的真实首段切向；`compute_plot_flowfield.m` 通过 `build_body_visualization` 辅助函数按 `params.body_type` 分派，custom 模式用 `alphaShape` 的 `inShape` 生成内部遮罩、`trisurf` 渲染表面，移除对 `major_axis`/`minor_axis` 的硬依赖。**Per-pilus 扩展字段打通**：`intrinsic_curvature`、`active_moment`、`root_coupling`、`motor_torque` 现从 `custom_geometry.pili[*]` 经 `cfg.pili_ext` 全链路贯通，由共享 `validate_pili_ext` 帮助器对参数化与 custom 两种模式做一致校验，`save_sim_config.m` 支持 JSON 往返。**`main_coupled_simulation.m`**：移除无效 `F:\...\config_test_custom.json` 引用，内联 custom 块补齐可直接运行的示例并显式将 `cfg.custom_geometry.initial_orientation` 提升至顶层 `cfg.initial_orientation`，与 JSON 路径对齐。**命名告警**：custom 模式局部基约定 `deflection_z` = 绕 `e3` 扭转、`deflection_x` = 绕 `e1` 倾斜；参数化模式中两者几何作用恰好互换（`deflection_x` = 扭转、`deflection_z` = 倾斜）；跨模式移植非零偏转需交换 `deflection_x` ↔ `deflection_z`。**兼容性**：参数化配置完全 bit-exact；v6.x–v7.0.x 的 custom 配置若含非等长纤毛段或非零 custom-mode `deflection_*`，需按上述规则重新离散/调参 | 2026-05-04 |
 | 83  | **7.0.2**（2026-04-30）：**日志输出优化 + 语法修复**。`validate_simulation_params.m` 与 `init_coupled_state.m` 中恢复 MATLAB 原生 `warning()` 调用（保留 `logf_h` 日志文件记录），恢复命令行窗口警告的橙色默认显示；修复 `adaptive_basis_check.m` 第 114 行 `sprintf` 字符串续接中不可见 Unicode 字符导致的语法解析错误（`'意外的''Post-rotation min(theta, pi-theta)...''。'`）。`init_coupled_params.m` 日志输出精简：移除冗余的 "Print summary" 参数汇总块与 "Computed adaptive gap distance" 日志行，相关信息已统一汇入 `run_simulation.m` 的 `[INIT]` 段。`main_coupled_simulation.m` 日志头输出与 `[PARAMS]` 段去重精简。**数值路径无任何改动**；现有运行结果完全可复现 | 2026-04-30 |
@@ -1260,15 +1272,22 @@ $$
 Eg = \frac{F_{\text{sink}} L_0^2}{EI} = \frac{\Delta\rho \cdot V_{\text{capsule}} \cdot g \cdot a^2}{EI}
 $$
 
-### A.3 扭转阻力 $`\ell_k`$ 因子
+### A.3 扭转阻力 $`\ell_k`$ 因子（v7.3.0 重新推导）
 
-纤毛每段的有量纲扭转阻力为 $`\tilde{c}_t = 4\pi\mu`$。无量纲化后：
+纤毛单位长度扭转阻力（RFT 主导项）为有量纲 $`c_t = 4\pi\mu r_{\text{pili}}^2`$（$`[\text{N·m·s/rad}]`$，每米力矩-角速度系数）。在 `build_global_resistance.m` 中实际写入的是
 
 $$
-\tilde{A}_k = \frac{\ell_k \varepsilon_k^2}{2} \hat{A}_k
+\tilde A_k = \frac{\ell_k\,\varepsilon_k^2}{2}\,\hat A_k
 $$
 
-额外的 $`\ell_k`$ 因子确保线性系统中的量纲一致性。
+其中 $`\hat A_k`$ 仅承载方向子 $`\mathbf d_3^{(j)}`$，$`\ell_k = L_{\text{pili},k}/L_0`$，$`\varepsilon_k = r_{\text{pili}}/L_{\text{pili},k}`$。该系数同时反映两层无量纲化转换：
+
+1. **每段扭转阻力**（沿 $`\mathbf d_3`$ 方向）= $`c_t \cdot \Delta s_k = 4\pi\mu r_{\text{pili}}^2 \cdot L_{\text{pili},k}/N_k`$。除以 $`\Delta s_k`$ 后，每米的扭转阻力系数无量纲化时给出 $`\varepsilon^2/2`$（其中 $`\varepsilon = r_{\text{pili}}/L_0`$，全局尺度）。
+2. **每根纤毛的内部 Walker 标度**：$`\kappa_\alpha`$、$`m_{\text{active}}`$ 等以**每根**（per-rod）尺度定义（Walker 2020 风格），其特征长度为 $`L_{\text{pili},k}`$，因此 $`\varepsilon_k = r_{\text{pili}}/L_{\text{pili},k} = \varepsilon/\ell_k`$。从全局尺度转回每根尺度时，扭转阻力额外承担 $`\ell_k`$ 因子，使最终系数为 $`\ell_k\varepsilon_k^2/2 = \varepsilon^2/(2\ell_k)`$。
+
+随后在 `build_coupled_lin_sys.m` 中，纤毛力矩平衡使用 Walker (2020) 标度，每根纤毛的力矩行整体乘 $`\ell_k^3`$ 把方程从每根尺度转回全局尺度。$`\ell_k^3`$ 与 $`A_{\text{twist}}`$ 中的 $`1/\ell_k`$ 共同保证 $`L\dot z = R`$ 各行量纲齐次（详见 A.4）。
+
+> 历史注记：v7.2 README 在此处只写"$`\ell_k`$ 因子确保量纲一致性"，未明确给出"全局尺度 ↔ 每根 Walker 尺度"的转换链路。这导致独立审计时容易把 $`1/\ell_k`$ 误判为缺失因子。v7.3.0 起在此明示推导链。
 
 ### A.4 线性系统 $`L\dot{z}=R`$ 逐行量纲检查
 
