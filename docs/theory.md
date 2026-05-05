@@ -61,7 +61,7 @@ Additional model inputs use the same reference scales:
 
 The full state contains body position, body orientation, and each pilus rod state:
 
-$$
+```math
 \mathbf{Z} =
 \left[
 \mathbf{X}_{\mathrm{cm}},
@@ -74,11 +74,11 @@ $$
 \boldsymbol{\phi}_M,
 \boldsymbol{\psi}_M
 \right].
-$$
+```
 
 The body quaternion $\mathbf{q}$ represents the body-to-lab rotation and is advanced with:
 
-$$
+```math
 \frac{d\mathbf{q}}{dt}
 = \frac{1}{2}
 \begin{bmatrix}
@@ -86,7 +86,7 @@ $$
 \boldsymbol{\Omega}
 \end{bmatrix}
 \otimes \mathbf{q}.
-$$
+```
 
 For each pilus, Euler angles define the material directors `(d1, d2, d3)`, where `d3` is the segment tangent. [`reconstruct_geometry.m`](../reconstruct_geometry.m) maps `Z` to lab-frame body points, pilus nodes, directors, and auxiliary geometry used by the hydrodynamic solve.
 
@@ -96,7 +96,7 @@ For each pilus, Euler angles define the material directors `(d1, d2, d3)`, where
 
 Body surface forces are represented by the Cortez regularized Stokeslet kernel:
 
-$$
+```math
 \mathbf{S}^{\varepsilon}(\mathbf{r})
 =
 \frac{
@@ -105,13 +105,13 @@ $$
 }{
 \left(\lVert\mathbf{r}\rVert^2 + \varepsilon^2\right)^{3/2}
 }.
-$$
+```
 
 The body regularization length defaults to:
 
-$$
+```math
 \varepsilon_{\mathrm{body}} = h_{\mathrm{mean}}/2.6667.
-$$
+```
 
 where `h_mean` is the mean nearest-neighbor spacing of the body surface points in nondimensional units. This default was calibrated by the `N_body x eps_body` Stokes-sphere sweep and can be overridden by `body.eps_body` in JSON or `cfg.eps_body` in MATLAB.
 
@@ -119,20 +119,20 @@ where `h_mean` is the mean nearest-neighbor spacing of the body surface points i
 
 For a straight segment from $\mathbf{y}_0$ to $\mathbf{y}_1$, RSS evaluates the velocity contribution of a linearly varying force density:
 
-$$
+```math
 \mathbf{u}(\mathbf{x})
 =
 \mathbf{M}_1\mathbf{f}_0
 + \mathbf{M}_2\mathbf{f}_1.
-$$
+```
 
 The matrices `M1` and `M2` include exact segment integration weights. No additional trapezoidal length factor is applied to the RSS segment columns. The required `T_{n,q}` integrals are evaluated by the Cortez (2018) recurrence.
 
 For pili, the regularization length is physical:
 
-$$
+```math
 \varepsilon_{\mathrm{pili}} = r_{\mathrm{pili}}/L_0.
-$$
+```
 
 Unlike body RSM regularization, this value represents the finite radius of the pilus and is not a numerical parameter to send toward zero.
 
@@ -140,7 +140,7 @@ Unlike body RSM regularization, this value represents the finite radius of the p
 
 Twist-induced flow is included through regularized rotlet segments:
 
-$$
+```math
 \mathbf{u}(\mathbf{x})
 =
 -L
@@ -149,7 +149,7 @@ c_a[\mathbf{x}_0]_{\times}
 + c_b[\mathbf{v}]_{\times}
 \right)
 \boldsymbol{\tau}.
-$$
+```
 
 where `tau` is the segment torque density. For typical bacterial pili, this coupling is very small because it scales with high powers of slenderness, but it keeps the formulation theoretically complete.
 
@@ -157,33 +157,33 @@ where `tau` is the segment torque density. For typical bacterial pili, this coup
 
 At each ODE right-hand-side call, the simulator assembles:
 
-$$
+```math
 \mathbf{L}\dot{\mathbf{z}} = \mathbf{R},
-$$
+```
 
 with:
 
-$$
+```math
 \mathbf{L} = -\mathbf{B}\mathbf{A}\mathbf{Q},
-$$
+```
 
-$$
+```math
 \mathbf{A}\mathbf{Q}
 =
 \begin{bmatrix}
 \mathbf{M}_{\mathrm{weighted}}^{-1}\mathbf{Q}_{\mathrm{trans,corr}} \\
 \widetilde{\mathbf{A}}_{\mathrm{twist}}\mathbf{Q}_{\mathrm{twist}}
 \end{bmatrix},
-$$
+```
 
-$$
+```math
 \mathbf{Q}_{\mathrm{trans,corr}}
 =
 \mathbf{Q}_{\mathrm{trans}}
 - \mathbf{M}_{\mathrm{rotlet}}
 \widetilde{\mathbf{A}}_{\mathrm{twist}}
 \mathbf{Q}_{\mathrm{twist}}.
-$$
+```
 
 The main blocks are:
 
@@ -199,44 +199,44 @@ Solves use MATLAB backslash / LU factorization rather than explicit matrix inver
 
 Pili are treated as Kirchhoff rods. The Darboux vector is:
 
-$$
+```math
 \mathbf{U}
 =
 \kappa_1\mathbf{d}_1
 + \kappa_2\mathbf{d}_2
 + \kappa_3\mathbf{d}_3,
-$$
+```
 
 with director evolution:
 
-$$
+```math
 \mathbf{d}_{\alpha}' = \mathbf{U}\times\mathbf{d}_{\alpha}.
-$$
+```
 
 The curvature components used in [`compute_pili_elastic_moments.m`](../compute_pili_elastic_moments.m) are:
 
-$$
+```math
 \kappa_1
 =
 \mathbf{d}_3\cdot\mathbf{d}_2'
 - \kappa_{1,0},
-$$
+```
 
-$$
+```math
 \kappa_2
 =
 \mathbf{d}_1\cdot\mathbf{d}_3'
 - \kappa_{2,0},
-$$
+```
 
-$$
+```math
 \kappa_3
 =
 \frac{
 \mathbf{d}_2\cdot\mathbf{d}_1'
 - \kappa_{3,0}
 }{1+\sigma}.
-$$
+```
 
 Intrinsic curvature can be configured per pilus as `frozen`, `zero`, `constant`, or `helix`. Active moments can be disabled, prescribed as a traveling wave, or supplied by custom configuration.
 
@@ -253,12 +253,12 @@ In `free_torsion`, the root `d3` moment row may receive elastic torsion, active 
 
 Background flow is evaluated as a prescribed steady velocity field and incorporated through the hydrodynamic correction:
 
-$$
+```math
 \mathbf{R}
 \leftarrow
 \mathbf{R}
 - \mathbf{B}\mathbf{A}^{-1}\mathbf{u}_{\mathrm{bg}}.
-$$
+```
 
 Supported flow types are:
 
@@ -276,29 +276,29 @@ When Brownian motion is enabled, the deterministic elastohydrodynamic solve is o
 
 The effective mobility is computed by probing the coupled linear system with six unit generalized body loads:
 
-$$
+```math
 \mathbf{M}_{\mathrm{eff}}^{\ast}(:,i)
 =
 \left(\mathbf{L}^{-1}(-\mathbf{e}_i)\right)_{1:6},
 \qquad i=1,\ldots,6.
-$$
+```
 
 After dimensional conversion:
 
-$$
+```math
 \mathbf{D}_{\mathrm{eff}}
 =
 k_B T\,\mathbf{M}_{\mathrm{eff,dim}},
-$$
+```
 
-$$
+```math
 \mathbf{L}_{\mathrm{eff}}
 \mathbf{L}_{\mathrm{eff}}^{\mathsf{T}}
 =
 2\mathbf{D}_{\mathrm{eff}},
-$$
+```
 
-$$
+```math
 \delta\mathbf{U}
 =
 \mathbf{L}_{\mathrm{eff}}
@@ -306,7 +306,7 @@ $$
 \sqrt{\Delta t_B},
 \qquad
 \boldsymbol{\eta}\sim\mathcal{N}(\mathbf{0},\mathbf{I}_6).
-$$
+```
 
 The optional `fixman_midpoint` mode recomputes the mobility at a stochastic midpoint to approximate the configuration-dependent Ito drift. This doubles the mobility-evaluation cost per Brownian step.
 
@@ -331,25 +331,25 @@ When the coupled problem is reduced to a single free elastic filament without th
 
 For torsional resistance, the dimensional segment relation is proportional to the local segment length:
 
-$$
+```math
 \tau_{\mathrm{twist},j}
 \sim
 c_t\,\Delta s_k\,\dot{\psi}_j,
 \qquad
 c_t \sim 4\pi\mu r_{\mathrm{pili}}^2.
-$$
+```
 
 Using the global project scales gives the nondimensional torsional coefficient:
 
-$$
+```math
 \frac{c_t\,\Delta s_k/T_0}{EI/L_0}
 \sim
 \frac{\varepsilon^2}{2}\,\Delta \hat{s}_k.
-$$
+```
 
 The implementation stores each pilus on its own normalized arclength, so the conversion between the global body scale and the per-pilus Walker scale introduces the pilus length ratio $\ell_k = L_{\mathrm{pili},k}/L_0$:
 
-$$
+```math
 \widetilde{\mathbf{A}}_{\mathrm{twist},k}
 =
 \frac{\ell_k\varepsilon_k^2}{2}
@@ -357,13 +357,13 @@ $$
 =
 \frac{\varepsilon^2}{2\ell_k}
 \widehat{\mathbf{A}}_k.
-$$
+```
 
 The complementary $\ell_k^3$ factor used in each pilus moment-balance row converts the per-rod moment equations back to the global scale, keeping the assembled system
 
-$$
+```math
 \mathbf{L}\dot{\mathbf{z}} = \mathbf{R}
-$$
+```
 
 dimensionally homogeneous.
 

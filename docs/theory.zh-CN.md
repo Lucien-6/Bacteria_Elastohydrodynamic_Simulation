@@ -61,7 +61,7 @@ RSS 的关键优势是对每根直线纤毛段上的正则化 Stokeslet 核函�
 
 完整状态向量包含胞体位置、胞体姿态和每根纤毛的杆状态：
 
-$$
+```math
 \mathbf{Z} =
 \left[
 \mathbf{X}_{\mathrm{cm}},
@@ -74,11 +74,11 @@ $$
 \boldsymbol{\phi}_M,
 \boldsymbol{\psi}_M
 \right].
-$$
+```
 
 胞体四元数 $\mathbf{q}$ 表示体坐标到实验室坐标的旋转，其演化为：
 
-$$
+```math
 \frac{d\mathbf{q}}{dt}
 = \frac{1}{2}
 \begin{bmatrix}
@@ -86,7 +86,7 @@ $$
 \boldsymbol{\Omega}
 \end{bmatrix}
 \otimes \mathbf{q}.
-$$
+```
 
 每根纤毛由 Euler 角定义材料标架 `(d1, d2, d3)`，其中 `d3` 是纤毛段切向。[`reconstruct_geometry.m`](../reconstruct_geometry.m) 将状态 `Z` 转换为实验室坐标系下的胞体表面点、纤毛节点、director 标架和水动力求解所需的辅助几何量。
 
@@ -96,7 +96,7 @@ $$
 
 胞体表面力使用 Cortez 正则化 Stokeslet 核函数：
 
-$$
+```math
 \mathbf{S}^{\varepsilon}(\mathbf{r})
 =
 \frac{
@@ -105,13 +105,13 @@ $$
 }{
 \left(\lVert\mathbf{r}\rVert^2 + \varepsilon^2\right)^{3/2}
 }.
-$$
+```
 
 胞体正则化长度默认值为：
 
-$$
+```math
 \varepsilon_{\mathrm{body}} = h_{\mathrm{mean}}/2.6667.
-$$
+```
 
 其中 `h_mean` 是胞体表面点平均最近邻距离的无量纲值。该默认值来自 `N_body x eps_body` Stokes 球沉降标定扫描，也可通过 JSON 中的 `body.eps_body` 或 MATLAB 中的 `cfg.eps_body` 覆盖。
 
@@ -119,20 +119,20 @@ $$
 
 对于从 $\mathbf{y}_0$ 到 $\mathbf{y}_1$ 的直线段，RSS 计算线性变化力密度产生的速度：
 
-$$
+```math
 \mathbf{u}(\mathbf{x})
 =
 \mathbf{M}_1\mathbf{f}_0
 + \mathbf{M}_2\mathbf{f}_1.
-$$
+```
 
 矩阵 `M1` 和 `M2` 已包含线段精确积分权重，因此 RSS 线段列不再额外乘梯形长度权重。所需的 `T_{n,q}` 积分量通过 Cortez (2018) 递推公式计算。
 
 纤毛正则化长度是物理参数：
 
-$$
+```math
 \varepsilon_{\mathrm{pili}} = r_{\mathrm{pili}}/L_0.
-$$
+```
 
 它代表纤毛有限半径，而不是应趋近于零的纯数值参数。
 
@@ -140,7 +140,7 @@ $$
 
 纤毛扭转诱导的流动通过正则化 Rotlet 线段表示：
 
-$$
+```math
 \mathbf{u}(\mathbf{x})
 =
 -L
@@ -149,7 +149,7 @@ c_a[\mathbf{x}_0]_{\times}
 + c_b[\mathbf{v}]_{\times}
 \right)
 \boldsymbol{\tau}.
-$$
+```
 
 其中 `tau` 为线段扭矩密度。对典型细菌纤毛而言，该耦合量级很小，但保留它可以使公式结构更完整。
 
@@ -157,33 +157,33 @@ $$
 
 每次 ODE 右端项计算都会组装：
 
-$$
+```math
 \mathbf{L}\dot{\mathbf{z}} = \mathbf{R},
-$$
+```
 
 其中：
 
-$$
+```math
 \mathbf{L} = -\mathbf{B}\mathbf{A}\mathbf{Q},
-$$
+```
 
-$$
+```math
 \mathbf{A}\mathbf{Q}
 =
 \begin{bmatrix}
 \mathbf{M}_{\mathrm{weighted}}^{-1}\mathbf{Q}_{\mathrm{trans,corr}} \\
 \widetilde{\mathbf{A}}_{\mathrm{twist}}\mathbf{Q}_{\mathrm{twist}}
 \end{bmatrix},
-$$
+```
 
-$$
+```math
 \mathbf{Q}_{\mathrm{trans,corr}}
 =
 \mathbf{Q}_{\mathrm{trans}}
 - \mathbf{M}_{\mathrm{rotlet}}
 \widetilde{\mathbf{A}}_{\mathrm{twist}}
 \mathbf{Q}_{\mathrm{twist}}.
-$$
+```
 
 主要矩阵块为：
 
@@ -199,44 +199,44 @@ $$
 
 纤毛采用 Kirchhoff 弹性杆模型。Darboux 向量写作：
 
-$$
+```math
 \mathbf{U}
 =
 \kappa_1\mathbf{d}_1
 + \kappa_2\mathbf{d}_2
 + \kappa_3\mathbf{d}_3,
-$$
+```
 
 director 演化关系为：
 
-$$
+```math
 \mathbf{d}_{\alpha}' = \mathbf{U}\times\mathbf{d}_{\alpha}.
-$$
+```
 
 [`compute_pili_elastic_moments.m`](../compute_pili_elastic_moments.m) 使用的曲率分量为：
 
-$$
+```math
 \kappa_1
 =
 \mathbf{d}_3\cdot\mathbf{d}_2'
 - \kappa_{1,0},
-$$
+```
 
-$$
+```math
 \kappa_2
 =
 \mathbf{d}_1\cdot\mathbf{d}_3'
 - \kappa_{2,0},
-$$
+```
 
-$$
+```math
 \kappa_3
 =
 \frac{
 \mathbf{d}_2\cdot\mathbf{d}_1'
 - \kappa_{3,0}
 }{1+\sigma}.
-$$
+```
 
 每根纤毛的内禀曲率可配置为 `frozen`、`zero`、`constant` 或 `helix`。主动力矩可关闭、设为行波形式，或由自定义配置提供。
 
@@ -253,12 +253,12 @@ $$
 
 背景流作为给定稳态速度场进入，并通过水动力修正项写入右端：
 
-$$
+```math
 \mathbf{R}
 \leftarrow
 \mathbf{R}
 - \mathbf{B}\mathbf{A}^{-1}\mathbf{u}_{\mathrm{bg}}.
-$$
+```
 
 支持的背景流类型包括：
 
@@ -276,29 +276,29 @@ $$
 
 有效迁移率通过 6 个单位广义胞体载荷探测耦合线性系统得到：
 
-$$
+```math
 \mathbf{M}_{\mathrm{eff}}^{\ast}(:,i)
 =
 \left(\mathbf{L}^{-1}(-\mathbf{e}_i)\right)_{1:6},
 \qquad i=1,\ldots,6.
-$$
+```
 
 量纲转换后：
 
-$$
+```math
 \mathbf{D}_{\mathrm{eff}}
 =
 k_B T\,\mathbf{M}_{\mathrm{eff,dim}},
-$$
+```
 
-$$
+```math
 \mathbf{L}_{\mathrm{eff}}
 \mathbf{L}_{\mathrm{eff}}^{\mathsf{T}}
 =
 2\mathbf{D}_{\mathrm{eff}},
-$$
+```
 
-$$
+```math
 \delta\mathbf{U}
 =
 \mathbf{L}_{\mathrm{eff}}
@@ -306,7 +306,7 @@ $$
 \sqrt{\Delta t_B},
 \qquad
 \boldsymbol{\eta}\sim\mathcal{N}(\mathbf{0},\mathbf{I}_6).
-$$
+```
 
 可选 `fixman_midpoint` 会在随机中点重新计算迁移率，以近似构型依赖 Ito 漂移。代价是每个布朗步需要约两次迁移率评估。
 
@@ -331,25 +331,25 @@ $$
 
 对于扭转阻力，有量纲线段关系正比于局部段长：
 
-$$
+```math
 \tau_{\mathrm{twist},j}
 \sim
 c_t\,\Delta s_k\,\dot{\psi}_j,
 \qquad
 c_t \sim 4\pi\mu r_{\mathrm{pili}}^2.
-$$
+```
 
 使用项目全局尺度后，无量纲扭转系数为：
 
-$$
+```math
 \frac{c_t\,\Delta s_k/T_0}{EI/L_0}
 \sim
 \frac{\varepsilon^2}{2}\,\Delta \hat{s}_k.
-$$
+```
 
 代码中每根纤毛使用自身的归一化弧长，因此从全局胞体尺度转换到每根纤毛的 Walker 尺度时，会引入长度比 $\ell_k = L_{\mathrm{pili},k}/L_0$：
 
-$$
+```math
 \widetilde{\mathbf{A}}_{\mathrm{twist},k}
 =
 \frac{\ell_k\varepsilon_k^2}{2}
@@ -357,13 +357,13 @@ $$
 =
 \frac{\varepsilon^2}{2\ell_k}
 \widehat{\mathbf{A}}_k.
-$$
+```
 
 纤毛力矩平衡行中配套使用的 $\ell_k^3$ 因子会把每根杆尺度下的力矩方程转换回全局尺度，从而保证组装后的系统
 
-$$
+```math
 \mathbf{L}\dot{\mathbf{z}} = \mathbf{R}
-$$
+```
 
 在量纲上保持一致。
 
