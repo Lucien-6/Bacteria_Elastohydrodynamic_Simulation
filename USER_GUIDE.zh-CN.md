@@ -3,8 +3,8 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 7.3.1  
-> **更新日期:** 2026-05-04
+> **版本:** 7.4.0  
+> **更新日期:** 2026-05-06
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
@@ -16,6 +16,7 @@
 - PNG 和 PDF 图像导出依赖 `exportgraphics`；可选交互式 HTML 导出需要 MATLAB R2026a 或更新版本。
 - 胶囊胞体表面布点需要 Anton Semechko 的 **S2 Sampling Toolbox**，可通过 MATLAB Add-On Explorer / File Exchange 安装。
 - 运行仿真不需要 Python、Conda 或 pip 环境；[`requirements.txt`](requirements.txt) 已明确说明。
+- **Parallel Computing Toolbox** 为可选：仅在使用 [`batch sweep/batch_repeat_brownian.m`](batch%20sweep/batch_repeat_brownian.m) 默认并行分支时需要（`use_parallel = true`）。
 
 ### 推荐工作目录
 
@@ -90,6 +91,16 @@ cfg.auto_confirm = true;
 ```
 
 批量扫描脚本位于 [`batch sweep/`](batch%20sweep/)。其中包含胞体分辨率、胞体正则化参数、纤毛长度、纤毛刚度、纤毛段密度、初始姿态角和布朗重复实验等扫描入口。
+
+### 5.1 布朗重复批量（`batch_repeat_brownian.m`）
+
+从仓库根目录打开 [`batch sweep/batch_repeat_brownian.m`](batch%20sweep/batch_repeat_brownian.m)，对**同一套**布朗开启配置进行多次独立重复，输出写入 `output/<case_name_base>/001`、`002`、…（零填充子目录）。
+
+- **并行（默认）：** `use_parallel = true` 在已许可 **Parallel Computing Toolbox** 且能创建 `parpool` 时使用 `parfor`。worker 数量由探测到的物理核心数与可用内存共同约束，默认最多使用约 `max_resource_frac`（默认 `0.75`）的“资源预算”，并配合 `mem_per_worker_gb` 估算内存上限。若无工具箱或建池失败，脚本会**告警并回退**到与旧版等价的串行 `for` 循环。
+- **串行：** 设置 `use_parallel = false` 可强制单线程循环，便于与 v7.4 之前的行为逐字节对照。
+- **随机种子：** 并行模式下，`brown_rng_seed_mode = 'fixed'` 对每个重复索引 `k` 设置 `cfg.brown_rng_seed = rng_seed_base + k`；`'timestamp'` 则使用时间基底 + `k`，避免多 worker 撞同一种子。**串行** `'timestamp'` 仍像单次交互运行一样不在每轮传入 `cfg.brown_rng_seed`。
+
+工况基目录下会写出带时间戳的 `batch_repeat_summary_*.txt`，记录每轮状态、耗时以及并行诊断字段（`n_pool`、`core_probe`、CPU/内存受限原因等）。
 
 ## 6. 自定义几何模式
 
@@ -176,7 +187,8 @@ postprocess_cases()
 | JSON 工况运行后没有纤毛 | 检查 `pili` 是否为合法 JSON 数组，且每根纤毛字段完整。 |
 | 自定义几何被拒绝 | 检查点云方向、重复点和纤毛等长段要求。 |
 | 输出目录已存在 | 交互式选择处理方式，或设置 `auto_confirm = true` 使用无人值守重命名策略。 |
-| 布朗重复结果不一致 | 确认种子模式是固定种子还是时间戳种子。 |
+| 布朗重复结果不一致 | 确认种子模式为固定种子还是时间戳种子。 |
+| 布朗重复批量未并行执行 | 安装 **Parallel Computing Toolbox**、检查 `parpool` 集群配置，或在 `batch_repeat_brownian.m` 中设置 `use_parallel = false`。 |
 
 ## 12. 文档导航
 

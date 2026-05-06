@@ -3,8 +3,8 @@
 English | [中文](USER_GUIDE.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Version:** 7.3.1  
-> **Updated:** 2026-05-04
+> **Version:** 7.4.0  
+> **Updated:** 2026-05-06
 
 This guide is for running simulations, choosing the right configuration path, finding outputs, and post-processing completed cases. For model equations and derivations, see [`docs/theory.md`](docs/theory.md). For release history, see [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -16,6 +16,7 @@ This guide is for running simulations, choosing the right configuration path, fi
 - PNG and PDF exports use `exportgraphics`; optional interactive HTML exports require MATLAB R2026a or later.
 - Capsule body surface generation requires Anton Semechko's **S2 Sampling Toolbox** from MATLAB Add-On Explorer / File Exchange.
 - No Python, Conda, or pip environment is required. [`requirements.txt`](requirements.txt) documents this explicitly.
+- **Parallel Computing Toolbox** is optional: needed only for the default parallel branch of [`batch sweep/batch_repeat_brownian.m`](batch%20sweep/batch_repeat_brownian.m) (`use_parallel = true`).
 
 ### Recommended Working Folder
 
@@ -90,6 +91,16 @@ cfg.auto_confirm = true;
 ```
 
 Batch sweep drivers live in [`batch sweep/`](batch%20sweep/). The folder includes parameter sweeps for body resolution, body regularization, pilus length, pilus stiffness, segment density, initial angle, and Brownian repeats.
+
+### 5.1 Brownian repeat batch (`batch_repeat_brownian.m`)
+
+From the repository root, open [`batch sweep/batch_repeat_brownian.m`](batch%20sweep/batch_repeat_brownian.m). It runs independent repeats of the **same** Brownian-on configuration into `output/<case_name_base>/001`, `002`, … (zero-padded).
+
+- **Parallel (default):** `use_parallel = true` runs a `parfor` loop when **Parallel Computing Toolbox** is licensed and a `parpool` can be created. Worker count is limited by `max_resource_frac` (default `0.75`) applied to probed physical cores and to available RAM via `mem_per_worker_gb`. If PCT is missing or pool creation fails, the driver **warns and falls back** to the legacy serial `for` loop.
+- **Serial:** `use_parallel = false` keeps the pre-v7.4 single-threaded loop (use this for strict reproducibility checks against older behaviour).
+- **RNG / seeds:** In parallel mode, `brown_rng_seed_mode = 'fixed'` sets `cfg.brown_rng_seed = rng_seed_base + k` per repeat. For `'timestamp'`, the script assigns a clock-derived base plus `k` so workers cannot share the same wall-clock seed. In **serial** `'timestamp'` mode, `cfg.brown_rng_seed` is still omitted each run (same policy as a single interactive `run_simulation` call).
+
+A timestamped `batch_repeat_summary_*.txt` under the case base folder records status lines, timing, and parallel diagnostics (`n_pool`, `core_probe`, and whether the cap was CPU- or memory-limited).
 
 ## 6. Custom Geometry Mode
 
@@ -177,6 +188,7 @@ The post-processor reads `timeseries.csv` and `config.json`, computes summary ki
 | Custom geometry is rejected | Check point-cloud orientation, duplicate points, and equal-length pilus segments. |
 | Output folder already exists | Use `auto_confirm = true` for unattended rename behavior, or choose interactively. |
 | Brownian repeat results differ | Confirm whether the seed mode is fixed or timestamp-based. |
+| Parallel Brownian batch runs serially | Install **Parallel Computing Toolbox**, fix `parpool` cluster settings, or set `use_parallel = false` in `batch_repeat_brownian.m`. |
 
 ## 12. Documentation Map
 

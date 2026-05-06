@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-05-04  
-> **Version:** 7.3.1  
+> **Updated:** 2026-05-06  
+> **Version:** 7.4.0  
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -21,6 +21,7 @@ This project simulates the low-Reynolds-number settling dynamics of a rigid bact
 - Free-torsion root coupling and constant motor torque for motor-driven flagella.
 - Inline MATLAB configuration, JSON configuration, and programmatic batch execution.
 - Publication-oriented exports: MAT, CSV, log, PNG, vector PDF, optional interactive HTML, and MP4 animation.
+- Optional **parallel** Brownian repeat batches ([`batch sweep/batch_repeat_brownian.m`](batch%20sweep/batch_repeat_brownian.m)): `parfor` with automatic pool sizing (Parallel Computing Toolbox); serial fallback when the toolbox or pool is unavailable.
 
 ## Requirements
 
@@ -29,6 +30,7 @@ This project simulates the low-Reynolds-number settling dynamics of a rigid bact
 - Optional interactive HTML figure export requires MATLAB R2026a or later.
 - Capsule body-surface generation requires the MATLAB Add-On / File Exchange **S2 Sampling Toolbox** by Anton Semechko. Install it so `ParticleSampleSphere`, `SpiralSampleSphere`, `IcosahedronMesh`, `QuadCubeMesh`, and `SubdivideSphericalMesh` are on the MATLAB path.
 - Python / Conda / pip are not required. See [`requirements.txt`](requirements.txt).
+- **Parallel Computing Toolbox** is optional: only needed for the parallel branch of [`batch sweep/batch_repeat_brownian.m`](batch%20sweep/batch_repeat_brownian.m) (`use_parallel = true`, default).
 
 ## Quick Start
 
@@ -112,7 +114,7 @@ Results are written under `output/<case_name>/` or an automatically timestamped 
 
 ## Version Notes
 
-The current release is **7.3.1 (2026-05-04)**. It is a documentation and website synchronization release with no numerical changes relative to v7.3.0. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
+The current release is **7.4.0 (2026-05-06)**. It adds optional `parfor` parallel scheduling to **`batch_repeat_brownian.m`** (independent Brownian repeats, resource-capped pool sizing, PCT optional with serial fallback). Single-case **`run_simulation`** physics is unchanged from v7.3.x. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 

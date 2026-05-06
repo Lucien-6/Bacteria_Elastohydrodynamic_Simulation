@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Coupled Body-Pili elastohydrodynamic simulation v7.3.1 (MATLAB): RSM+RSS Stokes flow, Kirchhoff pili, Brownian dynamics, free-torsion motors, JSON config.">
+<meta name="description" content="Coupled Body-Pili elastohydrodynamic simulation v7.4.0 (MATLAB): RSM+RSS Stokes flow, Kirchhoff pili, Brownian dynamics, optional parfor Brownian repeat batches, free-torsion motors, JSON config.">
 <title>Coupled Body-Pili Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -99,12 +99,12 @@ tailwind.config = {
 <aside id="sidebar" class="no-print fixed top-0 left-0 h-full w-64 bg-navy-900 text-gray-300 z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 overflow-y-auto">
   <div class="p-6 border-b border-navy-700">
     <h2 class="text-white font-bold text-lg leading-tight">Coupled Body-Pili</h2>
-    <p class="text-xs text-teal-500 mt-1">v7.3.1 &mdash; Documentation</p>
+    <p class="text-xs text-teal-500 mt-1">v7.4.0 &mdash; Parallel batch + docs</p>
   </div>
   <nav class="p-4 space-y-1 text-sm">
     <a href="#hero"         class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Home</span><span class="zh">首页</span></a>
     <a href="#overview"     class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Project Overview</span><span class="zh">项目概述</span></a>
-    <a href="#releases"    class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Recent releases (v7.3)</span><span class="zh">v7.3 更新说明</span></a>
+    <a href="#releases"    class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Recent releases (v7.4+)</span><span class="zh">最近版本（v7.4+）</span></a>
     <a href="#theory"       class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Theoretical Foundations</span><span class="zh">理论基础</span></a>
     <a href="#brownian"     class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Brownian Dynamics</span><span class="zh">布朗动力学</span></a>
     <a href="#newfeatures"  class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">New in v5.0</span><span class="zh">v5.0 新功能</span></a>
@@ -153,7 +153,7 @@ tailwind.config = {
 <section id="hero" class="hero-gradient text-white py-24 px-6 md:px-16 lg:px-24">
   <div class="max-w-4xl mx-auto text-center">
     <div class="inline-block bg-teal-600/30 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-3 py-1 rounded-full mb-6 tracking-wide">
-      VERSION 7.3.1 &bull; 2026-05-04
+      VERSION 7.4.0 &bull; 2026-05-06
     </div>
     <h1 class="text-3xl md:text-5xl font-extrabold leading-tight mb-4">
       <span class="en">Coupled Body-Pili<br>Elastohydrodynamic Simulation</span>
@@ -171,11 +171,11 @@ tailwind.config = {
       singularity avoidance, 3D visualization and animation,
       JSON configuration, 8 batch parameter-sweep
       scripts, and automated post-processing to Excel summaries.
-      <strong class="text-teal-200 font-medium">v7.0+</strong> adds per-pilus <code>free_torsion</code> roots with optional flagellar motor torque (system-level hydrodynamics corrected in <strong class="text-teal-200 font-medium">v7.3.0</strong>).</span>
+      <strong class="text-teal-200 font-medium">v7.0+</strong> adds per-pilus <code>free_torsion</code> roots with optional flagellar motor torque (system-level hydrodynamics corrected in <strong class="text-teal-200 font-medium">v7.3.0</strong>). <strong class="text-teal-200 font-medium">v7.4.0</strong> adds optional <code>parfor</code> parallel Brownian repeat batches in <code>batch_repeat_brownian.m</code> (Parallel Computing Toolbox optional; serial fallback).</span>
       <span class="zh">一个基于 MATLAB 的仿真框架，用于模拟携带弹性纤毛的胶囊状细菌在 Stokes 流体中的沉降运动。
       融合正则化 Stokeslet 方法（RSM + RSS + Rotlet 线段）、Kirchhoff 弹性杆（可配置固有曲率与时变主动力矩）、
       全系统有效摩擦布朗动力学、稳态背景流场、自适应欧拉角奇点规避、三维可视化与动画、
-      JSON 配置系统、8 个批量参数扫描脚本，以及自动化后处理 Excel 汇总。<strong class="text-teal-200 font-medium">v7.0+</strong> 起支持逐根 <code>free_torsion</code> 根部与可选鞭毛马达力矩（<strong class="text-teal-200 font-medium">v7.3.0</strong> 修正系统级角动量方程处理）。</span>
+      JSON 配置系统、8 个批量参数扫描脚本，以及自动化后处理 Excel 汇总。<strong class="text-teal-200 font-medium">v7.0+</strong> 起支持逐根 <code>free_torsion</code> 根部与可选鞭毛马达力矩（<strong class="text-teal-200 font-medium">v7.3.0</strong> 修正系统级角动量方程处理）。<strong class="text-teal-200 font-medium">v7.4.0</strong> 为 <code>batch_repeat_brownian.m</code> 增加可选 <code>parfor</code> 布朗重复批量（Parallel Computing Toolbox 可选；失败则回退串行）。</span>
     </p>
     <div class="flex flex-wrap justify-center gap-4">
       <a href="#usage" class="bg-teal-600 hover:bg-teal-700 text-white font-semibold px-6 py-3 rounded-lg transition shadow-lg">
@@ -383,26 +383,37 @@ tailwind.config = {
   </div>
 </section>
 
-<!-- ==================== SECTION: RECENT RELEASES (v7.3.x) ==================== -->
+<!-- ==================== SECTION: RECENT RELEASES ==================== -->
 <section id="releases" class="py-16 px-6 md:px-16 lg:px-24 bg-white dark:bg-navy-900 border-y border-gray-200 dark:border-navy-700">
   <div class="max-w-5xl mx-auto">
     <h2 class="text-2xl md:text-3xl font-bold mb-2">
-      <span class="en">Recent releases (v7.3.x)</span><span class="zh">最近版本（v7.3.x）</span>
+      <span class="en">Recent releases</span><span class="zh">最近版本</span>
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en">The v7.3 train addresses a second physics audit of the <code>free_torsion</code> + motor model, documentation fixes, validator warnings, and a hot-path vectorisation in background-flow RHS assembly. <strong>v7.3.1</strong> is a documentation, help-file, requirements, run-banner, and website synchronisation release (no code change vs. v7.3.0). See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code> for full detail.</span>
-      <span class="zh">v7.3 系列针对 <code>free_torsion</code> + 马达模型进行二次物理审查，并修正文档、增强校验与背景流热路径向量化。<strong>v7.3.1</strong> 为文档、帮助文件、依赖说明、运行条幅与本站点同步发布（相对 v7.3.0 无代码改动）。完整说明见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
+      <span class="en"><strong>v7.4.0</strong> adds optional parallel scheduling for independent Brownian repeat batches in <code>batch sweep/batch_repeat_brownian.m</code>: resource-capped <code>parfor</code> when Parallel Computing Toolbox is available, with a warned serial fallback. Single-run <code>run_simulation</code> physics is unchanged. The <strong>v7.3</strong> train still denotes the <code>free_torsion</code> + motor second physics audit, validator hardening, and background-flow RHS hot-path vectorisation. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
+      <span class="zh"><strong>v7.4.0</strong> 为 <code>batch sweep/batch_repeat_brownian.m</code> 增加可选并行调度：在已安装 Parallel Computing Toolbox 时使用资源上限约束的 <code>parfor</code>，否则告警并回退串行。单次 <code>run_simulation</code> 的物理路径不变。<strong>v7.3</strong> 系列仍指 <code>free_torsion</code> + 马达模型的二次物理审查、校验增强与背景流 RHS 热路径向量化。完整信息见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
-      <div class="rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
-        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.3.1 &mdash; 2026-05-04</p>
+      <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.4.0 &mdash; 2026-05-06</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
-          <span class="en">Current docs &amp; website release</span><span class="zh">当前文档与网站发布</span>
+          <span class="en">Parallel Brownian repeat batches</span><span class="zh">布朗重复批量并行</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en"><code>use_parallel</code>, <code>mem_per_worker_gb</code>, <code>max_resource_frac</code>, <code>worker_blas_threads</code> user settings; physical-core and RAM probes with <code>core_probe</code> logging.</span><span class="zh">用户可设 <code>use_parallel</code>、<code>mem_per_worker_gb</code>、<code>max_resource_frac</code>、<code>worker_blas_threads</code>；探测物理核心与可用内存并记录 <code>core_probe</code>。</span></li>
+          <li><span class="en">Parallel path: pre-assigned Brownian seeds per repeat (<code>fixed</code> / <code>timestamp</code> base + <em>k</em>) and <code>parallel.pool.DataQueue</code> progress on the client.</span><span class="zh">并行路径：为每轮预分配布朗种子（<code>fixed</code> / <code>timestamp</code> 基底 + <em>k</em>），客户端通过 <code>parallel.pool.DataQueue</code> 报告进度。</span></li>
+          <li><span class="en"><code>use_parallel = false</code> preserves the legacy serial loop for bit-for-bit checks against pre-v7.4 behaviour.</span><span class="zh"><code>use_parallel = false</code> 保留旧版串行循环，便于与 v7.4 前行为对照。</span></li>
+        </ul>
+      </div>
+      <div class="rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-800 p-6">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">v7.3.1 &mdash; 2026-05-04</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Docs &amp; website sync</span><span class="zh">文档与网站同步</span>
         </h3>
         <p class="text-sm text-gray-600 dark:text-gray-400">
-          <span class="en">Aligned version/date banners across <code>README.md</code>, <code>CHANGELOG.md</code>, <code>USER_GUIDE.md</code>, <code>requirements.txt</code>, run banners, and this page. Historical v7.2 reaction-torque wording is now explicitly marked as superseded by v7.3.0. Regenerate <code>free_torsion + motor</code> results produced before v7.3.0.</span>
-          <span class="zh">统一 <code>README.md</code>、<code>CHANGELOG.md</code>、<code>USER_GUIDE.md</code>、<code>requirements.txt</code>、运行条幅与本页版本/日期信息；并明确标注 v7.2 历史“反力矩”表述已被 v7.3.0 推翻。v7.3.0 之前的 <code>free_torsion + motor</code> 算例建议重新计算。</span>
+          <span class="en">Aligned version/date banners across <code>README.md</code>, <code>CHANGELOG.md</code>, <code>USER_GUIDE.md</code>, <code>requirements.txt</code>, run banners, and this page (no code change vs. v7.3.0).</span>
+          <span class="zh">统一各文档与运行条幅的版本/日期（相对 v7.3.0 无代码改动）。</span>
         </p>
       </div>
       <div class="rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-800 p-6">
@@ -1574,7 +1585,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
 
 <!-- Footer -->
 <footer class="bg-navy-900 text-gray-500 text-center py-8 text-xs">
-  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v7.3.1 &mdash; 2026-05-04</p>
+  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v7.4.0 &mdash; 2026-05-06</p>
   <p class="mt-1">Built by Lucien &bull; MIT License</p>
 </footer>
 

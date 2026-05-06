@@ -8,6 +8,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [7.4.0] — 2026-05-06
+
+Parallel batch execution for independent Brownian repeat runs, plus documentation and site sync.
+
+### Added
+
+- **`batch sweep/batch_repeat_brownian.m` — optional `parfor` parallel batch**:
+  - User switches: `use_parallel` (default `true`), `mem_per_worker_gb`, `max_resource_frac` (default `0.75`), `worker_blas_threads`.
+  - **Pool sizing:** `n_pool = min(floor(n_phys × max_frac), floor(available_GB × max_frac / mem_per_worker_gb), n_repeats)` with probe source logged as `core_probe` (`wmic`, PowerShell **CIM** `NumberOfCores`, `NUMBER_OF_PROCESSORS/2`, `feature('numCores')/2`, etc.).
+  - **Parallel Computing Toolbox** required for the parallel branch; missing license or `parpool` failure **falls back to the legacy serial `for`**.
+  - **Brownian seeds in parallel:** `fixed` → `rng_seed_base + k`; `timestamp` → one `brown_rng_seed_from_clock` base + `k` so workers cannot share the same MMddHHmmss seed. Serial `timestamp` path still omits `cfg.brown_rng_seed` per run (unchanged physics intent).
+  - **`parallel.pool.DataQueue`** progress lines on the client; summary rows written after the loop in ascending `k` order.
+  - Worker init: `DefaultFigureVisible` off + `maxNumCompThreads` cap via `parfevalOnAll` with **`wait`**; defaults persist until `delete(gcp('nocreate'))` (no automatic restore on script exit).
+- **`requirements.txt`**: documents **Parallel Computing Toolbox** as **optional** (parallel branch only).
+
+### Documentation
+
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**: version **7.4.0**, date **2026-05-06**; batch / Brownian-repeat parallel notes.
+- **`docs/theory.md`**, **`docs/theory.zh-CN.md`**: header version/date only (no theory change).
+- **`docs/index.html`**: hero and release section updated for **v7.4.0**.
+- **`run_simulation.m`**, **`main_coupled_simulation.m`**: log / header banner **7.4.0 (2026-05-06)**.
+- **`batch sweep/batch_repeat_brownian.m`**: header `Updated` line (2026-05-06) notes parallel scheduling.
+
+### Compatibility
+
+- Single-run **`run_simulation` physics path is unchanged.** Only the batch driver `batch_repeat_brownian.m` gains scheduling code; `use_parallel = false` preserves the pre-v7.4 serial loop behaviour.
+
+---
+
 ## [7.3.1] — 2026-05-04
 
 Documentation, help-file, requirements, run-banner, and project website synchronisation release. No numerical algorithm or MATLAB execution path changes relative to v7.3.0.

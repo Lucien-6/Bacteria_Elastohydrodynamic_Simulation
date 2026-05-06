@@ -4,8 +4,8 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-05-04  
-> **版本:** 7.3.1  
+> **更新日期:** 2026-05-06  
+> **版本:** 7.4.0  
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -21,14 +21,14 @@
 - 支持自由扭转根部边界条件和恒定马达力矩，用于马达驱动鞭毛。
 - 支持 MATLAB 内联配置、JSON 配置和程序化批处理运行。
 - 支持面向论文图像的导出：MAT、CSV、日志、PNG、矢量 PDF、可选交互式 HTML 和 MP4 动画。
-
-## 运行需求
+- 可选**并行**布朗重复批量（[`batch sweep/batch_repeat_brownian.m`](batch%20sweep/batch_repeat_brownian.m)）：在已安装 **Parallel Computing Toolbox** 时使用 `parfor` 与自动池规模估计；无工具箱或池创建失败时自动回退为串行循环。
 
 - 推荐 MATLAB R2020b 或更新版本。
 - PNG 与 PDF 图像导出依赖 `exportgraphics`，MATLAB R2020a 起可用。
 - 可选交互式 HTML 图像导出需要 MATLAB R2026a 或更新版本。
 - 胶囊胞体表面布点需要 MATLAB Add-On / File Exchange 中 Anton Semechko 的 **S2 Sampling Toolbox**。安装后需确保 `ParticleSampleSphere`、`SpiralSampleSphere`、`IcosahedronMesh`、`QuadCubeMesh` 和 `SubdivideSphericalMesh` 在 MATLAB path 中。
 - 运行仿真不需要 Python / Conda / pip。详见 [`requirements.txt`](requirements.txt)。
+- **Parallel Computing Toolbox** 为可选依赖：仅在使用 [`batch sweep/batch_repeat_brownian.m`](batch%20sweep/batch_repeat_brownian.m) 的并行分支时需要（默认 `use_parallel = true`）。
 
 ## 快速开始
 
@@ -108,7 +108,7 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **7.3.1 (2026-05-04)**。该版本为文档与项目网页同步版本，相对 v7.3.0 没有数值算法变化。完整历史见 [`CHANGELOG.md`](CHANGELOG.md)。
+当前版本为 **7.4.0 (2026-05-06)**。在 **`batch_repeat_brownian.m`** 中新增可选 `parfor` 并行调度（独立布朗重复、资源上限约束的 worker 数、无 PCT 或建池失败时回退串行）。单次调用的 **`run_simulation`** 物理路径与 v7.3.x 一致。完整历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## 许可证
 
