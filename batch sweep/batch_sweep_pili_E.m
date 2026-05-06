@@ -15,21 +15,39 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-18
+%  Updated: 2026-05-06 — Lucien — added geometry_mode='parametric' (required by
+%                        save_sim_config since v6/v7 custom-geometry feature),
+%                        project-root cd-block, and pili_ext capture from
+%                        parse_pili_config for forward compatibility.
 
 close all force;
 clear; clc;
 
+%% ---- Project root (robust to current directory) ----
+this_file = mfilename('fullpath');
+if isempty(this_file)
+    proj_root = pwd;
+else
+    proj_root = fileparts(fileparts(this_file));
+end
+if ~isfolder(proj_root)
+    error('batch_sweep_pili_E:BadRoot', 'Cannot resolve project root.');
+end
+cd(proj_root);
+addpath(proj_root);
+
 %% ---- Define base configuration ----
-cfg_base.case_name  = '';
-cfg_base.minor_axis = 0.4e-6;
-cfg_base.major_axis = 1.25e-6;
-cfg_base.N_body     = 200;
-cfg_base.alpha_0    = 0;
+cfg_base.case_name     = '';
+cfg_base.geometry_mode = 'parametric'; % required by save_sim_config (v6+)
+cfg_base.minor_axis    = 0.4e-6;
+cfg_base.major_axis    = 1.25e-6;
+cfg_base.N_body        = 200;
+cfg_base.alpha_0       = 0;
 
 pili_cfg(1).type      = 'linear';
 pili_cfg(1).length_um = 3;
 pili_cfg(1).site      = 1;
-cfg_base.Pili_Matrix  = parse_pili_config(pili_cfg);
+[cfg_base.Pili_Matrix, cfg_base.pili_ext] = parse_pili_config(pili_cfg);
 cfg_base.seg_per_um   = 10;
 
 cfg_base.E       = 3.279e8;     % Overridden in the loop

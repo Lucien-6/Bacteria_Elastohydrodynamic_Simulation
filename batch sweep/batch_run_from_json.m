@@ -31,9 +31,24 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-18
+%  Updated: 2026-05-06 — Lucien — added project-root cd-block for robust
+%                        standalone runs (matches batch_repeat_brownian.m).
 
 close all force;
 clear; clc;
+
+%% ---- Project root (robust to current directory) ----
+this_file = mfilename('fullpath');
+if isempty(this_file)
+    proj_root = pwd;
+else
+    proj_root = fileparts(fileparts(this_file));
+end
+if ~isfolder(proj_root)
+    error('batch_run_from_json:BadRoot', 'Cannot resolve project root.');
+end
+cd(proj_root);
+addpath(proj_root);
 
 %% ---- Optional: hard-code folder path to skip the GUI dialog ----
 %  Leave empty ('') to use the interactive folder browser.

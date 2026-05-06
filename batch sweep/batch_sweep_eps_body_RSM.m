@@ -15,6 +15,10 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-07
+%  Updated: 2026-05-06 — Lucien — added geometry_mode='parametric' (required by
+%                        save_sim_config since v6/v7 custom-geometry feature)
+%                        and explicit compute_flowfield = false to skip flow-
+%                        field calculation during RSM calibration.
 
 close all force;
 clear; clc;
@@ -39,11 +43,12 @@ N_body   = 200;      % Surface discretisation (edit to match your study)
 
 %% ---- Base configuration (no pili, no Brownian) ----
 cfg_base = struct();
-cfg_base.case_name  = '';
-cfg_base.minor_axis = R_sphere;
-cfg_base.major_axis = R_sphere;
-cfg_base.N_body     = N_body;
-cfg_base.alpha_0    = 0;
+cfg_base.case_name     = '';
+cfg_base.geometry_mode = 'parametric'; % required by save_sim_config (v6+)
+cfg_base.minor_axis    = R_sphere;
+cfg_base.major_axis    = R_sphere;
+cfg_base.N_body        = N_body;
+cfg_base.alpha_0       = 0;
 
 cfg_base.Pili_Matrix  = zeros(8, 0);
 cfg_base.seg_per_um   = 10;
@@ -79,6 +84,7 @@ cfg_base.flowfield_grid_spacing = 0.05;
 cfg_base.flowfield_grid_range   = 10.0;
 cfg_base.flowfield_quiver_skip  = 5;
 cfg_base.flowfield_chunk_size   = 2000;
+cfg_base.compute_flowfield      = false;   % skip flow-field calc for calibration
 
 %% ---- h_mean from mesh (same N_body and sphere as sweep) ----
 params_ref = init_coupled_params( ...

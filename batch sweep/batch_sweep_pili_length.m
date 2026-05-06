@@ -19,16 +19,34 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-18
+%  Updated: 2026-05-06 — Lucien — added geometry_mode='parametric' (required by
+%                        save_sim_config since v6/v7 custom-geometry feature),
+%                        project-root cd-block, and pili_ext capture from
+%                        parse_pili_config for forward compatibility.
 
 close all force;
 clear; clc;
 
+%% ---- Project root (robust to current directory) ----
+this_file = mfilename('fullpath');
+if isempty(this_file)
+    proj_root = pwd;
+else
+    proj_root = fileparts(fileparts(this_file));
+end
+if ~isfolder(proj_root)
+    error('batch_sweep_pili_length:BadRoot', 'Cannot resolve project root.');
+end
+cd(proj_root);
+addpath(proj_root);
+
 %% ---- Define base configuration ----
-cfg_base.case_name  = '';
-cfg_base.minor_axis = 0.4e-6;
-cfg_base.major_axis = 1.25e-6;
-cfg_base.N_body     = 200;
-cfg_base.alpha_0    = 0;
+cfg_base.case_name     = '';
+cfg_base.geometry_mode = 'parametric'; % required by save_sim_config (v6+)
+cfg_base.minor_axis    = 0.4e-6;
+cfg_base.major_axis    = 1.25e-6;
+cfg_base.N_body        = 200;
+cfg_base.alpha_0       = 0;
 
 cfg_base.seg_per_um = 10;
 
@@ -118,7 +136,7 @@ for ii = 1:n_runs
     pili_cfg_i = struct('type', 'linear', 'length_um', L, 'site', num2cell(site_list));
 
     cfg_i             = cfg_base;
-    cfg_i.Pili_Matrix = parse_pili_config(pili_cfg_i);
+    [cfg_i.Pili_Matrix, cfg_i.pili_ext] = parse_pili_config(pili_cfg_i);
     site_tag = sprintf('%d-', site_list);
     site_tag = site_tag(1:end-1);   % e.g. "1-6-11"
     cfg_i.case_name   = sprintf('sweep-plen-%02d-um-sites-%s', L, site_tag);

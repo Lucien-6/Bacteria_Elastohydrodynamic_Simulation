@@ -32,6 +32,10 @@
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-03
 %  Updated: 2026-05-06 — optional parfor batch path, pool sizing, PCT fallback (project v7.4.0)
+%  Updated: 2026-05-06 — Lucien — set cfg.geometry_mode='parametric' and capture
+%                        pili_ext from parse_pili_config so save_sim_config
+%                        (which reads cfg.geometry_mode without isfield guard)
+%                        no longer fails on inline cfg structs.
 clear; clc;
 
 % Ensure working directory is project root (contains run_simulation.m)
@@ -94,14 +98,15 @@ config_json = '';   % e.g. fullfile('configs', 'OnePili-P1-L3.json')  (after cd 
 %  ========================================================================
 
 cfg_base = struct();
-cfg_base.case_name  = '';   % Overwritten per repeat; ignored here
-cfg_base.minor_axis = 0.4e-6;
-cfg_base.major_axis = 1.25e-6;
-cfg_base.N_body     = 200;
-cfg_base.alpha_0    = pi / 2;
+cfg_base.case_name    = '';   % Overwritten per repeat; ignored here
+cfg_base.geometry_mode = 'parametric';   % required by save_sim_config (v6+)
+cfg_base.minor_axis   = 0.4e-6;
+cfg_base.major_axis   = 1.25e-6;
+cfg_base.N_body       = 200;
+cfg_base.alpha_0      = pi / 2;
 
 pili_cfg = struct([]);
-cfg_base.Pili_Matrix = parse_pili_config(pili_cfg);
+[cfg_base.Pili_Matrix, cfg_base.pili_ext] = parse_pili_config(pili_cfg);
 
 cfg_base.seg_per_um = 10;
 cfg_base.E          = 3.279e8;

@@ -16,16 +16,33 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-18
+%  Updated: 2026-05-06 — Lucien — added geometry_mode='parametric' (required by
+%                        save_sim_config since v6/v7 custom-geometry feature)
+%                        and project-root cd-block for robust standalone runs.
 
 close all force;
 clear; clc;
 
+%% ---- Project root (robust to current directory) ----
+this_file = mfilename('fullpath');
+if isempty(this_file)
+    proj_root = pwd;
+else
+    proj_root = fileparts(fileparts(this_file));
+end
+if ~isfolder(proj_root)
+    error('batch_sweep_major_axis:BadRoot', 'Cannot resolve project root.');
+end
+cd(proj_root);
+addpath(proj_root);
+
 %% ---- Define base configuration ----
-cfg_base.case_name  = '';           % Will be auto-set per run below
-cfg_base.minor_axis = 0.4e-6;
-cfg_base.major_axis = 1.25e-6;     % Overridden in the loop
-cfg_base.N_body     = 200;
-cfg_base.alpha_0    = 0;
+cfg_base.case_name     = '';           % Will be auto-set per run below
+cfg_base.geometry_mode = 'parametric'; % required by save_sim_config (v6+)
+cfg_base.minor_axis    = 0.4e-6;
+cfg_base.major_axis    = 1.25e-6;      % Overridden in the loop
+cfg_base.N_body        = 200;
+cfg_base.alpha_0       = 0;
 
 cfg_base.Pili_Matrix  = zeros(8, 0);   % No pili (body only)
 cfg_base.seg_per_um   = 10;

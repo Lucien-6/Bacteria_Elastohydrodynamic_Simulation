@@ -32,6 +32,8 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-13
+%  Updated: 2026-05-06 — Lucien — added geometry_mode='parametric' (required by
+%                        save_sim_config since v6/v7 custom-geometry feature).
 
 close all force;
 clear; clc;
@@ -80,10 +82,11 @@ n_total = n_N * n_k;
 
 %% ---- Base configuration (no pili, no Brownian) ----
 cfg_base = struct();
-cfg_base.case_name  = '';
-cfg_base.minor_axis = R_sphere;
-cfg_base.major_axis = R_sphere;
-cfg_base.alpha_0    = 0;
+cfg_base.case_name     = '';
+cfg_base.geometry_mode = 'parametric'; % required by save_sim_config (v6+)
+cfg_base.minor_axis    = R_sphere;
+cfg_base.major_axis    = R_sphere;
+cfg_base.alpha_0       = 0;
 
 cfg_base.Pili_Matrix  = zeros(8, 0);
 cfg_base.seg_per_um   = 10;
