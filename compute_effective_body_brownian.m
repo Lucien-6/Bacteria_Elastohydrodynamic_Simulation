@@ -1,4 +1,4 @@
-﻿function [L_eff, D_eff, M_eff_dim] = compute_effective_body_brownian(Z, params)
+function [L_eff, D_eff, M_eff_dim] = compute_effective_body_brownian(Z, params)
 %COMPUTE_EFFECTIVE_BODY_BROWNIAN  Full-system effective 6x6 body Brownian parameters
 %
 %  Description:
@@ -44,6 +44,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-31
+%  Updated: 2026-05-06 — Lucien — rcond diagnostic on M_eff_dimless (project v7.4.1; see CHANGELOG)
 
 %% Step 1: Assemble coupled linear system
 [lin_sys, ~] = build_coupled_lin_sys(Z, params);
@@ -75,9 +76,9 @@ asym_abs  = norm(M_eff_dimless - M_eff_dimless', 'fro');
 sym_scale = max(norm(M_eff_dimless, 'fro'), eps);
 rel_asym  = asym_abs / sym_scale;
 if rel_asym > 1e-6
-    logf_h('[BROWN] WARNING: M_eff_dimless relative asymmetry = %.2e (expected <1e-8 from ' ...
+    logf_h(['[BROWN] WARNING: M_eff_dimless relative asymmetry = %.2e (expected <1e-8 from ' ...
          'LU round-off alone). Possible lin_sys assembly bug or ' ...
-         'extreme conditioning; silent symmetrisation will still be applied.\n', ...
+         'extreme conditioning; silent symmetrisation will still be applied.\n'], ...
         rel_asym);
     warning('compute_effective_body_brownian:AsymmetryHigh', ...
         ['M_eff_dimless relative asymmetry = %.2e (expected <1e-8 from ', ...
@@ -88,6 +89,31 @@ end
 
 % Symmetrise (numerical round-off may break exact symmetry)
 M_eff_dimless = 0.5 * (M_eff_dimless + M_eff_dimless');
+
+%  Diagnostic: condition number of the DIMENSIONLESS effective mobility.
+%  We deliberately probe `M_eff_dimless` rather than the dimensional
+%  `M_eff_dim` because the dimensional matrix mixes TT/TR/RR blocks at
+%  vastly different scales -- the (S * S') outer product divides the TT
+%  block by 8*pi*mu*L_0 (~1e-8) and the RR block by 8*pi*mu*L_0^3
+%  (~1e-20), so even a perfectly healthy mobility carries a 1-norm
+%  condition number of order L_0^{-2} (~1e12 for L_0 ~ 1e-6 m), which
+%  triggered spurious "near-singular" warnings on every Brownian step.
+%  The dimensionless form is the physically meaningful diagnostic:
+%  healthy body-pili configurations yield cond(M_eff_dimless) ~ 1..1e3,
+%  and rcond < 1e-10 here genuinely signals near-degenerate TT/RR blocks
+%  (extreme aspect ratio, singular clamped BC, or catastrophic mobility
+%  cancellation) that would compromise Cholesky stability downstream.
+%  Cholesky itself remains numerically stable on the dimensional matrix
+%  because it depends on eigenvalue spread, not on the row-norm-based
+%  1-norm rcond used by MATLAB.  rcond cost is O(1) for 6x6.
+rc_mobility = rcond(M_eff_dimless);
+if ~isfinite(rc_mobility) || rc_mobility < 1e-10
+    logf_h(['[BROWN] WARNING: M_eff_dimless rcond = %.2e (< 1e-10): effective mobility is ' ...
+         'nearly singular, Cholesky factor may be unreliable.\n'], rc_mobility);
+    warning('compute_effective_body_brownian:IllConditioned', ...
+        ['M_eff_dimless rcond = %.2e (< 1e-10): effective mobility is ', ...
+         'nearly singular, Cholesky factor may be unreliable.'], rc_mobility);
+end
 
 %% Step 4: Dimensionalise
 %  Scaling: the dimensionless system uses EI-based nondimensionalisation.
@@ -108,20 +134,11 @@ M_eff_dim = M_eff_dimless ./ (S * S');
 % Symmetrise dimensional mobility
 M_eff_dim = 0.5 * (M_eff_dim + M_eff_dim');
 
-%  Diagnostic: condition number of the effective mobility.
-%  Healthy body-pili configurations yield cond(M_eff) ~ 1..1e3; a rcond
-%  below 1e-10 signals near-degenerate TT/RR blocks (extreme aspect ratio,
-%  singular clamped BC, or catastrophic mobility cancellation) that would
-%  compromise Cholesky stability downstream.  rcond is O(1) for 6x6, so
-%  the cost is negligible.
-rc_mobility = rcond(M_eff_dim);
-if ~isfinite(rc_mobility) || rc_mobility < 1e-10
-    logf_h('[BROWN] WARNING: M_eff_dim rcond = %.2e (< 1e-10): effective mobility is ' ...
-         'nearly singular, Cholesky factor may be unreliable.\n', rc_mobility);
-    warning('compute_effective_body_brownian:IllConditioned', ...
-        ['M_eff_dim rcond = %.2e (< 1e-10): effective mobility is ', ...
-         'nearly singular, Cholesky factor may be unreliable.'], rc_mobility);
-end
+%  NOTE: the rcond conditioning diagnostic was moved up to Step 3 (on the
+%  dimensionless mobility) -- see the comment block above.  Probing the
+%  dimensional `M_eff_dim` here is statistically meaningless because its
+%  1-norm condition number is dominated by the TT/RR unit-scale ratio
+%  (~L_0^{-2}) rather than by the underlying physical conditioning.
 
 %% Step 5: Diffusion tensor and Cholesky decomposition
 kB    = 1.380649e-23;

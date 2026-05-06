@@ -8,6 +8,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [7.4.1] — 2026-05-06
+
+Brownian mobility conditioning diagnostic fix — **no numerical change** to `L_eff` / `D_eff` / `M_eff_dim` outputs vs. v7.4.0.
+
+### Fixed
+
+- **`compute_effective_body_brownian.m`**: the `compute_effective_body_brownian:IllConditioned` warning evaluates `rcond(M_eff_dimless)` (after Frobenius symmetrisation of the probe-extracted mobility) instead of `rcond(M_eff_dim)`. The dimensional 6×6 SI mobility mixes TT, TR, and RR blocks scaled by \(\sim L_0^{-2}\)-separated factors from `S * S'`; MATLAB's **1-norm** `rcond` therefore reported spurious “\(\sim 10^{-13}\) near singular” alarms on routine Brownian steps even when the underlying dimensionless mobility was well conditioned. The dimensionless matrix is the intended diagnostic (healthy runs: \(\mathrm{cond} \sim 1..10^{3}\)). Log / `warning` message strings now cite `M_eff_dimless`.
+
+### Compatibility
+
+- **Bitwise identical numerical outputs vs. v7.4.0** for identical inputs; only spurious-console-noise suppression moved. Existing code that parses `warning` IDs still receives `IllConditioned` from this function.
+
+### Documentation
+
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**, **`compute_effective_body_brownian.m`**, **`batch sweep/batch_repeat_brownian.m`**: version **7.4.1**, date **2026-05-06**; user guide §8 / §11 note on the Brownian `rcond` diagnostic.
+
+---
+
 ## [7.4.0] — 2026-05-06
 
 Parallel batch execution for independent Brownian repeat runs, plus documentation and site sync.
