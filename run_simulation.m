@@ -22,7 +22,7 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Log banner version: 7.4.1 (2026-05-06) — keep in sync with README / CHANGELOG
+%  Log banner version: 7.4.2 (2026-05-07) — keep in sync with README / CHANGELOG
 %
 %  Path: defensive addpath(project root) so run_simulation(cfg) works when
 %  invoked without main_coupled_simulation.m. Unified policy = this line plus
@@ -235,7 +235,7 @@ logf_file = @(varargin) log_file_only(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 7.4.1\n');
+logf('  Version 7.4.2\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -290,10 +290,10 @@ for kk = 1:size(Pili_Matrix, 2)
             switch lower(am_type)
                 case 'traveling_wave'
                     amp_str  = fmt_field_value(am_kk, 'amplitude_Nm');
-                    freq_str = fmt_field_value(am_kk, 'frequency_Hz');
-                    wvl_str  = fmt_field_value(am_kk, 'wavelength');
+                    freq_str = fmt_field_value(am_kk, 'omega_Hz');
+                    wvl_str  = fmt_field_value(am_kk, 'wavenumber');
                     logf(['[PARAMS]     active_moment: traveling_wave | ', ...
-                          'amp = %s Nm, freq = %s Hz, wavelength = %s\n'], ...
+                          'amp = %s Nm, omega = %s Hz, wavenumber = %s\n'], ...
                           amp_str, freq_str, wvl_str);
                 case {'off', 'custom'}
                     logf('[PARAMS]     active_moment: %s\n', am_type);

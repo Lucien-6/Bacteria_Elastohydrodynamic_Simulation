@@ -3,7 +3,7 @@
 English | [中文](USER_GUIDE.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Version:** 7.4.1  
+> **Version:** 7.4.2  
 > **Updated:** 2026-05-06
 
 This guide is for running simulations, choosing the right configuration path, finding outputs, and post-processing completed cases. For model equations and derivations, see [`docs/theory.md`](docs/theory.md). For release history, see [`CHANGELOG.md`](CHANGELOG.md).

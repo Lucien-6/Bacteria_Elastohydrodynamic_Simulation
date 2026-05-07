@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-05-06  
-> **Version:** 7.4.1  
+> **Updated:** 2026-05-07  
+> **Version:** 7.4.2  
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -114,7 +114,7 @@ Results are written under `output/<case_name>/` or an automatically timestamped 
 
 ## Version Notes
 
-The current release is **7.4.1 (2026-05-06)**. It fixes the Brownian `IllConditioned` diagnostic in **`compute_effective_body_brownian.m`**: reciprocal condition number is now evaluated on the **dimensionless** effective mobility `M_eff_dimless`, removing spurious near-singular warnings caused by SI scaling of the TT/TR/RR blocks in `M_eff_dim` (outputs are unchanged from v7.4.0). **v7.4.0** still adds optional `parfor` parallel scheduling to **`batch_repeat_brownian.m`** (independent Brownian repeats, resource-capped pool sizing, PCT optional with serial fallback). Single-case **`run_simulation`** physics is unchanged from v7.3.x. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
+The current release is **7.4.2 (2026-05-07)**. It corrects and completes inline documentation across multiple source files — output unit convention, `Pili_Matrix` row semantics, matrix-layout block annotations (`BP = RSM`, `PB = RSS`), Euler angle convention, adaptive-basis reflection vs. rotation, step-numbering cross-references, and preferred MAT variable-name lists. All changes are comment-only; **simulation outputs are bitwise identical vs. v7.4.1**. **v7.4.1** fixed the Brownian `IllConditioned` diagnostic by evaluating `rcond` on the dimensionless mobility `M_eff_dimless`. **v7.4.0** added optional `parfor` parallel scheduling to **`batch_repeat_brownian.m`**. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 

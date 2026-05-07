@@ -61,6 +61,10 @@ N_total = size(X_all, 1);
 [M_weighted, A_twist_cells, M_rotlet] = build_global_resistance(X_all, params, geom);
 
 %% Step 3-4: Build B, Q matrices
+%  NOTE: Step 5 (elastic restoring moments RHS) is intentionally omitted
+%  from this function — it remains in ode_coupled_rhs.m where it is
+%  assembled after the linear system solve.  Hence the step numbering
+%  jumps from 4 to 6 here.
 n_state = 6 + 3 * sum(N_segs);
 n_vel   = 3 * N_total + sum(N_segs);
 n_force = 3 * N_total + 3 * sum(N_segs);

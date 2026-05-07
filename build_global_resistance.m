@@ -29,12 +29,12 @@ function [M_weighted, A_twist_cells, M_rotlet] = build_global_resistance(X_all, 
 %
 %    Matrix layout (block view):
 %      M_weighted = [ M_BB  M_BP ]   BB = body-body   (RSM)
-%                   [ M_PB  M_PP ]   BP = body-pili   (RSS)
-%                                    PB = pili-body   (RSM)
+%                   [ M_PB  M_PP ]   BP = body-pili   (RSM)
+%                                    PB = pili-body   (RSS)
 %                                    PP = pili-pili   (RSS)
-%
-%    Body columns:  RSM point forces,  eps = eps_body,  w = 1
-%    Pili columns:  RSS segment integrals, eps = eps_pili, w = 1
+%      Column method is determined by the force point (source j):
+%        Body columns (j = body point) → RSM, eps = eps_body, w = 1
+%        Pili columns (j = pili point) → RSS, eps = eps_pili, w = 1
 %      (RSS integrals already incorporate the segment-length weight)
 %
 %  Syntax:

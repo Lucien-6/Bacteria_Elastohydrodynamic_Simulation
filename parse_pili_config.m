@@ -31,7 +31,8 @@
 %                                   'max_omega_Hz',val)
 %
 %  Output:
-%    Pili_Matrix - [8 x M] numeric matrix:
+%    Pili_Matrix - [8 x M] numeric matrix (optionally [8-9 x M] with row 9 for
+%      custom bending stiffness, handled directly in pili_building.m):
 %      Row 1: type, Row 2: length [um], Row 3: deflection Z [rad],
 %      Row 4: deflection X [rad], Rows 5-7: shape params, Row 8: site
 %    pili_ext    - [1 x M] struct array with .intrinsic_curvature,

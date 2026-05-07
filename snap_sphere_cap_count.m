@@ -1,9 +1,18 @@
 function SPN = snap_sphere_cap_count(SPN0)
 %SNAP_SPHERE_CAP_COUNT  Snap cap count to Ico/Quad native N when close enough
 %
-%  If |SPN0 - N| <= 5 for some Ico or Quad mesh at subdivision level k in
-%  0..4, set SPN to that N (smallest |SPN0-N|; ties: Ico over Quad, then
-%  lower k). Native vertex counts come from capsule_sphere_mesh_cache
+%  Syntax:
+%    SPN = snap_sphere_cap_count(SPN0)
+%
+%  Input:
+%    SPN0 - Requested number of cap points (any positive integer)
+%
+%  Output:
+%    SPN  - Snapped count: if |SPN0 - N| <= 5 for some Ico/Quad mesh at
+%           subdivision level k in 0..4, returns that N (smallest |SPN0-N|;
+%           ties: Ico over Quad, then lower k); otherwise returns SPN0 unchanged.
+%
+%  Native vertex counts come from capsule_sphere_mesh_cache
 %  (actual SubdivideSphericalMesh sizes for the installed toolbox).
 %
 %  Author: Lucien (lucien-6@qq.com)

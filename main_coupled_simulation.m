@@ -22,7 +22,7 @@
 %      lines below to reproduce the standard sinking-bacterium scenario.
 %
 %  Output unit convention:
-%    Time [s] | Length [um] | Velocity [um/s] | Force [pN] | Angle [rad]
+%    Time [s] | Length [um] | Velocity [um/s] | Force [pN] | Angle [rad] | Angular velocity [rad/s]
 %
 %  References:
 %    [1] Walker et al. (2020), Physical Review E.
@@ -31,7 +31,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Documentation release: 7.4.1 (2026-05-06) — see README.md / CHANGELOG.md
+%  Documentation release: 7.4.2 (2026-05-07) — see README.md / CHANGELOG.md
 
 close all force;
 clear; clc;
@@ -139,6 +139,8 @@ else
 
         % Legacy raw-matrix alternative (uncomment to use instead):
         %  cfg.Pili_Matrix = [1; 3; 0; 0; NaN; NaN; NaN; 1];
+        %    Row 1: type, Row 2: length [um], Row 3: deflection Z [rad],
+        %    Row 4: deflection X [rad], Rows 5-7: shape params, Row 8: site
 
         % -------- Background Flow --------
         %  Options: 'off' (default), 'uniform', 'shear_z'

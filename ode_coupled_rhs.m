@@ -4,15 +4,18 @@ function dZ = ode_coupled_rhs(t, Z, params)
 %  Description:
 %    Computes dZ/dt for the coupled bacterial body + elastic pili system.
 %    Evaluation steps:
-%      1-7. Build and solve the coupled linear system (delegated to
-%           build_coupled_lin_sys, which handles geometry reconstruction,
-%           global mobility/resistance, Q/B matrix assembly, and
-%           clamped boundary conditions)
-%      8.   Compute elastic restoring moments for each pilus
-%      8b.  Subtract per-pili active internal moments (if enabled)
-%      8c.  Subtract background flow contribution (if enabled)
-%      9.   Solve  lin_sys * z_dot = R_global
-%     10.   Pack state rates into dZ
+%      1-4, 6-7. Build the coupled linear system (delegated to
+%           build_coupled_lin_sys.m, which handles Step 1: geometry
+%           reconstruction, Step 2: global mobility/resistance, Step 3-4:
+%           Q/B matrix assembly, Step 6: linear system assembly,
+%           Step 7: root boundary conditions)
+%      5.     (Not applicable — elastic restoring moments are a RHS term,
+%           computed here as Step 8, not part of the LHS linear system)
+%      8.     Compute elastic restoring moments for each pilus
+%      8b.    Subtract per-pili active internal moments (if enabled)
+%      8c.    Subtract background flow contribution (if enabled)
+%      9.     Solve  lin_sys * z_dot = R_global
+%     10.     Pack state rates into dZ
 %
 %  Syntax:
 %    dZ = ode_coupled_rhs(t, Z, params)

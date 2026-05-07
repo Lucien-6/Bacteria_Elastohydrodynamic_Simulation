@@ -34,6 +34,10 @@ function params = init_coupled_params(varargin)
 %    'alpha_0'     Initial body tilt angle [rad]       (default: pi/2)
 %                  Angle of body long axis (body X) from +X in XZ plane
 %                  pi/2 = vertical (+Z), 0 = horizontal (+X),
+%                  NOTE: the inline demo in main_coupled_simulation.m sets
+%                  alpha_0 = 0 (horizontal), which is intentionally non-default
+%                  to isolate motor-driven rotation; the README sinking
+%                  workflow uses the default pi/2 (vertical).
 %                  -pi/2 = inverted (-Z).  Range: [-pi/2, pi/2]
 %    'Temper'      Absolute temperature [K]            (default: 293.15)
 %    'enable_brown' Enable body Brownian motion        (default: false)

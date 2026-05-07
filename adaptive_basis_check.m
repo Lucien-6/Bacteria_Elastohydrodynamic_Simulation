@@ -88,7 +88,13 @@ for k = 1:M
             v_opt = v_opt / v_opt_norm;
         end
 
-        % Householder-like rotation
+        % Householder reflection about the plane perpendicular to v_opt:
+        %   K = skew(v_opt),  rot_local = I + 2*K^2 = 2*v_opt*v_opt' - I
+        %   This is a reflection (det = -1), not a proper rotation.
+        %   However, it is a valid basis change in Kirchhoff rod theory because
+        %   the director d3 is a first-order angular quantity and a sign flip
+        %   does not affect the physical curvature binormal.  Walker (2020)
+        %   uses this form for its simplicity and numerical stability.
         K = [0, -v_opt(3), v_opt(2); ...
              v_opt(3), 0, -v_opt(1); ...
             -v_opt(2), v_opt(1), 0];

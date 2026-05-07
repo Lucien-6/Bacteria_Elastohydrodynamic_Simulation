@@ -1,11 +1,20 @@
 function export_figure_png_pdf_html(fig, pngPath, pdfPath, htmlPath)
 %EXPORT_FIGURE_PNG_PDF_HTML  Save figure as PNG (600 dpi), PDF (vector), optional HTML.
 %
-%   export_figure_png_pdf_html(fig, pngPath, pdfPath, htmlPath)
+%  Description:
+%    Exports a MATLAB figure to three formats simultaneously:
+%    PNG at 600 dpi resolution, PDF with vector graphics, and optionally
+%    an interactive HTML file (pan/zoom/rotate in a web canvas) when
+%    MATLAB R2026a or later is available.
 %
-%   Interactive HTML (pan / zoom / rotate in a web canvas) is written only
-%   when htmlPath is nonempty and MATLAB R2026a or later; see exportgraphics.
-%   Pass [] or '' for htmlPath to skip HTML entirely.
+%  Syntax:
+%    export_figure_png_pdf_html(fig, pngPath, pdfPath, htmlPath)
+%
+%  Inputs:
+%    fig      - MATLAB figure handle to export
+%    pngPath  - Output file path for PNG image
+%    pdfPath  - Output file path for PDF document
+%    htmlPath - Output file path for interactive HTML, or [] / '' to skip
 %
 %  Author: Lucien (lucien-6@qq.com)
 %  Created: 2026-04-22

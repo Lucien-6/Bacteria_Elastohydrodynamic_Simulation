@@ -8,6 +8,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [7.4.2] — 2026-05-07
+
+Comment audit and documentation accuracy corrections — **no numerical change** to simulation outputs vs. v7.4.1.
+
+### Fixed
+
+- **`main_coupled_simulation.m`**: output unit convention header now includes `Angular velocity [rad/s]` alongside the existing five units (was previously omitted; `run_simulation.m` already listed it).
+- **`main_coupled_simulation.m`**: Legacy `Pili_Matrix` raw-matrix alternative comment now lists per-row semantics (`Row 1: type, Row 2: length, Row 3: deflection Z, Row 4: deflection X, Rows 5–7: shape params, Row 8: site`) consistent with `parse_pili_config.m` and `pili_building.m`.
+- **`parse_pili_config.m`**: `Pili_Matrix` output description now mentions the optional row 9 (custom bending stiffness) handled directly in `pili_building.m`, resolving the `[8 x M]` vs `[8-9 x M]` cross-file inconsistency.
+- **`build_coupled_lin_sys.m`**: Step 3–4 section comment now explicitly explains why Step 5 (elastic restoring moments) is omitted from this subroutine (it is a RHS term, not part of the LHS; remains in `ode_coupled_rhs.m`).
+- **`build_global_resistance.m`**: matrix-layout block annotation corrected — `BP = body-pili (RSM)` and `PB = pili-body (RSS)` (was previously reversed; the column method is determined by the force point per `eps_ij = eps_j`). Added explanatory note on column-method determination.
+- **`init_coupled_params.m`**: `alpha_0` default-value comment now notes that the inline demo in `main_coupled_simulation.m` intentionally sets `alpha_0 = 0` (horizontal, non-default) to isolate motor-driven rotation, while the README sinking workflow uses the default `pi/2` (vertical).
+- **`read_geometry_csv_mat.m`**: preferred MAT variable-name list now includes `'coordinates'` (was omitted in the comment; code checked five names) and notes case-insensitive matching.
+- **`ode_coupled_rhs.m`**: evaluation-step header now explicitly maps Steps 1–4, 6–7 to `build_coupled_lin_sys.m` and Step 5 as not applicable (RHS term), with cross-file reference.
+- **`adaptive_basis_check.m`**: the "Householder-like rotation" comment (line 91) replaced with an accurate description: `I + 2*K² = 2*v*v' − I` is a Householder **reflection** (det = −1), not a proper rotation; Walker (2020) uses it as a basis change because director d3 sign flips do not affect the physical curvature binormal.
+- **`pili_euler_angles.m`**: added Euler angle convention specification (ZXZ intrinsic rotation: R_z(phi) → R_x(theta) → R_z(psi)) with reference to Walker (2020).
+
+### Added (documentation)
+
+- **`capsule_sphere_mesh_cache.m`**, **`capsule_sphere_cap_points.m`**, **`sphere_particle_sample_cached.m`**, **`snap_sphere_cap_count.m`**: added formal `Syntax / Input / Output` header sections (previously had only brief one-line descriptions).
+- **`export_figure_png_pdf_html.m`**: added formal `Description / Syntax / Inputs` header (previously had only a one-line summary and inline syntax call).
+
+### Compatibility
+
+- **Bitwise identical numerical outputs vs. v7.4.1** for identical inputs. All changes are comment/documentation only; no executable code was modified.
+
+### Documentation
+
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**: version **7.4.2**, date **2026-05-07**; comment audit summary.
+
+---
+
 ## [7.4.1] — 2026-05-06
 
 Brownian mobility conditioning diagnostic fix — **no numerical change** to `L_eff` / `D_eff` / `M_eff_dim` outputs vs. v7.4.0.

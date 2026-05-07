@@ -1,6 +1,17 @@
 function V = capsule_sphere_cap_points(SPN)
 %CAPSULE_SPHERE_CAP_POINTS  Unit-sphere cap samples for capsule body (S2 toolbox)
 %
+%  Syntax:
+%    V = capsule_sphere_cap_points(SPN)
+%
+%  Input:
+%    SPN - Target number of cap points (must already be snapped via
+%          snap_sphere_cap_count for optimal Ico/Quad allocation)
+%
+%  Output:
+%    V - [SPN x 3] Unit-sphere point coordinates in body frame
+%        (toolbox z-axis pole -> body x-axis pole)
+%
 %  SPN must already equal the intended cap count (call snap_sphere_cap_count
 %  in capsule_body_building when adjusting allocation to Ico/Quad native N).
 %

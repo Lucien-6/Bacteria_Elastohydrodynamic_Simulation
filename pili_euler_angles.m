@@ -5,6 +5,16 @@
 %    Inverse of pili_directors: recovers (theta, phi, psi) from the
 %    material frame directors (d1, d2, d3).  Adapted from Walker (2020).
 %
+%  Euler angle convention (ZXZ intrinsic rotation):
+%    The directors are obtained by applying three successive rotations
+%    starting from the reference basis {e1, e2, e3}:
+%      1. R_z(phi):   rotate about z by phi      (azimuthal)
+%      2. R_x(theta): rotate about new x by theta (polar / tilt)
+%      3. R_z(psi):   rotate about new z by psi   (material twist)
+%    This is the ZXZ convention (same as Walker 2020).  The tangent
+%    d3 = R_z(phi) * R_x(theta) * e3, and the material frame (d1, d2)
+%    are further rotated by psi around d3.
+%
 %  Syntax:
 %    [theta, phi, psi] = pili_euler_angles(d1, d2, d3)
 %

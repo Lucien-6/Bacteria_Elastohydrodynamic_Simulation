@@ -3,7 +3,7 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 7.4.1  
+> **版本:** 7.4.2  
 > **更新日期:** 2026-05-06
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。

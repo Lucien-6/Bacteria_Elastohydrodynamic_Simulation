@@ -1,6 +1,16 @@
 function Vtool = sphere_particle_sample_cached(SPN)
 %SPHERE_PARTICLE_SAMPLE_CACHED  Cached ParticleSampleSphere for SPN in (100,1000)
 %
+%  Syntax:
+%    Vtool = sphere_particle_sample_cached(SPN)
+%
+%  Input:
+%    SPN - Integer number of sphere surface points (expected: 100 < SPN < 1000)
+%
+%  Output:
+%    Vtool - [SPN x 3] Unit-sphere points in toolbox z-axis frame
+%            (before tool_to_body_frame rotation)
+%
 %  Returns the N-by-3 Vtool matrix (toolbox z-axis frame, before
 %  tool_to_body_frame) either from disk cache or by running the
 %  Riesz s-energy optimisation and saving the result for future use.

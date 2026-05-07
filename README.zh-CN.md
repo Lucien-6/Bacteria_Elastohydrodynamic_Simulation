@@ -4,8 +4,8 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-05-06  
-> **版本:** 7.4.1  
+> **更新日期:** 2026-05-07  
+> **版本:** 7.4.2  
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -108,7 +108,7 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **7.4.1 (2026-05-06)**。修正 **`compute_effective_body_brownian.m`** 中与布朗相关的 **`IllConditioned`** 诊断：互反条件数改为在无量纲有效迁移率 `M_eff_dimless` 上评估，避免因 `M_eff_dim` 内 TT/TR/RR 块的 SI 量纲缩放而产生“近似奇异”的假阳性告警（数值输出较 v7.4.0 不变）。**v7.4.0** 仍在 **`batch_repeat_brownian.m`** 中提供可选 `parfor` 并行调度（独立布朗重复、资源上限约束的 worker 数、无 PCT 或建池失败时回退串行）。单次调用的 **`run_simulation`** 物理路径与 v7.3.x 一致。完整历史见 [`CHANGELOG.md`](CHANGELOG.md)。
+当前版本为 **7.4.2 (2026-05-07)**。本版为注释审计与文档准确性修正——**不改变数值输出**（与 v7.4.1 完全一致）。主要修正：`main_coupled_simulation.m` 输出单位声明补充角速度单位；`build_global_resistance.m` 矩阵分块标注 BP/PB 修正；`read_geometry_csv_mat.m` 首选 MAT 变量名列表补充 `'coordinates'`；`pili_euler_angles.m` 补充 ZXZ Euler 角约定说明；`adaptive_basis_check.m` Householder 注释修正为 reflection；多个函数补充正式 Syntax/Inputs/Outputs 注释。详见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## 许可证
 

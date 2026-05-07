@@ -1,12 +1,30 @@
 function cache = capsule_sphere_mesh_cache()
 %CAPSULE_SPHERE_MESH_CACHE  Cached Ico/Quad subdivided meshes from S2 toolbox
 %
-%  Vertex counts Nico(k+1), Nquad(k+1) for k = 0..4 are taken from
-%  size(mesh points) after SubdivideSphericalMesh(...) so they match the
-%  installed toolbox (no closed-form formula).
+%  Description:
+%    Pre-computes and caches IcosahedronMesh and QuadCubeMesh subdivisions
+%    (levels 0-4) from the S2 toolbox using SubdivideSphericalMesh.  The
+%    results are stored in persistent variables so that subsequent calls
+%    return instantly without re-running the toolbox.  Vertex counts
+%    Nico(k+1), Nquad(k+1) for k = 0..4 are taken from the actual mesh
+%    sizes after subdivision so they always match the installed toolbox
+%    (no closed-form formula is used).
+%
+%  Syntax:
+%    cache = capsule_sphere_mesh_cache()
+%
+%  Output:
+%    cache - Struct with fields:
+%      .Nico   - [1 x 5] Vertex counts for Ico subdivisions k=0..4
+%      .Nquad  - [1 x 5] Vertex counts for Quad subdivisions k=0..4
+%      .ico    - {1 x 5} Cell array of [N x 3] Ico vertex matrices
+%      .quad   - {1 x 5} Cell array of [N x 3] Quad vertex matrices
+%
+%  See also: capsule_sphere_cap_points, snap_sphere_cap_count,
+%            sphere_particle_sample_cached
 %
 %  Author: Lucien (lucien-6@qq.com)
-%  Date:   2026-04-17
+%  Created: 2026-04-17
 
 persistent icoPool quadPool Nico Nquad ready
 if isempty(ready)

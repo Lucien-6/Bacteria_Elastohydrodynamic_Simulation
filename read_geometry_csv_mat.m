@@ -14,7 +14,8 @@ function pts = read_geometry_csv_mat(file_path, varargin)
 %        non-numeric token, it is treated as a header and skipped.
 %
 %    MAT format (.mat):
-%      - Prefers a variable named 'pts', 'points', 'XYZ', or 'coords'.
+%      - Prefers a variable named 'pts', 'points', 'xyz', 'coords', or
+%        'coordinates' (case-insensitive).
 %      - If no preferred name exists, uses the first numeric variable and
 %        issues a warning listing all available variable names.
 %      - Accepts N-by-3 or 3-by-N layouts (transposed automatically when
