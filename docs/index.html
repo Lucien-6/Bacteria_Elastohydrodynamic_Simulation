@@ -927,39 +927,39 @@ cfg.background_flow.shear_height_m = 20e-6;       % [m]</code></pre>
       </h3>
       <pre class="mermaid">
 graph TD
-    ENTRY["main_coupled_simulation.m\nEntry Point"] --> PC["parse_pili_config.m"]
-    ENTRY --> LC["load_sim_config.m"]
+    ENTRY["main_coupled_simulation.m\nEntry Point"] --> PC["src/config/parse_pili_config.m"]
+    ENTRY --> LC["src/config/load_sim_config.m"]
     ENTRY --> RUN["run_simulation.m\nCore Engine"]
 
-    RUN --> VAL["validate_simulation_params.m"]
-    RUN --> SC["save_sim_config.m"]
-    RUN --> INIT["init_coupled_params.m"]
-    RUN --> STATE["init_coupled_state.m"]
-    RUN --> ODE["ode15s + ode_coupled_rhs.m"]
-    RUN --> ABC["adaptive_basis_check.m"]
-    RUN --> ECG["enforce_clamped_geometry.m"]
-    RUN --> BROWN["compute_effective_body_brownian.m"]
-    RUN --> FLOW["compute_plot_flowfield.m"]
+    RUN --> VAL["src/config/validate_simulation_params.m"]
+    RUN --> SC["src/config/save_sim_config.m"]
+    RUN --> INIT["src/config/init_coupled_params.m"]
+    RUN --> STATE["src/config/init_coupled_state.m"]
+    RUN --> ODE["ode15s + src/core/ode_coupled_rhs.m"]
+    RUN --> ABC["src/math/adaptive_basis_check.m"]
+    RUN --> ECG["src/math/enforce_clamped_geometry.m"]
+    RUN --> BROWN["src/physics/compute_effective_body_brownian.m"]
+    RUN --> FLOW["src/visualization/compute_plot_flowfield.m"]
     RUN --> OUT["Output: .mat / .png / .mp4"]
 
-    INIT --> CAP["capsule_body_building.m"]
-    INIT --> PIB["pili_building.m"]
-    PIB --> PTB["pili_type_building.m"]
-    PIB --> CCB["compute_curvature_binormal.m"]
+    INIT --> CAP["src/geometry/capsule_body_building.m"]
+    INIT --> PIB["src/geometry/pili_building.m"]
+    PIB --> PTB["src/geometry/pili_type_building.m"]
+    PIB --> CCB["src/physics/compute_curvature_binormal.m"]
 
-    BROWN --> BLS["build_coupled_lin_sys.m"]
+    BROWN --> BLS["src/core/build_coupled_lin_sys.m"]
     ODE --> BLS
-    ODE --> AM["coupled_active_moment.m"]
-    ODE --> BF["coupled_background_flow.m"]
-    BLS --> RG["reconstruct_geometry.m"]
-    BLS --> BGR["build_global_resistance.m"]
+    ODE --> AM["src/physics/coupled_active_moment.m"]
+    ODE --> BF["src/physics/coupled_background_flow.m"]
+    BLS --> RG["src/geometry/reconstruct_geometry.m"]
+    BLS --> BGR["src/core/build_global_resistance.m"]
 
-    RG --> PD["pili_directors.m"]
-    RG --> PSC["pili_spatial_coords.m"]
-    RG --> US["unpack_state.m"]
-    RG --> QTR["quat_to_rotmat.m"]
+    RG --> PD["src/math/pili_directors.m"]
+    RG --> PSC["src/math/pili_spatial_coords.m"]
+    RG --> US["src/utils/unpack_state.m"]
+    RG --> QTR["src/math/quat_to_rotmat.m"]
 
-    BATCH["batch sweep/ scripts"] --> RUN
+    BATCH["batch_sweep/ scripts"] --> RUN
     PP["post_processing/postprocess_cases.m\nBatch post-processing"]
     OUT -.->|"reads output/"| PP
       </pre>
@@ -1047,75 +1047,96 @@ graph TD
       </button>
       <div class="collapsible-body px-5 pb-5">
         <pre class="text-xs text-gray-600 dark:text-gray-400 font-mono leading-relaxed whitespace-pre">Coupled_Body_Pili/
-├── main_coupled_simulation.m        % Entry point
-├── run_simulation.m                 % Core simulation engine
-├── export_figure_png_pdf_html.m     % Figure export: PNG + PDF + HTML (R2026a+)
-├── init_coupled_params.m            % Parameter initialisation
-├── init_coupled_state.m             % Initial state vector Z0
-├── ode_coupled_rhs.m                % ODE right-hand side
-├── build_coupled_lin_sys.m          % Coupled linear system assembly
-├── build_global_resistance.m        % RSM/RSS mobility matrices
-├── reconstruct_geometry.m           % State → geometry
-├── compute_pili_elastic_moments.m % Kirchhoff elastic moments
-├── compute_node_directors.m         % Segment → node directors (SVD polar)
-├── coupled_active_moment.m          % Per-pili active moments (v5.0)
-├── coupled_background_flow.m        % Background flow field (v5.0)
-├── compute_effective_body_brownian.m % Full-system Brownian (probing)
-├── brown_rng_seed_from_clock.m      % Default Brownian twister seed (v5.2)
-├── enforce_clamped_geometry.m       % Clamped BC projection
-├── adaptive_basis_check.m           % Euler-angle singularity avoidance
-├── compute_plot_flowfield.m         % Flow field visualisation
-├── capsule_body_building.m          % Capsule body mesh
-├── custom_body_building.m           % Custom body point cloud (v6.0)
-├── capsule_sphere_mesh_cache.m      % Ico/Quad mesh cache (v5.5)
-├── snap_sphere_cap_count.m          % Cap count snap helper
-├── capsule_sphere_cap_points.m      % Hemisphere cap points
-├── sphere_particle_sample_cached.m  % ParticleSampleSphere cache (v5.5.1)
-├── pili_building.m                  % Pili structure initialisation
-├── custom_pili_building.m           % Custom pili centerline (v6.0)
-├── pili_type_building.m             % Pili shape generation
-├── pili_directors.m                 % Euler angles → director frame
-├── pili_euler_angles.m              % Director frame → Euler angles
-├── pili_spatial_coords.m            % Pili node coordinates
-├── compute_curvature_binormal.m     % Discrete curvature binormal
-├── skew_matrix.m                    % 3×3 skew-symmetric matrix
-├── read_geometry_csv_mat.m          % Point cloud file reader (v6.0)
-├── rotation_between_vectors.m       % Rodrigues' rotation (v6.0)
-├── unpack_state.m                   % Z → body + pili components
-├── pack_state_rates.m               % Assemble dZ/dt
-├── quat_kinematics.m                % Quaternion time derivative
-├── quat_multiply.m                  % Quaternion product
-├── quat_to_rotmat.m                 % Quaternion → rotation matrix
-├── parse_pili_config.m              % Struct → Pili_Matrix
-├── load_sim_config.m                % JSON → cfg struct
-├── save_sim_config.m                % cfg → JSON
-├── validate_simulation_params.m     % Pre-flight checks
-├── validate_custom_geometry.m       % Custom geometry validation (v6.0)
-├── render_progress_bar.m            % Console progress bar
-├── odetpbar.m                       % ODE OutputFcn progress
-├── config_example.json              % Example JSON (tracked)
-├── config_custom_example.json       % Custom geometry JSON template (v6.0)
-├── docs/theory.md                   % Theory, Brownian scope, and Itô / Fixman notes
-├── configs/                         % Optional local JSON (gitignored)
-├── post_processing/
-│   └── postprocess_cases.m          % Batch post-processing → Excel (v5.1)
-├── batch sweep/
+├── main_coupled_simulation.m              % Entry point
+├── run_simulation.m                       % Core simulation engine
+├── src/
+│   ├── config/
+│   │   ├── init_coupled_params.m          % Parameter initialisation
+│   │   ├── init_coupled_state.m           % Initial state vector Z0
+│   │   ├── load_sim_config.m              % JSON → cfg struct
+│   │   ├── normalise_json_struct_array.m  % JSON struct array normaliser
+│   │   ├── parse_initial_orientation.m    % Orientation string parser
+│   │   ├── parse_pili_config.m            % Struct → Pili_Matrix
+│   │   ├── save_sim_config.m              % cfg → JSON
+│   │   └── validate_simulation_params.m   % Pre-flight checks
+│   ├── core/
+│   │   ├── build_coupled_lin_sys.m        % Coupled linear system assembly
+│   │   ├── build_global_resistance.m      % RSM/RSS mobility matrices
+│   │   └── ode_coupled_rhs.m              % ODE right-hand side
+│   ├── geometry/
+│   │   ├── capsule_body_building.m          % Capsule body mesh
+│   │   ├── capsule_sphere_cap_points.m    % Hemisphere cap points
+│   │   ├── capsule_sphere_mesh_cache.m    % Ico/Quad mesh cache (v5.5)
+│   │   ├── custom_body_building.m           % Custom body point cloud (v6.0)
+│   │   ├── custom_pili_building.m           % Custom pili centerline (v6.0)
+│   │   ├── pili_building.m                  % Pili structure initialisation
+│   │   ├── pili_type_building.m             % Pili shape generation
+│   │   ├── read_geometry_csv_mat.m          % Point cloud file reader (v6.0)
+│   │   ├── reconstruct_geometry.m         % State → geometry
+│   │   ├── snap_sphere_cap_count.m          % Cap count snap helper
+│   │   ├── sphere_particle_sample_cached.m  % ParticleSampleSphere cache (v5.5.1)
+│   │   └── validate_custom_geometry.m     % Custom geometry validation (v6.0)
+│   ├── math/
+│   │   ├── adaptive_basis_check.m           % Euler-angle singularity avoidance
+│   │   ├── enforce_clamped_geometry.m       % Clamped BC projection
+│   │   ├── pili_directors.m                 % Euler angles → director frame
+│   │   ├── pili_euler_angles.m              % Director frame → Euler angles
+│   │   ├── pili_spatial_coords.m            % Pili node coordinates
+│   │   ├── quat_kinematics.m                % Quaternion time derivative
+│   │   ├── quat_multiply.m                  % Quaternion product
+│   │   ├── quat_to_rotmat.m                 % Quaternion → rotation matrix
+│   │   ├── rotation_between_vectors.m       % Rodrigues' rotation (v6.0)
+│   │   └── skew_matrix.m                    % 3×3 skew-symmetric matrix
+│   ├── physics/
+│   │   ├── compute_curvature_binormal.m     % Discrete curvature binormal
+│   │   ├── compute_effective_body_brownian.m % Full-system Brownian (probing)
+│   │   ├── compute_node_directors.m         % Segment → node directors (SVD polar)
+│   │   ├── compute_pili_elastic_moments.m   % Kirchhoff elastic moments
+│   │   ├── coupled_active_moment.m          % Per-pili active moments (v5.0)
+│   │   └── coupled_background_flow.m        % Background flow field (v5.0)
+│   ├── utils/
+│   │   ├── brown_rng_seed_from_clock.m      % Default Brownian twister seed (v5.2)
+│   │   ├── odetpbar.m                       % ODE OutputFcn progress
+│   │   ├── pack_state_rates.m               % Assemble dZ/dt
+│   │   ├── unpack_state.m                   % Z → body + pili components
+│   │   └── verify_migration.m               % Migration verification helper
+│   └── visualization/
+│       ├── compute_plot_flowfield.m         % Flow field visualisation
+│       ├── export_figure_png_pdf_html.m     % Figure export: PNG + PDF + HTML (R2026a+)
+│       └── render_progress_bar.m            % Console progress bar
+├── batch_sweep/
 │   ├── batch_sweep_alpha.m
-│   ├── batch_sweep_major_axis.m
-│   ├── batch_sweep_pili_length.m
-│   ├── batch_sweep_pili_E.m
-│   ├── batch_sweep_N_body.m
-│   ├── batch_sweep_seg_per_um.m
 │   ├── batch_sweep_eps_body_RSM.m
+│   ├── batch_sweep_major_axis.m
+│   ├── batch_sweep_N_body.m
 │   ├── batch_sweep_N_body_eps_RSM.m
+│   ├── batch_sweep_pili_E.m
+│   ├── batch_sweep_pili_length.m
+│   ├── batch_sweep_seg_per_um.m
 │   ├── batch_run_from_json.m
 │   └── batch_repeat_brownian.m
-├── _legacy/                         % Frozen pre-optimisation references
+├── post_processing/
+│   └── postprocess_cases.m                % Batch post-processing → Excel (v5.1)
+├── _legacy/                               % Frozen pre-optimisation references
 │   ├── build_coupled_lin_sys_v0.m
 │   ├── build_global_resistance_v0.m
 │   └── ode_coupled_rhs_v0.m
-└── docs/
-    └── index.html                   % This documentation page</pre>
+├── configs/
+│   ├── config_example.json                % Example JSON (tracked)
+│   ├── config_custom_example.json           % Custom geometry JSON template (v6.0)
+│   └── config_motor_flagella_example.json   % Motor flagella JSON template
+├── docs/
+│   ├── index.html                         % This documentation page
+│   ├── theory.md                          % Theory, Brownian scope, and Itô / Fixman notes
+│   └── theory.zh-CN.md                    % 中文理论文档
+├── geometry/                              % Example geometry CSV files
+├── output/                                % Simulation outputs
+├── CHANGELOG.md
+├── LICENSE
+├── README.md
+├── README.zh-CN.md
+├── requirements.txt
+└── USER_GUIDE.md / USER_GUIDE.zh-CN.md</pre>
       </div>
     </div>
   </div>
