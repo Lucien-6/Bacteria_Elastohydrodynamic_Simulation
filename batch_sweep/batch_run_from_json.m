@@ -1,4 +1,4 @@
-﻿%% batch_run_from_json.m
+%% batch_run_from_json.m
 %  Automated Batch Runner: Execute All JSON Config Files in a Folder
 %
 %  Description:
@@ -49,6 +49,7 @@ if ~isfolder(proj_root)
 end
 cd(proj_root);
 addpath(proj_root);
+addpath(genpath(fullfile(proj_root, 'src')));
 
 %% ---- Optional: hard-code folder path to skip the GUI dialog ----
 %  Leave empty ('') to use the interactive folder browser.

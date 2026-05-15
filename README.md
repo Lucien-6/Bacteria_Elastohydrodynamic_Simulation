@@ -21,7 +21,7 @@ This project simulates the low-Reynolds-number settling dynamics of a rigid bact
 - Free-torsion root coupling and constant motor torque for motor-driven flagella.
 - Inline MATLAB configuration, JSON configuration, and programmatic batch execution.
 - Publication-oriented exports: MAT, CSV, log, PNG, vector PDF, optional interactive HTML, and MP4 animation.
-- Optional **parallel** Brownian repeat batches ([`batch sweep/batch_repeat_brownian.m`](batch%20sweep/batch_repeat_brownian.m)): `parfor` with automatic pool sizing (Parallel Computing Toolbox); serial fallback when the toolbox or pool is unavailable.
+- Optional **parallel** Brownian repeat batches ([`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m)): `parfor` with automatic pool sizing (Parallel Computing Toolbox); serial fallback when the toolbox or pool is unavailable.
 
 ## Requirements
 
@@ -30,7 +30,7 @@ This project simulates the low-Reynolds-number settling dynamics of a rigid bact
 - Optional interactive HTML figure export requires MATLAB R2026a or later.
 - Capsule body-surface generation requires the MATLAB Add-On / File Exchange **S2 Sampling Toolbox** by Anton Semechko. Install it so `ParticleSampleSphere`, `SpiralSampleSphere`, `IcosahedronMesh`, `QuadCubeMesh`, and `SubdivideSphericalMesh` are on the MATLAB path.
 - Python / Conda / pip are not required. See [`requirements.txt`](requirements.txt).
-- **Parallel Computing Toolbox** is optional: only needed for the parallel branch of [`batch sweep/batch_repeat_brownian.m`](batch%20sweep/batch_repeat_brownian.m) (`use_parallel = true`, default).
+- **Parallel Computing Toolbox** is optional: only needed for the parallel branch of [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) (`use_parallel = true`, default).
 
 ## Quick Start
 
@@ -68,7 +68,7 @@ cfg.auto_confirm = true;
 [results, params, output_dir] = run_simulation(cfg);
 ```
 
-Batch drivers are available under [`batch sweep/`](batch%20sweep/), and multi-case post-processing is available in [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m).
+Batch drivers are available under [`batch_sweep/`](batch_sweep/), and multi-case post-processing is available in [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m).
 
 ## Main Outputs
 
@@ -92,15 +92,15 @@ Results are written under `output/<case_name>/` or an automatically timestamped 
 | --- | --- |
 | [`main_coupled_simulation.m`](main_coupled_simulation.m) | Main script and inline configuration entry point. |
 | [`run_simulation.m`](run_simulation.m) | Simulation engine, integration loop, exports, and logging. |
-| [`load_sim_config.m`](load_sim_config.m) | JSON configuration loader. |
-| [`save_sim_config.m`](save_sim_config.m) | JSON configuration snapshot writer. |
-| [`validate_simulation_params.m`](validate_simulation_params.m) | Pre-run parameter validation. |
-| [`init_coupled_params.m`](init_coupled_params.m) | Geometry, scaling, Brownian, and model parameter setup. |
-| [`init_coupled_state.m`](init_coupled_state.m) | Initial state vector construction. |
-| [`ode_coupled_rhs.m`](ode_coupled_rhs.m) | Coupled elastohydrodynamic ODE right-hand side. |
-| [`build_coupled_lin_sys.m`](build_coupled_lin_sys.m) | Coupled linear system assembly. |
-| [`compute_effective_body_brownian.m`](compute_effective_body_brownian.m) | Full-system effective Brownian mobility and diffusion. |
-| [`compute_plot_flowfield.m`](compute_plot_flowfield.m) | End-state flow-field evaluation and figure export. |
+| [`src/config/load_sim_config.m`](src/config/load_sim_config.m) | JSON configuration loader. |
+| [`src/config/save_sim_config.m`](src/config/save_sim_config.m) | JSON configuration snapshot writer. |
+| [`src/config/validate_simulation_params.m`](src/config/validate_simulation_params.m) | Pre-run parameter validation. |
+| [`src/config/init_coupled_params.m`](src/config/init_coupled_params.m) | Geometry, scaling, Brownian, and model parameter setup. |
+| [`src/config/init_coupled_state.m`](src/config/init_coupled_state.m) | Initial state vector construction. |
+| [`src/core/ode_coupled_rhs.m`](src/core/ode_coupled_rhs.m) | Coupled elastohydrodynamic ODE right-hand side. |
+| [`src/core/build_coupled_lin_sys.m`](src/core/build_coupled_lin_sys.m) | Coupled linear system assembly. |
+| [`src/physics/compute_effective_body_brownian.m`](src/physics/compute_effective_body_brownian.m) | Full-system effective Brownian mobility and diffusion. |
+| [`src/visualization/compute_plot_flowfield.m`](src/visualization/compute_plot_flowfield.m) | End-state flow-field evaluation and figure export. |
 
 ## Documentation
 

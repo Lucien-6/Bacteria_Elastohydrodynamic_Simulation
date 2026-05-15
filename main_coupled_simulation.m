@@ -41,6 +41,7 @@ clear; clc;
 % addpath calls when run standalone — that layout is intentional.
 proj_root = fileparts(mfilename('fullpath'));
 addpath(proj_root);
+addpath(genpath(fullfile(proj_root, 'src')));
 
 %% =====================================================================
 %  CONFIGURATION SOURCE

@@ -1,20 +1,24 @@
-﻿%% batch_sweep_seg_per_um.m
-%  Automated Parameter Sweep: Pili Segments per Micron (seg_per_um)
+%% batch_sweep_pili_length.m
+%  Automated Parameter Sweep: Pilus Length (single or multiple pili)
 %
 %  Description:
-%    Sweeps seg_per_um (discrete segments per micron along each pilus),
-%    which sets the elastic rod resolution, while keeping body and fluid
-%    parameters fixed.  Values < 5 trigger a validator warning (RSS accuracy).
-%    Results compared via V_sink steady mean.
+%    Sweeps the contour length [um] shared by all linear pili while keeping
+%    other parameters fixed.  Each pilus uses an attachment site index from
+%    site_list (1-14); sites may be chosen freely (e.g. [1 6 11] or 1:3).
+%    All pili in a run share the same length_um; segment count scales with
+%    length via seg_per_um.  Results are compared via steady-state V_sink.
 %
 %    Key points:
-%      - Edit seg_values below for the sweep grid (typically integers >= 5)
-%      - auto_confirm = true; preview_initial = false
+%      - Set site_list below (one entry per pilus); e.g. 1 = original single
+%        pilus at site 1; [1 2 3 6] = four pili at those sites
+%      - Duplicate sites are allowed but trigger init_coupled_params warning
+%      - auto_confirm = true  to suppress all interactive dialogs
+%      - preview_initial = false  to skip the pose preview figure
 %      - generate_animation = true; animation_skip = 5
-%      - enable_brown = false
+%      - Each run produces its own output directory with full logs and data
 %
 %  Author:  Lucien (lucien-6@qq.com)
-%  Created: 2026-03-30
+%  Created: 2026-03-18
 %  Updated: 2026-05-06 — Lucien — added geometry_mode='parametric' (required by
 %                        save_sim_config since v6/v7 custom-geometry feature),
 %                        project-root cd-block, and pili_ext capture from
@@ -31,10 +35,11 @@ else
     proj_root = fileparts(fileparts(this_file));
 end
 if ~isfolder(proj_root)
-    error('batch_sweep_seg_per_um:BadRoot', 'Cannot resolve project root.');
+    error('batch_sweep_pili_length:BadRoot', 'Cannot resolve project root.');
 end
 cd(proj_root);
 addpath(proj_root);
+addpath(genpath(fullfile(proj_root, 'src')));
 
 %% ---- Define base configuration ----
 cfg_base.case_name     = '';
@@ -44,11 +49,7 @@ cfg_base.major_axis    = 1.25e-6;
 cfg_base.N_body        = 200;
 cfg_base.alpha_0       = 0;
 
-pili_cfg(1).type      = 'linear';
-pili_cfg(1).length_um = 3;
-pili_cfg(1).site      = 1;
-[cfg_base.Pili_Matrix, cfg_base.pili_ext] = parse_pili_config(pili_cfg);
-cfg_base.seg_per_um   = 10;          % Overridden each run
+cfg_base.seg_per_um = 10;
 
 cfg_base.E       = 3.279e8;
 cfg_base.r_pili  = 3e-9;
@@ -82,16 +83,34 @@ cfg_base.flowfield_grid_range   = 10.0;
 cfg_base.flowfield_quiver_skip  = 5;
 cfg_base.flowfield_chunk_size   = 2000;
 
+%% ---- Per-pilus attachment sites (indices 1-14, arbitrary order) ----
+%  One integer per pilus; length(site_list) = number of pili.
+%  Examples:  1          -> single pilus at site 1
+%             1:6        -> six pili at consecutive sites 1..6
+%             [1 6 11]   -> three pili at left pole, right y+, middle z-
+site_list = 1;
+
+site_list = site_list(:).';   % row vector
+n_pili    = numel(site_list);
+if n_pili < 1
+    error('batch_sweep_pili_length:EmptySiteList', ...
+        'site_list must contain at least one attachment site index.');
+end
+if any(site_list < 1 | site_list > 14 | floor(site_list) ~= site_list)
+    error('batch_sweep_pili_length:InvalidSite', ...
+        'Each site must be an integer in 1..14 (see parse_pili_config).');
+end
+
 %% ---- Define sweep values ----
-%  Segments per micron; >= 5 recommended (validator warning if lower)
-seg_values = 10:5:35;
-n_runs     = numel(seg_values);
+length_values = [1, 2, 3, 4, 5, 6];    % Pilus contour length [um], all pili equal
+n_runs        = numel(length_values);
 
 sweep_results = cell(n_runs, 1);
 sweep_dirs    = cell(n_runs, 1);
 
 fprintf('========================================\n');
-fprintf('  Parameter Sweep: seg_per_um\n');
+fprintf('  Parameter Sweep: pili length (n_pili = %d, sites = [%s])\n', ...
+    n_pili, num2str(site_list));
 fprintf('  %d runs scheduled\n', n_runs);
 fprintf('========================================\n\n');
 
@@ -101,10 +120,11 @@ run_status   = repmat("PENDING", n_runs, 1);
 run_walltime = nan(n_runs, 1);
 run_errmsg   = repmat("", n_runs, 1);
 if sweep_fid ~= -1
-    fprintf(sweep_fid, 'script    : batch_sweep_seg_per_um\n');
-    fprintf(sweep_fid, 'sweep_var : seg_per_um [-]\n');
+    fprintf(sweep_fid, 'script    : batch_sweep_pili_length\n');
+    fprintf(sweep_fid, 'sweep_var : pilus length [um] (shared across %d pili)\n', n_pili);
+    fprintf(sweep_fid, 'sites     : [%s]\n', num2str(site_list));
     fprintf(sweep_fid, 'n_runs    : %d\n', n_runs);
-    fprintf(sweep_fid, 'values    : %s\n', mat2str(seg_values));
+    fprintf(sweep_fid, 'values_um : %s\n', mat2str(length_values));
     fprintf(sweep_fid, 'started   : %s\n\n', char(datetime('now', 'Format', 'uuuu-MM-dd HH:mm:ss')));
 end
 
@@ -112,12 +132,18 @@ end
 t_sweep_start = tic;
 
 for ii = 1:n_runs
-    sg = seg_values(ii);
-    cfg_i             = cfg_base;
-    cfg_i.seg_per_um  = sg;
-    cfg_i.case_name   = sprintf('sweep-segperum-%d', sg);
+    L = length_values(ii);
+    % Same length for each pilus; site per pilus from site_list
+    pili_cfg_i = struct('type', 'linear', 'length_um', L, 'site', num2cell(site_list));
 
-    fprintf('\n--- Run %d/%d: seg_per_um = %g ---\n', ii, n_runs, sg);
+    cfg_i             = cfg_base;
+    [cfg_i.Pili_Matrix, cfg_i.pili_ext] = parse_pili_config(pili_cfg_i);
+    site_tag = sprintf('%d-', site_list);
+    site_tag = site_tag(1:end-1);   % e.g. "1-6-11"
+    cfg_i.case_name   = sprintf('sweep-plen-%02d-um-sites-%s', L, site_tag);
+
+    fprintf('\n--- Run %d/%d: length = %d um, sites [%s] ---\n', ...
+        ii, n_runs, L, num2str(site_list));
 
     t_run_start = tic;
     try
@@ -136,12 +162,12 @@ for ii = 1:n_runs
         run_errmsg(ii)    = string(ME.message);
         sweep_results{ii} = [];
         sweep_dirs{ii}    = '';
-        fprintf('\n  [FAIL] seg_per_um = %g: %s\n', sg, ME.message);
+        fprintf('\n  [FAIL] length = %d um: %s\n', L, ME.message);
     end
 
     if sweep_fid ~= -1
-        fprintf(sweep_fid, '[%02d/%02d] seg_per_um = %5g  status = %-8s  wall = %8.2f s\n', ...
-            ii, n_runs, sg, run_status(ii), run_walltime(ii));
+        fprintf(sweep_fid, '[%02d/%02d] length = %2d um  status = %-8s  wall = %8.2f s\n', ...
+            ii, n_runs, L, run_status(ii), run_walltime(ii));
         if run_status(ii) == "FAILED"
             fprintf(sweep_fid, '         error: %s\n', run_errmsg(ii));
         end
@@ -163,10 +189,12 @@ fprintf('========================================\n');
 for ii = 1:n_runs
     if ~isempty(sweep_results{ii}) && run_status(ii) == "OK"
         Vs = sweep_results{ii}.V_sink;
-        fprintf('  seg_per_um = %5g  |  Steady V_sink = %.4e um/s\n', ...
-            seg_values(ii), mean(Vs(max(1, round(0.95 * numel(Vs))):end)));
+        fprintf('  length = %2d um  (sites [%s])  |  Steady V_sink = %.4e um/s\n', ...
+            length_values(ii), num2str(site_list), ...
+            mean(Vs(max(1, round(0.95 * numel(Vs))):end)));
     else
-        fprintf('  seg_per_um = %5g  |  %s\n', seg_values(ii), run_status(ii));
+        fprintf('  length = %2d um  (sites [%s])  |  %s\n', ...
+            length_values(ii), num2str(site_list), run_status(ii));
     end
 end
 fprintf('========================================\n');

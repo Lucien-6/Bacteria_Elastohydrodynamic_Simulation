@@ -56,7 +56,9 @@ fprintf('%s\n\n', sep);
 % Standalone entry: add project root (same helper as main sim; batch sweep
 % also uses local addpath — see comments in main_coupled_simulation.m).
 _postproc_this = mfilename('fullpath');
-addpath(fileparts(fileparts(_postproc_this)));
+_postproc_root = fileparts(fileparts(_postproc_this));
+addpath(_postproc_root);
+addpath(genpath(fullfile(_postproc_root, 'src')));
 
 %% ---- Step 1: Case folder selection ------------------------------------
 fprintf('[1/4] Selecting case folders ...\n');

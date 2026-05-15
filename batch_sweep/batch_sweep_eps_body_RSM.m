@@ -1,4 +1,4 @@
-﻿%% batch_sweep_eps_body_RSM.m
+%% batch_sweep_eps_body_RSM.m
 %  Parameter Sweep: RSM body regularisation eps_body (no pili, sphere)
 %
 %  Description:
@@ -35,6 +35,7 @@ if ~isfolder(proj_root)
 end
 cd(proj_root);
 addpath(proj_root);
+addpath(genpath(fullfile(proj_root, 'src')));
 
 %% ---- Geometry and fixed numerics ----
 R_sphere = 0.4e-6;   % Sphere radius [m] (semi-axes)

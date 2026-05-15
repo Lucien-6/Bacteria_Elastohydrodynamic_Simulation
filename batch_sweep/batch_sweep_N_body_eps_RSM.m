@@ -50,6 +50,7 @@ if ~isfolder(proj_root)
 end
 cd(proj_root);
 addpath(proj_root);
+addpath(genpath(fullfile(proj_root, 'src')));
 
 %% ---- Geometry (sphere) and physical constants [SI] ----
 R_sphere = 0.4e-6;   % Sphere radius [m] (semi-axes)

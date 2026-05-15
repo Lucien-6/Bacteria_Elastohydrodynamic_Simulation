@@ -21,14 +21,14 @@
 - 支持自由扭转根部边界条件和恒定马达力矩，用于马达驱动鞭毛。
 - 支持 MATLAB 内联配置、JSON 配置和程序化批处理运行。
 - 支持面向论文图像的导出：MAT、CSV、日志、PNG、矢量 PDF、可选交互式 HTML 和 MP4 动画。
-- 可选**并行**布朗重复批量（[`batch sweep/batch_repeat_brownian.m`](batch%20sweep/batch_repeat_brownian.m)）：在已安装 **Parallel Computing Toolbox** 时使用 `parfor` 与自动池规模估计；无工具箱或池创建失败时自动回退为串行循环。
+- 可选**并行**布朗重复批量（[`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m)）：在已安装 **Parallel Computing Toolbox** 时使用 `parfor` 与自动池规模估计；无工具箱或池创建失败时自动回退为串行循环。
 
 - 推荐 MATLAB R2020b 或更新版本。
 - PNG 与 PDF 图像导出依赖 `exportgraphics`，MATLAB R2020a 起可用。
 - 可选交互式 HTML 图像导出需要 MATLAB R2026a 或更新版本。
 - 胶囊胞体表面布点需要 MATLAB Add-On / File Exchange 中 Anton Semechko 的 **S2 Sampling Toolbox**。安装后需确保 `ParticleSampleSphere`、`SpiralSampleSphere`、`IcosahedronMesh`、`QuadCubeMesh` 和 `SubdivideSphericalMesh` 在 MATLAB path 中。
 - 运行仿真不需要 Python / Conda / pip。详见 [`requirements.txt`](requirements.txt)。
-- **Parallel Computing Toolbox** 为可选依赖：仅在使用 [`batch sweep/batch_repeat_brownian.m`](batch%20sweep/batch_repeat_brownian.m) 的并行分支时需要（默认 `use_parallel = true`）。
+- **Parallel Computing Toolbox** 为可选依赖：仅在使用 [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) 的并行分支时需要（默认 `use_parallel = true`）。
 
 ## 快速开始
 

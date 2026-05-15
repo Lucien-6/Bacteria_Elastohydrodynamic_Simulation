@@ -1,21 +1,21 @@
-﻿%% batch_sweep_major_axis.m
-%  Automated Parameter Sweep: Bacterial Body Major Axis Length
+%% batch_sweep_N_body.m
+%  Automated Parameter Sweep: Body Surface Discretisation Count N_body
 %
 %  Description:
-%    Sweeps the semi-major axis of the bacterial ellipsoidal body while
-%    keeping all other parameters fixed.  The aspect ratio changes with
-%    each run because minor_axis is held constant.  Model is body-only
-%    (no pili): empty Pili_Matrix.  Results compared via V_sink steady mean.
+%    Sweeps N_body on a spherical body of radius R = 0.4 um (semi-axes
+%    major_axis = minor_axis = 0.4e-6 m) with no pili (empty Pili_Matrix).
+%    N_body must be >= 10 (validator).  Results compared via V_sink steady mean.
 %
 %    Key points:
+%      - Sphere geometry: major_axis == minor_axis (validator allows equality)
 %      - No pili: Pili_Matrix = zeros(8, 0)
-%      - auto_confirm = true  to suppress all interactive dialogs
-%      - preview_initial = false  to skip the pose preview figure
+%      - Edit N_body_values below for the sweep grid
+%      - auto_confirm = true; preview_initial = false
 %      - generate_animation = true; animation_skip = 5
-%      - Each run produces its own output directory with full logs and data
+%      - enable_brown = false
 %
 %  Author:  Lucien (lucien-6@qq.com)
-%  Created: 2026-03-18
+%  Created: 2026-03-30
 %  Updated: 2026-05-06 — Lucien — added geometry_mode='parametric' (required by
 %                        save_sim_config since v6/v7 custom-geometry feature)
 %                        and project-root cd-block for robust standalone runs.
@@ -31,20 +31,23 @@ else
     proj_root = fileparts(fileparts(this_file));
 end
 if ~isfolder(proj_root)
-    error('batch_sweep_major_axis:BadRoot', 'Cannot resolve project root.');
+    error('batch_sweep_N_body:BadRoot', 'Cannot resolve project root.');
 end
 cd(proj_root);
 addpath(proj_root);
+addpath(genpath(fullfile(proj_root, 'src')));
 
 %% ---- Define base configuration ----
-cfg_base.case_name     = '';           % Will be auto-set per run below
+R_sphere = 0.4e-6;   % Sphere radius [m]
+
+cfg_base.case_name     = '';
 cfg_base.geometry_mode = 'parametric'; % required by save_sim_config (v6+)
-cfg_base.minor_axis    = 0.4e-6;
-cfg_base.major_axis    = 1.25e-6;      % Overridden in the loop
-cfg_base.N_body        = 200;
+cfg_base.minor_axis    = R_sphere;
+cfg_base.major_axis    = R_sphere;
+cfg_base.N_body        = 200;          % Overridden each run
 cfg_base.alpha_0       = 0;
 
-cfg_base.Pili_Matrix  = zeros(8, 0);   % No pili (body only)
+cfg_base.Pili_Matrix  = zeros(8, 0); % No pili
 cfg_base.seg_per_um   = 10;
 
 cfg_base.E       = 3.279e8;
@@ -67,12 +70,12 @@ cfg_base.Temper       = 293.15;
 cfg_base.dt_B         = cfg_base.dt / 2;
 cfg_base.fixman_midpoint  = false;
 
-cfg_base.preview_initial    = false;    % No interactive preview
+cfg_base.preview_initial    = false;
 cfg_base.generate_animation = true;
 cfg_base.animation_fps      = 30;
 cfg_base.animation_skip     = 5;
 
-cfg_base.auto_confirm = true;           % Headless mode
+cfg_base.auto_confirm = true;
 
 cfg_base.flowfield_grid_spacing = 0.05;
 cfg_base.flowfield_grid_range   = 10.0;
@@ -80,15 +83,15 @@ cfg_base.flowfield_quiver_skip  = 5;
 cfg_base.flowfield_chunk_size   = 2000;
 
 %% ---- Define sweep values ----
-% Semi-major axis [m]; minor_axis fixed at 0.4 um; grid 0.4:0.2:1.6 um
-major_values = (0.4:0.2:1.6) * 1e-6;
-n_runs       = numel(major_values);
+%  Integers >= 10
+N_body_values = 200:200:1600;
+n_runs        = numel(N_body_values);
 
 sweep_results = cell(n_runs, 1);
 sweep_dirs    = cell(n_runs, 1);
 
 fprintf('========================================\n');
-fprintf('  Parameter Sweep: major_axis (body only, no pili)\n');
+fprintf('  Parameter Sweep: N_body (sphere R = 0.4 um, no pili)\n');
 fprintf('  %d runs scheduled\n', n_runs);
 fprintf('========================================\n\n');
 
@@ -98,10 +101,10 @@ run_status   = repmat("PENDING", n_runs, 1);
 run_walltime = nan(n_runs, 1);
 run_errmsg   = repmat("", n_runs, 1);
 if sweep_fid ~= -1
-    fprintf(sweep_fid, 'script    : batch_sweep_major_axis\n');
-    fprintf(sweep_fid, 'sweep_var : major_axis [um]\n');
+    fprintf(sweep_fid, 'script    : batch_sweep_N_body\n');
+    fprintf(sweep_fid, 'sweep_var : N_body [-]\n');
     fprintf(sweep_fid, 'n_runs    : %d\n', n_runs);
-    fprintf(sweep_fid, 'values_um : %s\n', mat2str(major_values * 1e6, 4));
+    fprintf(sweep_fid, 'values    : %s\n', mat2str(N_body_values));
     fprintf(sweep_fid, 'started   : %s\n\n', char(datetime('now', 'Format', 'uuuu-MM-dd HH:mm:ss')));
 end
 
@@ -109,12 +112,12 @@ end
 t_sweep_start = tic;
 
 for ii = 1:n_runs
-    cfg_i = cfg_base;
-    cfg_i.major_axis = major_values(ii);
-    cfg_i.case_name  = sprintf('sweep-major-%04.0f-nm', major_values(ii) * 1e9);
+    Nb = N_body_values(ii);
+    cfg_i          = cfg_base;
+    cfg_i.N_body   = Nb;
+    cfg_i.case_name = sprintf('sweep-nbody-%d', Nb);
 
-    fprintf('\n--- Run %d/%d: major_axis = %.2f um ---\n', ...
-        ii, n_runs, major_values(ii) * 1e6);
+    fprintf('\n--- Run %d/%d: N_body = %d ---\n', ii, n_runs, Nb);
 
     t_run_start = tic;
     try
@@ -133,13 +136,12 @@ for ii = 1:n_runs
         run_errmsg(ii)    = string(ME.message);
         sweep_results{ii} = [];
         sweep_dirs{ii}    = '';
-        fprintf('\n  [FAIL] major_axis = %.2f um: %s\n', ...
-            major_values(ii) * 1e6, ME.message);
+        fprintf('\n  [FAIL] N_body = %d: %s\n', Nb, ME.message);
     end
 
     if sweep_fid ~= -1
-        fprintf(sweep_fid, '[%02d/%02d] major_axis = %5.2f um  status = %-8s  wall = %8.2f s\n', ...
-            ii, n_runs, major_values(ii) * 1e6, run_status(ii), run_walltime(ii));
+        fprintf(sweep_fid, '[%02d/%02d] N_body = %6d  status = %-8s  wall = %8.2f s\n', ...
+            ii, n_runs, Nb, run_status(ii), run_walltime(ii));
         if run_status(ii) == "FAILED"
             fprintf(sweep_fid, '         error: %s\n', run_errmsg(ii));
         end
@@ -161,10 +163,10 @@ fprintf('========================================\n');
 for ii = 1:n_runs
     if ~isempty(sweep_results{ii}) && run_status(ii) == "OK"
         Vs = sweep_results{ii}.V_sink;
-        fprintf('  major_axis = %5.2f um  |  Steady V_sink = %.4e um/s\n', ...
-            major_values(ii) * 1e6, mean(Vs(max(1, round(0.95 * numel(Vs))):end)));
+        fprintf('  N_body = %6d  |  Steady V_sink = %.4e um/s\n', ...
+            N_body_values(ii), mean(Vs(max(1, round(0.95 * numel(Vs))):end)));
     else
-        fprintf('  major_axis = %5.2f um  |  %s\n', major_values(ii) * 1e6, run_status(ii));
+        fprintf('  N_body = %6d  |  %s\n', N_body_values(ii), run_status(ii));
     end
 end
 fprintf('========================================\n');

@@ -1,4 +1,4 @@
-﻿# User Guide — Coupled Body-Pili Simulation
+# User Guide — Coupled Body-Pili Simulation
 
 English | [中文](USER_GUIDE.zh-CN.md)
 
@@ -16,7 +16,7 @@ This guide is for running simulations, choosing the right configuration path, fi
 - PNG and PDF exports use `exportgraphics`; optional interactive HTML exports require MATLAB R2026a or later.
 - Capsule body surface generation requires Anton Semechko's **S2 Sampling Toolbox** from MATLAB Add-On Explorer / File Exchange.
 - No Python, Conda, or pip environment is required. [`requirements.txt`](requirements.txt) documents this explicitly.
-- **Parallel Computing Toolbox** is optional: needed only for the default parallel branch of [`batch sweep/batch_repeat_brownian.m`](batch%20sweep/batch_repeat_brownian.m) (`use_parallel = true`).
+- **Parallel Computing Toolbox** is optional: needed only for the default parallel branch of [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) (`use_parallel = true`).
 
 ### Recommended Working Folder
 
@@ -90,11 +90,11 @@ cfg.auto_confirm = true;
 [results, params, output_dir] = run_simulation(cfg);
 ```
 
-Batch sweep drivers live in [`batch sweep/`](batch%20sweep/). The folder includes parameter sweeps for body resolution, body regularization, pilus length, pilus stiffness, segment density, initial angle, and Brownian repeats.
+Batch sweep drivers live in [`batch_sweep/`](batch_sweep/). The folder includes parameter sweeps for body resolution, body regularization, pilus length, pilus stiffness, segment density, initial angle, and Brownian repeats.
 
 ### 5.1 Brownian repeat batch (`batch_repeat_brownian.m`)
 
-From the repository root, open [`batch sweep/batch_repeat_brownian.m`](batch%20sweep/batch_repeat_brownian.m). It runs independent repeats of the **same** Brownian-on configuration into `output/<case_name_base>/001`, `002`, … (zero-padded).
+From the repository root, open [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m). It runs independent repeats of the **same** Brownian-on configuration into `output/<case_name_base>/001`, `002`, … (zero-padded).
 
 - **Parallel (default):** `use_parallel = true` runs a `parfor` loop when **Parallel Computing Toolbox** is licensed and a `parpool` can be created. Worker count is limited by `max_resource_frac` (default `0.75`) applied to probed physical cores and to available RAM via `mem_per_worker_gb`. If PCT is missing or pool creation fails, the driver **warns and falls back** to the legacy serial `for` loop.
 - **Serial:** `use_parallel = false` keeps the pre-v7.4 single-threaded loop (use this for strict reproducibility checks against older behaviour).
@@ -145,7 +145,7 @@ Important options:
 
 When Brownian dynamics are enabled, the realized seed is saved in `config.json`, `brownian_rng_seed.txt`, `simulation.log`, and `simulation_results.mat`.
 
-**Mobility conditioning warning (since v7.4.1):** Each Brownian step evaluates an `rcond`-based diagnostic inside [`compute_effective_body_brownian.m`](compute_effective_body_brownian.m) on the **dimensionless** effective mobility after symmetrisation (`M_eff_dimless`). Routine runs should therefore **not** spam `compute_effective_body_brownian:IllConditioned` from dimensional TT/TR/RR scaling alone; if MATLAB still emits this warning with a very small **`M_eff_dimless` rcond**, investigate degenerate kinematics or geometry (e.g. Euler roots near \(\theta = \pi\) for clamped pili rows, unusually extreme body aspect ratios) with `simulation.log` alongside the kinematic trajectory.
+**Mobility conditioning warning (since v7.4.1):** Each Brownian step evaluates an `rcond`-based diagnostic inside [`src/physics/compute_effective_body_brownian.m`](src/physics/compute_effective_body_brownian.m) on the **dimensionless** effective mobility after symmetrisation (`M_eff_dimless`). Routine runs should therefore **not** spam `compute_effective_body_brownian:IllConditioned` from dimensional TT/TR/RR scaling alone; if MATLAB still emits this warning with a very small **`M_eff_dimless` rcond**, investigate degenerate kinematics or geometry (e.g. Euler roots near \(\theta = \pi\) for clamped pili rows, unusually extreme body aspect ratios) with `simulation.log` alongside the kinematic trajectory.
 
 ## 9. Main Outputs
 

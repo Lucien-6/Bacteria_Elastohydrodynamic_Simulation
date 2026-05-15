@@ -29,7 +29,9 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %  addpath in main_coupled_simulation; post_processing/ and batch sweep/
 %  retain separate addpath for standalone use.
 
-addpath(fileparts(mfilename('fullpath')));
+proj_root = fileparts(mfilename('fullpath'));
+addpath(proj_root);
+addpath(genpath(fullfile(proj_root, 'src')));
 
 %% ---- Input parsing ----
 if ischar(cfg_or_path) || isstring(cfg_or_path)

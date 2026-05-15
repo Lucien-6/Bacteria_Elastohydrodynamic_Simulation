@@ -43,11 +43,14 @@ scriptDir   = fileparts(mfilename('fullpath'));
 projectRoot = fileparts(scriptDir);
 if isfile(fullfile(projectRoot, 'run_simulation.m'))
     cd(projectRoot);
-elseif ~isfile('run_simulation.m')
+elseif isfile('run_simulation.m')
+    projectRoot = pwd;
+else
     error('batch_repeat_brownian:WrongDirectory', ...
-        ['Could not find run_simulation.m. Place this script in batch sweep/ ', ...
+        ['Could not find run_simulation.m. Place this script in batch_sweep/ ', ...
          'under Coupled_Body_Pili, or cd to Coupled_Body_Pili before running.']);
 end
+addpath(genpath(fullfile(projectRoot, 'src')));
 
 %% ========================================================================
 %  USER SETTINGS
