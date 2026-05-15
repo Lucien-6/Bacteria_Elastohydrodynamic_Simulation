@@ -1,4 +1,4 @@
-﻿%% batch_repeat_brownian.m
+%% batch_repeat_brownian.m
 %  Independent repeated simulations: same configuration, Brownian motion ON
 %
 %  Description:
@@ -55,10 +55,10 @@ end
 
 % --- Root folder name under output/ (required).  Repeats go to:
 %     output/<case_name_base>/001, 002, ...
-case_name_base = 'NoPili-Brown';
+case_name_base = 'OnePili-S1-L3-Brown';
 
 % --- Number of independent repeats (>= 1)
-n_repeats = 50;
+n_repeats = 100;
 
 % --- RNG (Brownian twister; see run_simulation.m):
 %     'fixed'     — per repeat: cfg.brown_rng_seed = rng_seed_base + k (reproducible).
@@ -83,7 +83,7 @@ rng_seed_base = 202604091;
 %                           otherwise oversubscribe the CPU.  Raise to 2 only if
 %                           you have far more cores than concurrent workers.
 use_parallel        = true;
-mem_per_worker_gb   = 1.5;
+mem_per_worker_gb   = 2.0;
 max_resource_frac   = 0.75;
 worker_blas_threads = 1;
 
@@ -102,10 +102,12 @@ cfg_base.case_name    = '';   % Overwritten per repeat; ignored here
 cfg_base.geometry_mode = 'parametric';   % required by save_sim_config (v6+)
 cfg_base.minor_axis   = 0.4e-6;
 cfg_base.major_axis   = 1.25e-6;
-cfg_base.N_body       = 200;
-cfg_base.alpha_0      = pi / 2;
+cfg_base.N_body       = 300;
+cfg_base.alpha_0      = 0;
 
-pili_cfg = struct([]);
+pili_cfg(1).type        = 'linear';
+pili_cfg(1).length_um   = 3;
+pili_cfg(1).site        = 1;
 [cfg_base.Pili_Matrix, cfg_base.pili_ext] = parse_pili_config(pili_cfg);
 
 cfg_base.seg_per_um = 10;
