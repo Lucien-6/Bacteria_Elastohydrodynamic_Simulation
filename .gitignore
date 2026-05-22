@@ -1,1 +1,3 @@
 output/
+.ruff_cache/
+.mypy_cache/
