@@ -184,6 +184,10 @@ for k = 1:M_pili
                 % to R_global(4:6).  Both injected an internal torque into
                 % the system equation and were physically incorrect.
                 % Removed in v7.3.0; see CHANGELOG.
+            otherwise
+                error('ode_coupled_rhs:UnknownMotorType', ...
+                    ['Pili %d: motor_cfg.type = ''%s'' is not implemented in RHS. ', ...
+                     'Supported: constant.'], k, mc_k.type);
         end
     end
 

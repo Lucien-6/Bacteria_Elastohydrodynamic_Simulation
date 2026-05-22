@@ -469,6 +469,11 @@ for k = 1:M
 
         lin_sys(r1, theta1_col) = 1;   lin_sys(r1, omega_cols) = -J_euler(1,:);
         lin_sys(r2, phi1_col)   = 1;   lin_sys(r2, omega_cols) = -J_euler(2,:);
+
+    else
+        error('build_coupled_lin_sys:UnknownRootCoupling', ...
+            ['Pili %d: root_coupling = ''%s''. ', ...
+             'Supported: clamped, free_torsion.'], k, rc_k);
     end
 
     % Diagnostic export of J_euler(3,:), the omega -> dot_psi kinematic
