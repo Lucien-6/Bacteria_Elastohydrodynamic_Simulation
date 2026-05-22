@@ -18,7 +18,7 @@ The simulator models a bacterial body with flexible pili or flagella settling in
 - **Fluid:** zero-Reynolds-number Stokes flow.
 - **Coupling:** hydrodynamic interactions between all body and pili points are retained through a global mobility solve.
 
-The default parametric body is a capsule with two hemispherical caps and a cylindrical midsection. In custom geometry mode, both the body and pili are imported from user-provided point clouds; mixing custom and parametric geometry in either direction is rejected by `validate_simulation_params.m`.
+The default parametric body is a capsule with two hemispherical caps and a cylindrical midsection. In custom geometry mode, both the body and pili are imported from user-provided point clouds; mixing custom and parametric geometry in either direction is rejected by `validate_simulation_params.m` when the mixed fields reach the validator (inline or programmatic `cfg`, or JSON loaded into `cfg` and passed through `run_simulation.m`). Note: in JSON parametric mode, `load_sim_config.m` does **not** read a top-level `custom_geometry` block into `cfg`, so such stray keys are silently ignored at load time rather than validated—remove them from the JSON file or switch to `geometry_mode: "custom"`.
 
 ## 2. Main Methods
 

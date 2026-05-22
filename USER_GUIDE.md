@@ -68,7 +68,9 @@ The repository tracks example JSON files under `configs/`. Copy them to paths su
 
 **Custom mode** (`geometry_mode: "custom"`): provide `custom_geometry` with imported body and pili point clouds. Do not set parametric body fields (`major_axis`, `N_body`, …) or a non-empty `Pili_Matrix`. Authoritative example: [`configs/config_custom_example.json`](configs/config_custom_example.json).
 
-Since v7.4.4, `validate_simulation_params.m` rejects **both directions** of custom/parametric mixing with explicit errors.
+Since v7.4.4, `validate_simulation_params.m` rejects **both directions** of custom/parametric mixing with explicit errors when mixed fields are present on `cfg`.
+
+**JSON note:** `load_sim_config.m` does not map a top-level `custom_geometry` block into `cfg` when `geometry_mode` is `"parametric"`. Stray `custom_geometry` keys in a parametric JSON file are therefore **silently ignored at load time** and never reach validation—delete the block from the JSON or set `"geometry_mode": "custom"`.
 
 A typical top-level layout includes:
 

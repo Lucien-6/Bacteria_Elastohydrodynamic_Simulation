@@ -68,7 +68,9 @@ main_coupled_simulation
 
 **自定义模式**（`geometry_mode: "custom"`）：提供 `custom_geometry`（导入胞体与纤毛点云）。不得同时设置参数化胞体字段（`major_axis`、`N_body` 等）或非空 `Pili_Matrix`。权威示例：[`configs/config_custom_example.json`](configs/config_custom_example.json)。
 
-自 v7.4.4 起，`validate_simulation_params.m` 会**双向**拒绝 custom/parametric 字段混用，并给出明确错误信息。
+自 v7.4.4 起，当 `cfg` 上同时存在混用字段时，`validate_simulation_params.m` 会**双向**拒绝 custom/parametric 混用并给出明确错误。
+
+**JSON 说明：** 当 `geometry_mode` 为 `"parametric"` 时，`load_sim_config.m` **不会**将顶层 `custom_geometry` 映射到 `cfg`。参数化 JSON 中残留的 `custom_geometry` 因此会在**加载阶段被静默忽略**，不会进入校验——请从 JSON 中删除该块，或改为 `"geometry_mode": "custom"`。
 
 典型顶层布局包括：
 
