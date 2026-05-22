@@ -4,8 +4,8 @@
 [返回中文 README](../README.zh-CN.md)
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **更新日期:** 2026-05-06
-> **版本:** 7.4.2
+> **更新日期:** 2026-05-22
+> **版本:** 7.4.4
 
 本文档承接原长版 README 中的理论、模型和数值方法说明。仓库首页现在保持精简；实际运行步骤见 [`../USER_GUIDE.md`](../USER_GUIDE.md)，版本历史见 [`../CHANGELOG.md`](../CHANGELOG.md)。
 
@@ -39,7 +39,7 @@ RSS 的关键优势是对每根直线纤毛段上的正则化 Stokeslet 核函�
 
 | 物理量 | 符号 | 定义 |
 | --- | --- | --- |
-| 长度 | $L_0$ | 胞体 `major_axis` |
+| 长度 | $L_0$ | 参数化：`major_axis`；自定义：`L_0_override` 或体几何建议值 |
 | 弯曲刚度 | $EI$ | $E\pi r_{\mathrm{pili}}^4/4$ |
 | 时间 | $T_0$ | $8\pi\mu L_0^4/EI$ |
 | 速度 | $U_0$ | $L_0/T_0$ |
@@ -50,6 +50,22 @@ RSS 的关键优势是对每根直线纤毛段上的正则化 Stokeslet 核函�
 - 弹性-重力数：$E_g = F_{\mathrm{sink}}L_0^2/EI$。
 - 纤毛细长比：$\varepsilon = r_{\mathrm{pili}}/L_0$。
 - 泊松比：$\sigma$，由用户给定。
+
+沉降力（有量纲）为
+
+```math
+F_{\mathrm{sink}} = (\rho_{\mathrm{bac}} - \rho_{\mathrm{fluid}})\, V_{\mathrm{body}}\, g,
+```
+
+其中 $V_{\mathrm{body}}$ 在参数化模式下为胶囊体积，在自定义模式下为 alpha-shape 体积。重力通过 ODE 右端 $\mathbf{R}_{1:3} = -E_g\,\hat{\mathbf{g}}$ 进入，$\hat{\mathbf{g}} = [0,0,-1]^\mathsf{T}$。
+
+根部与胞体间隙（有量纲）为
+
+```math
+\mathrm{dis} = 1.1\,(\varepsilon_{\mathrm{body}} + \varepsilon_{\mathrm{pili}})\,L_0,
+```
+
+传入 `pili_building` / `custom_pili_building`，避免纤毛根部正则化核重叠。
 
 其他物理输入使用同一套尺度：
 
@@ -88,7 +104,9 @@ RSS 的关键优势是对每根直线纤毛段上的正则化 Stokeslet 核函�
 \otimes \mathbf{q}.
 ```
 
-每根纤毛由 Euler 角定义材料标架 `(d1, d2, d3)`，其中 `d3` 是纤毛段切向。[`reconstruct_geometry.m`](../reconstruct_geometry.m) 将状态 `Z` 转换为实验室坐标系下的胞体表面点、纤毛节点、director 标架和水动力求解所需的辅助几何量。
+其中 $\boldsymbol{\Omega}$ 为**实验室坐标系下的胞体角速度**，取自耦合求解的 `z_dot(4:6)`（`quat_kinematics.m`）。
+
+每根纤毛由 Euler 角定义材料标架 `(d1, d2, d3)`，其中 `d3` 是纤毛段切向。[`reconstruct_geometry.m`](../src/geometry/reconstruct_geometry.m) 将状态 `Z` 转换为实验室坐标系下的胞体表面点、纤毛节点、director 标架和水动力求解所需的辅助几何量。
 
 ## 5. 水动力模型
 
@@ -213,7 +231,7 @@ director 演化关系为：
 \mathbf{d}_{\alpha}' = \mathbf{U}\times\mathbf{d}_{\alpha}.
 ```
 
-[`compute_pili_elastic_moments.m`](../compute_pili_elastic_moments.m) 使用的曲率分量为：
+[`compute_pili_elastic_moments.m`](../src/physics/compute_pili_elastic_moments.m) 使用的曲率分量为：
 
 ```math
 \kappa_1
@@ -312,7 +330,7 @@ k_B T\,\mathbf{M}_{\mathrm{eff,dim}},
 
 ## 11. 流场可视化
 
-[`compute_plot_flowfield.m`](../compute_plot_flowfield.m) 在末状态重构几何，在胞体质心附近的 XZ 和 YZ 平面上评估速度场，遮罩胞体内部区域，并导出 2 x 2 面板图：
+[`compute_plot_flowfield.m`](../src/visualization/compute_plot_flowfield.m) 在末状态重构几何，在胞体质心附近的 XZ 和 YZ 平面上评估速度场，遮罩胞体内部区域，并导出 2 x 2 面板图：
 
 - 3D XZ 平面视图。
 - 3D YZ 平面视图。
@@ -347,7 +365,7 @@ c_t \sim 4\pi\mu r_{\mathrm{pili}}^2.
 \frac{\varepsilon^2}{2}\,\Delta \hat{s}_k.
 ```
 
-代码中每根纤毛使用自身的归一化弧长，因此从全局胞体尺度转换到每根纤毛的 Walker 尺度时，会引入长度比 $\ell_k = L_{\mathrm{pili},k}/L_0$：
+代码中每根纤毛使用自身的归一化弧长，因此从全局胞体尺度转换到每根纤毛的 Walker 尺度时，会引入长度比 $\ell_k = L_{\mathrm{pili},k}/L_0$。每根纤毛的无量纲细长度为 $\varepsilon_k = \varepsilon/\ell_k = r_{\mathrm{pili}}/L_{\mathrm{pili},k}$（`build_global_resistance.m`）。
 
 ```math
 \widetilde{\mathbf{A}}_{\mathrm{twist},k}
@@ -358,6 +376,8 @@ c_t \sim 4\pi\mu r_{\mathrm{pili}}^2.
 \frac{\varepsilon^2}{2\ell_k}
 \widehat{\mathbf{A}}_k.
 ```
+
+两种写法代数等价，因为 $\ell_k\varepsilon_k^2 = \varepsilon^2/\ell_k$。
 
 纤毛力矩平衡行中配套使用的 $\ell_k^3$ 因子会把每根杆尺度下的力矩方程转换回全局尺度，从而保证组装后的系统
 

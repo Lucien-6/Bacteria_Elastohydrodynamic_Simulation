@@ -31,7 +31,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Documentation release: 7.4.2 (2026-05-07) — see README.md / CHANGELOG.md
+%  Documentation release: 7.4.4 (2026-05-22) — see README.md / CHANGELOG.md
 
 close all force;
 clear; clc;
@@ -57,10 +57,10 @@ addpath(genpath(fullfile(proj_root, 'src')));
 %
 %  'custom': Import arbitrary 3D point clouds for both body and pili.
 %    Custom body and custom pili MUST be used together (no mixing).
-%    Use config_custom_example.json (which references geometry/*.csv) as
+%    Use configs/config_custom_example.json (which references geometry/*.csv) as
 %    a template, or set cfg.geometry_mode = 'custom' and fill the inline
 %    custom-mode block below.
-config_file = '';    % e.g. 'config_custom_example.json' for the custom demo
+config_file = '';    % e.g. 'configs/config_custom_example.json' for the custom demo
 
 if ~isempty(config_file) && isfile(config_file)
     %% --- External JSON configuration ---

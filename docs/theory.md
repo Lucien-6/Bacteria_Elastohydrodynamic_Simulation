@@ -4,8 +4,8 @@ English | [中文](theory.zh-CN.md)
 [Back to README](../README.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Updated:** 2026-05-06
-> **Version:** 7.4.2
+> **Updated:** 2026-05-22
+> **Version:** 7.4.4
 
 This document contains the model details that were formerly embedded in the long README. The repository entry page is now intentionally short; practical run instructions are in [`../USER_GUIDE.md`](../USER_GUIDE.md), and release history is in [`../CHANGELOG.md`](../CHANGELOG.md).
 
@@ -18,7 +18,7 @@ The simulator models a bacterial body with flexible pili or flagella settling in
 - **Fluid:** zero-Reynolds-number Stokes flow.
 - **Coupling:** hydrodynamic interactions between all body and pili points are retained through a global mobility solve.
 
-The default parametric body is a capsule with two hemispherical caps and a cylindrical midsection. In custom geometry mode, both the body and pili are imported from user-provided point clouds; mixing custom body geometry with parametric pili is intentionally rejected.
+The default parametric body is a capsule with two hemispherical caps and a cylindrical midsection. In custom geometry mode, both the body and pili are imported from user-provided point clouds; mixing custom and parametric geometry in either direction is rejected by `validate_simulation_params.m`.
 
 ## 2. Main Methods
 
@@ -39,7 +39,7 @@ The body semi-major axis is used as the reference length:
 
 | Quantity | Symbol | Definition |
 | --- | --- | --- |
-| Length | $L_0$ | body `major_axis` |
+| Length | $L_0$ | body `major_axis` (parametric); `L_0_override` or body-derived suggestion (custom) |
 | Bending stiffness | $EI$ | $E\pi r_{\mathrm{pili}}^4/4$ |
 | Time | $T_0$ | $8\pi\mu L_0^4/EI$ |
 | Velocity | $U_0$ | $L_0/T_0$ |
@@ -50,6 +50,22 @@ Important dimensionless parameters are:
 - Elastic-gravity number: $E_g = F_{\mathrm{sink}}L_0^2/EI$.
 - Pili slenderness: $\varepsilon = r_{\mathrm{pili}}/L_0$.
 - Poisson ratio: $\sigma$, supplied by the user.
+
+The sinking force (dimensional) is
+
+```math
+F_{\mathrm{sink}} = (\rho_{\mathrm{bac}} - \rho_{\mathrm{fluid}})\, V_{\mathrm{body}}\, g,
+```
+
+where $V_{\mathrm{body}}$ is the capsule volume in parametric mode or the alpha-shape volume in custom mode. Gravity enters the ODE right-hand side as $\mathbf{R}_{1:3} = -E_g\,\hat{\mathbf{g}}$ with $\hat{\mathbf{g}} = [0,0,-1]^\mathsf{T}$.
+
+The root–body gap (dimensional) is
+
+```math
+\mathrm{dis} = 1.1\,(\varepsilon_{\mathrm{body}} + \varepsilon_{\mathrm{pili}})\,L_0,
+```
+
+passed to `pili_building` / `custom_pili_building` to keep regularized kernels separated at the pilus root.
 
 Additional model inputs use the same reference scales:
 
@@ -88,7 +104,9 @@ The body quaternion $\mathbf{q}$ represents the body-to-lab rotation and is adva
 \otimes \mathbf{q}.
 ```
 
-For each pilus, Euler angles define the material directors `(d1, d2, d3)`, where `d3` is the segment tangent. [`reconstruct_geometry.m`](../reconstruct_geometry.m) maps `Z` to lab-frame body points, pilus nodes, directors, and auxiliary geometry used by the hydrodynamic solve.
+Here $\boldsymbol{\Omega}$ is the **body angular velocity in the lab frame**, taken from `z_dot(4:6)` of the coupled solve (`quat_kinematics.m`).
+
+For each pilus, Euler angles define the material directors `(d1, d2, d3)`, where `d3` is the segment tangent. [`reconstruct_geometry.m`](../src/geometry/reconstruct_geometry.m) maps `Z` to lab-frame body points, pilus nodes, directors, and auxiliary geometry used by the hydrodynamic solve.
 
 ## 5. Hydrodynamics
 
@@ -213,7 +231,7 @@ with director evolution:
 \mathbf{d}_{\alpha}' = \mathbf{U}\times\mathbf{d}_{\alpha}.
 ```
 
-The curvature components used in [`compute_pili_elastic_moments.m`](../compute_pili_elastic_moments.m) are:
+The curvature components used in [`compute_pili_elastic_moments.m`](../src/physics/compute_pili_elastic_moments.m) are:
 
 ```math
 \kappa_1
@@ -312,7 +330,7 @@ The optional `fixman_midpoint` mode recomputes the mobility at a stochastic midp
 
 ## 11. Flow-Field Visualization
 
-[`compute_plot_flowfield.m`](../compute_plot_flowfield.m) reconstructs the end-state geometry, evaluates the flow on XZ and YZ planes around the body center, masks body interiors, and exports a 2 x 2 panel figure:
+[`compute_plot_flowfield.m`](../src/visualization/compute_plot_flowfield.m) reconstructs the end-state geometry, evaluates the flow on XZ and YZ planes around the body center, masks body interiors, and exports a 2 x 2 panel figure:
 
 - 3D XZ plane view.
 - 3D YZ plane view.
@@ -347,7 +365,7 @@ Using the global project scales gives the nondimensional torsional coefficient:
 \frac{\varepsilon^2}{2}\,\Delta \hat{s}_k.
 ```
 
-The implementation stores each pilus on its own normalized arclength, so the conversion between the global body scale and the per-pilus Walker scale introduces the pilus length ratio $\ell_k = L_{\mathrm{pili},k}/L_0$:
+The implementation stores each pilus on its own normalized arclength, so the conversion between the global body scale and the per-pilus Walker scale introduces the pilus length ratio $\ell_k = L_{\mathrm{pili},k}/L_0$. Per-pilus slenderness is $\varepsilon_k = \varepsilon/\ell_k = r_{\mathrm{pili}}/L_{\mathrm{pili},k}$ (`build_global_resistance.m`).
 
 ```math
 \widetilde{\mathbf{A}}_{\mathrm{twist},k}
@@ -358,6 +376,8 @@ The implementation stores each pilus on its own normalized arclength, so the con
 \frac{\varepsilon^2}{2\ell_k}
 \widehat{\mathbf{A}}_k.
 ```
+
+The two right-hand forms are algebraically equivalent because $\ell_k\varepsilon_k^2 = \varepsilon^2/\ell_k$.
 
 The complementary $\ell_k^3$ factor used in each pilus moment-balance row converts the per-rod moment equations back to the global scale, keeping the assembled system
 

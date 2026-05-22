@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Coupled Body-Pili elastohydrodynamic simulation v7.4.2 (MATLAB): RSM+RSS Stokes flow, Kirchhoff pili, Brownian dynamics, dimensionless mobility rcond diagnostic (v7.4.1), optional parfor Brownian repeat batches, free-torsion motors, JSON config, comment audit (v7.4.2).">
+<meta name="description" content="Coupled Body-Pili elastohydrodynamic simulation v7.4.4 (MATLAB): RSM+RSS Stokes flow, Kirchhoff pili, Brownian dynamics, configuration validation hardening (v7.4.4), optional parfor Brownian repeat batches, free-torsion motors, JSON config.">
 <title>Coupled Body-Pili Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -99,7 +99,7 @@ tailwind.config = {
 <aside id="sidebar" class="no-print fixed top-0 left-0 h-full w-64 bg-navy-900 text-gray-300 z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 overflow-y-auto">
   <div class="p-6 border-b border-navy-700">
     <h2 class="text-white font-bold text-lg leading-tight">Coupled Body-Pili</h2>
-    <p class="text-xs text-teal-500 mt-1">v7.4.2 &mdash; Comment audit &amp; documentation fix</p>
+    <p class="text-xs text-teal-500 mt-1">v7.4.4 &mdash; Configuration validation hardening</p>
   </div>
   <nav class="p-4 space-y-1 text-sm">
     <a href="#hero"         class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Home</span><span class="zh">首页</span></a>
@@ -153,7 +153,7 @@ tailwind.config = {
 <section id="hero" class="hero-gradient text-white py-24 px-6 md:px-16 lg:px-24">
   <div class="max-w-4xl mx-auto text-center">
     <div class="inline-block bg-teal-600/30 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-3 py-1 rounded-full mb-6 tracking-wide">
-      VERSION 7.4.2 &bull; 2026-05-07
+      VERSION 7.4.4 &bull; 2026-05-22
     </div>
     <h1 class="text-3xl md:text-5xl font-extrabold leading-tight mb-4">
       <span class="en">Coupled Body-Pili<br>Elastohydrodynamic Simulation</span>
@@ -390,12 +390,44 @@ tailwind.config = {
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en"><strong>v7.4.1</strong> adjusts <code>compute_effective_body_brownian.m</code> so Brownian preconditioning probes <code>M_eff_dimless</code>; this removes noisy <code>IllConditioned</code> warns from dimensional TT/TR/RR SI scaling (<code>L_eff</code>/<code>D_eff</code> unchanged vs. v7.4.0). <strong>v7.4.0</strong> still adds parallel Brownian repeats in <code>batch sweep/batch_repeat_brownian.m</code> (<code>parfor</code> capped by cores/RAM when PCT is available; serial fallback). The <strong>v7.3</strong> train still denotes the <code>free_torsion</code> + motor audit and related hardening. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
-      <span class="zh"><strong>v7.4.1</strong> 调整 <code>compute_effective_body_brownian.m</code>：布朗阶段在无量纲迁移率 <code>M_eff_dimless</code> 上做条件数诊断，消除因 <code>M_eff_dim</code> 各分块 SI 量纲差异导致的虚假 <code>IllConditioned</code> 告警（<code>L_eff</code>/<code>D_eff</code> 与 v7.4.0 一致）。<strong>v7.4.0</strong> 仍在 <code>batch sweep/batch_repeat_brownian.m</code> 中提供并行布朗重复批量（可用 PCT 时按核心/内存约束 <code>parfor</code>；失败回退串行）。<strong>v7.3</strong> 系列含义不变。详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
+      <span class="en"><strong>v7.4.1</strong> adjusts <code>compute_effective_body_brownian.m</code> so Brownian preconditioning probes <code>M_eff_dimless</code>; this removes noisy <code>IllConditioned</code> warns from dimensional TT/TR/RR SI scaling (<code>L_eff</code>/<code>D_eff</code> unchanged vs. v7.4.0). <strong>v7.4.0</strong> still adds parallel Brownian repeats in <code>batch_sweep/batch_repeat_brownian.m</code> (<code>parfor</code> capped by cores/RAM when PCT is available; serial fallback). The <strong>v7.3</strong> train still denotes the <code>free_torsion</code> + motor audit and related hardening. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
+      <span class="zh"><strong>v7.4.1</strong> 调整 <code>compute_effective_body_brownian.m</code>：布朗阶段在无量纲迁移率 <code>M_eff_dimless</code> 上做条件数诊断，消除因 <code>M_eff_dim</code> 各分块 SI 量纲差异导致的虚假 <code>IllConditioned</code> 告警（<code>L_eff</code>/<code>D_eff</code> 与 v7.4.0 一致）。<strong>v7.4.0</strong> 仍在 <code>batch_sweep/batch_repeat_brownian.m</code> 中提供并行布朗重复批量（可用 PCT 时按核心/内存约束 <code>parfor</code>；失败回退串行）。<strong>v7.3</strong> 系列含义不变。详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
-        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.4.2 &mdash; 2026-05-07</p>
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.4.4 &mdash; 2026-05-22</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Configuration validation hardening</span><span class="zh">配置校验加强</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en"><code>validate_simulation_params.m</code>: parametric mode rejects non-empty <code>custom_geometry</code> (bidirectional no-mixing).</span><span class="zh"><code>validate_simulation_params.m</code>：参数化模式拒绝非空 <code>custom_geometry</code>（双向禁止混用）。</span></li>
+          <li><span class="en"><code>helix</code> intrinsic curvature requires finite scalar <code>kappa_d2</code> / <code>kappa_d3</code>; bare string <code>"helix"</code> rejected.</span><span class="zh"><code>helix</code> 内禀曲率须提供有限标量 <code>kappa_d2</code> / <code>kappa_d3</code>；裸字符串 <code>"helix"</code> 会被拒绝。</span></li>
+          <li><span class="en">No numerical change vs. v7.4.3 for configs that previously passed validation.</span><span class="zh">对此前已通过校验的配置，数值输出与 v7.4.3 一致。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-800 p-6">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">v7.4.3 &mdash; 2026-05-22</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Documentation &amp; path alignment</span><span class="zh">文档与路径对齐</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">Theory docs: corrected <code>src/</code> links; added <code>F_sink</code>, root gap <code>dis</code>, and Walker <code>eps_k</code> notes.</span><span class="zh">理论文档：修正 <code>src/</code> 链接；补充 <code>F_sink</code>、根部间隙 <code>dis</code> 与 Walker <code>eps_k</code> 说明。</span></li>
+          <li><span class="en">README / USER_GUIDE: JSON under <code>configs/</code>; drivers in <code>batch_sweep/</code>; sweep CSV/MAT under <code>batch sweep/</code>.</span><span class="zh">README / USER_GUIDE：JSON 位于 <code>configs/</code>；驱动脚本在 <code>batch_sweep/</code>；扫描输出在 <code>batch sweep/</code>。</span></li>
+          <li><span class="en">No executable simulation algorithm changed; outputs identical vs. v7.4.2.</span><span class="zh">未修改可执行仿真算法；数值输出与 v7.4.2 一致。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-800 p-6">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">v7.4.2 &mdash; 2026-05-07</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Comment audit &amp; documentation fix</span><span class="zh">注释审计与文档修正</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en"><code>Pili_Matrix</code> row semantics, <code>BP/PB</code> block annotations, ZXZ Euler convention, Householder reflection note.</span><span class="zh"><code>Pili_Matrix</code> 行语义、<code>BP/PB</code> 分块注释、ZXZ Euler 约定、Householder 反射说明。</span></li>
+          <li><span class="en">Comment-only; bitwise identical outputs vs. v7.4.1.</span><span class="zh">仅注释变更；数值输出与 v7.4.1 逐位一致。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-800 p-6">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">v7.4.1 &mdash; 2026-05-06</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
           <span class="en">Brownian mobility diagnostic (dimensionless <code>rcond</code>)</span><span class="zh">布朗迁移率诊断（无量纲 <code>rcond</code>）</span>
         </h3>
@@ -1121,7 +1153,7 @@ graph TD
 │   ├── build_global_resistance_v0.m
 │   └── ode_coupled_rhs_v0.m
 ├── configs/
-│   ├── config_example.json                % Example JSON (tracked)
+│   ├── config_example.json                % Example JSON (under configs/)
 │   ├── config_custom_example.json           % Custom geometry JSON template
 │   └── config_motor_flagella_example.json   % Motor flagella JSON template
 ├── docs/
@@ -1261,7 +1293,7 @@ pili_config(1).active_moment = struct('type', 'off');
           <span class="zh">从 JSON 文件加载配置：</span>
         </p>
         <pre><code class="language-matlab">% Tracked template (or copy to a local configs/ path — that folder is gitignored)
-cfg = load_sim_config('config_example.json');
+cfg = load_sim_config('configs/config_example.json');
 [results, params, output_dir] = run_simulation(cfg);</code></pre>
         <p class="text-xs text-gray-500 dark:text-gray-500 mt-2">
           <span class="en">Create a personal <code>configs/</code> folder if you prefer; it is ignored by default so machine-specific JSON paths are not committed.</span>
@@ -1329,8 +1361,8 @@ cfg = load_sim_config('config_example.json');
     }
 }</code></pre>
         <p class="text-xs text-gray-500 dark:text-gray-500 mt-2">
-          <span class="en">Full template (same schema as <code>save_sim_config</code> output): <code>config_example.json</code>.</span>
-          <span class="zh">完整模板（与 <code>save_sim_config</code> 写出格式一致）：<code>config_example.json</code>。</span>
+          <span class="en">Full template (same schema as <code>save_sim_config</code> output): <code>configs/config_example.json</code>.</span>
+          <span class="zh">完整模板（与 <code>save_sim_config</code> 写出格式一致）：<code>configs/config_example.json</code>。</span>
         </p>
       </div>
 
@@ -1340,10 +1372,10 @@ cfg = load_sim_config('config_example.json');
           <span class="zh">使用专用扫描脚本或 JSON 批处理运行器：</span>
         </p>
         <pre><code class="language-matlab">% Sweep pili length from 1 to 6 um
-run('batch sweep/batch_sweep_pili_length.m');
+run('batch_sweep/batch_sweep_pili_length.m');
 
 % Or run all JSON configs in a folder
-run('batch sweep/batch_run_from_json.m');</code></pre>
+run('batch_sweep/batch_run_from_json.m');</code></pre>
         <p class="text-sm text-gray-500 dark:text-gray-500 mt-3">
           <span class="en">Available sweeps:</span><span class="zh">可用扫描：</span>
           <code>alpha</code>, <code>major_axis</code>, <code>pili_length</code>,
@@ -1615,7 +1647,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
 
 <!-- Footer -->
 <footer class="bg-navy-900 text-gray-500 text-center py-8 text-xs">
-  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v7.4.2 &mdash; 2026-05-07</p>
+  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v7.4.4 &mdash; 2026-05-22</p>
   <p class="mt-1">Built by Lucien &bull; MIT License</p>
 </footer>
 

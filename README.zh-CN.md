@@ -4,8 +4,8 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-05-07  
-> **版本:** 7.4.2  
+> **更新日期:** 2026-05-22  
+> **版本:** 7.4.4  
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -44,7 +44,7 @@ main_coupled_simulation
 
 ### 方式 B：JSON 配置
 
-1. 将 [`config_example.json`](config_example.json) 复制到本地配置路径，例如 `configs/my_case.json`。
+1. 将 [`configs/config_example.json`](configs/config_example.json) 复制到本地配置路径，例如 `configs/my_case.json`。
 2. 在 [`main_coupled_simulation.m`](main_coupled_simulation.m) 中设置 `config_file`：
 
 ```matlab
@@ -52,17 +52,17 @@ config_file = 'configs/my_case.json';
 main_coupled_simulation
 ```
 
-自定义胞体和纤毛几何可参考 [`config_custom_example.json`](config_custom_example.json)；自由扭转马达鞭毛可参考 [`config_motor_flagella_example.json`](config_motor_flagella_example.json)。
+自定义胞体和纤毛几何可参考 [`configs/config_custom_example.json`](configs/config_custom_example.json)；自由扭转马达鞭毛可参考 [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json)。
 
 ### 方式 C：程序化调用
 
 ```matlab
-cfg = load_sim_config('config_example.json');
+cfg = load_sim_config('configs/config_example.json');
 cfg.auto_confirm = true;
 [results, params, output_dir] = run_simulation(cfg);
 ```
 
-批量扫描脚本位于 [`batch sweep/`](batch%20sweep/)，多工况后处理入口为 [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m)。
+批量扫描**驱动脚本**位于 [`batch_sweep/`](batch_sweep/)；运行后 CSV/MAT 等汇总输出写入 `batch sweep/`（带空格，由脚本自动创建）。多工况后处理入口为 [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m)。
 
 ## 主要输出
 
@@ -86,15 +86,15 @@ cfg.auto_confirm = true;
 | --- | --- |
 | [`main_coupled_simulation.m`](main_coupled_simulation.m) | 主脚本与内联配置入口。 |
 | [`run_simulation.m`](run_simulation.m) | 仿真引擎、积分循环、导出和日志。 |
-| [`load_sim_config.m`](load_sim_config.m) | JSON 配置读取。 |
-| [`save_sim_config.m`](save_sim_config.m) | JSON 配置快照写出。 |
-| [`validate_simulation_params.m`](validate_simulation_params.m) | 运行前参数校验。 |
-| [`init_coupled_params.m`](init_coupled_params.m) | 几何、无量纲化、布朗参数和模型参数初始化。 |
-| [`init_coupled_state.m`](init_coupled_state.m) | 初始状态向量构建。 |
-| [`ode_coupled_rhs.m`](ode_coupled_rhs.m) | 耦合弹性流体动力学 ODE 右端项。 |
-| [`build_coupled_lin_sys.m`](build_coupled_lin_sys.m) | 耦合线性系统组装。 |
-| [`compute_effective_body_brownian.m`](compute_effective_body_brownian.m) | 全系统有效布朗迁移率与扩散计算。 |
-| [`compute_plot_flowfield.m`](compute_plot_flowfield.m) | 末状态流场计算与图像导出。 |
+| [`src/config/load_sim_config.m`](src/config/load_sim_config.m) | JSON 配置读取。 |
+| [`src/config/save_sim_config.m`](src/config/save_sim_config.m) | JSON 配置快照写出。 |
+| [`src/config/validate_simulation_params.m`](src/config/validate_simulation_params.m) | 运行前参数校验。 |
+| [`src/config/init_coupled_params.m`](src/config/init_coupled_params.m) | 几何、无量纲化、布朗参数和模型参数初始化。 |
+| [`src/config/init_coupled_state.m`](src/config/init_coupled_state.m) | 初始状态向量构建。 |
+| [`src/core/ode_coupled_rhs.m`](src/core/ode_coupled_rhs.m) | 耦合弹性流体动力学 ODE 右端项。 |
+| [`src/core/build_coupled_lin_sys.m`](src/core/build_coupled_lin_sys.m) | 耦合线性系统组装。 |
+| [`src/physics/compute_effective_body_brownian.m`](src/physics/compute_effective_body_brownian.m) | 全系统有效布朗迁移率与扩散计算。 |
+| [`src/visualization/compute_plot_flowfield.m`](src/visualization/compute_plot_flowfield.m) | 末状态流场计算与图像导出。 |
 
 ## 文档导航
 
@@ -108,7 +108,7 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **7.4.2 (2026-05-07)**。本版为注释审计与文档准确性修正——**不改变数值输出**（与 v7.4.1 完全一致）。主要修正：`main_coupled_simulation.m` 输出单位声明补充角速度单位；`build_global_resistance.m` 矩阵分块标注 BP/PB 修正；`read_geometry_csv_mat.m` 首选 MAT 变量名列表补充 `'coordinates'`；`pili_euler_angles.m` 补充 ZXZ Euler 角约定说明；`adaptive_basis_check.m` Householder 注释修正为 reflection；多个函数补充正式 Syntax/Inputs/Outputs 注释。详见 [`CHANGELOG.md`](CHANGELOG.md)。
+当前版本为 **7.4.4 (2026-05-22)**。本版加强运行前配置校验：参数化模式拒绝非空 `custom_geometry`（与 custom 模式拒绝 parametric 字段对称）；`helix` 内禀曲率须提供有限标量 `kappa_d2` / `kappa_d3`——对**此前已通过校验**的配置**不改变数值输出**（与 v7.4.3 一致）。**v7.4.3** 对齐文档路径、JSON 示例与理论公式。**v7.4.2** 为注释审计（仅注释）。**v7.4.1** 修正布朗 `IllConditioned` 诊断。**v7.4.0** 为 `batch_repeat_brownian.m` 增加可选 `parfor` 并行。详见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## 许可证
 

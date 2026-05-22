@@ -3,8 +3,8 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 7.4.2  
-> **更新日期:** 2026-05-06
+> **版本:** 7.4.4  
+> **更新日期:** 2026-05-22
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
@@ -16,7 +16,7 @@
 - PNG 和 PDF 图像导出依赖 `exportgraphics`；可选交互式 HTML 导出需要 MATLAB R2026a 或更新版本。
 - 胶囊胞体表面布点需要 Anton Semechko 的 **S2 Sampling Toolbox**，可通过 MATLAB Add-On Explorer / File Exchange 安装。
 - 运行仿真不需要 Python、Conda 或 pip 环境；[`requirements.txt`](requirements.txt) 已明确说明。
-- **Parallel Computing Toolbox** 为可选：仅在使用 [`batch sweep/batch_repeat_brownian.m`](batch%20sweep/batch_repeat_brownian.m) 默认并行分支时需要（`use_parallel = true`）。
+- **Parallel Computing Toolbox** 为可选：仅在使用 [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) 默认并行分支时需要（`use_parallel = true`）。
 
 ### 推荐工作目录
 
@@ -33,9 +33,9 @@ cd('path/to/Coupled_Body_Pili')
 | 目标 | 推荐方式 |
 | --- | --- |
 | 快速测试或修改默认示例 | 编辑 [`main_coupled_simulation.m`](main_coupled_simulation.m)。 |
-| 复现或分享一个工况 | 从 [`config_example.json`](config_example.json) 复制 JSON 配置。 |
-| 导入自定义胞体和纤毛几何 | 使用 [`config_custom_example.json`](config_custom_example.json)。 |
-| 测试自由扭转马达鞭毛 | 使用 [`config_motor_flagella_example.json`](config_motor_flagella_example.json)。 |
+| 复现或分享一个工况 | 从 [`configs/config_example.json`](configs/config_example.json) 复制 JSON 配置。 |
+| 导入自定义胞体和纤毛几何 | 使用 [`configs/config_custom_example.json`](configs/config_custom_example.json)。 |
+| 测试自由扭转马达鞭毛 | 使用 [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json)。 |
 | 无人值守运行多个工况 | 调用 [`run_simulation.m`](run_simulation.m)，并设置 `cfg.auto_confirm = true`。 |
 
 ## 3. 使用内联参数运行
@@ -52,7 +52,7 @@ main_coupled_simulation
 
 ## 4. 使用 JSON 配置运行
 
-1. 将 [`config_example.json`](config_example.json) 复制到本地目录，例如 `configs/my_case.json`。
+1. 将 [`configs/config_example.json`](configs/config_example.json) 复制到本地目录，例如 `configs/my_case.json`。
 2. 在 [`main_coupled_simulation.m`](main_coupled_simulation.m) 中设置 `config_file`：
 
 ```matlab
@@ -60,41 +60,53 @@ config_file = 'configs/my_case.json';
 main_coupled_simulation
 ```
 
-仓库默认忽略 `configs/` 文件夹，因此本地路径和探索性参数不会被意外提交。
+仓库在 `configs/` 下提供示例 JSON；本地工况请复制为 `configs/my_case.json` 等路径使用。`.gitignore` 中仅忽略 `output/`。
 
-### JSON 顶层字段
+### 按几何模式划分的 JSON 字段
 
-完整 JSON 配置建议包含以下顶层字段：
+**参数化模式**（`geometry_mode: "parametric"`）：使用 `body`、`pili`、`material`、`fluid`、`simulation`、`brownian`、`output`、`flowfield`、`background_flow`。不得设置非空 `custom_geometry`（自 v7.4.4 起）。权威示例：[`configs/config_example.json`](configs/config_example.json)。
 
-- `case_name`
-- `geometry_mode`
-- `body`
-- `pili`
-- `material`
-- `fluid`
-- `simulation`
-- `brownian`
-- `output`
-- `flowfield`
-- `background_flow`
+**自定义模式**（`geometry_mode: "custom"`）：提供 `custom_geometry`（导入胞体与纤毛点云）。不得同时设置参数化胞体字段（`major_axis`、`N_body` 等）或非空 `Pili_Matrix`。权威示例：[`configs/config_custom_example.json`](configs/config_custom_example.json)。
 
-权威格式以仓库中的示例 JSON 文件和 [`load_sim_config.m`](load_sim_config.m) 的实现为准。
+自 v7.4.4 起，`validate_simulation_params.m` 会**双向**拒绝 custom/parametric 字段混用，并给出明确错误信息。
+
+典型顶层布局包括：
+
+- `case_name`、`geometry_mode`
+- 参数化：`body` + `pili`；自定义：`custom_geometry`
+- `material`、`fluid`、`simulation`、`brownian`、`output`、`flowfield`、`background_flow`
+
+### 配置枚举（与代码一致）
+
+| 字段 | 合法值 | 代码来源 |
+| --- | --- | --- |
+| `intrinsic_curvature.type` | `frozen`、`zero`、`constant`、`helix` | `validate_simulation_params.m` |
+| `intrinsic_curvature`（`constant`） | 含 3 元素 `kappa` 的结构体 | `validate_simulation_params.m` |
+| `intrinsic_curvature`（`helix`） | 含有限标量 `kappa_d2`、`kappa_d3` 的结构体（裸字符串 `"helix"` 会被拒绝） | `validate_simulation_params.m` |
+| `active_moment.type` | `off`、`traveling_wave`、`custom` | `validate_simulation_params.m` |
+| `background_flow.type` | `off`、`uniform`、`shear_z` | `coupled_background_flow.m` |
+| `root_coupling` | `clamped`、`free_torsion` | `build_coupled_lin_sys.m` |
+| `motor_torque.type` | `off`、`constant` | `init_coupled_params.m` |
+
+布朗 JSON 字段由 [`load_sim_config.m`](src/config/load_sim_config.m) 映射：`brownian.enable`、`brownian.temperature` → `Temper`、`brownian.rng_seed`、`brownian.dt_B_ratio`、`brownian.fixman_midpoint`。
+
+权威格式以仓库中的示例 JSON 文件和 [`src/config/load_sim_config.m`](src/config/load_sim_config.m) 的实现为准。
 
 ## 5. 程序化运行与批量运行
 
 脚本或参数扫描可直接调用仿真引擎：
 
 ```matlab
-cfg = load_sim_config('config_example.json');
+cfg = load_sim_config('configs/config_example.json');
 cfg.auto_confirm = true;
 [results, params, output_dir] = run_simulation(cfg);
 ```
 
-批量扫描脚本位于 [`batch sweep/`](batch%20sweep/)。其中包含胞体分辨率、胞体正则化参数、纤毛长度、纤毛刚度、纤毛段密度、初始姿态角和布朗重复实验等扫描入口。
+批量扫描**驱动脚本**位于 [`batch_sweep/`](batch_sweep/)。运行后 CSV/MAT 等汇总输出写入仓库根目录下的 **`batch sweep/`**（带空格，由脚本自动创建；与源码目录 `batch_sweep/` 不同）。
 
 ### 5.1 布朗重复批量（`batch_repeat_brownian.m`）
 
-从仓库根目录打开 [`batch sweep/batch_repeat_brownian.m`](batch%20sweep/batch_repeat_brownian.m)，对**同一套**布朗开启配置进行多次独立重复，输出写入 `output/<case_name_base>/001`、`002`、…（零填充子目录）。
+从仓库根目录打开 [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m)，对**同一套**布朗开启配置进行多次独立重复，输出写入 `output/<case_name_base>/001`、`002`、…（零填充子目录）。
 
 - **并行（默认）：** `use_parallel = true` 在已许可 **Parallel Computing Toolbox** 且能创建 `parpool` 时使用 `parfor`。worker 数量由探测到的物理核心数与可用内存共同约束，默认最多使用约 `max_resource_frac`（默认 `0.75`）的“资源预算”，并配合 `mem_per_worker_gb` 估算内存上限。若无工具箱或建池失败，脚本会**告警并回退**到与旧版等价的串行 `for` 循环。
 - **串行：** 设置 `use_parallel = false` 可强制单线程循环，便于与 v7.4 之前的行为逐字节对照。
@@ -106,7 +118,7 @@ cfg.auto_confirm = true;
 
 当胞体和纤毛都来自用户点云文件时，使用自定义几何模式。
 
-1. 复制 [`config_custom_example.json`](config_custom_example.json)。
+1. 复制 [`configs/config_custom_example.json`](configs/config_custom_example.json)。
 2. 设置 `"geometry_mode": "custom"`。
 3. 在 `"custom_geometry"` 中提供胞体和纤毛文件。
 4. 参考 [`geometry/`](geometry/) 中的示例文件格式。
@@ -122,7 +134,7 @@ cfg.auto_confirm = true;
 
 ## 7. 马达与自由扭转运行
 
-建议从 [`config_motor_flagella_example.json`](config_motor_flagella_example.json) 开始。
+建议从 [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json) 开始。
 
 每根纤毛的关键字段包括：
 
@@ -145,7 +157,7 @@ cfg.auto_confirm = true;
 
 启用布朗运动后，实际使用的随机种子会保存到 `config.json`、`brownian_rng_seed.txt`、`simulation.log` 和 `simulation_results.mat`。
 
-**迁移率条件数告警（自 v7.4.1 起）：** 每次布朗节拍会在 [`compute_effective_body_brownian.m`](compute_effective_body_brownian.m) 内对已对称化的**无量纲**有效迁移率 `M_eff_dimless` 做 `rcond` 诊断；因此正常运行不应再只因 `M_eff_dim` 各分块的 SI 量纲差异而出现大量虚假的 `IllConditioned`。若 MATLAB 仍以极小的 **`M_eff_dimless` rcond** 抛出该告警，需排查欧拉根是否接近 \(\theta=\pi\)（钳制根部行退化）、体形极端纵横比等与几何/动力学相关的问题，并结合 `simulation.log` 与轨迹核对。
+**迁移率条件数告警（自 v7.4.1 起）：** 每次布朗节拍会在 [`src/physics/compute_effective_body_brownian.m`](src/physics/compute_effective_body_brownian.m) 内对已对称化的**无量纲**有效迁移率 `M_eff_dimless` 做 `rcond` 诊断；因此正常运行不应再只因 `M_eff_dim` 各分块的 SI 量纲差异而出现大量虚假的 `IllConditioned`。若 MATLAB 仍以极小的 **`M_eff_dimless` rcond** 抛出该告警，需排查欧拉根是否接近 \(\theta=\pi\)（钳制根部行退化）、体形极端纵横比等与几何/动力学相关的问题，并结合 `simulation.log` 与轨迹核对。
 
 ## 9. 主要输出
 
@@ -188,6 +200,8 @@ postprocess_cases()
 | 胶囊体生成失败 | 确认 S2 Sampling Toolbox 已安装且在 MATLAB path 中。 |
 | JSON 工况运行后没有纤毛 | 检查 `pili` 是否为合法 JSON 数组，且每根纤毛字段完整。 |
 | 自定义几何被拒绝 | 检查点云方向、重复点和纤毛等长段要求。 |
+| `geometry_mode` 混用报错 | 仅使用 parametric **或** custom 字段；勿将 `custom_geometry` 与 `body`/`pili` 矩阵字段混用（v7.4.4+）。 |
+| `helix` 内禀曲率报错 | 须提供结构体：`{"type":"helix","kappa_d2":…,"kappa_d3":…}`，且为有限标量；裸 `"helix"` 无效（v7.4.4+）。 |
 | 输出目录已存在 | 交互式选择处理方式，或设置 `auto_confirm = true` 使用无人值守重命名策略。 |
 | 布朗重复结果不一致 | 确认种子模式为固定种子还是时间戳种子。 |
 | 布朗重复批量未并行执行 | 安装 **Parallel Computing Toolbox**、检查 `parpool` 集群配置，或在 `batch_repeat_brownian.m` 中设置 `use_parallel = false`。 |

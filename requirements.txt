@@ -1,14 +1,16 @@
 # Coupled Body-Pili elastohydrodynamic simulation — MATLAB project
 #
-# Release: 7.4.2 (2026-05-07)
+# Release: 7.4.4 (2026-05-22)
 #
+# v7.4.4: validate_simulation_params.m rejects parametric+custom_geometry mixing
+# and requires helix intrinsic_curvature kappa_d2/kappa_d3 (see CHANGELOG).
 # This repository has no Python/pip dependencies. Simulation code is MATLAB-only.
 #
 # Runtime
 #   - MATLAB R2020b or later recommended (tested with modern releases).
 #   - Interactive HTML figure export (exportgraphics → .html) requires MATLAB R2026a or later; PNG/PDF work from R2020a (exportgraphics).
 #   - Parallel Computing Toolbox: optional. Required only for the default parallel
-#     branch of batch sweep/batch_repeat_brownian.m (parfor). The script falls
+#     branch of batch_sweep/batch_repeat_brownian.m (parfor). The script falls
 #     back to a serial for-loop if the toolbox is unavailable or parpool fails.
 #
 # MATLAB Add-On (required for capsule body-surface points in v5.5.0+)

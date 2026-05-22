@@ -22,7 +22,7 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Log banner version: 7.4.2 (2026-05-07) — keep in sync with README / CHANGELOG
+%  Log banner version: 7.4.4 (2026-05-22) — keep in sync with README / CHANGELOG
 %
 %  Path: defensive addpath(project root) so run_simulation(cfg) works when
 %  invoked without main_coupled_simulation.m. Unified policy = this line plus
@@ -237,7 +237,7 @@ logf_file = @(varargin) log_file_only(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 7.4.2\n');
+logf('  Version 7.4.4\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -373,7 +373,7 @@ end
 if isfield(cfg, 'pili_ext')
     val_cfg.pili_ext = cfg.pili_ext;
 end
-if strcmp(geometry_mode, 'custom') && isfield(cfg, 'custom_geometry')
+if isfield(cfg, 'custom_geometry') && ~isempty(cfg.custom_geometry)
     val_cfg.custom_geometry = cfg.custom_geometry;
 end
 if isfield(cfg, 'initial_orientation')

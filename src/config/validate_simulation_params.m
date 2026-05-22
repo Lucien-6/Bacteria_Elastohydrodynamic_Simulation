@@ -74,6 +74,12 @@ else
                        'use alpha_0 instead.'];
     end
 
+    % Enforce no-mixing: custom_geometry must NOT be set in parametric mode
+    if isfield(cfg, 'custom_geometry') && ~isempty(cfg.custom_geometry)
+        errs{end+1} = ['geometry_mode is ''parametric'' but custom_geometry is set. ', ...
+                        'Custom geometry parameters must not be used in parametric mode.'];
+    end
+
     % Body geometry
     if cfg.minor_axis <= 0
         errs{end+1} = 'minor_axis must be > 0.';
@@ -365,6 +371,21 @@ function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
                 else
                     errs{end+1} = sprintf(['Pili %d: intrinsic_curvature ''constant'' ', ...
                         'requires .kappa field.'], kk);
+                end
+            end
+            if strcmp(ic_type, 'helix')
+                if isstruct(ic_val) && isfield(ic_val, 'kappa_d2') && isfield(ic_val, 'kappa_d3')
+                    if ~isnumeric(ic_val.kappa_d2) || ~isscalar(ic_val.kappa_d2) || ~isfinite(ic_val.kappa_d2)
+                        errs{end+1} = sprintf(['Pili %d: intrinsic_curvature.kappa_d2 must be ', ...
+                            'a finite scalar.'], kk);
+                    end
+                    if ~isnumeric(ic_val.kappa_d3) || ~isscalar(ic_val.kappa_d3) || ~isfinite(ic_val.kappa_d3)
+                        errs{end+1} = sprintf(['Pili %d: intrinsic_curvature.kappa_d3 must be ', ...
+                            'a finite scalar.'], kk);
+                    end
+                else
+                    errs{end+1} = sprintf(['Pili %d: intrinsic_curvature ''helix'' ', ...
+                        'requires .kappa_d2 and .kappa_d3 fields.'], kk);
                 end
             end
         end

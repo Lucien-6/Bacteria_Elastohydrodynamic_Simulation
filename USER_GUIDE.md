@@ -3,8 +3,8 @@
 English | [中文](USER_GUIDE.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Version:** 7.4.2  
-> **Updated:** 2026-05-06
+> **Version:** 7.4.4  
+> **Updated:** 2026-05-22
 
 This guide is for running simulations, choosing the right configuration path, finding outputs, and post-processing completed cases. For model equations and derivations, see [`docs/theory.md`](docs/theory.md). For release history, see [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -33,9 +33,9 @@ This keeps relative paths for JSON configs, geometry files, and outputs predicta
 | Goal | Recommended path |
 | --- | --- |
 | Quickly test or modify the default demo | Edit [`main_coupled_simulation.m`](main_coupled_simulation.m). |
-| Reproduce or share a case | Use a JSON file copied from [`config_example.json`](config_example.json). |
-| Import custom body and pili geometry | Use [`config_custom_example.json`](config_custom_example.json). |
-| Test a free-torsion motor-driven flagellum | Use [`config_motor_flagella_example.json`](config_motor_flagella_example.json). |
+| Reproduce or share a case | Use a JSON file copied from [`configs/config_example.json`](configs/config_example.json). |
+| Import custom body and pili geometry | Use [`configs/config_custom_example.json`](configs/config_custom_example.json). |
+| Test a free-torsion motor-driven flagellum | Use [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json). |
 | Run many cases without prompts | Call [`run_simulation.m`](run_simulation.m) with `cfg.auto_confirm = true`. |
 
 ## 3. Run with Inline Parameters
@@ -52,7 +52,7 @@ Use this mode when you are developing a new case interactively and want the conf
 
 ## 4. Run with JSON Configuration
 
-1. Copy [`config_example.json`](config_example.json) to a local folder, for example `configs/my_case.json`.
+1. Copy [`configs/config_example.json`](configs/config_example.json) to a local folder, for example `configs/my_case.json`.
 2. Set `config_file` in [`main_coupled_simulation.m`](main_coupled_simulation.m):
 
 ```matlab
@@ -60,37 +60,52 @@ config_file = 'configs/my_case.json';
 main_coupled_simulation
 ```
 
-The repository ignores `configs/` by default, so local paths and exploratory parameters are not accidentally committed.
+The repository tracks example JSON files under `configs/`. Copy them to paths such as `configs/my_case.json` for local edits. Only `output/` is listed in `.gitignore`.
 
-### Required JSON Sections
+### JSON Sections by Geometry Mode
 
-A complete JSON config should include these top-level sections:
+**Parametric mode** (`geometry_mode: "parametric"`): use `body`, `pili`, `material`, `fluid`, `simulation`, `brownian`, `output`, `flowfield`, and `background_flow`. Do **not** set a non-empty `custom_geometry` block (since v7.4.4). Authoritative example: [`configs/config_example.json`](configs/config_example.json).
+
+**Custom mode** (`geometry_mode: "custom"`): provide `custom_geometry` with imported body and pili point clouds. Do not set parametric body fields (`major_axis`, `N_body`, …) or a non-empty `Pili_Matrix`. Authoritative example: [`configs/config_custom_example.json`](configs/config_custom_example.json).
+
+Since v7.4.4, `validate_simulation_params.m` rejects **both directions** of custom/parametric mixing with explicit errors.
+
+A typical top-level layout includes:
 
 - `case_name`
 - `geometry_mode`
-- `body`
-- `pili`
-- `material`
-- `fluid`
-- `simulation`
-- `brownian`
-- `output`
-- `flowfield`
-- `background_flow`
+- `body` and `pili` (parametric) **or** `custom_geometry` (custom)
+- `material`, `fluid`, `simulation`, `brownian`, `output`, `flowfield`, `background_flow`
 
-The authoritative schemas are the tracked example files and the loader implementation in [`load_sim_config.m`](load_sim_config.m).
+### Configuration Enumerations (from code)
+
+| Field | Allowed values | Source |
+| --- | --- | --- |
+| `intrinsic_curvature.type` | `frozen`, `zero`, `constant`, `helix` | `validate_simulation_params.m` |
+| `intrinsic_curvature` (`constant`) | struct with 3-element `kappa` | `validate_simulation_params.m` |
+| `intrinsic_curvature` (`helix`) | struct with finite scalar `kappa_d2`, `kappa_d3` (bare string `"helix"` rejected) | `validate_simulation_params.m` |
+| `active_moment.type` | `off`, `traveling_wave`, `custom` | `validate_simulation_params.m` |
+| `background_flow.type` | `off`, `uniform`, `shear_z` | `coupled_background_flow.m` |
+| `root_coupling` | `clamped`, `free_torsion` | `build_coupled_lin_sys.m` |
+| `motor_torque.type` | `off`, `constant` | `init_coupled_params.m` |
+
+Brownian JSON fields mapped by [`load_sim_config.m`](src/config/load_sim_config.m): `brownian.enable`, `brownian.temperature` → `Temper`, `brownian.rng_seed`, `brownian.dt_B_ratio`, `brownian.fixman_midpoint`.
+
+The authoritative schemas are the tracked example files and the loader implementation in [`src/config/load_sim_config.m`](src/config/load_sim_config.m).
 
 ## 5. Programmatic and Batch Runs
 
 For scripts or sweeps, call the simulation engine directly:
 
 ```matlab
-cfg = load_sim_config('config_example.json');
+cfg = load_sim_config('configs/config_example.json');
 cfg.auto_confirm = true;
 [results, params, output_dir] = run_simulation(cfg);
 ```
 
-Batch sweep drivers live in [`batch_sweep/`](batch_sweep/). The folder includes parameter sweeps for body resolution, body regularization, pilus length, pilus stiffness, segment density, initial angle, and Brownian repeats.
+Batch sweep **driver scripts** live in [`batch_sweep/`](batch_sweep/). The folder includes parameter sweeps for body resolution, body regularization, pilus length, pilus stiffness, segment density, initial angle, and Brownian repeats.
+
+When those sweep drivers run, CSV/MAT summary products are written under **`batch sweep/`** (with a space) at the repository root. This output folder name is intentional in the sweep scripts and is separate from the source folder `batch_sweep/`.
 
 ### 5.1 Brownian repeat batch (`batch_repeat_brownian.m`)
 
@@ -106,7 +121,7 @@ A timestamped `batch_repeat_summary_*.txt` under the case base folder records st
 
 Use custom mode when both the body and pili are imported from point-cloud files.
 
-1. Copy [`config_custom_example.json`](config_custom_example.json).
+1. Copy [`configs/config_custom_example.json`](configs/config_custom_example.json).
 2. Set `"geometry_mode": "custom"`.
 3. Provide body and pili files under `"custom_geometry"`.
 4. Use the example files in [`geometry/`](geometry/) as format references.
@@ -122,7 +137,7 @@ Use custom mode when both the body and pili are imported from point-cloud files.
 
 ## 7. Motor and Free-Torsion Runs
 
-Use [`config_motor_flagella_example.json`](config_motor_flagella_example.json) as the starting template.
+Use [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json) as the starting template.
 
 Key fields under each pilus entry:
 
@@ -188,6 +203,8 @@ The post-processor reads `timeseries.csv` and `config.json`, computes summary ki
 | Capsule generation fails | Confirm the S2 Sampling Toolbox is installed and visible on the MATLAB path. |
 | JSON case runs without pili | Check that `pili` is a valid JSON array and that each pilus entry has the required fields. |
 | Custom geometry is rejected | Check point-cloud orientation, duplicate points, and equal-length pilus segments. |
+| `geometry_mode` mixing error | Use parametric **or** custom fields only; do not combine `custom_geometry` with `body`/`pili` matrix fields (v7.4.4+). |
+| `helix` intrinsic curvature error | Provide a struct: `{"type":"helix","kappa_d2":…,"kappa_d3":…}` with finite scalars; bare `"helix"` is invalid (v7.4.4+). |
 | Output folder already exists | Use `auto_confirm = true` for unattended rename behavior, or choose interactively. |
 | Brownian repeat results differ | Confirm whether the seed mode is fixed or timestamp-based. |
 | Parallel Brownian batch runs serially | Install **Parallel Computing Toolbox**, fix `parpool` cluster settings, or set `use_parallel = false` in `batch_repeat_brownian.m`. |

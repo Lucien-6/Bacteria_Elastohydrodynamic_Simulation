@@ -477,8 +477,7 @@ for k = 1:M
     % free of internal motor torques, which cancel by Newton's third
     % law (see ode_coupled_rhs.m §"NOTE (v7.3.0)").  This field is
     % retained purely for offline diagnostics that compare the
-    % omega -> dot_psi projection against d3_lab (e.g. the legacy
-    % discrepancy probed by tests/test_motor_reaction_torque.m).
+    % omega -> dot_psi projection against d3_lab (see CHANGELOG v7.3.0).
     geom.J_euler3{k} = J_euler(3,:);
 
     col_offset = col_offset + 3 * N_k;

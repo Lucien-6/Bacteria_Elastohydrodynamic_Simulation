@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-05-07  
-> **Version:** 7.4.2  
+> **Updated:** 2026-05-22
+> **Version:** 7.4.4
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -48,7 +48,7 @@ main_coupled_simulation
 
 ### Option B: JSON Configuration
 
-1. Copy [`config_example.json`](config_example.json) to a local configuration path, for example `configs/my_case.json`.
+1. Copy [`configs/config_example.json`](configs/config_example.json) to a local configuration path, for example `configs/my_case.json`.
 2. Set `config_file` in [`main_coupled_simulation.m`](main_coupled_simulation.m):
 
 ```matlab
@@ -56,19 +56,19 @@ config_file = 'configs/my_case.json';
 main_coupled_simulation
 ```
 
-Use [`config_custom_example.json`](config_custom_example.json) for imported body and pili geometry, and [`config_motor_flagella_example.json`](config_motor_flagella_example.json) for free-torsion motor examples.
+Use [`configs/config_custom_example.json`](configs/config_custom_example.json) for imported body and pili geometry, and [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json) for free-torsion motor examples.
 
-For machine-specific cases, keep copied JSON files under a local `configs/` folder. The repository ignores that folder by default, so local paths and exploratory parameter sets are not accidentally committed.
+For machine-specific cases, keep copied JSON files under a local `configs/` path (for example `configs/my_case.json`). The repository tracks example JSON files under `configs/`; only `output/` is listed in `.gitignore`.
 
 ### Option C: Programmatic Use
 
 ```matlab
-cfg = load_sim_config('config_example.json');
+cfg = load_sim_config('configs/config_example.json');
 cfg.auto_confirm = true;
 [results, params, output_dir] = run_simulation(cfg);
 ```
 
-Batch drivers are available under [`batch_sweep/`](batch_sweep/), and multi-case post-processing is available in [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m).
+Batch sweep **driver scripts** live in [`batch_sweep/`](batch_sweep/). Parameter-sweep CSV/MAT products are written under `batch sweep/` (with a space) when those drivers run. Multi-case post-processing is available in [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m).
 
 ## Main Outputs
 
@@ -114,7 +114,7 @@ Results are written under `output/<case_name>/` or an automatically timestamped 
 
 ## Version Notes
 
-The current release is **7.4.2 (2026-05-07)**. It corrects and completes inline documentation across multiple source files — output unit convention, `Pili_Matrix` row semantics, matrix-layout block annotations (`BP = RSM`, `PB = RSS`), Euler angle convention, adaptive-basis reflection vs. rotation, step-numbering cross-references, and preferred MAT variable-name lists. All changes are comment-only; **simulation outputs are bitwise identical vs. v7.4.1**. **v7.4.1** fixed the Brownian `IllConditioned` diagnostic by evaluating `rcond` on the dimensionless mobility `M_eff_dimless`. **v7.4.0** added optional `parfor` parallel scheduling to **`batch_repeat_brownian.m`**. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
+The current release is **7.4.4 (2026-05-22)**. It hardens pre-run configuration validation: parametric mode now rejects a non-empty `custom_geometry` block (symmetric to custom-mode parametric-field rejection), and `helix` intrinsic curvature requires finite scalar `kappa_d2` / `kappa_d3` — **no numerical change** vs. v7.4.3 for configs that previously passed validation. **v7.4.3** aligned documentation paths, JSON examples, and theory formulas with the repository layout. **v7.4.2** corrected inline documentation (comment-only). **v7.4.1** fixed the Brownian `IllConditioned` diagnostic on the dimensionless mobility `M_eff_dimless`. **v7.4.0** added optional `parfor` parallel scheduling to **`batch_repeat_brownian.m`**. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 

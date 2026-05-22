@@ -8,6 +8,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+---
+
+## [7.4.4] — 2026-05-22
+
+Configuration validation hardening — **no numerical change** to simulation outputs for configs that previously passed validation.
+
+### Fixed
+
+- **`validate_simulation_params.m` — parametric/custom no-mixing (reverse direction)**: when `geometry_mode = 'parametric'`, a non-empty `custom_geometry` block is now rejected with a clear error, symmetric to the existing custom-mode rejection of parametric fields. Aligns runtime behaviour with `docs/theory.md` / `docs/theory.zh-CN.md` §1.
+- **`validate_simulation_params.m` — `helix` intrinsic curvature fields**: `intrinsic_curvature.type = 'helix'` now requires finite scalar `.kappa_d2` and `.kappa_d3` (including rejection of bare string `'helix'`), mirroring the existing `'constant'` / `.kappa` check and preventing obscure init-time field errors.
+- **`run_simulation.m`**: `val_cfg` now forwards a non-empty `custom_geometry` in all geometry modes so the reverse no-mixing rule is enforced on the main entry path.
+
+### Changed
+
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**: version **7.4.4**, date **2026-05-22**; validation hardening and geometry-mixing / `helix` field notes in user guide.
+
+### Compatibility
+
+- **Bitwise identical numerical outputs vs. v7.4.3** for identical inputs that previously passed validation. Only invalid or mixed configurations that previously slipped through (or failed late in init) are affected.
+
+---
+
+## [7.4.3] — 2026-05-22
+
+Documentation and path alignment — **no numerical change** to simulation outputs vs. v7.4.2.
+
+### Fixed
+
+- **`docs/theory.md`**, **`docs/theory.zh-CN.md`**: corrected `src/` links for `reconstruct_geometry.m`, `compute_pili_elastic_moments.m`, and `compute_plot_flowfield.m`; added sinking-force, root-gap `dis`, custom-mode `L_0`, lab-frame `\Omega`, and `\varepsilon_k` notes; English §1 now states bidirectional custom/parametric mixing rejection.
+- **`README.md`**, **`README.zh-CN.md`**: JSON examples now use `configs/` paths; corrected `configs/` git-tracking wording; documented `batch_sweep/` (drivers) vs `batch sweep/` (sweep output); Chinese core-files table uses `src/` paths.
+- **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**: JSON schema by geometry mode, configuration enumerations, corrected paths and batch folder convention (Scheme A).
+- **`docs/index.html`**: v7.4.2 release card content aligned with CHANGELOG; batch driver paths use `batch_sweep/`; JSON examples use `configs/`.
+- **`requirements.txt`**: batch driver path and release version.
+- **`main_coupled_simulation.m`**: JSON example comment uses `configs/config_custom_example.json`.
+- **`build_coupled_lin_sys.m`**: removed stale reference to non-existent `tests/test_motor_reaction_torque.m` (comment only).
+
+### Compatibility
+
+- **Bitwise identical numerical outputs vs. v7.4.2** for identical inputs that previously passed validation. No executable simulation algorithm was modified.
+
+---
+
 ## [7.4.2] — 2026-05-07
 
 Comment audit and documentation accuracy corrections — **no numerical change** to simulation outputs vs. v7.4.1.
