@@ -39,12 +39,9 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-18
-%  Updated: 2026-05-06 — Lucien — added project-root cd-block for robust
-%                        standalone runs (matches batch_repeat_brownian.m).
 %  Updated: 2026-05-25 — Lucien — optional parfor parallel branch, case_name
-%                        deduplication, real-time DataQueue logging.
-%  Updated: 2026-05-25 — Lucien — P0+P2 logging polish (unified run header,
-%                        itemized summary, blog/DataQueue consistency).
+%                        deduplication, real-time DataQueue logging, unified
+%                        run header/itemized summary (P0+P2 blog consistency).
 
 close all force;
 clear; clc;

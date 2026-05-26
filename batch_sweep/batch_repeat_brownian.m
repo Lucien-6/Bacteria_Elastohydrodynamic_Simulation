@@ -31,11 +31,9 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-03
-%  Updated: 2026-05-06 — optional parfor batch path, pool sizing, PCT fallback (project v7.4.1)
-%  Updated: 2026-05-06 — Lucien — set cfg.geometry_mode='parametric' and capture
-%                        pili_ext from parse_pili_config so save_sim_config
-%                        (which reads cfg.geometry_mode without isfield guard)
-%                        no longer fails on inline cfg structs.
+%  Updated: 2026-05-06 — Lucien — optional parfor batch path, pool sizing,
+%                        PCT fallback; cfg.geometry_mode='parametric' and
+%                        pili_ext capture for save_sim_config compatibility.
 clear; clc;
 
 % Ensure working directory is project root (contains run_simulation.m)

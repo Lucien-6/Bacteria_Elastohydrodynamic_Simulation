@@ -38,8 +38,6 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2024-10-24
-%  Updated: 2026-04-17 — S2 toolbox sphere caps; optional snap_sphere_cap_count
-%  Updated: 2026-04-17 — duplicate points with x==0 (equator) onto both caps
 %  Updated: 2026-04-20 — cylinder TN snapped to multiple of 4 (round(TN/4)*4)
 
 %% Compute surface point allocation between sphere caps and cylinder
