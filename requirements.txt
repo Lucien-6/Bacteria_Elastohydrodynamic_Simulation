@@ -1,7 +1,9 @@
 # Coupled Body-Pili elastohydrodynamic simulation — MATLAB project
 #
-# Release: 7.4.4 (2026-05-22)
+# Release: 7.4.5 (2026-05-25)
 #
+# v7.4.5: batch_sweep/batch_run_from_json.m — optional parfor parallel JSON batch
+# (case_name dedup, real-time batch_summary log). See CHANGELOG.md.
 # v7.4.4: validate_simulation_params.m rejects parametric+custom_geometry mixing
 # and requires helix intrinsic_curvature kappa_d2/kappa_d3 (see CHANGELOG).
 # This repository has no Python/pip dependencies. Simulation code is MATLAB-only.
@@ -10,8 +12,9 @@
 #   - MATLAB R2020b or later recommended (tested with modern releases).
 #   - Interactive HTML figure export (exportgraphics → .html) requires MATLAB R2026a or later; PNG/PDF work from R2020a (exportgraphics).
 #   - Parallel Computing Toolbox: optional. Required only for the default parallel
-#     branch of batch_sweep/batch_repeat_brownian.m (parfor). The script falls
-#     back to a serial for-loop if the toolbox is unavailable or parpool fails.
+#     branches of batch_sweep/batch_repeat_brownian.m and batch_sweep/batch_run_from_json.m
+#     (parfor). Each script falls back to a serial for-loop if the toolbox is
+#     unavailable or parpool fails.
 #
 # MATLAB Add-On (required for capsule body-surface points in v5.5.0+)
 #   - "Suite of functions to perform uniform sampling of a sphere" (S2 Sampling Toolbox)

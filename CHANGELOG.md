@@ -10,6 +10,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [7.4.5] — 2026-05-25
+
+Parallel JSON batch runner and batch-log polish — **no numerical change** to single-run `run_simulation` outputs.
+
+### Added
+
+- **`batch_sweep/batch_run_from_json.m` — optional `parfor` parallel batch over a folder of JSON configs**:
+  - User switches: `use_parallel` (default `true`), `mem_per_worker_gb` (default `3.0`), `max_resource_frac` (default `0.75`), `worker_blas_threads` (default `1`).
+  - **Pool sizing:** same probe policy as `batch_repeat_brownian.m` — `n_pool = min(floor(n_phys × max_frac), floor(available_GB × max_frac / mem_per_worker_gb), n_run)`.
+  - **Parallel Computing Toolbox** required for the parallel branch; missing license or `parpool` failure **falls back to serial**.
+  - **Pre-scan deduplication:** non-empty duplicate `case_name` values (alphabetical first file wins) are marked `SKIPPED` and never queued; empty `case_name` entries are not deduplicated.
+  - **`parallel.pool.DataQueue`** streams completion lines to the console and **`batch_summary_<timestamp>.log`** in the JSON folder (`fflush` after each event).
+  - Worker init: `DefaultFigureVisible` off + `maxNumCompThreads` cap via `parfevalOnAll` with **`wait`**; pool lifetime comment documents `delete(gcp('nocreate'))` to restore defaults.
+  - Final summary reports **Total JSON files**, **Queued to run**, **Succeeded** / **Failed** / **Skipped**, optional parallel speedup estimate, and per-file `V_sink` table.
+  - Brownian RNG, animation, and flow-field flags follow each JSON (only `auto_confirm` and `preview_initial` are forced headless).
+
+### Changed
+
+- **`batch_sweep/batch_run_from_json.m` — logging consistency (P0+P2 polish):** parallel progress uses the shared `blog` closure; execution-mode header lines are mirrored to console and batch log; unified run header `Run queue kk/nn  [JSON ii/tt]: filename`; itemized batch-complete counts.
+
+### Documentation
+
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**: version **7.4.5**, date **2026-05-25**; JSON parallel batch runner and PCT scope notes.
+
+### Compatibility
+
+- **Bitwise identical numerical outputs vs. v7.4.4** for identical single-run configs. Only the batch driver `batch_run_from_json.m` gains scheduling, deduplication, and logging code; `use_parallel = false` preserves serial JSON batch behaviour for the queued files.
+
+---
+
 ## [7.4.4] — 2026-05-22
 
 Configuration validation hardening — **no numerical change** to simulation outputs for configs that previously passed validation.

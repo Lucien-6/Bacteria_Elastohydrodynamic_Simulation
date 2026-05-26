@@ -3,8 +3,8 @@
 English | [中文](USER_GUIDE.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Version:** 7.4.4  
-> **Updated:** 2026-05-22
+> **Version:** 7.4.5  
+> **Updated:** 2026-05-25
 
 This guide is for running simulations, choosing the right configuration path, finding outputs, and post-processing completed cases. For model equations and derivations, see [`docs/theory.md`](docs/theory.md). For release history, see [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -16,7 +16,7 @@ This guide is for running simulations, choosing the right configuration path, fi
 - PNG and PDF exports use `exportgraphics`; optional interactive HTML exports require MATLAB R2026a or later.
 - Capsule body surface generation requires Anton Semechko's **S2 Sampling Toolbox** from MATLAB Add-On Explorer / File Exchange.
 - No Python, Conda, or pip environment is required. [`requirements.txt`](requirements.txt) documents this explicitly.
-- **Parallel Computing Toolbox** is optional: needed only for the default parallel branch of [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) (`use_parallel = true`).
+- **Parallel Computing Toolbox** is optional: needed for the default parallel branches of [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) and [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m) (`use_parallel = true`).
 
 ### Recommended Working Folder
 
@@ -119,6 +119,19 @@ From the repository root, open [`batch_sweep/batch_repeat_brownian.m`](batch_swe
 
 A timestamped `batch_repeat_summary_*.txt` under the case base folder records status lines, timing, and parallel diagnostics (`n_pool`, `core_probe`, and whether the cap was CPU- or memory-limited).
 
+### 5.2 JSON folder batch (`batch_run_from_json.m`)
+
+From the repository root, run [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m). Select a folder of `*.json` files (or set `BATCH_JSON_DIR` at the top of the script). Each queued file is loaded with `load_sim_config`, forced headless (`auto_confirm = true`, `preview_initial = false`), and executed via `run_simulation`. Brownian RNG, animation, and flow-field flags follow each JSON.
+
+- **Pre-scan:** files are sorted alphabetically. Duplicate **non-empty** `case_name` values are marked `SKIPPED` (first file in sort order runs; later duplicates are not queued). Empty `case_name` entries are never deduplicated (`run_simulation` assigns unique timestamped output folders).
+- **Parallel (default):** `use_parallel = true` with `mem_per_worker_gb = 3.0`, `max_resource_frac = 0.75`, and `worker_blas_threads = 1`. Uses `parfor` when **Parallel Computing Toolbox** is available; otherwise warns and falls back to serial.
+- **Real-time log:** `batch_summary_<timestamp>.log` in the JSON folder receives progress lines via `parallel.pool.DataQueue` (parallel) or per-iteration writes (serial), with `fflush` after each event.
+- **Summary:** console and log report Total JSON files, Queued to run, Succeeded / Failed / Skipped, steady `V_sink` per file, and (when parallel) a speedup estimate.
+
+```matlab
+run('batch_sweep/batch_run_from_json.m');
+```
+
 ## 6. Custom Geometry Mode
 
 Use custom mode when both the body and pili are imported from point-cloud files.
@@ -210,6 +223,8 @@ The post-processor reads `timeseries.csv` and `config.json`, computes summary ki
 | Output folder already exists | Use `auto_confirm = true` for unattended rename behavior, or choose interactively. |
 | Brownian repeat results differ | Confirm whether the seed mode is fixed or timestamp-based. |
 | Parallel Brownian batch runs serially | Install **Parallel Computing Toolbox**, fix `parpool` cluster settings, or set `use_parallel = false` in `batch_repeat_brownian.m`. |
+| Parallel JSON folder batch runs serially | Same as above for `batch_run_from_json.m`, or set `use_parallel = false`. |
+| JSON batch skipped as duplicate `case_name` | Only the alphabetically first JSON with that non-empty `case_name` runs; assign unique `case_name` values or leave empty for auto timestamp folders. |
 | `IllConditioned` Brownian mobility warning (`M_eff_dimless rcond`) | v7.4.1+ diagnoses the dimensionless mobility; residual warnings mean genuinely ill-conditioned kinematics/hydrodynamics — cross-check Euler roots (\(\theta\approx\pi\)), body geometry, and `simulation.log` (see §8). |
 
 ## 12. Documentation Map

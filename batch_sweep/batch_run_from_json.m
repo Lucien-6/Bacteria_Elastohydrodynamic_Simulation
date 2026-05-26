@@ -14,25 +14,37 @@
 %      1. User selects the target folder via a GUI dialog (or supplies
 %         BATCH_JSON_DIR at the top of this file to bypass the dialog).
 %      2. All *.json files are sorted alphabetically and queued.
-%      3. For each file:
+%      3. Pre-scan: resolve case_name; skip duplicate non-empty case_name
+%         (first file in sort order wins; later duplicates -> SKIPPED).
+%      4. For each queued file (parallel or serial):
 %           a. Load config with load_sim_config()
 %           b. Override auto_confirm = true  (suppress all dialogs)
 %              Override preview_initial = false  (skip pose preview)
 %           c. Call run_simulation(cfg)  inside try-catch
 %           d. On success: record V_sink and output directory
 %           e. On failure: record error message and continue
-%      4. Print a formatted summary table of all runs.
+%      5. Print a formatted summary table of all runs.
 %
 %    Key points:
 %      - Skips failed runs; never halts the entire batch
 %      - Headless flags are always enforced regardless of JSON settings
+%      - Brownian RNG, animation, flowfield follow each JSON (no overrides)
+%      - Optional parallel mode (use_parallel, default true) via parfor
+%      - Resource cap: max_resource_frac = 0.75 (reserve 25% CPU and RAM)
+%      - mem_per_worker_gb = 3.0 (typical per-case memory budget)
+%      - Empty case_name files are never deduplicated (run_simulation assigns
+%        unique run-<timestamp> output directories)
 %      - Each run writes its own output/ subdirectory with full logs
-%      - The batch itself produces a batch_summary.log in the JSON folder
+%      - Real-time batch log: batch_summary_<timestamp>.log in JSON folder
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-18
 %  Updated: 2026-05-06 — Lucien — added project-root cd-block for robust
 %                        standalone runs (matches batch_repeat_brownian.m).
+%  Updated: 2026-05-25 — Lucien — optional parfor parallel branch, case_name
+%                        deduplication, real-time DataQueue logging.
+%  Updated: 2026-05-25 — Lucien — P0+P2 logging polish (unified run header,
+%                        itemized summary, blog/DataQueue consistency).
 
 close all force;
 clear; clc;
@@ -44,8 +56,10 @@ if isempty(this_file)
 else
     proj_root = fileparts(fileparts(this_file));
 end
-if ~isfolder(proj_root)
-    error('batch_run_from_json:BadRoot', 'Cannot resolve project root.');
+if ~isfolder(proj_root) || ~isfile(fullfile(proj_root, 'run_simulation.m'))
+    error('batch_run_from_json:BadRoot', ...
+        ['Cannot resolve project root (run_simulation.m not found). ', ...
+         'Run from Coupled_Body_Pili/batch_sweep/ or cd to project root.']);
 end
 cd(proj_root);
 addpath(proj_root);
@@ -54,6 +68,18 @@ addpath(genpath(fullfile(proj_root, 'src')));
 %% ---- Optional: hard-code folder path to skip the GUI dialog ----
 %  Leave empty ('') to use the interactive folder browser.
 BATCH_JSON_DIR = '';
+
+%% ---- USER SETTINGS (parallel scheduling) ----
+%  use_parallel        : true  -> parfor branch (auto-sized pool, default)
+%                        false -> serial for-loop branch
+%  mem_per_worker_gb   : conservative per-worker memory budget [GB]
+%  max_resource_frac   : cap on BOTH physical-core count and available memory
+%                        (0.75 reserves 25% of CPU and RAM for the host)
+%  worker_blas_threads : per-worker maxNumCompThreads (1 avoids thread storm)
+use_parallel        = true;
+mem_per_worker_gb   = 3.0;
+max_resource_frac   = 0.75;
+worker_blas_threads = 1;
 
 %% ---- Folder selection ----
 if isempty(BATCH_JSON_DIR)
@@ -123,105 +149,357 @@ fprintf('\n');
 blog('\n');
 
 %% ---- Pre-allocate result tracking ----
-run_status   = repmat("PENDING",  n_total, 1);  % "OK" | "FAILED" | "PENDING"
+run_status   = repmat("PENDING",  n_total, 1);  % OK | FAILED | SKIPPED | PENDING
 run_Vsink    = nan(n_total, 1);                 % Steady V_sink [um/s]
 run_walltime = nan(n_total, 1);                 % Wall time [s]
 run_outdir   = repmat("", n_total, 1);          % Output directory
-run_errmsg   = repmat("", n_total, 1);          % Error message (if failed)
+run_errmsg   = repmat("", n_total, 1);          % Error / skip reason
+
+%% ---- Pre-scan and build run queue ----
+seen_case          = containers.Map('KeyType', 'char', 'ValueType', 'char');
+run_ii             = zeros(0, 1);
+run_json_path      = cell(0, 1);
+n_skipped_prescan  = 0;
+n_prescan_fail     = 0;
+
+fprintf('%s\n', repmat('-', 1, 56));
+fprintf('  Pre-scan: case_name deduplication\n');
+fprintf('%s\n', repmat('-', 1, 56));
+blog('%s\n', repmat('-', 1, 56));
+blog('  Pre-scan: case_name deduplication\n');
+blog('%s\n', repmat('-', 1, 56));
+
+for ii = 1:n_total
+    json_path = fullfile(json_folder, file_list(ii).name);
+    fname     = file_list(ii).name;
+
+    try
+        cfg_probe = load_sim_config(json_path);
+        cn        = strtrim(cfg_probe.case_name);
+
+        if ~isempty(cn) && isKey(seen_case, cn)
+            run_status(ii)  = "SKIPPED";
+            run_errmsg(ii)  = sprintf( ...
+                'Duplicate case_name "%s"; first file: %s', cn, seen_case(cn));
+            n_skipped_prescan = n_skipped_prescan + 1;
+            fprintf('  [SKIPPED] [%02d/%02d] %s  |  %s\n', ...
+                ii, n_total, fname, run_errmsg(ii));
+            blog('  [SKIPPED] [%02d/%02d] %s  |  %s\n', ...
+                ii, n_total, fname, run_errmsg(ii));
+            batch_log_flush(blog_fid);
+        else
+            if ~isempty(cn)
+                seen_case(cn) = fname;
+            end
+            run_ii(end+1, 1)        = ii;           %#ok<AGROW>
+            run_json_path{end+1, 1} = json_path;     %#ok<AGROW>
+        end
+
+    catch ME
+        run_status(ii)   = "FAILED";
+        run_errmsg(ii)   = string(ME.message);
+        n_prescan_fail   = n_prescan_fail + 1;
+        fprintf('  [PRESCAN FAIL] [%02d/%02d] %s  |  %s\n', ...
+            ii, n_total, fname, ME.message);
+        blog('  [PRESCAN FAIL] [%02d/%02d] %s  |  %s\n', ...
+            ii, n_total, fname, ME.message);
+        batch_log_flush(blog_fid);
+    end
+end
+
+n_run = numel(run_ii);
+fprintf('\n  Total JSON: %d  |  To run: %d  |  Skipped (duplicate): %d  |  Prescan failed: %d\n\n', ...
+    n_total, n_run, n_skipped_prescan, n_prescan_fail);
+blog('\n  Total JSON: %d  |  To run: %d  |  Skipped (duplicate): %d  |  Prescan failed: %d\n\n', ...
+    n_total, n_run, n_skipped_prescan, n_prescan_fail);
+batch_log_flush(blog_fid);
+
+%% ---- Parallel scheduling decision ----
+parallel_info = struct( ...
+    'use_parallel',        use_parallel, ...
+    'mem_per_worker_gb',   mem_per_worker_gb, ...
+    'max_resource_frac',   max_resource_frac, ...
+    'worker_blas_threads', worker_blas_threads, ...
+    'n_physical_cores',    NaN, ...
+    'available_mem_gb',    NaN, ...
+    'cpu_cap',             NaN, ...
+    'mem_cap',             NaN, ...
+    'binding',             "n/a", ...
+    'n_pool',              1, ...
+    'fallback_reason',     "");
+
+pool_handle = [];
+
+if n_run > 0
+    if use_parallel
+        if ~license('test', 'Distrib_Computing_Toolbox')
+            warning('batch_run_from_json:NoPCT', ...
+                'Parallel Computing Toolbox is not licensed. Falling back to serial.');
+            use_parallel = false;
+            parallel_info.fallback_reason = "PCT license unavailable";
+        end
+    end
+
+    if use_parallel
+        [n_pool_decided, parallel_info] = decide_pool_size( ...
+            n_run, mem_per_worker_gb, max_resource_frac, parallel_info, ...
+            worker_blas_threads);
+        parallel_info.n_pool = n_pool_decided;
+    end
+
+    if use_parallel
+        pool_handle = ensure_parpool(parallel_info.n_pool);
+        if isempty(pool_handle)
+            warning('batch_run_from_json:PoolCreateFailed', ...
+                'parpool creation failed. Falling back to serial.');
+            use_parallel = false;
+            parallel_info.fallback_reason = "parpool creation failed";
+        else
+            parallel_info.n_pool = pool_handle.NumWorkers;
+            f_vis = parfevalOnAll(pool_handle, @() set(0, 'DefaultFigureVisible', 'off'), 0);
+            f_thr = parfevalOnAll(pool_handle, @apply_max_num_comp_threads, 0, worker_blas_threads);
+            wait(f_vis);
+            wait(f_thr);
+            % Worker defaults (figure visibility, BLAS threads) persist for the
+            % lifetime of this parpool — intentional for batch use.  To restore
+            % MATLAB defaults after the batch, run:  delete(gcp('nocreate'))
+        end
+    end
+end
 
 %% ---- Execute batch ----
 t_batch_start = tic;
 
-for ii = 1:n_total
-    json_path = fullfile(json_folder, file_list(ii).name);
-
-    fprintf('\n%s\n', repmat('-', 1, 56));
-    fprintf('  Run %d/%d: %s\n', ii, n_total, file_list(ii).name);
-    fprintf('%s\n', repmat('-', 1, 56));
-    blog('\n%s\n', repmat('-', 1, 56));
-    blog('  Run %d/%d: %s\n', ii, n_total, file_list(ii).name);
-    blog('%s\n', repmat('-', 1, 56));
-
-    t_run_start = tic;
-
-    try
-        % --- Load and patch config (enforce headless mode) ---
-        cfg                    = load_sim_config(json_path);
-        cfg.auto_confirm    = true;    % Suppress all interactive dialogs
-        cfg.preview_initial = false;   % Skip initial pose preview
-        % generate_animation: intentionally left as loaded from JSON
-
-        % --- Execute simulation ---
-        [res_i, ~, dir_i] = run_simulation(cfg);
-
-        run_walltime(ii) = toc(t_run_start);
-
-        if isempty(res_i)
-            % run_simulation returned gracefully but produced no results
-            % (e.g. user-abort path — should not happen in headless mode)
-            run_status(ii)  = "FAILED";
-            run_errmsg(ii)  = "run_simulation returned empty results (possible abort)";
-            run_outdir(ii)  = string(dir_i);
-            fprintf('  [WARN] Run %d returned empty results.\n', ii);
-            blog('  [WARN] Run %d returned empty results.\n', ii);
-        else
-            Vs              = res_i.V_sink;
-            V_steady        = mean(Vs(max(1, round(0.95 * numel(Vs))):end));
-            run_status(ii)  = "OK";
-            run_Vsink(ii)   = V_steady;
-            run_outdir(ii)  = string(dir_i);
-            fprintf('  [OK]   Run %d complete  |  V_sink = %.4e um/s  |  %.1f s\n', ...
-                ii, V_steady, run_walltime(ii));
-            blog('  [OK]   Run %d complete  |  V_sink = %.4e um/s  |  %.1f s\n', ...
-                ii, V_steady, run_walltime(ii));
-        end
-
-    catch ME
-        run_walltime(ii) = toc(t_run_start);
-        run_status(ii)   = "FAILED";
-        run_errmsg(ii)   = string(ME.message);
-
-        fprintf('  [FAIL] Run %d FAILED after %.1f s\n', ii, run_walltime(ii));
-        fprintf('         Error: %s\n', ME.message);
-        blog('  [FAIL] Run %d FAILED after %.1f s\n', ii, run_walltime(ii));
-        blog('         Identifier : %s\n', ME.identifier);
-        blog('         Message    : %s\n', ME.message);
-        if ~isempty(ME.stack)
-            blog('         Location   : %s (line %d)\n', ...
-                ME.stack(1).name, ME.stack(1).line);
+if n_run > 0
+    exec_sep = repmat('-', 1, 56);
+    fprintf('%s\n', exec_sep);
+    blog('%s\n', exec_sep);
+    if use_parallel && ~isempty(pool_handle)
+        fprintf('  Execution mode: PARALLEL  (n_pool = %d, %s-bound)\n', ...
+            parallel_info.n_pool, char(parallel_info.binding));
+        blog('  Execution mode: PARALLEL  (n_pool = %d, %s-bound)\n', ...
+            parallel_info.n_pool, char(parallel_info.binding));
+    else
+        fprintf('  Execution mode: SERIAL\n');
+        blog('  Execution mode: SERIAL\n');
+        if strlength(parallel_info.fallback_reason) > 0
+            fprintf('  Parallel fallback: %s\n', char(parallel_info.fallback_reason));
+            blog('  Parallel fallback: %s\n', char(parallel_info.fallback_reason));
         end
     end
+    fprintf('%s\n\n', exec_sep);
+    blog('%s\n\n', exec_sep);
+    batch_log_flush(blog_fid);
 
-    % ETA estimate based on average so far
-    completed = sum(run_status ~= "PENDING");
-    if completed > 0 && completed < n_total
-        avg_t    = mean(run_walltime(1:ii), 'omitnan');
-        eta_s    = avg_t * (n_total - completed);
-        fprintf('  ETA remaining: %.0f s  (~%.1f min)\n', eta_s, eta_s / 60);
+    if use_parallel && ~isempty(pool_handle)
+        %% ---- PARALLEL BRANCH (parfor + DataQueue progress) ----
+        run_fname = cell(n_run, 1);
+        for k = 1:n_run
+            run_fname{k} = file_list(run_ii(k)).name;
+        end
+
+        pq_status   = repmat("PENDING", n_run, 1);
+        pq_Vsink    = nan(n_run, 1);
+        pq_walltime = nan(n_run, 1);
+        pq_outdir   = repmat("", n_run, 1);
+        pq_errmsg   = repmat("", n_run, 1);
+
+        progress_q = parallel.pool.DataQueue;
+        afterEach(progress_q, @(msg) on_progress_impl(msg, n_run, n_total, blog, blog_fid));
+        print_progress_json(struct('reset', true), n_run, n_total);
+
+        parfor k = 1:n_run
+            json_path = run_json_path{k};
+            fname     = run_fname{k};
+
+            cfg_k                    = load_sim_config(json_path);
+            cfg_k.auto_confirm       = true;
+            cfg_k.preview_initial    = false;
+
+            t_run        = tic;
+            status_k     = "FAILED";
+            V_steady_k   = NaN;
+            errmsg_k     = "";
+            outdir_k     = "";
+            identifier_k = "";
+            stack_name_k = "";
+            stack_line_k = NaN;
+
+            try
+                [res_i, ~, dir_i] = run_simulation(cfg_k);
+                wall_k = toc(t_run);
+
+                if isempty(res_i)
+                    status_k  = "FAILED";
+                    errmsg_k  = "run_simulation returned empty results (possible abort)";
+                    outdir_k  = char(string(dir_i));
+                elseif isfield(res_i, 'V_sink') && ~isempty(res_i.V_sink)
+                    Vs            = res_i.V_sink;
+                    V_steady_k    = mean(Vs(max(1, round(0.95 * numel(Vs))):end));
+                    status_k      = "OK";
+                    outdir_k      = char(string(dir_i));
+                else
+                    status_k = "FAILED";
+                    errmsg_k = "results missing V_sink field";
+                    outdir_k = char(string(dir_i));
+                end
+
+                pq_walltime(k) = wall_k;
+                pq_status(k)   = status_k;
+                pq_Vsink(k)    = V_steady_k;
+                pq_outdir(k)   = string(outdir_k);
+                pq_errmsg(k)   = string(errmsg_k);
+
+                send(progress_q, struct( ...
+                    'ii', run_ii(k), 'k', k, 'fname', fname, 'status', status_k, ...
+                    'V_steady', V_steady_k, 'wall', wall_k, 'errmsg', char(errmsg_k), ...
+                    'outdir', outdir_k, 'identifier', char(identifier_k), ...
+                    'stack_name', char(stack_name_k), 'stack_line', stack_line_k));
+
+            catch ME
+                wall_k = toc(t_run);
+                pq_walltime(k) = wall_k;
+                pq_status(k)   = "FAILED";
+                pq_errmsg(k)   = string(ME.message);
+                pq_outdir(k)   = "";
+
+                identifier_k = ME.identifier;
+                if ~isempty(ME.stack)
+                    stack_name_k = ME.stack(1).name;
+                    stack_line_k = ME.stack(1).line;
+                end
+
+                send(progress_q, struct( ...
+                    'ii', run_ii(k), 'k', k, 'fname', fname, 'status', "FAILED", ...
+                    'V_steady', NaN, 'wall', wall_k, 'errmsg', ME.message, ...
+                    'outdir', '', 'identifier', identifier_k, ...
+                    'stack_name', stack_name_k, 'stack_line', stack_line_k));
+            end
+        end
+
+        for k = 1:n_run
+            ii = run_ii(k);
+            run_status(ii)   = pq_status(k);
+            run_Vsink(ii)    = pq_Vsink(k);
+            run_walltime(ii) = pq_walltime(k);
+            run_outdir(ii)   = pq_outdir(k);
+            run_errmsg(ii)   = pq_errmsg(k);
+        end
+
+    else
+        %% ---- SERIAL BRANCH ----
+        n_serial_done = 0;
+        for k = 1:n_run
+            ii        = run_ii(k);
+            json_path = run_json_path{k};
+
+            run_line = format_run_queue_line(k, n_run, ii, n_total, file_list(ii).name);
+            fprintf('\n%s\n', repmat('-', 1, 56));
+            fprintf('%s\n', run_line);
+            fprintf('%s\n', repmat('-', 1, 56));
+            blog('\n%s\n', repmat('-', 1, 56));
+            blog('%s\n', run_line);
+            blog('%s\n', repmat('-', 1, 56));
+            batch_log_flush(blog_fid);
+
+            t_run_start = tic;
+
+            try
+                cfg                    = load_sim_config(json_path);
+                cfg.auto_confirm       = true;
+                cfg.preview_initial    = false;
+
+                [res_i, ~, dir_i] = run_simulation(cfg);
+                run_walltime(ii) = toc(t_run_start);
+
+                if isempty(res_i)
+                    run_status(ii)  = "FAILED";
+                    run_errmsg(ii)  = "run_simulation returned empty results (possible abort)";
+                    run_outdir(ii)  = string(dir_i);
+                    fprintf('  [WARN] Run %d returned empty results.\n', ii);
+                    blog('  [WARN] Run %d returned empty results.\n', ii);
+                elseif isfield(res_i, 'V_sink') && ~isempty(res_i.V_sink)
+                    Vs              = res_i.V_sink;
+                    V_steady        = mean(Vs(max(1, round(0.95 * numel(Vs))):end));
+                    run_status(ii)  = "OK";
+                    run_Vsink(ii)   = V_steady;
+                    run_outdir(ii)  = string(dir_i);
+                    fprintf('  [OK]   Run %d complete  |  V_sink = %.4e um/s  |  %.1f s\n', ...
+                        ii, V_steady, run_walltime(ii));
+                    blog('  [OK]   Run %d complete  |  V_sink = %.4e um/s  |  %.1f s\n', ...
+                        ii, V_steady, run_walltime(ii));
+                else
+                    run_status(ii)  = "FAILED";
+                    run_errmsg(ii)  = "results missing V_sink field";
+                    run_outdir(ii)  = string(dir_i);
+                    fprintf('  [FAIL] Run %d: results missing V_sink field.\n', ii);
+                    blog('  [FAIL] Run %d: results missing V_sink field.\n', ii);
+                end
+
+            catch ME
+                run_walltime(ii) = toc(t_run_start);
+                run_status(ii)   = "FAILED";
+                run_errmsg(ii)   = string(ME.message);
+
+                fprintf('  [FAIL] Run %d FAILED after %.1f s\n', ii, run_walltime(ii));
+                fprintf('         Error: %s\n', ME.message);
+                blog('  [FAIL] Run %d FAILED after %.1f s\n', ii, run_walltime(ii));
+                blog('         Identifier : %s\n', ME.identifier);
+                blog('         Message    : %s\n', ME.message);
+                if ~isempty(ME.stack)
+                    blog('         Location   : %s (line %d)\n', ...
+                        ME.stack(1).name, ME.stack(1).line);
+                end
+            end
+
+            batch_log_flush(blog_fid);
+
+            n_serial_done = n_serial_done + 1;
+            if n_serial_done > 0 && n_serial_done < n_run
+                done_mask = run_status(run_ii(1:k)) ~= "PENDING";
+                avg_t     = mean(run_walltime(run_ii(done_mask)), 'omitnan');
+                eta_s     = avg_t * (n_run - n_serial_done);
+                fprintf('  ETA remaining: %.0f s  (~%.1f min)\n', eta_s, eta_s / 60);
+            end
+        end
     end
 end
 
 t_batch_total = toc(t_batch_start);
 
 %% ---- Final Summary ----
-n_ok     = sum(run_status == "OK");
-n_failed = sum(run_status == "FAILED");
+n_ok      = sum(run_status == "OK");
+n_failed  = sum(run_status == "FAILED");
+n_skipped = sum(run_status == "SKIPPED");
 
 fprintf('\n%s\n', sep);
 fprintf('  BATCH COMPLETE\n');
-fprintf('  Total runs  : %d\n', n_total);
-fprintf('  Succeeded   : %d\n', n_ok);
-fprintf('  Failed      : %d\n', n_failed);
-fprintf('  Total time  : %.1f s  (%.1f min)\n', t_batch_total, t_batch_total / 60);
+fprintf('  Total JSON files : %d\n', n_total);
+fprintf('  Queued to run    : %d\n', n_run);
+fprintf('  Succeeded        : %d\n', n_ok);
+fprintf('  Failed           : %d\n', n_failed);
+fprintf('  Skipped          : %d\n', n_skipped);
+fprintf('  Total wall time  : %.1f s  (%.1f min)\n', t_batch_total, t_batch_total / 60);
 fprintf('%s\n', sep);
 
 blog('\n%s\n', sep);
 blog('  BATCH COMPLETE\n');
-blog('  Total runs  : %d\n', n_total);
-blog('  Succeeded   : %d\n', n_ok);
-blog('  Failed      : %d\n', n_failed);
-blog('  Total time  : %.1f s  (%.1f min)\n', t_batch_total, t_batch_total / 60);
+blog('  Total JSON files : %d\n', n_total);
+blog('  Queued to run    : %d\n', n_run);
+blog('  Succeeded        : %d\n', n_ok);
+blog('  Failed           : %d\n', n_failed);
+blog('  Skipped          : %d\n', n_skipped);
+blog('  Total wall time  : %.1f s  (%.1f min)\n', t_batch_total, t_batch_total / 60);
 blog('%s\n', sep);
+
+if n_run > 0 && use_parallel && ~isempty(pool_handle)
+    sum_wall = sum(run_walltime(run_ii), 'omitnan');
+    speedup  = sum_wall / max(t_batch_total, eps);
+    fprintf('  sum_per_case_wall_s         : %.2f\n', sum_wall);
+    fprintf('  parallel_speedup_estimate   : %.2f\n', speedup);
+    blog('  sum_per_case_wall_s         : %.2f\n', sum_wall);
+    blog('  parallel_speedup_estimate   : %.2f\n', speedup);
+end
 
 % --- Per-run result table ---
 fprintf('\n  %-4s  %-32s  %-8s  %14s  %10s\n', ...
@@ -249,9 +527,16 @@ for ii = 1:n_total
             ii, fname_short, 'FAILED', '---', run_walltime(ii));
         fprintf('         Error: %s\n', run_errmsg(ii));
         blog('         Error: %s\n', run_errmsg(ii));
+    elseif run_status(ii) == "SKIPPED"
+        fprintf('  %-4d  %-32s  %-8s  %14s  %10s\n', ...
+            ii, fname_short, 'SKIPPED', '---', '---');
+        blog('  %-4d  %-32s  %-8s  %14s  %10s\n', ...
+            ii, fname_short, 'SKIPPED', '---', '---');
+        fprintf('         Reason: %s\n', run_errmsg(ii));
+        blog('         Reason: %s\n', run_errmsg(ii));
     else
-        fprintf('  %-4d  %-32s  %-8s\n', ii, fname_short, 'PENDING');
-        blog('  %-4d  %-32s  %-8s\n', ii, fname_short, 'PENDING');
+        fprintf('  %-4d  %-32s  %-8s\n', ii, fname_short, char(run_status(ii)));
+        blog('  %-4d  %-32s  %-8s\n', ii, fname_short, char(run_status(ii)));
     end
 end
 
@@ -266,7 +551,7 @@ end
 fprintf('%s\n\n', sep);
 
 
-%% ==================== Local Function ====================
+%% ==================== Local Functions ====================
 
 function batch_log(fid, varargin)
 %BATCH_LOG  Write formatted message to batch log file (if open)
@@ -274,4 +559,238 @@ function batch_log(fid, varargin)
         return;
     end
     fprintf(fid, varargin{:});
+end
+
+
+function batch_log_flush(fid)
+%BATCH_LOG_FLUSH  Flush batch log file handle for real-time logging
+    if fid ~= -1
+        fflush(fid);
+    end
+end
+
+
+function on_progress_impl(msg, n_run, n_total, blog_fn, blog_fid)
+%ON_PROGRESS_IMPL  DataQueue callback: console progress + real-time batch log
+    print_progress_json(msg, n_run, n_total);
+
+    blog_fn('\n%s\n', repmat('-', 1, 56));
+    blog_fn('%s\n', format_run_queue_line(msg.k, n_run, msg.ii, n_total, msg.fname));
+    blog_fn('%s\n', repmat('-', 1, 56));
+
+    if msg.status == "OK"
+        blog_fn('  [OK]   JSON %02d complete  |  V_sink = %.4e um/s  |  %.1f s\n', ...
+            msg.ii, msg.V_steady, msg.wall);
+    else
+        blog_fn('  [FAIL] JSON %02d FAILED after %.1f s\n', msg.ii, msg.wall);
+        if isfield(msg, 'identifier') && ~isempty(msg.identifier)
+            blog_fn('         Identifier : %s\n', msg.identifier);
+        end
+        if isfield(msg, 'errmsg') && ~isempty(msg.errmsg)
+            blog_fn('         Message    : %s\n', msg.errmsg);
+        end
+        if isfield(msg, 'stack_name') && ~isempty(msg.stack_name) ...
+                && isfield(msg, 'stack_line') && isfinite(msg.stack_line)
+            blog_fn('         Location   : %s (line %d)\n', ...
+                msg.stack_name, msg.stack_line);
+        end
+    end
+
+    batch_log_flush(blog_fid);
+end
+
+
+function line = format_run_queue_line(k, n_run, ii, n_total, fname)
+%FORMAT_RUN_QUEUE_LINE  Unified run header: queue index + original JSON index
+    line = sprintf('  Run queue %02d/%02d  [JSON %02d/%02d]: %s', ...
+        k, n_run, ii, n_total, fname);
+end
+
+
+function apply_max_num_comp_threads(n)
+%APPLY_MAX_NUM_COMP_THREADS  Worker-side wrapper for parfevalOnAll BLAS cap.
+    maxNumCompThreads(n);
+end
+
+
+function [n_pool, info] = decide_pool_size(n_cases, mem_per_worker_gb, max_frac, info, blas_threads)
+%DECIDE_POOL_SIZE  Probe machine resources and compute capped worker count.
+
+    if nargin < 5 || isempty(blas_threads)
+        blas_threads = 1;
+    end
+
+    n_phys = NaN;
+    probe_note = "";
+    try
+        if ispc
+            [stat, out] = system('wmic cpu get NumberOfCores /value');
+            if stat == 0
+                tok = regexp(out, 'NumberOfCores=(\d+)', 'tokens');
+                if ~isempty(tok)
+                    cores_per_cpu = cellfun(@(t) str2double(t{1}), tok);
+                    n_phys = sum(cores_per_cpu);
+                    probe_note = "wmic";
+                end
+            end
+        end
+    catch
+        n_phys = NaN;
+    end
+
+    if ~isfinite(n_phys) || n_phys < 1
+        try
+            if ispc
+                ps_cmd = ['powershell -NoProfile -Command ' ...
+                    '"(Get-CimInstance Win32_Processor | Measure-Object -Property NumberOfCores -Sum).Sum"'];
+                [st_ps, out_ps] = system(ps_cmd);
+                if st_ps == 0
+                    n_cim = str2double(strtrim(out_ps));
+                    if isfinite(n_cim) && n_cim >= 1
+                        n_phys = n_cim;
+                        probe_note = "CIM";
+                    end
+                end
+            end
+        catch
+        end
+    end
+
+    if ~isfinite(n_phys) || n_phys < 1
+        try
+            n_env = str2double(getenv('NUMBER_OF_PROCESSORS'));
+            if isfinite(n_env) && n_env >= 1
+                n_phys = max(1, floor(n_env / 2));
+                probe_note = "NUMBER_OF_PROCESSORS/2";
+            end
+        catch
+        end
+    end
+
+    if ~isfinite(n_phys) || n_phys < 1
+        try
+            n_logical = feature('numCores');
+            n_phys = max(1, floor(n_logical / 2));
+            probe_note = "feature(numCores)/2";
+        catch
+            try
+                n_phys = max(1, maxNumCompThreads);
+                probe_note = "maxNumCompThreads";
+            catch
+                n_phys = 1;
+                probe_note = "fallback=1";
+            end
+        end
+    end
+
+    info.n_physical_cores = n_phys;
+    info.core_probe = probe_note;
+
+    avail_gb = NaN;
+    try
+        [~, sys] = memory;
+        avail_gb = sys.PhysicalMemory.Available / 1e9;
+    catch
+        avail_gb = NaN;
+    end
+    if ~isfinite(avail_gb)
+        avail_gb = 4.0;
+        fprintf('  [WARN] memory() unavailable; assuming 4 GB available.\n');
+    end
+    info.available_mem_gb = avail_gb;
+
+    n_cpu = max(1, floor(n_phys   * max_frac));
+    n_mem = max(1, floor(avail_gb * max_frac / mem_per_worker_gb));
+    info.cpu_cap = n_cpu;
+    info.mem_cap = n_mem;
+
+    n_pool = min([n_cpu, n_mem, n_cases]);
+
+    if n_pool == n_cases && n_cases <= n_cpu && n_cases <= n_mem
+        info.binding = "n_cases";
+    elseif n_cpu <= n_mem
+        info.binding = "cpu";
+    else
+        info.binding = "mem";
+    end
+
+    fprintf('\n  [POOL] Resource probe:\n');
+    fprintf('         physical cores : %d  (%s)  (cap %.0f%% -> %d workers)\n', ...
+        n_phys, char(probe_note), max_frac*100, n_cpu);
+    fprintf('         available mem  : %.2f GB  (per-worker %g GB, cap %.0f%% -> %d workers)\n', ...
+        avail_gb, mem_per_worker_gb, max_frac*100, n_mem);
+    fprintf('         n_cases        : %d\n', n_cases);
+    fprintf('         BLAS threads   : %d / worker (after parfevalOnAll init)\n', blas_threads);
+    fprintf('         => n_pool = %d  (binding: %s)\n\n', n_pool, char(info.binding));
+end
+
+
+function pool = ensure_parpool(n_target)
+%ENSURE_PARPOOL  Reuse-or-create a process-based parpool of the requested size.
+
+    pool = [];
+    p = gcp('nocreate');
+    if ~isempty(p) && p.NumWorkers == n_target
+        pool = p;
+        return;
+    end
+    if ~isempty(p)
+        try %#ok<TRYNC>
+            delete(p);
+        end
+    end
+    try
+        try
+            pool = parpool('Processes', n_target);
+        catch
+            pool = parpool('local', n_target);
+        end
+    catch ME
+        fprintf('  [WARN] parpool creation failed: %s\n', ME.message);
+        pool = [];
+    end
+end
+
+
+function print_progress_json(msg, n_run, n_total)
+%PRINT_PROGRESS_JSON  Console streaming progress for JSON batch parfor runs.
+
+    persistent n_done t0;
+
+    if isstruct(msg) && isfield(msg, 'reset') && msg.reset
+        n_done = 0;
+        t0     = tic;
+        return;
+    end
+    if isempty(n_done) || isempty(t0)
+        n_done = 0;
+        t0     = tic;
+    end
+    if ~isstruct(msg) || ~isfield(msg, 'k')
+        return;
+    end
+
+    n_done  = n_done + 1;
+    elapsed = toc(t0);
+    eta_s   = elapsed * max(0, n_run - n_done) / max(n_done, 1);
+    run_tag = format_run_queue_tag(msg.k, n_run, msg.ii, n_total, msg.fname);
+
+    if msg.status == "OK"
+        fprintf('  [%3d/%3d] OK     %s  wall=%6.1f s  | elapsed=%6.1f s  ETA=%6.1f s\n', ...
+            n_done, n_run, run_tag, msg.wall, elapsed, eta_s);
+    else
+        err_one_line = regexprep(char(msg.errmsg), '[\r\n]+', ' ');
+        if numel(err_one_line) > 80
+            err_one_line = [err_one_line(1:77), '...'];
+        end
+        fprintf('  [%3d/%3d] FAILED %s  wall=%6.1f s  | err: %s\n', ...
+            n_done, n_run, run_tag, msg.wall, err_one_line);
+    end
+end
+
+
+function tag = format_run_queue_tag(k, n_run, ii, n_total, fname)
+%FORMAT_RUN_QUEUE_TAG  Compact run tag for inline console progress lines
+    tag = sprintf('Run queue %02d/%02d  [JSON %02d/%02d]: %s', ...
+        k, n_run, ii, n_total, fname);
 end

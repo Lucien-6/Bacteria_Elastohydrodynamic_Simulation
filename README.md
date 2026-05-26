@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-05-22
-> **Version:** 7.4.4
+> **Updated:** 2026-05-25
+> **Version:** 7.4.5
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -21,7 +21,7 @@ This project simulates the low-Reynolds-number settling dynamics of a rigid bact
 - Free-torsion root coupling and constant motor torque for motor-driven flagella.
 - Inline MATLAB configuration, JSON configuration, and programmatic batch execution.
 - Publication-oriented exports: MAT, CSV, log, PNG, vector PDF, optional interactive HTML, and MP4 animation.
-- Optional **parallel** Brownian repeat batches ([`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m)): `parfor` with automatic pool sizing (Parallel Computing Toolbox); serial fallback when the toolbox or pool is unavailable.
+- Optional **parallel** batch drivers ([`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m), [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m)): `parfor` with automatic pool sizing (Parallel Computing Toolbox); serial fallback when the toolbox or pool is unavailable.
 
 ## Requirements
 
@@ -30,7 +30,7 @@ This project simulates the low-Reynolds-number settling dynamics of a rigid bact
 - Optional interactive HTML figure export requires MATLAB R2026a or later.
 - Capsule body-surface generation requires the MATLAB Add-On / File Exchange **S2 Sampling Toolbox** by Anton Semechko. Install it so `ParticleSampleSphere`, `SpiralSampleSphere`, `IcosahedronMesh`, `QuadCubeMesh`, and `SubdivideSphericalMesh` are on the MATLAB path.
 - Python / Conda / pip are not required. See [`requirements.txt`](requirements.txt).
-- **Parallel Computing Toolbox** is optional: only needed for the parallel branch of [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) (`use_parallel = true`, default).
+- **Parallel Computing Toolbox** is optional: only needed for the default parallel branches of [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) and [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m) (`use_parallel = true`).
 
 ## Quick Start
 
@@ -68,7 +68,7 @@ cfg.auto_confirm = true;
 [results, params, output_dir] = run_simulation(cfg);
 ```
 
-Batch sweep **driver scripts** live in [`batch_sweep/`](batch_sweep/). Parameter-sweep CSV/MAT products are written under `batch sweep/` (with a space) when those drivers run. Multi-case post-processing is available in [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m).
+Batch sweep **driver scripts** live in [`batch_sweep/`](batch_sweep/). Parameter-sweep CSV/MAT products are written under `batch sweep/` (with a space) when those drivers run. To batch-run every `*.json` in a folder (optional parallel, duplicate `case_name` skip, real-time `batch_summary_*.log`), use [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m). Multi-case post-processing is available in [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m).
 
 ## Main Outputs
 
@@ -114,7 +114,7 @@ Results are written under `output/<case_name>/` or an automatically timestamped 
 
 ## Version Notes
 
-The current release is **7.4.4 (2026-05-22)**. It hardens pre-run configuration validation: parametric mode now rejects a non-empty `custom_geometry` block (symmetric to custom-mode parametric-field rejection), and `helix` intrinsic curvature requires finite scalar `kappa_d2` / `kappa_d3` — **no numerical change** vs. v7.4.3 for configs that previously passed validation. **v7.4.3** aligned documentation paths, JSON examples, and theory formulas with the repository layout. **v7.4.2** corrected inline documentation (comment-only). **v7.4.1** fixed the Brownian `IllConditioned` diagnostic on the dimensionless mobility `M_eff_dimless`. **v7.4.0** added optional `parfor` parallel scheduling to **`batch_repeat_brownian.m`**. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
+The current release is **7.4.5 (2026-05-25)**. It adds optional `parfor` parallel scheduling to **`batch_run_from_json.m`** (folder of JSON configs, duplicate non-empty `case_name` skip, real-time batch log) — **no numerical change** to single-run `run_simulation` outputs vs. v7.4.4. **v7.4.4** hardened pre-run configuration validation (parametric/custom mixing, `helix` curvature fields). **v7.4.0** added parallel scheduling to **`batch_repeat_brownian.m`**. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 

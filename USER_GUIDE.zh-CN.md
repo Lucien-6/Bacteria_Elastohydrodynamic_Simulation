@@ -3,8 +3,8 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 7.4.4  
-> **更新日期:** 2026-05-22
+> **版本:** 7.4.5  
+> **更新日期:** 2026-05-25
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
@@ -16,7 +16,7 @@
 - PNG 和 PDF 图像导出依赖 `exportgraphics`；可选交互式 HTML 导出需要 MATLAB R2026a 或更新版本。
 - 胶囊胞体表面布点需要 Anton Semechko 的 **S2 Sampling Toolbox**，可通过 MATLAB Add-On Explorer / File Exchange 安装。
 - 运行仿真不需要 Python、Conda 或 pip 环境；[`requirements.txt`](requirements.txt) 已明确说明。
-- **Parallel Computing Toolbox** 为可选：仅在使用 [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) 默认并行分支时需要（`use_parallel = true`）。
+- **Parallel Computing Toolbox** 为可选：在使用 [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) 与 [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m) 默认并行分支时需要（`use_parallel = true`）。
 
 ### 推荐工作目录
 
@@ -116,6 +116,19 @@ cfg.auto_confirm = true;
 
 工况基目录下会写出带时间戳的 `batch_repeat_summary_*.txt`，记录每轮状态、耗时以及并行诊断字段（`n_pool`、`core_probe`、CPU/内存受限原因等）。
 
+### 5.2 JSON 文件夹批跑（`batch_run_from_json.m`）
+
+从仓库根目录运行 [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m)，选择含 `*.json` 的文件夹（或在脚本顶部设置 `BATCH_JSON_DIR`）。每个入队文件经 `load_sim_config` 加载，强制无界面（`auto_confirm = true`，`preview_initial = false`），再调用 `run_simulation`。布朗 RNG、动画与流场开关均遵循各 JSON。
+
+- **预扫描：** 按文件名字母序；**非空**重复 `case_name` 标记为 `SKIPPED`（排序第一个运行，其余不入队）。空 `case_name` 不去重（由 `run_simulation` 分配唯一时间戳输出目录）。
+- **并行（默认）：** `use_parallel = true`，`mem_per_worker_gb = 3.0`，`max_resource_frac = 0.75`，`worker_blas_threads = 1`。已许可 **Parallel Computing Toolbox** 时使用 `parfor`；否则告警并回退串行。
+- **实时日志：** 在 JSON 文件夹写入 `batch_summary_<时间戳>.log`；并行路径经 `parallel.pool.DataQueue` 推送，串行路径逐轮写入，均 `fflush` 刷盘。
+- **汇总：** 控制台与日志报告 JSON 总数、入队数、成功/失败/跳过、各文件稳态 `V_sink`；并行时附带加速比估计。
+
+```matlab
+run('batch_sweep/batch_run_from_json.m');
+```
+
 ## 6. 自定义几何模式
 
 当胞体和纤毛都来自用户点云文件时，使用自定义几何模式。
@@ -207,6 +220,8 @@ postprocess_cases()
 | 输出目录已存在 | 交互式选择处理方式，或设置 `auto_confirm = true` 使用无人值守重命名策略。 |
 | 布朗重复结果不一致 | 确认种子模式为固定种子还是时间戳种子。 |
 | 布朗重复批量未并行执行 | 安装 **Parallel Computing Toolbox**、检查 `parpool` 集群配置，或在 `batch_repeat_brownian.m` 中设置 `use_parallel = false`。 |
+| JSON 文件夹批跑未并行执行 | 同上，针对 `batch_run_from_json.m`，或设置 `use_parallel = false`。 |
+| JSON 批跑因重复 `case_name` 被跳过 | 非空 `case_name` 仅字母序首个 JSON 会运行；请使用唯一 `case_name` 或留空以自动时间戳目录。 |
 | `IllConditioned` 布朗迁移率告警（`M_eff_dimless rcond`） | v7.4.1+ 在无量纲迁移率上做诊断；若仍出现告警，多半是真实的病态几何/欧拉根问题，核对 §8、`simulation.log` 及 \(\theta\approx\pi\) 配置。 |
 
 ## 12. 文档导航

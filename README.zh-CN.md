@@ -4,8 +4,8 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-05-22  
-> **版本:** 7.4.4  
+> **更新日期:** 2026-05-25  
+> **版本:** 7.4.5  
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -21,14 +21,14 @@
 - 支持自由扭转根部边界条件和恒定马达力矩，用于马达驱动鞭毛。
 - 支持 MATLAB 内联配置、JSON 配置和程序化批处理运行。
 - 支持面向论文图像的导出：MAT、CSV、日志、PNG、矢量 PDF、可选交互式 HTML 和 MP4 动画。
-- 可选**并行**布朗重复批量（[`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m)）：在已安装 **Parallel Computing Toolbox** 时使用 `parfor` 与自动池规模估计；无工具箱或池创建失败时自动回退为串行循环。
+- 可选**并行**批量驱动（[`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m)、[`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m)）：在已安装 **Parallel Computing Toolbox** 时使用 `parfor` 与自动池规模估计；无工具箱或池创建失败时自动回退为串行循环。
 
 - 推荐 MATLAB R2020b 或更新版本。
 - PNG 与 PDF 图像导出依赖 `exportgraphics`，MATLAB R2020a 起可用。
 - 可选交互式 HTML 图像导出需要 MATLAB R2026a 或更新版本。
 - 胶囊胞体表面布点需要 MATLAB Add-On / File Exchange 中 Anton Semechko 的 **S2 Sampling Toolbox**。安装后需确保 `ParticleSampleSphere`、`SpiralSampleSphere`、`IcosahedronMesh`、`QuadCubeMesh` 和 `SubdivideSphericalMesh` 在 MATLAB path 中。
 - 运行仿真不需要 Python / Conda / pip。详见 [`requirements.txt`](requirements.txt)。
-- **Parallel Computing Toolbox** 为可选依赖：仅在使用 [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) 的并行分支时需要（默认 `use_parallel = true`）。
+- **Parallel Computing Toolbox** 为可选依赖：在使用 [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) 与 [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m) 的默认并行分支时需要（`use_parallel = true`）。
 
 ## 快速开始
 
@@ -62,7 +62,7 @@ cfg.auto_confirm = true;
 [results, params, output_dir] = run_simulation(cfg);
 ```
 
-批量扫描**驱动脚本**位于 [`batch_sweep/`](batch_sweep/)；运行后 CSV/MAT 等汇总输出写入 `batch sweep/`（带空格，由脚本自动创建）。多工况后处理入口为 [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m)。
+批量扫描**驱动脚本**位于 [`batch_sweep/`](batch_sweep/)；运行后 CSV/MAT 等汇总输出写入 `batch sweep/`（带空格，由脚本自动创建）。对文件夹内全部 `*.json` 进行批跑（可选并行、非空 `case_name` 去重、实时 `batch_summary_*.log`）请使用 [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m)。多工况后处理入口为 [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m)。
 
 ## 主要输出
 
@@ -108,7 +108,7 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **7.4.4 (2026-05-22)**。本版加强运行前配置校验：参数化模式拒绝非空 `custom_geometry`（与 custom 模式拒绝 parametric 字段对称）；`helix` 内禀曲率须提供有限标量 `kappa_d2` / `kappa_d3`——对**此前已通过校验**的配置**不改变数值输出**（与 v7.4.3 一致）。**v7.4.3** 对齐文档路径、JSON 示例与理论公式。**v7.4.2** 为注释审计（仅注释）。**v7.4.1** 修正布朗 `IllConditioned` 诊断。**v7.4.0** 为 `batch_repeat_brownian.m` 增加可选 `parfor` 并行。详见 [`CHANGELOG.md`](CHANGELOG.md)。
+当前版本为 **7.4.5 (2026-05-25)**。本版为 **`batch_run_from_json.m`** 增加可选 `parfor` 并行批跑（JSON 文件夹、非空重复 `case_name` 跳过、实时 batch 日志）——对单次 `run_simulation` **不改变数值输出**（与 v7.4.4 一致）。**v7.4.4** 加强运行前配置校验。**v7.4.0** 为 `batch_repeat_brownian.m` 增加并行。详见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## 许可证
 

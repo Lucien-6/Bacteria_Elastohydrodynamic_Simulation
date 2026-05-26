@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Coupled Body-Pili elastohydrodynamic simulation v7.4.4 (MATLAB): RSM+RSS Stokes flow, Kirchhoff pili, Brownian dynamics, configuration validation hardening (v7.4.4), optional parfor Brownian repeat batches, free-torsion motors, JSON config.">
+<meta name="description" content="Coupled Body-Pili elastohydrodynamic simulation v7.4.5 (MATLAB): RSM+RSS Stokes flow, Kirchhoff pili, Brownian dynamics, optional parfor JSON folder batch (batch_run_from_json), parallel Brownian repeat batches, free-torsion motors, JSON config.">
 <title>Coupled Body-Pili Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -99,7 +99,7 @@ tailwind.config = {
 <aside id="sidebar" class="no-print fixed top-0 left-0 h-full w-64 bg-navy-900 text-gray-300 z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 overflow-y-auto">
   <div class="p-6 border-b border-navy-700">
     <h2 class="text-white font-bold text-lg leading-tight">Coupled Body-Pili</h2>
-    <p class="text-xs text-teal-500 mt-1">v7.4.4 &mdash; Configuration validation hardening</p>
+    <p class="text-xs text-teal-500 mt-1">v7.4.5 &mdash; Parallel JSON batch runner</p>
   </div>
   <nav class="p-4 space-y-1 text-sm">
     <a href="#hero"         class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Home</span><span class="zh">首页</span></a>
@@ -153,7 +153,7 @@ tailwind.config = {
 <section id="hero" class="hero-gradient text-white py-24 px-6 md:px-16 lg:px-24">
   <div class="max-w-4xl mx-auto text-center">
     <div class="inline-block bg-teal-600/30 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-3 py-1 rounded-full mb-6 tracking-wide">
-      VERSION 7.4.4 &bull; 2026-05-22
+      VERSION 7.4.5 &bull; 2026-05-25
     </div>
     <h1 class="text-3xl md:text-5xl font-extrabold leading-tight mb-4">
       <span class="en">Coupled Body-Pili<br>Elastohydrodynamic Simulation</span>
@@ -390,12 +390,23 @@ tailwind.config = {
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en"><strong>v7.4.4</strong> hardens pre-run configuration validation: parametric mode rejects a non-empty <code>custom_geometry</code> block (symmetric to custom-mode parametric-field rejection), and <code>helix</code> intrinsic curvature requires finite scalar <code>kappa_d2</code> / <code>kappa_d3</code>. <strong>v7.4.3</strong> aligned documentation paths, JSON examples, and theory with the repository layout. <strong>v7.4.1</strong> adjusts <code>compute_effective_body_brownian.m</code> so Brownian preconditioning probes <code>M_eff_dimless</code>. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
-      <span class="zh"><strong>v7.4.4</strong> 加强运行前配置校验：参数化模式拒绝非空 <code>custom_geometry</code>（与 custom 模式拒绝 parametric 字段对称），<code>helix</code> 内禀曲率须提供有限标量 <code>kappa_d2</code> / <code>kappa_d3</code>。<strong>v7.4.3</strong> 对齐文档路径、JSON 示例与理论文档。<strong>v7.4.1</strong> 调整 <code>compute_effective_body_brownian.m</code>，在无量纲迁移率 <code>M_eff_dimless</code> 上做布朗条件数诊断。详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
+      <span class="en"><strong>v7.4.5</strong> adds optional <code>parfor</code> parallel scheduling to <code>batch_run_from_json.m</code> (folder of JSON configs, duplicate <code>case_name</code> skip, real-time <code>batch_summary</code> log) — no single-run physics change vs. v7.4.4. <strong>v7.4.4</strong> hardened configuration validation. <strong>v7.4.0</strong> added parallel Brownian repeat batches. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
+      <span class="zh"><strong>v7.4.5</strong> 为 <code>batch_run_from_json.m</code> 增加可选 <code>parfor</code> 并行 JSON 批跑（文件夹、重复 <code>case_name</code> 跳过、实时 <code>batch_summary</code> 日志）——单次仿真物理相对 v7.4.4 不变。<strong>v7.4.4</strong> 加强配置校验。<strong>v7.4.0</strong> 增加布朗重复并行批量。详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
-        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.4.4 &mdash; 2026-05-22</p>
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.4.5 &mdash; 2026-05-25</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Parallel JSON folder batch</span><span class="zh">JSON 文件夹并行批跑</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en"><code>batch_run_from_json.m</code>: <code>use_parallel</code>, pool sizing (<code>mem_per_worker_gb=3</code>, <code>max_resource_frac=0.75</code>), PCT with serial fallback.</span><span class="zh"><code>batch_run_from_json.m</code>：<code>use_parallel</code>、池规模（<code>mem_per_worker_gb=3</code>、<code>max_resource_frac=0.75</code>），PCT 不可用则回退串行。</span></li>
+          <li><span class="en">Pre-scan deduplicates non-empty <code>case_name</code> (alphabetical first wins); real-time <code>batch_summary_*.log</code> via <code>DataQueue</code>.</span><span class="zh">预扫描对非空 <code>case_name</code> 去重（字母序首个运行）；<code>DataQueue</code> 实时写入 <code>batch_summary_*.log</code>。</span></li>
+          <li><span class="en">No numerical change to single-run <code>run_simulation</code> outputs vs. v7.4.4.</span><span class="zh">单次 <code>run_simulation</code> 数值输出与 v7.4.4 一致。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-800 p-6">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">v7.4.4 &mdash; 2026-05-22</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
           <span class="en">Configuration validation hardening</span><span class="zh">配置校验加强</span>
         </h3>
@@ -1054,7 +1065,7 @@ graph TD
             <tr>
               <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">Batch</span><span class="zh">批处理</span></td>
               <td class="px-4 py-2"><code>batch_sweep_*.m</code>, <code>batch_run_from_json.m</code>, <code>batch_repeat_brownian.m</code></td>
-              <td class="px-4 py-2"><span class="en">Headless sweeps, JSON batch runner, Brownian repeat batches</span><span class="zh">无界面扫描、JSON 批处理、布朗独立重复</span></td>
+              <td class="px-4 py-2"><span class="en">Headless sweeps; parallel JSON folder batch (<code>batch_run_from_json</code>); parallel Brownian repeats</span><span class="zh">无界面扫描；JSON 文件夹并行批跑（<code>batch_run_from_json</code>）；布朗独立重复并行</span></td>
             </tr>
             <tr>
               <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">Post-processing</span><span class="zh">后处理</span></td>
@@ -1647,7 +1658,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
 
 <!-- Footer -->
 <footer class="bg-navy-900 text-gray-500 text-center py-8 text-xs">
-  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v7.4.4 &mdash; 2026-05-22</p>
+  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v7.4.5 &mdash; 2026-05-25</p>
   <p class="mt-1">Built by Lucien &bull; MIT License</p>
 </footer>
 
