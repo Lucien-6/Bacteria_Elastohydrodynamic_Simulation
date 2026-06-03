@@ -12,11 +12,20 @@ tailwind.config = {
   darkMode: 'class',
   theme: {
     extend: {
-      fontFamily: { sans: ['Inter', 'Arial', 'sans-serif'] },
+      fontFamily: {
+        sans: ['Inter', 'Arial', 'Helvetica', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+      },
       colors: {
-        navy: { 900: '#0f172a', 800: '#1e293b', 700: '#334155' },
-        teal:  { 500: '#14b8a6', 600: '#0d9488', 700: '#0f766e' },
-      }
+        navy:  { 950: '#0a0f1d', 900: '#0f172a', 850: '#162133', 800: '#1e293b', 700: '#334155', 600: '#475569' },
+        teal:  { 300: '#5eead4', 400: '#2dd4bf', 500: '#14b8a6', 600: '#0d9488', 700: '#0f766e', 800: '#115e59' },
+        gold:  { 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706' },
+      },
+      boxShadow: {
+        card:      '0 1px 2px rgba(15,23,42,.04), 0 10px 28px rgba(15,23,42,.07)',
+        cardhover: '0 14px 34px rgba(15,23,42,.14)',
+      },
+      maxWidth: { '7xl': '80rem' },
     }
   }
 }
@@ -39,35 +48,114 @@ tailwind.config = {
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-  ::-webkit-scrollbar { width: 6px; }
+  /* ===================== Base ===================== */
+  html { scroll-behavior: smooth; }
+  body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; letter-spacing: -0.003em; }
+  ::selection { background: rgba(20,184,166,.25); }
+  section[id] { scroll-margin-top: 1.5rem; }
+
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #64748b; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background: #64748b; background-clip: padding-box; }
+  .dark ::-webkit-scrollbar-thumb { background: #475569; background-clip: padding-box; }
 
+  /* ===================== Reading progress ===================== */
+  #progress {
+    position: fixed; top: 0; left: 0; height: 3px; width: 0%; z-index: 60;
+    background: linear-gradient(90deg, #0d9488, #14b8a6, #5eead4);
+    box-shadow: 0 0 10px rgba(20,184,166,.6); transition: width .08s linear;
+  }
+
+  /* ===================== Section header system ===================== */
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: .6rem;
+    font-size: .72rem; font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
+    color: #0d9488;
+  }
+  .eyebrow::before { content: ""; width: 1.7rem; height: 2px; border-radius: 2px; background: currentColor; opacity: .65; }
+  .dark .eyebrow { color: #2dd4bf; }
+  .rule { width: 64px; height: 4px; border-radius: 4px; background: linear-gradient(90deg, #0d9488, #5eead4); }
+  .lead { max-width: 50rem; line-height: 1.8; }
+
+  /* Upgrade existing section titles + accent rules globally (no per-section markup needed) */
+  main section h2 { font-size: clamp(1.7rem, 1rem + 2vw, 2.35rem) !important; font-weight: 800 !important;
+    letter-spacing: -0.02em; line-height: 1.15; }
+  main .w-16.h-1.bg-teal-600 { width: 64px !important; height: 4px !important;
+    background: linear-gradient(90deg, #0d9488, #5eead4) !important; border-radius: 4px !important; }
+
+  /* ===================== Hero ===================== */
   .hero-gradient {
-    background: linear-gradient(-45deg, #0f172a, #0f766e, #1e293b, #14b8a6);
-    background-size: 400% 400%;
-    animation: heroShift 12s ease infinite;
+    background:
+      radial-gradient(1100px 560px at 10% -15%, rgba(20,184,166,.30), transparent 60%),
+      radial-gradient(900px 520px at 102% 0%, rgba(45,212,191,.16), transparent 55%),
+      linear-gradient(135deg, #0b1326 0%, #0f2b46 46%, #0f766e 125%);
   }
-  @keyframes heroShift {
-    0%   { background-position: 0% 50%; }
-    50%  { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
+  .hero-grid {
+    background-image:
+      linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+    background-size: 44px 44px;
+    -webkit-mask-image: radial-gradient(70% 70% at 50% 35%, #000 55%, transparent 100%);
+            mask-image: radial-gradient(70% 70% at 50% 35%, #000 55%, transparent 100%);
   }
 
-  .nav-link.active { color: #14b8a6; border-left-color: #14b8a6; font-weight: 600; }
-  .info-card { transition: transform 0.2s, box-shadow 0.2s; }
-  .info-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.12); }
+  /* ===================== Prose links (content sections only) ===================== */
+  main section a:not(.nav-link):not([class*="bg-"]):not([class*="border"]) {
+    color: #0d9488; text-decoration: none; border-bottom: 1px solid rgba(13,148,136,.35); transition: border-color .15s;
+  }
+  main section a:not(.nav-link):not([class*="bg-"]):not([class*="border"]):hover { border-bottom-color: #0d9488; }
+  .dark main section a:not(.nav-link):not([class*="bg-"]):not([class*="border"]) { color: #2dd4bf; border-bottom-color: rgba(45,212,191,.4); }
+
+  /* ===================== Inline code ===================== */
+  main p code, main li code, main td code, main h4 code, main span code, main strong code {
+    font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: .84em;
+    background: #f1f5f9; color: #0f766e; padding: .1em .42em; border-radius: .35rem; border: 1px solid #e2e8f0;
+  }
+  .dark main p code, .dark main li code, .dark main td code, .dark main h4 code,
+  .dark main span code, .dark main strong code { background: #162133; color: #5eead4; border-color: #1e293b; }
+
+  /* ===================== Code blocks ===================== */
+  pre { margin: 0; }
+  pre code.hljs {
+    border-radius: 12px; font-size: .82rem; line-height: 1.65; padding: 18px 20px !important;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    border: 1px solid #0b2236; box-shadow: 0 12px 30px rgba(2,6,23,.28);
+  }
+
+  /* ===================== Tables ===================== */
+  main table { border-collapse: separate !important; border-spacing: 0; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+  main thead th { font-weight: 700; font-size: .74rem; letter-spacing: .04em; text-transform: uppercase; }
+  main tbody tr { transition: background .15s ease; }
+  main tbody tr:hover { background: rgba(20,184,166,.06); }
+
+  /* ===================== KaTeX display ===================== */
+  .katex-display { overflow-x: auto; overflow-y: hidden; padding: 10px 2px; margin: 0; }
+  .katex-display::-webkit-scrollbar { height: 6px; }
+
+  /* ===================== Cards & nav ===================== */
+  .info-card { transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+  .info-card:hover { transform: translateY(-4px); box-shadow: 0 14px 32px rgba(15,23,42,.13); border-color: #5eead4; }
+  .dark .info-card:hover { border-color: #115e59; }
+
+  .nav-link { border-radius: 0 8px 8px 0; transition: color .15s, background .15s, border-color .15s; }
+  .nav-link.active { color: #2dd4bf; border-left-color: #14b8a6; background: rgba(20,184,166,.10); font-weight: 600; }
+
+  /* ===================== Collapsible / tabs ===================== */
   .collapsible-body { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
   .collapsible-body.open { max-height: 4000px; }
-  .katex-display { overflow-x: auto; overflow-y: hidden; padding: 8px 0; }
-  .tab-btn.active-tab { border-bottom-color: #14b8a6; color: #14b8a6; font-weight: 600; }
+  .tab-btn.active-tab { border-bottom-color: #14b8a6; color: #0d9488; font-weight: 600; }
+  .dark .tab-btn.active-tab { color: #2dd4bf; }
   .tab-panel { display: none; }
-  .tab-panel.active-panel { display: block; }
-  pre code.hljs { border-radius: 8px; font-size: 0.85rem; }
+  .tab-panel.active-panel { display: block; animation: fadeIn .28s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+
+  /* ===================== Misc ===================== */
   .sidebar-overlay { display: none; }
   .sidebar-overlay.show { display: block; }
+  .pearl { background-image: radial-gradient(rgba(13,148,136,.10) 1px, transparent 1px); background-size: 22px 22px; }
   @media print { .no-print { display: none !important; } }
 
   /* i18n visibility */
@@ -77,6 +165,9 @@ tailwind.config = {
 </head>
 
 <body class="bg-white dark:bg-navy-900 text-gray-800 dark:text-gray-200 font-sans leading-relaxed">
+
+<!-- Reading progress -->
+<div id="progress" class="no-print"></div>
 
 <noscript>
   <div style="background:#fef3c7;color:#92400e;padding:16px;text-align:center;font-size:14px;">
@@ -98,10 +189,20 @@ tailwind.config = {
 
 <aside id="sidebar" class="no-print fixed top-0 left-0 h-full w-64 bg-navy-900 text-gray-300 z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 overflow-y-auto">
   <div class="p-6 border-b border-navy-700">
-    <h2 class="text-white font-bold text-lg leading-tight">Coupled Body-Pili</h2>
-    <p class="text-xs text-teal-500 mt-1">v7.4.6 &mdash; Code-quality &amp; docs pass</p>
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-400 to-teal-700 flex items-center justify-center shadow-lg shrink-0">
+        <svg class="w-5 h-5 text-navy-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12c4-5 12 5 16 0"/><circle cx="19" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg>
+      </div>
+      <div>
+        <h2 class="text-white font-bold text-base leading-tight">Coupled Body&ndash;Pili</h2>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.4.6 &middot; 2026-06-03</p>
+      </div>
+    </div>
   </div>
-  <nav class="p-4 space-y-1 text-sm">
+  <p class="px-5 pt-4 pb-1 text-[10px] uppercase tracking-widest text-gray-500 font-semibold">
+    <span class="en">On this page</span><span class="zh">本页导航</span>
+  </p>
+  <nav class="px-4 pb-2 space-y-1 text-sm">
     <a href="#hero"         class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Home</span><span class="zh">首页</span></a>
     <a href="#overview"     class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Project Overview</span><span class="zh">项目概述</span></a>
     <a href="#releases"    class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Recent releases (v7.4+)</span><span class="zh">最近版本（v7.4+）</span></a>
@@ -150,20 +251,22 @@ tailwind.config = {
 <main class="lg:ml-64 min-h-screen">
 
 <!-- ==================== SECTION 1: HERO ==================== -->
-<section id="hero" class="hero-gradient text-white py-24 px-6 md:px-16 lg:px-24">
-  <div class="max-w-4xl mx-auto text-center">
-    <div class="inline-block bg-teal-600/30 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-3 py-1 rounded-full mb-6 tracking-wide">
-      VERSION 7.4.6 &bull; 2026-06-03
+<section id="hero" class="hero-gradient relative overflow-hidden text-white py-28 px-6 md:px-16 lg:px-24">
+  <div class="hero-grid absolute inset-0 pointer-events-none"></div>
+  <div class="relative max-w-4xl mx-auto text-center">
+    <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
+      <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
+      Version 7.4.6 &bull; 2026-06-03
     </div>
-    <h1 class="text-3xl md:text-5xl font-extrabold leading-tight mb-4">
-      <span class="en">Coupled Body-Pili<br>Elastohydrodynamic Simulation</span>
-      <span class="zh">细菌胞体-纤毛耦合<br>弹性流体动力学仿真</span>
+    <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
+      <span class="en">Coupled Body&ndash;Pili<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
+      <span class="zh">细菌胞体&ndash;纤毛耦合<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">弹性流体动力学仿真</span></span>
     </h1>
-    <p class="text-base md:text-lg text-gray-300 leading-relaxed max-w-2xl mx-auto mb-3">
+    <p class="text-base md:text-lg text-gray-300 leading-relaxed max-w-2xl mx-auto mb-5 font-medium">
       <span class="en">细菌胞体-纤毛耦合弹性流体动力学仿真</span>
-      <span class="zh">Coupled Body-Pili Elastohydrodynamic Simulation</span>
+      <span class="zh">Coupled Body&ndash;Pili Elastohydrodynamic Simulation</span>
     </p>
-    <p class="text-sm md:text-base text-gray-400 max-w-2xl mx-auto mb-10">
+    <p class="text-sm md:text-base text-gray-300/85 max-w-2xl mx-auto mb-10 leading-relaxed">
       <span class="en">A MATLAB simulation framework for modelling capsule-shaped bacteria with elastic pili
       sinking in Stokes flow. Combines regularized Stokeslet methods (RSM + RSS + Rotlet segments),
       Kirchhoff elastic rods with configurable intrinsic curvature and time-varying active moments,
@@ -177,24 +280,67 @@ tailwind.config = {
       JSON 配置系统、批量参数扫描脚本，以及自动化后处理 Excel 汇总。</span>
     </p>
     <div class="flex flex-wrap justify-center gap-4">
-      <a href="#usage" class="bg-teal-600 hover:bg-teal-700 text-white font-semibold px-6 py-3 rounded-lg transition shadow-lg">
+      <a href="#usage" class="group bg-teal-500 hover:bg-teal-400 text-navy-900 font-bold px-7 py-3 rounded-xl transition shadow-lg shadow-teal-900/40 flex items-center gap-2">
         <span class="en">Get Started</span><span class="zh">快速上手</span>
+        <svg class="w-4 h-4 group-hover:translate-x-0.5 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5-5 5M6 12h12"/></svg>
       </a>
-      <a href="#theory" class="border border-gray-400 hover:border-white text-gray-300 hover:text-white font-medium px-6 py-3 rounded-lg transition">
+      <a href="#theory" class="border border-white/30 hover:border-white/80 hover:bg-white/5 text-gray-200 hover:text-white font-semibold px-7 py-3 rounded-xl transition">
         <span class="en">Read the Theory</span><span class="zh">阅读理论</span>
       </a>
     </div>
-    <p class="mt-8 text-xs text-gray-500">
-      <span class="en">Author: Lucien &lt;lucien-6@qq.com&gt; &nbsp;|&nbsp; MATLAB R2020b+</span>
-      <span class="zh">作者：Lucien &lt;lucien-6@qq.com&gt; &nbsp;|&nbsp; MATLAB R2020b+</span>
+    <div class="mt-10 flex flex-wrap justify-center gap-2.5 text-[11px] font-medium">
+      <span class="px-3 py-1 rounded-full bg-white/8 border border-white/15 text-gray-200">MATLAB R2020b+</span>
+      <span class="px-3 py-1 rounded-full bg-white/8 border border-white/15 text-gray-200">RSM + RSS + Rotlet</span>
+      <span class="px-3 py-1 rounded-full bg-white/8 border border-white/15 text-gray-200">Kirchhoff rods</span>
+      <span class="px-3 py-1 rounded-full bg-white/8 border border-white/15 text-gray-200">Brownian dynamics</span>
+      <span class="px-3 py-1 rounded-full bg-white/8 border border-white/15 text-gray-200">MIT License</span>
+    </div>
+    <p class="mt-7 text-xs text-gray-400">
+      <span class="en">Author: Lucien &lt;lucien-6@qq.com&gt; &mdash; PhD, Fluid Dynamics &amp; Microbiology</span>
+      <span class="zh">作者：Lucien &lt;lucien-6@qq.com&gt; &mdash; 博士研究生，流体力学与微生物学</span>
     </p>
+  </div>
+</section>
+
+<!-- ==================== STATS BAND ==================== -->
+<section class="bg-navy-900 text-white border-b border-navy-700 px-6 md:px-16 lg:px-24">
+  <div class="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 divide-x divide-navy-700/70">
+    <div class="py-7 px-4 text-center">
+      <div class="text-3xl md:text-4xl font-extrabold text-teal-400 tracking-tight">3</div>
+      <div class="mt-1 text-xs text-gray-400 leading-snug">
+        <span class="en">Regularized kernels<br>(Stokeslet · Segment · Rotlet)</span>
+        <span class="zh">正则化核函数<br>(Stokeslet · 线段 · Rotlet)</span>
+      </div>
+    </div>
+    <div class="py-7 px-4 text-center">
+      <div class="text-3xl md:text-4xl font-extrabold text-teal-400 tracking-tight">6&times;6</div>
+      <div class="mt-1 text-xs text-gray-400 leading-snug">
+        <span class="en">Effective Brownian<br>mobility tensor</span>
+        <span class="zh">有效布朗<br>迁移率张量</span>
+      </div>
+    </div>
+    <div class="py-7 px-4 text-center">
+      <div class="text-3xl md:text-4xl font-extrabold text-teal-400 tracking-tight">8</div>
+      <div class="mt-1 text-xs text-gray-400 leading-snug">
+        <span class="en">Batch parameter<br>sweep scripts</span>
+        <span class="zh">批量参数<br>扫描脚本</span>
+      </div>
+    </div>
+    <div class="py-7 px-4 text-center">
+      <div class="text-3xl md:text-4xl font-extrabold text-teal-400 tracking-tight">Re&#8202;&#8594;&#8202;0</div>
+      <div class="mt-1 text-xs text-gray-400 leading-snug">
+        <span class="en">Fully coupled<br>Stokes-flow regime</span>
+        <span class="zh">全耦合<br>Stokes 流区域</span>
+      </div>
+    </div>
   </div>
 </section>
 
 <!-- ==================== SECTION 2: OVERVIEW ==================== -->
 <section id="overview" class="py-20 px-6 md:px-16 lg:px-24 bg-gray-50 dark:bg-navy-800">
   <div class="max-w-6xl mx-auto">
-    <h2 class="text-2xl md:text-3xl font-bold mb-2">
+    <span class="eyebrow"><span class="en">01 &middot; Overview</span><span class="zh">01 &middot; 概览</span></span>
+    <h2 class="text-2xl md:text-3xl font-bold mb-2 mt-3">
       <span class="en">Project Overview</span><span class="zh">项目概述</span>
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-8"></div>
@@ -385,7 +531,8 @@ tailwind.config = {
 <!-- ==================== SECTION: RECENT RELEASES ==================== -->
 <section id="releases" class="py-16 px-6 md:px-16 lg:px-24 bg-white dark:bg-navy-900 border-y border-gray-200 dark:border-navy-700">
   <div class="max-w-5xl mx-auto">
-    <h2 class="text-2xl md:text-3xl font-bold mb-2">
+    <span class="eyebrow"><span class="en">02 &middot; Changelog</span><span class="zh">02 &middot; 版本</span></span>
+    <h2 class="text-2xl md:text-3xl font-bold mb-2 mt-3">
       <span class="en">Recent releases</span><span class="zh">最近版本</span>
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
@@ -497,7 +644,8 @@ tailwind.config = {
 <!-- ==================== SECTION 3: THEORY ==================== -->
 <section id="theory" class="py-20 px-6 md:px-16 lg:px-24">
   <div class="max-w-5xl mx-auto">
-    <h2 class="text-2xl md:text-3xl font-bold mb-2">
+    <span class="eyebrow"><span class="en">03 &middot; Theory</span><span class="zh">03 &middot; 理论</span></span>
+    <h2 class="text-2xl md:text-3xl font-bold mb-2 mt-3">
       <span class="en">Theoretical Foundations</span><span class="zh">理论基础</span>
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-10"></div>
@@ -668,7 +816,8 @@ tailwind.config = {
 <!-- ==================== SECTION 4: BROWNIAN ==================== -->
 <section id="brownian" class="py-20 px-6 md:px-16 lg:px-24 bg-gray-50 dark:bg-navy-800">
   <div class="max-w-5xl mx-auto">
-    <h2 class="text-2xl md:text-3xl font-bold mb-2">
+    <span class="eyebrow"><span class="en">04 &middot; Stochastic</span><span class="zh">04 &middot; 随机动力学</span></span>
+    <h2 class="text-2xl md:text-3xl font-bold mb-2 mt-3">
       <span class="en">Brownian Dynamics Scheme</span><span class="zh">布朗动力学方案</span>
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-10"></div>
@@ -793,7 +942,8 @@ M_eff_dimless = z_dot_probe(1:6, :);  % 6x6 effective mobility</code></pre>
 <!-- ==================== SECTION 5: FEATURE EXTENSIONS ==================== -->
 <section id="newfeatures" class="py-20 px-6 md:px-16 lg:px-24">
   <div class="max-w-5xl mx-auto">
-    <h2 class="text-2xl md:text-3xl font-bold mb-2">
+    <span class="eyebrow"><span class="en">05 &middot; Extensions</span><span class="zh">05 &middot; 扩展</span></span>
+    <h2 class="text-2xl md:text-3xl font-bold mb-2 mt-3">
       <span class="en">Feature Extensions</span><span class="zh">功能扩展</span>
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-10"></div>
@@ -968,7 +1118,8 @@ cfg.background_flow.shear_height_m = 20e-6;       % [m]</code></pre>
 <!-- ==================== SECTION 6: ARCHITECTURE ==================== -->
 <section id="architecture" class="py-20 px-6 md:px-16 lg:px-24">
   <div class="max-w-6xl mx-auto">
-    <h2 class="text-2xl md:text-3xl font-bold mb-2">
+    <span class="eyebrow"><span class="en">06 &middot; Architecture</span><span class="zh">06 &middot; 架构</span></span>
+    <h2 class="text-2xl md:text-3xl font-bold mb-2 mt-3">
       <span class="en">Code Architecture</span><span class="zh">代码架构</span>
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-10"></div>
@@ -1197,7 +1348,8 @@ graph TD
 <!-- ==================== SECTION: POST-PROCESSING ==================== -->
 <section id="postprocessing" class="py-20 px-6 md:px-16 lg:px-24 bg-gray-50 dark:bg-navy-800">
   <div class="max-w-5xl mx-auto">
-    <h2 class="text-2xl md:text-3xl font-bold mb-2">
+    <span class="eyebrow"><span class="en">07 &middot; Post-processing</span><span class="zh">07 &middot; 后处理</span></span>
+    <h2 class="text-2xl md:text-3xl font-bold mb-2 mt-3">
       <span class="en">Batch Post-processing</span><span class="zh">批量后处理</span>
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-8"></div>
@@ -1248,7 +1400,8 @@ postprocess_cases();</code></pre>
 <!-- ==================== SECTION 6: USAGE ==================== -->
 <section id="usage" class="py-20 px-6 md:px-16 lg:px-24">
   <div class="max-w-5xl mx-auto">
-    <h2 class="text-2xl md:text-3xl font-bold mb-2">
+    <span class="eyebrow"><span class="en">08 &middot; Usage</span><span class="zh">08 &middot; 使用</span></span>
+    <h2 class="text-2xl md:text-3xl font-bold mb-2 mt-3">
       <span class="en">Quick Start &amp; Usage</span><span class="zh">快速上手与使用</span>
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-10"></div>
@@ -1607,7 +1760,8 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
 <!-- ==================== SECTION 7: REFERENCES ==================== -->
 <section id="references" class="py-20 px-6 md:px-16 lg:px-24 bg-gray-50 dark:bg-navy-800">
   <div class="max-w-5xl mx-auto">
-    <h2 class="text-2xl md:text-3xl font-bold mb-2">
+    <span class="eyebrow"><span class="en">09 &middot; References</span><span class="zh">09 &middot; 参考</span></span>
+    <h2 class="text-2xl md:text-3xl font-bold mb-2 mt-3">
       <span class="en">References &amp; License</span><span class="zh">参考文献与许可</span>
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-10"></div>
@@ -1667,9 +1821,44 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
 </section>
 
 <!-- Footer -->
-<footer class="bg-navy-900 text-gray-500 text-center py-8 text-xs">
-  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v7.4.6 &mdash; 2026-06-03</p>
-  <p class="mt-1">Built by Lucien &bull; MIT License</p>
+<footer class="bg-navy-950 text-gray-400 px-6 md:px-16 lg:px-24 pt-14 pb-10 border-t border-navy-700">
+  <div class="max-w-6xl mx-auto grid gap-10 md:grid-cols-[1.6fr_1fr_1fr]">
+    <div>
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-400 to-teal-700 flex items-center justify-center">
+          <svg class="w-4 h-4 text-navy-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12c4-5 12 5 16 0"/><circle cx="19" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg>
+        </div>
+        <span class="text-white font-bold">Coupled Body&ndash;Pili</span>
+      </div>
+      <p class="text-sm leading-relaxed max-w-md">
+        <span class="en">A MATLAB framework for the coupled elastohydrodynamics of capsule-shaped bacteria with elastic pili sinking in Stokes flow.</span>
+        <span class="zh">用于模拟带弹性纤毛的胶囊状细菌在 Stokes 流中沉降的耦合弹性流体动力学 MATLAB 框架。</span>
+      </p>
+    </div>
+    <div>
+      <p class="text-white font-semibold text-sm mb-3"><span class="en">Documentation</span><span class="zh">文档</span></p>
+      <ul class="space-y-2 text-sm">
+        <li><a href="../README.md" class="hover:text-teal-400 transition">README</a></li>
+        <li><a href="theory.md" class="hover:text-teal-400 transition"><span class="en">Theory</span><span class="zh">理论</span></a></li>
+        <li><a href="../USER_GUIDE.md" class="hover:text-teal-400 transition"><span class="en">User Guide</span><span class="zh">用户指南</span></a></li>
+        <li><a href="../CHANGELOG.md" class="hover:text-teal-400 transition"><span class="en">Changelog</span><span class="zh">变更日志</span></a></li>
+        <li><a href="presentation.html" class="hover:text-teal-400 transition"><span class="en">Presentation</span><span class="zh">汇报幻灯片</span></a></li>
+      </ul>
+    </div>
+    <div>
+      <p class="text-white font-semibold text-sm mb-3"><span class="en">Project</span><span class="zh">项目</span></p>
+      <ul class="space-y-2 text-sm">
+        <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
+        <li>MATLAB R2020b+</li>
+        <li>MIT License</li>
+        <li>v7.4.6 &middot; 2026-06-03</li>
+      </ul>
+    </div>
+  </div>
+  <div class="max-w-6xl mx-auto mt-10 pt-6 border-t border-navy-800 text-xs text-gray-500 flex flex-col sm:flex-row justify-between gap-2">
+    <span>&copy; 2026 Lucien &mdash; Coupled Body&ndash;Pili Elastohydrodynamic Simulation</span>
+    <span><span class="en">Built with MATLAB, Tailwind, KaTeX &amp; Mermaid</span><span class="zh">由 MATLAB、Tailwind、KaTeX 与 Mermaid 构建</span></span>
+  </div>
 </footer>
 
 </main>
@@ -1745,17 +1934,25 @@ const observer = new IntersectionObserver(entries => {
 }, { rootMargin: '-20% 0px -70% 0px' });
 sections.forEach(s => observer.observe(s));
 
-// Back to top
+// Back to top + reading progress
 const backBtn = document.getElementById('backToTop');
-window.addEventListener('scroll', () => {
-  if (window.scrollY > 600) {
+const progressBar = document.getElementById('progress');
+function onScroll() {
+  const y = window.scrollY;
+  if (y > 600) {
     backBtn.classList.remove('opacity-0', 'pointer-events-none');
     backBtn.classList.add('opacity-100');
   } else {
     backBtn.classList.add('opacity-0', 'pointer-events-none');
     backBtn.classList.remove('opacity-100');
   }
-});
+  if (progressBar) {
+    const h = document.documentElement.scrollHeight - window.innerHeight;
+    progressBar.style.width = (h > 0 ? (y / h) * 100 : 0) + '%';
+  }
+}
+window.addEventListener('scroll', onScroll, { passive: true });
+onScroll();
 
 // Tabs
 function switchTab(e, panelId) {
