@@ -22,7 +22,7 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Log banner version: 7.4.5 (2026-05-25) — keep in sync with README / CHANGELOG
+%  Log banner version: 7.4.6 (2026-06-03) — keep in sync with README / CHANGELOG
 %
 %  Path: defensive addpath(project root) so run_simulation(cfg) works when
 %  invoked without main_coupled_simulation.m. Unified policy = this line plus
@@ -229,7 +229,7 @@ log_fid  = fopen(log_file, 'w');
 if log_fid == -1
     error('Cannot create log file: %s', log_file);
 end
-logf = @(varargin) dual_log(log_fid, varargin{:});  %#ok<NFFT>  % persistent closure
+logf = @(varargin) dual_log(log_fid, varargin{:});  % closure capturing log_fid
 
 % Log-file-only variant (no console echo) for high-frequency diagnostics
 logf_file = @(varargin) log_file_only(log_fid, varargin{:});
@@ -237,7 +237,7 @@ logf_file = @(varargin) log_file_only(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
-logf('  Version 7.4.5\n');
+logf('  Version 7.4.6\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -552,7 +552,7 @@ if preview_initial
     % Compute per-axis bounding box
     all_pts = X_body_prev;
     for kp = 1:params.M_pili
-        all_pts = [all_pts; X_pili_prev{kp}]; 
+        all_pts = [all_pts; X_pili_prev{kp}]; %#ok<AGROW>
     end
     pv_min = min(all_pts);
     pv_max = max(all_pts);
@@ -586,7 +586,7 @@ if preview_initial
             Xp = X_pili_prev{kp};
             scatter3(ax_pv, Xp(:,1), Xp(:,2), Xp(:,3), ...
                      12, prev_pili_colors(kp,:), 'filled');
-            legend_entries{end+1} = sprintf('Pili %d', kp); 
+            legend_entries{end+1} = sprintf('Pili %d', kp); %#ok<AGROW>
         end
 
         % Formatting
@@ -819,8 +819,8 @@ while T_achieved < T_obs_dimless
     Z_end      = sol.y(:, end);
 
     % Record segment timing for ETA estimation
-    seg_walltimes(end+1) = seg_wall;            
-    seg_dtstar(end+1)    = T_achieved - T_prev; 
+    seg_walltimes(end+1) = seg_wall;            %#ok<AGROW>
+    seg_dtstar(end+1)    = T_achieved - T_prev; %#ok<AGROW>
 
     % Renormalise quaternion
     q_end         = Z_end(4:7);
@@ -1266,14 +1266,14 @@ for si = 1:n_snapshots
         else
             pts_snap = R_snap * custom_verts_um' + cm_um; % [3 x N_verts]
         end
-        all_x = [all_x; pts_snap(1,:)']; 
-        all_y = [all_y; pts_snap(2,:)']; 
-        all_z = [all_z; pts_snap(3,:)']; 
+        all_x = [all_x; pts_snap(1,:)']; %#ok<AGROW>
+        all_y = [all_y; pts_snap(2,:)']; %#ok<AGROW>
+        all_z = [all_z; pts_snap(3,:)']; %#ok<AGROW>
         for k = 1:M_pili
             X_p = results.X_pili_um{k}(:,:,ti);
-            all_x = [all_x; X_p(:,1)]; 
-            all_y = [all_y; X_p(:,2)]; 
-            all_z = [all_z; X_p(:,3)]; 
+            all_x = [all_x; X_p(:,1)]; %#ok<AGROW>
+            all_y = [all_y; X_p(:,2)]; %#ok<AGROW>
+            all_z = [all_z; X_p(:,3)]; %#ok<AGROW>
         end
     end
 end
@@ -1410,7 +1410,7 @@ if generate_animation
     % Determine frame indices
     frame_indices = 1 : animation_skip : NT;
     if frame_indices(end) ~= NT
-        frame_indices(end+1) = NT;      % Always include last frame
+        frame_indices(end+1) = NT;      %#ok<AGROW> Always include last frame
     end
     n_frames = length(frame_indices);
     logf('[ANIM] Frames: %d (skip = %d from %d total time points)\n', ...
@@ -1434,14 +1434,14 @@ if generate_animation
         else
             pts  = R_fi * custom_verts_um' + results.X_cm_um(:, ti); % [3 x N_verts]
         end
-        all_x = [all_x; pts(1,:)']; 
-        all_y = [all_y; pts(2,:)']; 
-        all_z = [all_z; pts(3,:)']; 
+        all_x = [all_x; pts(1,:)']; %#ok<AGROW>
+        all_y = [all_y; pts(2,:)']; %#ok<AGROW>
+        all_z = [all_z; pts(3,:)']; %#ok<AGROW>
         for k = 1:M_pili
             Xp = results.X_pili_um{k}(:,:,ti);
-            all_x = [all_x; Xp(:,1)]; 
-            all_y = [all_y; Xp(:,2)]; 
-            all_z = [all_z; Xp(:,3)]; 
+            all_x = [all_x; Xp(:,1)]; %#ok<AGROW>
+            all_y = [all_y; Xp(:,2)]; %#ok<AGROW>
+            all_z = [all_z; Xp(:,3)]; %#ok<AGROW>
         end
     end
 

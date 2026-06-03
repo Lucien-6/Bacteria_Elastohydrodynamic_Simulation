@@ -10,6 +10,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [7.4.6] — 2026-06-03
+
+Code-quality and documentation-consistency pass — **no numerical change** to `run_simulation` outputs.
+
+### Changed
+
+- **`src/math/pili_spatial_coords.m`**: replaced the per-segment cumulative `for` loop with a vectorised `cumsum` (mathematically identical node positions; output shape `[N_k+1 x 3]` unchanged).
+- **`src/config/validate_simulation_params.m`**: corrected the rotational relaxation time used in the `dt_B` pre-flight heuristic from `1/(6·D_R)` to `1/(2·D_R)` (standard first-order orientational correlation time). This is a warning threshold only and does not affect time integration.
+
+### Fixed
+
+- **`src/geometry/pili_building.m`**: removed the dead `compute_curvature_binormal` call whose `kb`/`kb0` output was never read downstream (curvature is recomputed by `init_coupled_params` as `params.kb0{k}`, `[N+1 x 3]`). The struct fields are now `zeros(3,0)` placeholders, matching the established `custom_pili_building.m` pattern.
+- **`run_simulation.m`**: replaced the invalid `%#ok<NFFT>` lint directive on the `logf` closure with a plain comment; added `%#ok<AGROW>` to the intentional in-loop array growth in the initial-pose preview, snapshot, and animation bounding-box passes.
+
+### Documentation
+
+- **`src/core/build_coupled_lin_sys.m`**, **`CHANGELOG.md`**: removed stale references to non-existent "regression tests"; condition-number health is now described as monitored via runtime diagnostics (`compute_effective_body_brownian.m`) and the `validate_simulation_params` pre-flight checks.
+- **`main_coupled_simulation.m`**: corrected the "README defaults" wording to point at the actual source of the `T_obs` / `dt` / `rho_bac` fallback values (`load_sim_config.m`).
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**: version **7.4.6**, date **2026-06-03**.
+
+### Compatibility
+
+- **Bitwise identical numerical outputs vs. v7.4.5** for all configs. Every change is a comment, a lint directive, an equivalent vectorisation, dead-code removal, or a warning-only heuristic constant — no solver, geometry, or physics path is altered.
+
+---
+
 ## [7.4.5] — 2026-05-25
 
 Parallel JSON batch runner and batch-log polish — **no numerical change** to single-run `run_simulation` outputs.
@@ -533,7 +559,7 @@ Comprehensive hardening pass on the custom-geometry feature, covering correctnes
 - **Direction 1 — `M_weighted` factorisation reuse (explicit LU via `decomposition`)**: The coupled mobility matrix `M_weighted` is now factorised **once per RHS call** via `decomposition(M_weighted, 'lu', 'CheckCondition', false)` and handed down to `ode_coupled_rhs.apply_Ainv_u` through `hydro.dM_weighted`. Rationale and effect:
     - `M_weighted` mixes **RSM** (body point-Stokeslets) and **RSS** (pili segment-integral Stokeslets) kernels, so the block matrix is **non-symmetric by construction** (empirically: $\lVert M-M^{\mathsf{T}}\rVert_F/\lVert M\rVert_F\approx0.56$). LU — not Cholesky — is the correct factorisation.
     - Before: every RHS call did **two independent** full-pivot LU factorisations of the same matrix (one inside `build_coupled_lin_sys` for `AQ_trans`, one inside `apply_Ainv_u` for the background-flow solve). Direction 1 reuses a single factorisation for both.
-    - `'CheckCondition' = false` disables MATLAB's per-solve automatic `rcond` estimate (`O(N²)` saved per invocation); overall condition health is validated externally by the regression tests.
+    - `'CheckCondition' = false` disables MATLAB's per-solve automatic `rcond` estimate (`O(N²)` saved per invocation); overall condition health is validated via runtime conditioning diagnostics.
     - Even in the default **`bg = off`** workflow (no reuse), the explicit LU dispatch is marginally faster than generic backslash because it bypasses per-call symmetry / triangular heuristics.
     - **Measured on the reference benchmark (`benchmark_direction1.m`, DOFs = 1807)**:
         - `bg = off` (neutral path):  `ode_coupled_rhs` **767.5 ms → 731.6 ms (−4.7 %)** median.

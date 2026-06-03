@@ -4,8 +4,8 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-05-25  
-> **版本:** 7.4.5  
+> **更新日期:** 2026-06-03  
+> **版本:** 7.4.6  
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -108,7 +108,7 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **7.4.5 (2026-05-25)**。本版为 **`batch_run_from_json.m`** 增加可选 `parfor` 并行批跑（JSON 文件夹、非空重复 `case_name` 跳过、实时 batch 日志）——对单次 `run_simulation` **不改变数值输出**（与 v7.4.4 一致）。**v7.4.4** 加强运行前配置校验。**v7.4.0** 为 `batch_repeat_brownian.m` 增加并行。详见 [`CHANGELOG.md`](CHANGELOG.md)。
+当前版本为 **7.4.6 (2026-06-03)**。本版为代码质量与文档一致性维护版——向量化 `pili_spatial_coords`（`cumsum`）、清理 `pili_building.m` 死代码、修正 lint 提示、修正仅用于告警的 `dt_B` 经验阈值——相对 v7.4.5 **数值输出逐位一致**。**v7.4.5** 为 **`batch_run_from_json.m`** 增加可选 `parfor` 并行批跑（JSON 文件夹、非空重复 `case_name` 跳过、实时 batch 日志）。**v7.4.4** 加强运行前配置校验。**v7.4.0** 为 `batch_repeat_brownian.m` 增加并行。详见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## 许可证
 

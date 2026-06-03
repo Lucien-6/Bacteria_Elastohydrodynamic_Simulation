@@ -377,7 +377,9 @@ Q_trans  = Q_global(1:n_trans, :);
 %
 % CheckCondition=false suppresses MATLAB's automatic rcond estimate on
 % each solve (O(N^2) per invocation); overall condition health is
-% validated externally by the regression tests.  Measurement also shows
+% instead monitored at runtime via the conditioning diagnostics in
+% compute_effective_body_brownian.m and the validate_simulation_params
+% pre-flight checks.  Measurement also shows
 % the explicit LU dispatch is marginally faster than the generic
 % backslash path even in the single-solve (bg=off) case, because it
 % skips backslash's per-call symmetry / triangular heuristics.

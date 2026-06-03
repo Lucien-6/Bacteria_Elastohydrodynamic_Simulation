@@ -1,7 +1,10 @@
 # Coupled Body-Pili elastohydrodynamic simulation — MATLAB project
 #
-# Release: 7.4.5 (2026-05-25)
+# Release: 7.4.6 (2026-06-03)
 #
+# v7.4.6: code-quality and documentation-consistency pass — vectorised
+# pili_spatial_coords (cumsum), dead-code removal in pili_building.m, lint
+# cleanup, and a warning-only dt_B heuristic fix. No numerical change. See CHANGELOG.md.
 # v7.4.5: batch_sweep/batch_run_from_json.m — optional parfor parallel JSON batch
 # (case_name dedup, real-time batch_summary log). See CHANGELOG.md.
 # v7.4.4: validate_simulation_params.m rejects parametric+custom_geometry mixing

@@ -33,8 +33,8 @@ function Pili = pili_building(Pili_Matrix, seg_per_um, major_axis, minor_axis, d
 %        .ell        Natural segment length [m]
 %        .x          Vertex positions [3 x N] [m]
 %        .v          Vertex velocities [3 x N] [m/s] (zero)
-%        .kb         Curvature binormal vectors [3 x (N-2)] [1/m]
-%        .kb0        Intrinsic curvature binormal vectors [3 x (N-2)] [1/m]
+%        .kb         Placeholder [3 x 0]; curvature recomputed by init_coupled_params
+%        .kb0        Placeholder [3 x 0]; curvature recomputed by init_coupled_params
 %        .A          Bending stiffness [N*m^2]
 %        .r          Pili radius [m]
 %        .f_bend     Bending forces [3 x N] [N] (zero)
@@ -106,9 +106,13 @@ for j = 1:NPili
 
     x = [rxP; ryP; rzP];    % [3 x N]
 
-    % --- Compute curvature binormal vectors ---
-    kb  = compute_curvature_binormal(x);   % [3 x (N-2)]
-    kb0 = kb;                              % Intrinsic (rest) curvature
+    % --- Curvature binormal placeholders ---
+    % All curvature information is recomputed from scratch by
+    % init_coupled_params (params.kb0{k}, [N+1 x 3], Euler-angle based);
+    % these struct fields are kept only as placeholders for shape
+    % compatibility, mirroring custom_pili_building.m.
+    kb  = zeros(3, 0);
+    kb0 = zeros(3, 0);
 
     % --- Initialize velocities and forces to zero ---
     v      = zeros(3, N);
@@ -120,8 +124,8 @@ for j = 1:NPili
     Pili(j).ell        = ell;
     Pili(j).x          = x;
     Pili(j).v          = v;
-    Pili(j).kb         = kb;
-    Pili(j).kb0        = kb0;
+    Pili(j).kb         = kb;            % placeholder; recomputed by init_coupled_params
+    Pili(j).kb0        = kb0;           % placeholder; recomputed by init_coupled_params
     Pili(j).A          = A;
     Pili(j).r          = r_pili;
     Pili(j).f_bend     = f_bend;

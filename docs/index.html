@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Coupled Body-Pili elastohydrodynamic simulation v7.4.5 (MATLAB): RSM+RSS Stokes flow, Kirchhoff pili, Brownian dynamics, optional parfor JSON folder batch (batch_run_from_json), parallel Brownian repeat batches, free-torsion motors, JSON config.">
+<meta name="description" content="Coupled Body-Pili elastohydrodynamic simulation v7.4.6 (MATLAB): RSM+RSS Stokes flow, Kirchhoff pili, Brownian dynamics, optional parfor JSON folder batch (batch_run_from_json), parallel Brownian repeat batches, free-torsion motors, JSON config.">
 <title>Coupled Body-Pili Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -99,7 +99,7 @@ tailwind.config = {
 <aside id="sidebar" class="no-print fixed top-0 left-0 h-full w-64 bg-navy-900 text-gray-300 z-50 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 overflow-y-auto">
   <div class="p-6 border-b border-navy-700">
     <h2 class="text-white font-bold text-lg leading-tight">Coupled Body-Pili</h2>
-    <p class="text-xs text-teal-500 mt-1">v7.4.5 &mdash; Parallel JSON batch runner</p>
+    <p class="text-xs text-teal-500 mt-1">v7.4.6 &mdash; Code-quality &amp; docs pass</p>
   </div>
   <nav class="p-4 space-y-1 text-sm">
     <a href="#hero"         class="nav-link block px-3 py-2 border-l-2 border-transparent hover:text-white hover:border-teal-500 transition"><span class="en">Home</span><span class="zh">首页</span></a>
@@ -153,7 +153,7 @@ tailwind.config = {
 <section id="hero" class="hero-gradient text-white py-24 px-6 md:px-16 lg:px-24">
   <div class="max-w-4xl mx-auto text-center">
     <div class="inline-block bg-teal-600/30 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-3 py-1 rounded-full mb-6 tracking-wide">
-      VERSION 7.4.5 &bull; 2026-05-25
+      VERSION 7.4.6 &bull; 2026-06-03
     </div>
     <h1 class="text-3xl md:text-5xl font-extrabold leading-tight mb-4">
       <span class="en">Coupled Body-Pili<br>Elastohydrodynamic Simulation</span>
@@ -390,12 +390,23 @@ tailwind.config = {
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en"><strong>v7.4.5</strong> adds optional <code>parfor</code> parallel scheduling to <code>batch_run_from_json.m</code> (folder of JSON configs, duplicate <code>case_name</code> skip, real-time <code>batch_summary</code> log) — no single-run physics change vs. v7.4.4. <strong>v7.4.4</strong> hardened configuration validation. <strong>v7.4.0</strong> added parallel Brownian repeat batches. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
-      <span class="zh"><strong>v7.4.5</strong> 为 <code>batch_run_from_json.m</code> 增加可选 <code>parfor</code> 并行 JSON 批跑（文件夹、重复 <code>case_name</code> 跳过、实时 <code>batch_summary</code> 日志）——单次仿真物理相对 v7.4.4 不变。<strong>v7.4.4</strong> 加强配置校验。<strong>v7.4.0</strong> 增加布朗重复并行批量。详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
+      <span class="en"><strong>v7.4.6</strong> is a code-quality and documentation-consistency pass — vectorised <code>pili_spatial_coords</code> (<code>cumsum</code>), dead-code removal in <code>pili_building.m</code>, lint cleanup, and a warning-only <code>dt_B</code> heuristic correction — with bitwise-identical numerical outputs vs. v7.4.5. <strong>v7.4.5</strong> added optional <code>parfor</code> parallel scheduling to <code>batch_run_from_json.m</code>. <strong>v7.4.4</strong> hardened configuration validation. <strong>v7.4.0</strong> added parallel Brownian repeat batches. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
+      <span class="zh"><strong>v7.4.6</strong> 为代码质量与文档一致性维护版——向量化 <code>pili_spatial_coords</code>（<code>cumsum</code>）、清理 <code>pili_building.m</code> 死代码、修正 lint 提示、修正仅用于告警的 <code>dt_B</code> 经验阈值——数值输出相对 v7.4.5 逐位一致。<strong>v7.4.5</strong> 为 <code>batch_run_from_json.m</code> 增加可选 <code>parfor</code> 并行 JSON 批跑。<strong>v7.4.4</strong> 加强配置校验。<strong>v7.4.0</strong> 增加布朗重复并行批量。详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
-        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.4.5 &mdash; 2026-05-25</p>
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.4.6 &mdash; 2026-06-03</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Code-quality &amp; documentation pass</span><span class="zh">代码质量与文档一致性维护</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">Vectorised <code>pili_spatial_coords</code> (<code>cumsum</code>); removed the dead <code>compute_curvature_binormal</code> call in <code>pili_building.m</code> (curvature is recomputed by <code>init_coupled_params</code>).</span><span class="zh">向量化 <code>pili_spatial_coords</code>（<code>cumsum</code>）；移除 <code>pili_building.m</code> 中无用的 <code>compute_curvature_binormal</code> 调用（曲率由 <code>init_coupled_params</code> 重算）。</span></li>
+          <li><span class="en">Lint cleanup (<code>%#ok</code> directives) and corrected the warning-only <code>dt_B</code> rotational-time heuristic to <code>1/(2·D_R)</code>; stale "regression tests" wording removed.</span><span class="zh">清理 lint 提示（<code>%#ok</code>），将仅用于告警的 <code>dt_B</code> 旋转时间经验式修正为 <code>1/(2·D_R)</code>；移除过时的 “regression tests” 措辞。</span></li>
+          <li><span class="en">Bitwise-identical numerical outputs vs. v7.4.5.</span><span class="zh">数值输出与 v7.4.5 逐位一致。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-800 p-6">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">v7.4.5 &mdash; 2026-05-25</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
           <span class="en">Parallel JSON folder batch</span><span class="zh">JSON 文件夹并行批跑</span>
         </h3>
@@ -987,7 +998,6 @@ graph TD
     INIT --> CAP["src/geometry/capsule_body_building.m"]
     INIT --> PIB["src/geometry/pili_building.m"]
     PIB --> PTB["src/geometry/pili_type_building.m"]
-    PIB --> CCB["src/physics/compute_curvature_binormal.m"]
 
     BROWN --> BLS["src/core/build_coupled_lin_sys.m"]
     ODE --> BLS
@@ -1658,7 +1668,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
 
 <!-- Footer -->
 <footer class="bg-navy-900 text-gray-500 text-center py-8 text-xs">
-  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v7.4.5 &mdash; 2026-05-25</p>
+  <p>Coupled Body-Pili Elastohydrodynamic Simulation &mdash; v7.4.6 &mdash; 2026-06-03</p>
   <p class="mt-1">Built by Lucien &bull; MIT License</p>
 </footer>
 

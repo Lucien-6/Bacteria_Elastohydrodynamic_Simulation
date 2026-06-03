@@ -33,11 +33,7 @@ ds = ell_k / N_k;
 [~, ~, d3_basis] = pili_directors(theta, phi, zeros(N_k, 1));
 d3_lab = (rot_k' * d3_basis')';    % [N_k x 3]
 
-% Cumulative integration from root
-X = zeros(N_k + 1, 3);
-X(1, :) = x_root(:)';
-for j = 1:N_k
-    X(j+1, :) = X(j, :) + ds * d3_lab(j, :);
-end
+% Cumulative integration from root (vectorised)
+X = [x_root(:)'; x_root(:)' + ds * cumsum(d3_lab, 1)];
 
 end

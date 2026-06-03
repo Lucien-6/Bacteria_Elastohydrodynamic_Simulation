@@ -260,7 +260,7 @@ if cfg.enable_brown && cfg.dt_B > 0 && isfield(cfg, 'Temper') ...
     D_T   = kB * cfg.Temper / (6 * pi * cfg.mu * a_eff);
     D_R   = kB * cfg.Temper / (8 * pi * cfg.mu * a_eff^3);
     tau_trans = a_eff^2 / D_T;
-    tau_rot   = 1 / (6 * D_R);
+    tau_rot   = 1 / (2 * D_R);   % first-order orientational correlation time
     tau_min   = min(tau_trans, tau_rot);
     if isfinite(tau_min) && tau_min > 0 && cfg.dt_B > 0.1 * tau_min
         warns{end+1} = sprintf(['dt_B = %.3g s exceeds 10%% of estimated ', ...

@@ -15,10 +15,11 @@
 %      flagellum driven by a constant motor torque.  Buoyancy is OFF on
 %      purpose: rho_bac = rho_fluid = 998.232 kg/m^3 isolates motor-driven
 %      rotation and propulsion from gravitational sinking.  This is NOT
-%      the documented project default — the README sinking workflow uses
+%      the documented project default — the standard sinking workflow uses
 %      rho_bac = 1180 kg/m^3.  Likewise T_obs = 20 s and dt = 0.01 s are
-%      tuned for the high-frequency motor diagnostic (README defaults:
-%      T_obs = 30 s, dt = 0.1 s).  Edit the rho_bac / dt / T_obs / cfg
+%      tuned for the high-frequency motor diagnostic (the JSON loader
+%      fallback defaults in load_sim_config.m are T_obs = 30 s, dt = 0.1 s).
+%      Edit the rho_bac / dt / T_obs / cfg
 %      lines below to reproduce the standard sinking-bacterium scenario.
 %
 %  Output unit convention:
@@ -31,7 +32,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Documentation release: 7.4.5 (2026-05-25) — see README.md / CHANGELOG.md
+%  Documentation release: 7.4.6 (2026-06-03) — see README.md / CHANGELOG.md
 
 close all force;
 clear; clc;
@@ -232,13 +233,13 @@ else
     cfg.mu        = 1e-3;                 % [Pa*s]   Dynamic viscosity (water)
     % NOTE: rho_bac = rho_fluid disables buoyancy; intentional for the
     % motor-driven flagella demo above.  Use cfg.rho_bac = 1180 (kg/m^3,
-    % README default) to recover the standard sinking-bacterium physics.
+    % load_sim_config.m default) to recover the standard sinking-bacterium physics.
     cfg.rho_bac   = 998.232;              % [kg/m^3] Bacteria density (= fluid: zero gravity)
     cfg.rho_fluid = 998.232;              % [kg/m^3] Fluid density
 
     % -------- Simulation Time & Numerics --------
     % NOTE: T_obs / dt below are tuned for the high-frequency motor demo;
-    % README defaults are T_obs = 30 s, dt = 0.1 s for sinking studies.
+    % the JSON loader fallback defaults are T_obs = 30 s, dt = 0.1 s for sinking studies.
     cfg.T_obs  = 20.0;                    % [s]   Total observation time
     cfg.AbsTol = 1e-4;                    % ODE absolute tolerance
     cfg.RelTol = 1e-4;                    % ODE relative tolerance

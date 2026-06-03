@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-05-25
-> **Version:** 7.4.5
+> **Updated:** 2026-06-03
+> **Version:** 7.4.6
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -114,7 +114,7 @@ Results are written under `output/<case_name>/` or an automatically timestamped 
 
 ## Version Notes
 
-The current release is **7.4.5 (2026-05-25)**. It adds optional `parfor` parallel scheduling to **`batch_run_from_json.m`** (folder of JSON configs, duplicate non-empty `case_name` skip, real-time batch log) — **no numerical change** to single-run `run_simulation` outputs vs. v7.4.4. **v7.4.4** hardened pre-run configuration validation (parametric/custom mixing, `helix` curvature fields). **v7.4.0** added parallel scheduling to **`batch_repeat_brownian.m`**. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
+The current release is **7.4.6 (2026-06-03)**. It is a code-quality and documentation-consistency pass — vectorised `pili_spatial_coords` (`cumsum`), dead-code removal in `pili_building.m`, lint cleanup, and a warning-only `dt_B` heuristic correction — with **bitwise-identical numerical outputs vs. v7.4.5**. **v7.4.5** added optional `parfor` parallel scheduling to **`batch_run_from_json.m`** (folder of JSON configs, duplicate non-empty `case_name` skip, real-time batch log). **v7.4.4** hardened pre-run configuration validation (parametric/custom mixing, `helix` curvature fields). **v7.4.0** added parallel scheduling to **`batch_repeat_brownian.m`**. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 
