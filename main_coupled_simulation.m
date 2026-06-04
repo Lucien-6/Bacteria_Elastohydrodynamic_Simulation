@@ -1,5 +1,5 @@
 %% main_coupled_simulation.m
-%  Coupled Body-Pili Elastohydrodynamic Simulation — Entry Point
+%  Bacteria Elastohydrodynamic Simulation — Entry Point
 %
 %  Description:
 %    Lightweight entry script that defines the simulation configuration

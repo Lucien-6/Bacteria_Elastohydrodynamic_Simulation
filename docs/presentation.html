@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Coupled Body–Pili Elastohydrodynamic Simulation — Research Presentation</title>
+<title>Bacteria Elastohydrodynamic Simulation — Research Presentation</title>
 
 <!-- reveal.js core + theme -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.css">
@@ -45,6 +45,39 @@
   .reveal .slides section.tight .eq{ margin:.28em 0; padding:5px 16px; }
   .reveal .slides section.tight p{ margin:.34em 0; }
   .reveal .slides section.tight li{ margin:.22em 0; }
+  /* Root & Motor slide (dense): tighten body rhythm to stay above footer */
+  .reveal .slides section.compact-root .bar{ margin:.06em 0 .48em 0; }
+  .reveal .slides section.compact-root .cols{ gap:16px; }
+  .reveal .slides section.compact-root .card{ padding:11px 16px; }
+  .reveal .slides section.compact-root .card h3{ margin-bottom:.12em; }
+  .reveal .slides section.compact-root .card.gold{ margin-top:10px; }
+  .reveal .slides section.compact-root p{ margin:.24em 0; line-height:1.38; }
+  .reveal .slides section.compact-root .eq{ margin:.22em 0; padding:4px 14px; }
+  /* Background Flow slide (sparse): looser rhythm to fill vertical space */
+  .reveal .slides section.spacious-flow .bar{ margin:.1em 0 1.05em 0; }
+  .reveal .slides section.spacious-flow p{ margin:.72em 0; }
+  .reveal .slides section.spacious-flow .eq{ margin:.85em 0; padding:10px 18px; }
+  .reveal .slides section.spacious-flow .cols-3{ gap:26px; align-items:stretch; }
+  .reveal .slides section.spacious-flow .card{ padding:22px 24px; }
+  .reveal .slides section.spacious-flow .card h3{ margin-bottom:.4em; }
+  .reveal .slides section.spacious-flow .card p{ margin:.5em 0; }
+  /* Slide 13 (display) — RSM Discretization: dense; tighten to stay above footer */
+  .reveal .slides section.compact-rsm{ padding-top:20px; padding-bottom:8px; }
+  .reveal .slides section.compact-rsm h2{ margin-bottom:.1em; }
+  .reveal .slides section.compact-rsm .bar{ margin:.02em 0 .26em 0; }
+  .reveal .slides section.compact-rsm p{ margin:.14em 0; line-height:1.24; }
+  .reveal .slides section.compact-rsm .eq{ margin:.16em 0; padding:3px 14px; }
+  .reveal .slides section.compact-rsm .cols{ gap:16px; margin-top:.18em; }
+  .reveal .slides section.compact-rsm .card{ padding:8px 16px; }
+  .reveal .slides section.compact-rsm .card h3{ margin-bottom:.06em; }
+  .reveal .slides section.compact-rsm .card .center{ margin:.08em 0; }
+  /* Slide 14 (display) — RSS Theory: loosen to reduce bottom blank */
+  .reveal .slides section.spacious-rss .bar{ margin:.12em 0 1.05em 0; }
+  .reveal .slides section.spacious-rss p{ margin:.8em 0; }
+  .reveal .slides section.spacious-rss .eq{ margin:.95em 0; padding:11px 18px; }
+  .reveal .slides section.spacious-rss .cols{ gap:30px; }
+  .reveal .slides section.spacious-rss .card{ padding:22px 24px; }
+  .reveal .slides section.spacious-rss .card p{ margin:.6em 0; }
 
   .reveal h1,.reveal h2,.reveal h3,.reveal h4{
     font-family:"Arial","Helvetica Neue",Helvetica,sans-serif;
@@ -159,7 +192,7 @@
 <section data-background-gradient="linear-gradient(135deg,#0f2b46 0%,#163e63 60%,#0d9488 140%)">
   <div class="content fill title-wrap dark">
     <span class="kicker"><span class="lang-en">Low-Reynolds-Number Elastohydrodynamics · MATLAB</span><span class="lang-zh">低雷诺数弹性流体动力学 · MATLAB</span></span>
-    <h1><span class="lang-en">Coupled Body–Pili<br>Elastohydrodynamic Simulation</span><span class="lang-zh">细菌胞体–纤毛<br>耦合弹性流体动力学仿真</span></h1>
+    <h1><span class="lang-en">Bacteria Elastohydrodynamic<br>Simulation</span><span class="lang-zh">细菌弹性流体动力学<br>仿真</span></h1>
     <div class="bar"></div>
     <p class="muted" style="font-size:.7em;max-width:20em;">
       <span class="lang-en">Settling dynamics of a rigid bacterial body coupled to flexible Kirchhoff pili / flagella in Stokes flow.</span>
@@ -198,7 +231,7 @@
       </div>
     </div>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">Research Presentation</span><span class="lang-zh">科研汇报</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Research Presentation</span><span class="lang-zh">科研汇报</span></div>
 </section>
 
 <!-- ============ DIVIDER 01 ============ -->
@@ -237,7 +270,7 @@
       <span class="chip"><span class="lang-en">Stochastic thermal motion</span><span class="lang-zh">随机热运动</span></span>
     </div>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">Background</span><span class="lang-zh">研究背景</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Background</span><span class="lang-zh">研究背景</span></div>
 </section>
 
 <!-- ============ 4. PHYSICAL PROBLEM ============ -->
@@ -269,7 +302,7 @@
       <p class="small lang-zh" style="margin:0;"><strong>每一个</strong>胞体表面点与纤毛节点之间的相互作用都被保留——不作解耦近似。胞体刚体运动、纤毛形状演化与周围流场在每一时刻被联立求解。</p>
     </div>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">Physical Problem</span><span class="lang-zh">物理问题</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Physical Problem</span><span class="lang-zh">物理问题</span></div>
 </section>
 
 <!-- ============ 4b. BACTERIAL MODEL SCHEMATIC ============ -->
@@ -353,7 +386,7 @@
       <span class="chip"><span class="lang-en">Quaternion body orientation</span><span class="lang-zh">四元数胞体姿态</span></span>
     </div>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">Model Schematic</span><span class="lang-zh">模型示意图</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Model Schematic</span><span class="lang-zh">模型示意图</span></div>
 </section>
 
 <!-- ============ 5. OBJECTIVES ============ -->
@@ -375,7 +408,7 @@
       </div>
     </div>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">Objectives</span><span class="lang-zh">研究目标</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Objectives</span><span class="lang-zh">研究目标</span></div>
 </section>
 
 <!-- ============ DIVIDER 02 ============ -->
@@ -415,7 +448,7 @@
     <p class="small muted lang-en">Key advantage: RSS integrates the regularized kernel <em>exactly</em> along each straight segment, decoupling segment length from regularization radius (~10 segments / µm typical).</p>
     <p class="small muted lang-zh">关键优势：RSS 沿每条直段<em>精确</em>积分正则化核，使段长与正则化半径解耦（典型约 10 段/µm）。</p>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">Methods</span><span class="lang-zh">方法</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Methods</span><span class="lang-zh">方法</span></div>
 </section>
 
 <!-- ============ 7. NONDIMENSIONALIZATION ============ -->
@@ -456,7 +489,7 @@
       </div>
     </div>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">Nondimensionalization</span><span class="lang-zh">无量纲化</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Nondimensionalization</span><span class="lang-zh">无量纲化</span></div>
 </section>
 
 <!-- ============ 8. STATE VECTOR & QUATERNION ============ -->
@@ -483,7 +516,7 @@
       </div>
     </div>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">State Vector</span><span class="lang-zh">状态向量</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">State Vector</span><span class="lang-zh">状态向量</span></div>
 </section>
 
 <!-- ============ 9a. RSM THEORY ============ -->
@@ -513,11 +546,11 @@
       </div>
     </div>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">RSM Theory</span><span class="lang-zh">RSM 理论</span> · Cortez (2005)</div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">RSM Theory</span><span class="lang-zh">RSM 理论</span> · Cortez (2005)</div>
 </section>
 
 <!-- ============ 9b. RSM DISCRETIZATION ============ -->
-<section>
+<section class="compact-rsm">
   <div class="content">
     <span class="kicker"><span class="lang-en">Hydrodynamics · 1b</span><span class="lang-zh">流体力学 · 1b</span></span>
     <h2><span class="lang-en">RSM Discretization on the Body Surface</span><span class="lang-zh">胞体表面的 RSM 离散</span></h2>
@@ -543,11 +576,11 @@
       </div>
     </div>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">RSM Discretization</span><span class="lang-zh">RSM 离散</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">RSM Discretization</span><span class="lang-zh">RSM 离散</span></div>
 </section>
 
 <!-- ============ 10a. RSS THEORY ============ -->
-<section class="tight">
+<section class="spacious-rss">
   <div class="content">
     <span class="kicker"><span class="lang-en">Hydrodynamics · 2a</span><span class="lang-zh">流体力学 · 2a</span></span>
     <h2><span class="lang-en">Pili — Regularized Stokeslet Segments (RSS)</span><span class="lang-zh">纤毛 — 正则化 Stokeslet 段 (RSS)</span></h2>
@@ -572,7 +605,7 @@
       </div>
     </div>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">RSS Theory</span><span class="lang-zh">RSS 理论</span> · Cortez (2018)</div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">RSS Theory</span><span class="lang-zh">RSS 理论</span> · Cortez (2018)</div>
 </section>
 
 <!-- ============ 10b. RSS INTEGRALS + ROTLET ============ -->
@@ -606,7 +639,7 @@
       </div>
     </div>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">RSS Integrals / Rotlet</span><span class="lang-zh">RSS 段积分 / Rotlet</span> · Cortez (2018)</div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">RSS Integrals / Rotlet</span><span class="lang-zh">RSS 段积分 / Rotlet</span> · Cortez (2018)</div>
 </section>
 
 <!-- ============ 11. COUPLED SYSTEM ============ -->
@@ -630,7 +663,7 @@
       </div>
     </div>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">Coupled System</span><span class="lang-zh">耦合系统</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Coupled System</span><span class="lang-zh">耦合系统</span></div>
 </section>
 
 <!-- ============ 12. ELASTIC MOMENTS ============ -->
@@ -657,11 +690,11 @@
     <p class="small lang-en"><strong>Twist factor</strong> \(1/(1+\sigma)\) is exactly \(GJ/EI\) for a circular cross-section (\(J=2I,\ G=E/[2(1+\sigma)]\)). Intrinsic curvature: <code>frozen·zero·constant·helix</code>. Active moments: off · traveling wave · custom.</p>
     <p class="small lang-zh"><strong>扭转因子</strong> \(1/(1+\sigma)\) 对圆截面恰为 \(GJ/EI\)（\(J=2I,\ G=E/[2(1+\sigma)]\)）。内禀曲率：<code>frozen·zero·constant·helix</code>。主动力矩：关闭 · 行波 · 自定义。</p>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">Elastic Moments</span><span class="lang-zh">弹性力矩</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Elastic Moments</span><span class="lang-zh">弹性力矩</span></div>
 </section>
 
 <!-- ============ 13. ROOT & MOTOR ============ -->
-<section>
+<section class="compact-root">
   <div class="content">
     <span class="kicker"><span class="lang-en">Boundary &amp; Drive</span><span class="lang-zh">边界与驱动</span></span>
     <h2><span class="lang-en">Root Coupling and Motor Torque</span><span class="lang-zh">根部耦合与马达力矩</span></h2>
@@ -678,17 +711,17 @@
         <p class="small lang-zh">根部弯曲锁定，但根部扭转角 \(\psi_1\) 动态演化 —— 支持马达驱动鞭毛。</p>
       </div>
     </div>
-    <div class="card gold" style="margin-top:18px;">
+    <div class="card gold">
       <h3><span class="lang-en">Conservation-consistent motor</span><span class="lang-zh">守恒一致的马达</span></h3>
       <p class="small lang-en" style="margin:0;">In <code>free_torsion</code>, the root \(\mathbf{d}_3\) moment row may receive elastic torsion, an active \(\mathbf{d}_3\) moment, and a constant motor torque. <strong>No explicit motor reaction term is injected into</strong> \(\mathbf{R}_{4:6}\): those rows are the angular-momentum balance of the <em>whole</em> coupled system, so an internal body↔pilus torque cancels in the sum. The body's angular response emerges implicitly from the coupled Stokes solve.</p>
       <p class="small lang-zh" style="margin:0;">在 <code>free_torsion</code> 下，根部 \(\mathbf{d}_3\) 力矩行可接收弹性扭转、主动 \(\mathbf{d}_3\) 力矩与常值马达力矩。<strong>不向</strong> \(\mathbf{R}_{4:6}\) <strong>显式注入马达反作用项</strong>：这些行是<em>整个</em>耦合系统的角动量平衡，胞体↔纤毛间的内部力矩在求和中相消。胞体的角响应由耦合 Stokes 求解隐式给出。</p>
     </div>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">Root &amp; Motor</span><span class="lang-zh">根部与马达</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Root &amp; Motor</span><span class="lang-zh">根部与马达</span></div>
 </section>
 
 <!-- ============ 14. BACKGROUND FLOW ============ -->
-<section>
+<section class="spacious-flow">
   <div class="content">
     <span class="kicker"><span class="lang-en">External Forcing</span><span class="lang-zh">外部驱动</span></span>
     <h2><span class="lang-en">Background Flow</span><span class="lang-zh">背景流</span></h2>
@@ -704,7 +737,7 @@
     <p class="small muted lang-en">Background velocities use the same scales: \(\mathbf{u}_{\text{bg}}^{\ast}=\mathbf{u}_{\text{bg}}/U_0\).</p>
     <p class="small muted lang-zh">背景速度采用相同尺度：\(\mathbf{u}_{\text{bg}}^{\ast}=\mathbf{u}_{\text{bg}}/U_0\)。</p>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">Background Flow</span><span class="lang-zh">背景流</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Background Flow</span><span class="lang-zh">背景流</span></div>
 </section>
 
 <!-- ============ 15. BROWNIAN ============ -->
@@ -732,7 +765,7 @@
       </div>
     </div>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">Brownian Dynamics</span><span class="lang-zh">布朗动力学</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Brownian Dynamics</span><span class="lang-zh">布朗动力学</span></div>
 </section>
 
 <!-- ============ DIVIDER 03 ============ -->
@@ -764,7 +797,7 @@
       </div>
     </div>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">Algorithm</span><span class="lang-zh">算法</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Algorithm</span><span class="lang-zh">算法</span></div>
 </section>
 
 <!-- ============ 17. ARCHITECTURE (interactive Mermaid) ============ -->
@@ -826,7 +859,7 @@ flowchart TD
     </pre>
     <p class="mm-hint center"><span class="lang-en">Tip: click any node to see its role.</span><span class="lang-zh">提示：点击任意节点查看其作用。</span></p>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">Architecture</span><span class="lang-zh">架构</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Architecture</span><span class="lang-zh">架构</span></div>
 </section>
 
 <!-- ============ DIVIDER 04 ============ -->
@@ -878,7 +911,7 @@ cfg.auto_confirm = true;
     <p class="tiny muted lang-en">Requirements: MATLAB R2020b+ · S2 Sampling Toolbox (capsule bodies) · Parallel Computing Toolbox (optional) · no Python / pip.</p>
     <p class="tiny muted lang-zh">环境要求：MATLAB R2020b+ · S2 Sampling Toolbox（胶囊体）· Parallel Computing Toolbox（可选）· 无需 Python / pip。</p>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">Usage</span><span class="lang-zh">使用方法</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Usage</span><span class="lang-zh">使用方法</span></div>
 </section>
 
 <!-- ============ 19. OUTPUTS ============ -->
@@ -912,7 +945,7 @@ cfg.auto_confirm = true;
       <tr><td><code>simulation.log</code> · <code>brownian_rng_seed.txt</code></td><td>运行日志 · 布朗随机种子（启用时）。</td></tr>
     </table>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">Outputs</span><span class="lang-zh">输出</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Outputs</span><span class="lang-zh">输出</span></div>
 </section>
 
 <!-- ============ 20. VALIDATION ============ -->
@@ -936,7 +969,7 @@ cfg.auto_confirm = true;
       <p class="small lang-zh" style="margin:0;"><strong>尺度一致性：</strong>退化为单根自由丝可恢复 Walker 的 Kirchhoff 杆尺度。由 \(\varepsilon_k=\varepsilon/\ell_k\)，有 \(\widetilde{\mathbf{A}}_{\text{twist},k}=\tfrac{\ell_k\varepsilon_k^2}{2}\widehat{\mathbf{A}}_k=\tfrac{\varepsilon^2}{2\ell_k}\widehat{\mathbf{A}}_k\)，保持 \(\mathbf{L}\dot{\mathbf z}=\mathbf{R}\) 量纲齐次。</p>
     </div>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · <span class="lang-en">Validation</span><span class="lang-zh">验证</span></div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Validation</span><span class="lang-zh">验证</span></div>
 </section>
 
 <!-- ============ 21. SUMMARY ============ -->
@@ -961,7 +994,7 @@ cfg.auto_confirm = true;
     <p class="small muted lang-zh">文档：<code>README.md</code> · <code>USER_GUIDE.md</code> · <code>docs/theory.md</code> · <code>CHANGELOG.md</code>。</p>
     <p class="tiny muted">References — Cortez, Fauci &amp; Medovikov (2005), <em>The method of regularized Stokeslets in three dimensions</em>, Phys. Fluids 17, 031504 · Cortez (2018), <em>Regularized Stokeslet segments</em>, J. Comput. Phys. 375, 783–796 · Walker et&nbsp;al. (2020), elastic-filament Kirchhoff-rod formulation.</p>
   </div>
-  <div class="footer"><b>Coupled Body–Pili Simulation</b> · v7.4.6</div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · v7.4.6</div>
 </section>
 
 <!-- ============ 22. THANK YOU ============ -->

@@ -2,8 +2,8 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Coupled Body-Pili elastohydrodynamic simulation v7.4.6 (MATLAB): RSM+RSS Stokes flow, Kirchhoff pili, Brownian dynamics, optional parfor JSON folder batch (batch_run_from_json), parallel Brownian repeat batches, free-torsion motors, JSON config.">
-<title>Coupled Body-Pili Elastohydrodynamic Simulation</title>
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.4.6 (MATLAB): RSM+RSS Stokes flow, Kirchhoff pili, Brownian dynamics, optional parfor JSON folder batch (batch_run_from_json), parallel Brownian repeat batches, free-torsion motors, JSON config.">
+<title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
 <script src="https://cdn.tailwindcss.com"></script>
@@ -194,7 +194,7 @@ tailwind.config = {
         <svg class="w-5 h-5 text-navy-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12c4-5 12 5 16 0"/><circle cx="19" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg>
       </div>
       <div>
-        <h2 class="text-white font-bold text-base leading-tight">Coupled Body&ndash;Pili</h2>
+        <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
         <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.4.6 &middot; 2026-06-03</p>
       </div>
     </div>
@@ -259,12 +259,12 @@ tailwind.config = {
       Version 7.4.6 &bull; 2026-06-03
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
-      <span class="en">Coupled Body&ndash;Pili<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
-      <span class="zh">细菌胞体&ndash;纤毛耦合<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">弹性流体动力学仿真</span></span>
+      <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
+      <span class="zh">细菌<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">弹性流体动力学仿真</span></span>
     </h1>
     <p class="text-base md:text-lg text-gray-300 leading-relaxed max-w-2xl mx-auto mb-5 font-medium">
-      <span class="en">细菌胞体-纤毛耦合弹性流体动力学仿真</span>
-      <span class="zh">Coupled Body&ndash;Pili Elastohydrodynamic Simulation</span>
+      <span class="en">细菌弹性流体动力学仿真</span>
+      <span class="zh">Bacteria Elastohydrodynamic Simulation</span>
     </p>
     <p class="text-sm md:text-base text-gray-300/85 max-w-2xl mx-auto mb-10 leading-relaxed">
       <span class="en">A MATLAB simulation framework for modelling capsule-shaped bacteria with elastic pili
@@ -1828,7 +1828,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-400 to-teal-700 flex items-center justify-center">
           <svg class="w-4 h-4 text-navy-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12c4-5 12 5 16 0"/><circle cx="19" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg>
         </div>
-        <span class="text-white font-bold">Coupled Body&ndash;Pili</span>
+        <span class="text-white font-bold">Bacteria Elastohydrodynamic Simulation</span>
       </div>
       <p class="text-sm leading-relaxed max-w-md">
         <span class="en">A MATLAB framework for the coupled elastohydrodynamics of capsule-shaped bacteria with elastic pili sinking in Stokes flow.</span>
@@ -1856,7 +1856,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
     </div>
   </div>
   <div class="max-w-6xl mx-auto mt-10 pt-6 border-t border-navy-800 text-xs text-gray-500 flex flex-col sm:flex-row justify-between gap-2">
-    <span>&copy; 2026 Lucien &mdash; Coupled Body&ndash;Pili Elastohydrodynamic Simulation</span>
+    <span>&copy; 2026 Lucien &mdash; Bacteria Elastohydrodynamic Simulation</span>
     <span><span class="en">Built with MATLAB, Tailwind, KaTeX &amp; Mermaid</span><span class="zh">由 MATLAB、Tailwind、KaTeX 与 Mermaid 构建</span></span>
   </div>
 </footer>
@@ -1908,15 +1908,15 @@ function toggleLang() {
   localStorage.setItem('lang', next);
   document.getElementById('langLabel').textContent = next === 'en' ? '中文' : 'English';
   document.title = next === 'en'
-    ? 'Coupled Body-Pili Elastohydrodynamic Simulation'
-    : '细菌胞体-纤毛耦合弹性流体动力学仿真';
+    ? 'Bacteria Elastohydrodynamic Simulation'
+    : '细菌弹性流体动力学仿真';
 }
 (function restoreLang() {
   const saved = localStorage.getItem('lang');
   if (saved && saved !== 'en') {
     document.documentElement.setAttribute('lang', saved);
     document.getElementById('langLabel').textContent = 'English';
-    document.title = '细菌胞体-纤毛耦合弹性流体动力学仿真';
+    document.title = '细菌弹性流体动力学仿真';
   }
 })();
 

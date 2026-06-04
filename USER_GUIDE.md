@@ -1,4 +1,4 @@
-# User Guide — Coupled Body-Pili Simulation
+# User Guide — Bacteria Elastohydrodynamic Simulation
 
 English | [中文](USER_GUIDE.zh-CN.md)
 

@@ -48,7 +48,7 @@ function postprocess_cases()
 %% ---- Banner ------------------------------------------------------------
 sep = repmat('=', 1, 64);
 fprintf('\n%s\n', sep);
-fprintf('  Coupled Body-Pili Simulation  |  Batch Post-Processor\n');
+fprintf('  Bacteria Elastohydrodynamic Simulation  |  Batch Post-Processor\n');
 fprintf('  Author : Lucien  <lucien-6@qq.com>\n');
 fprintf('  Run at : %s\n', char(datetime('now', 'Format', 'uuuu-MM-dd HH:mm:ss')));
 fprintf('%s\n\n', sep);
@@ -89,7 +89,7 @@ fprintf('[3/4] Processing cases ...\n');
 fprintf('      %s\n', repmat('-', 1, 56));
 
 hWB = waitbar(0, 'Initialising ...', ...
-    'Name', 'Batch Post-Processor  —  Coupled Body-Pili Simulation', ...
+    'Name', 'Batch Post-Processor  —  Bacteria Elastohydrodynamic Simulation', ...
     'CreateCancelBtn', 'setappdata(gcbf,''cancelled'',true)');
 setappdata(hWB, 'cancelled', false);
 cleanupWB = onCleanup(@() close_waitbar_safe(hWB));

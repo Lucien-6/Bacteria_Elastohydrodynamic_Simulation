@@ -236,7 +236,7 @@ logf_file = @(varargin) log_file_only(log_fid, varargin{:});
 
 logf('\n');
 logf('================================================================\n');
-logf('  Coupled Body-Pili Elastohydrodynamic Simulation\n');
+logf('  Bacteria Elastohydrodynamic Simulation\n');
 logf('  Version 7.4.6\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
@@ -1377,7 +1377,7 @@ title(ax_snap_xz, 'XZ View Snapshots', ...
 title(ax_snap_yz, 'YZ View Snapshots', ...
       'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
 
-sgtitle(sprintf('Coupled Body-Pili Simulation  [%s]', run_id), ...
+sgtitle(sprintf('Bacteria Elastohydrodynamic Simulation  [%s]', run_id), ...
     'FontName', 'Arial', 'FontSize', 14, 'FontWeight', 'bold');
 drawnow;   % Flush sgtitle layout BEFORE measuring axis positions
 
