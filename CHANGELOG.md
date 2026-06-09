@@ -10,6 +10,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [7.5.0] — 2026-06-10
+
+Physics correction to the global angular-momentum balance — **changes numerical outputs for all pili-bearing configurations**.
+
+### Fixed
+
+- **`src/core/build_coupled_lin_sys.m` — net pili rotlet torque now enters the system torque balance (rows 4-6)**: the global angular-momentum balance previously summed only the Stokeslet contribution `sum(r x f)` and omitted the direct net torque `sum(m)` from the regularized rotlet segments, even though the rotlet flow (`M_rotlet`) is already part of the translational mobility. The total hydrodynamic torque the swimmer exerts on the fluid is `sum(r x f) + sum(m)`, so the moment-balance rows now include **both** terms. With this fix a force/torque-free swimmer is exactly torque-free, and a motor-driven `free_torsion` pilus produces the physically correct body counter-rotation about the spin axis. Verified on a decisive straight-axial-pilus test: the residual `||sum(r x f) + sum(m)|| / ||sum(m)||` drops from O(1) to ~1e-16 while the net force balance is preserved to machine precision.
+
+### Compatibility
+
+- **NOT bitwise-identical to v7.4.6** for any configuration containing pili. The added `sum(m)` torque term alters the solved body angular velocity (and, through the coupled solve, the full trajectory) by an amount that is small for slow / weak rotlet activity but can be O(1) for fast motor-driven or strongly spinning (e.g. spiral) pili. **Pili-free configurations are unaffected.**
+
+### Notes
+
+- The Lorentz-reciprocal partner of the kept rotlet→translation coupling (the Stokeslet→axial-spin term, `G^T`) was investigated and intentionally **not** added: the method's adaptive, force-point regularization (`eps_ij = eps_j`, `eps_body != eps_pili`) already breaks exact mobility symmetry, so that `O(eps^2)` term is neither uniquely defined nor required for the torque balance, which is closed by `sum(m)` alone.
+
+### Documentation
+
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**: version **7.5.0**, date **2026-06-10**.
+
+---
+
 ## [7.4.6] — 2026-06-03
 
 Code-quality and documentation-consistency pass — **no numerical change** to `run_simulation` outputs.

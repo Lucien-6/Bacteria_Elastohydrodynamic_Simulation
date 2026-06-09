@@ -4,8 +4,8 @@
 [返回中文 README](../README.zh-CN.md)
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **更新日期:** 2026-06-03
-> **版本:** 7.4.6
+> **更新日期:** 2026-06-10
+> **版本:** 7.5.0
 
 本文档承接原长版 README 中的理论、模型和数值方法说明。仓库首页现在保持精简；实际运行步骤见 [`../USER_GUIDE.md`](../USER_GUIDE.md)，版本历史见 [`../CHANGELOG.md`](../CHANGELOG.md)。
 
@@ -210,6 +210,14 @@ c_a[\mathbf{x}_0]_{\times}
 - `A_twist`: 扭转阻力算子。
 - `B_global`: 将分布力和扭矩映射到全局力平衡、力矩平衡和纤毛力矩平衡方程。
 - `R`: 重力、弹性力矩、主动力矩、背景流修正和马达力矩项。
+
+**全局角动量平衡（自 v7.5.0 起）。** 游动体作用于流体的总水动力矩为 Stokeslet 力矩与净 rotlet 力矩之和：
+
+```math
+\mathbf{T} = \sum_i \mathbf{r}_i \times \mathbf{f}_i + \sum_s \mathbf{m}_s,
+```
+
+因此 `B_global` 的力矩行**同时**包含 `sum(r x f)` 分块与净 rotlet 分块 `sum(m)`（即驱动平动 rotlet 流 `M_rotlet` 的同一组 `m`）。纳入 `sum(m)` 后，受力/力矩自由的游动体严格力矩为零，马达驱动/自旋纤毛能给出正确的胞体反向旋转。rotlet→平动耦合的 Lorentz 互易配对项（Stokeslet→轴向自旋项）**未**加入：自适应的力点正则化（`eps_ij = eps_j`，`eps_body != eps_pili`）本就破坏了精确迁移率对称性，因此该 `O(eps^2)` 项既无唯一定义，也非闭合力矩平衡所必需。
 
 求解使用 MATLAB 反斜杠 / LU 分解，不显式计算矩阵逆。
 

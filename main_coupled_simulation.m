@@ -32,7 +32,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Documentation release: 7.4.6 (2026-06-03) — see README.md / CHANGELOG.md
+%  Documentation release: 7.5.0 (2026-06-10) — see README.md / CHANGELOG.md
 
 close all force;
 clear; clc;
@@ -78,7 +78,7 @@ else
     if strcmp(cfg.geometry_mode, 'parametric')
         % ===== Parametric Mode: Capsule Body + Analytic Pili =====
 
-        cfg.case_name = 'OnePili-Rotate-Active-Test';
+        cfg.case_name = 'OnePili-Rotate-Active-Fast-Test';
 
         % -------- Bacterial Body Geometry --------
         cfg.minor_axis = 0.4e-6;              % [m]   Semi-minor axis (body radius)
@@ -135,7 +135,7 @@ else
         % pili_config(1).root_coupling = 'clamped';
         pili_config(1).root_coupling = 'free_torsion';
         pili_config(1).motor_torque  = struct('type','constant', ...
-            'torque_pN_nm', 1, 'max_omega_Hz', 500);
+            'torque_pN_nm', -1, 'max_omega_Hz', 500);
 
         [cfg.Pili_Matrix, cfg.pili_ext] = parse_pili_config(pili_config);
 
@@ -226,7 +226,7 @@ else
 
     % -------- Material Properties --------
     cfg.E       = 3.279e8;                % [Pa]   Young's modulus of pili
-    cfg.r_pili  = 3e-9;                   % [m]    Pili radius
+    cfg.r_pili  = 1e-7;                   % [m]    Pili radius
     cfg.sigma_p = 0.2;                    % [-]    Poisson's ratio
 
     % -------- Fluid Properties --------
@@ -240,7 +240,7 @@ else
     % -------- Simulation Time & Numerics --------
     % NOTE: T_obs / dt below are tuned for the high-frequency motor demo;
     % the JSON loader fallback defaults are T_obs = 30 s, dt = 0.1 s for sinking studies.
-    cfg.T_obs  = 20.0;                    % [s]   Total observation time
+    cfg.T_obs  = 1.0;                    % [s]   Total observation time
     cfg.AbsTol = 1e-4;                    % ODE absolute tolerance
     cfg.RelTol = 1e-4;                    % ODE relative tolerance
     cfg.delta  = pi / 20;                 % [rad] Euler angle singularity threshold

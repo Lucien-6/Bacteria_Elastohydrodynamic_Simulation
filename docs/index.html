@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.4.6 (MATLAB): RSM+RSS Stokes flow, Kirchhoff pili, Brownian dynamics, optional parfor JSON folder batch (batch_run_from_json), parallel Brownian repeat batches, free-torsion motors, JSON config.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.5.0 (MATLAB): RSM+RSS Stokes flow, Kirchhoff pili, Brownian dynamics, global torque balance with net rotlet torque, optional parfor JSON folder batch (batch_run_from_json), parallel Brownian repeat batches, free-torsion motors, JSON config.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.4.6 &middot; 2026-06-03</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.5.0 &middot; 2026-06-10</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 7.4.6 &bull; 2026-06-03
+      Version 7.5.0 &bull; 2026-06-10
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -537,12 +537,23 @@ tailwind.config = {
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en"><strong>v7.4.6</strong> is a code-quality and documentation-consistency pass — vectorised <code>pili_spatial_coords</code> (<code>cumsum</code>), dead-code removal in <code>pili_building.m</code>, lint cleanup, and a warning-only <code>dt_B</code> heuristic correction — with bitwise-identical numerical outputs vs. v7.4.5. <strong>v7.4.5</strong> added optional <code>parfor</code> parallel scheduling to <code>batch_run_from_json.m</code>. <strong>v7.4.4</strong> hardened configuration validation. <strong>v7.4.0</strong> added parallel Brownian repeat batches. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
-      <span class="zh"><strong>v7.4.6</strong> 为代码质量与文档一致性维护版——向量化 <code>pili_spatial_coords</code>（<code>cumsum</code>）、清理 <code>pili_building.m</code> 死代码、修正 lint 提示、修正仅用于告警的 <code>dt_B</code> 经验阈值——数值输出相对 v7.4.5 逐位一致。<strong>v7.4.5</strong> 为 <code>batch_run_from_json.m</code> 增加可选 <code>parfor</code> 并行 JSON 批跑。<strong>v7.4.4</strong> 加强配置校验。<strong>v7.4.0</strong> 增加布朗重复并行批量。详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
+      <span class="en"><strong>v7.5.0</strong> is a physics correction: the global angular-momentum balance now includes the net pili rotlet torque <code>sum(m)</code> in addition to <code>sum(r&times;f)</code>, so a motor-driven / spinning pilus produces the correct body counter-rotation and a free swimmer is exactly torque-free. This changes numerical outputs for all pili-bearing configurations vs. v7.4.6 (pili-free runs are unaffected). <strong>v7.4.6</strong> was a code-quality and documentation-consistency pass. <strong>v7.4.5</strong> added optional <code>parfor</code> parallel scheduling to <code>batch_run_from_json.m</code>. <strong>v7.4.0</strong> added parallel Brownian repeat batches. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
+      <span class="zh"><strong>v7.5.0</strong> 为物理修正：全局角动量平衡在 <code>sum(r&times;f)</code> 之外纳入鞭毛净 rotlet 力矩 <code>sum(m)</code>，使马达驱动/自旋鞭毛产生正确的胞体反向旋转，自由游动体严格力矩为零。相对 v7.4.6，所有含鞭毛算例的数值输出都会改变（无鞭毛算例不受影响）。<strong>v7.4.6</strong> 为代码质量与文档一致性维护版。<strong>v7.4.5</strong> 为 <code>batch_run_from_json.m</code> 增加可选 <code>parfor</code> 并行 JSON 批跑。<strong>v7.4.0</strong> 增加布朗重复并行批量。详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
-        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.4.6 &mdash; 2026-06-03</p>
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.5.0 &mdash; 2026-06-10</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Global torque-balance physics fix</span><span class="zh">全局力矩平衡物理修正</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">The system angular-momentum balance (<code>build_coupled_lin_sys.m</code> rows 4-6) now includes the net pili rotlet torque <code>sum(m)</code> in addition to <code>sum(r&times;f)</code> — the total hydrodynamic torque the swimmer exerts on the fluid.</span><span class="zh">系统角动量平衡（<code>build_coupled_lin_sys.m</code> 第 4-6 行）在 <code>sum(r&times;f)</code> 之外纳入鞭毛净 rotlet 力矩 <code>sum(m)</code>——即游动体作用于流体的总水动力矩。</span></li>
+          <li><span class="en">A force/torque-free swimmer is now exactly torque-free; a motor-driven <code>free_torsion</code> pilus produces the correct body counter-rotation. Verified residual <code>||sum(r&times;f)+sum(m)|| / ||sum(m)||</code> ~ 1e-16.</span><span class="zh">受力/力矩自由的游动体现在严格力矩为零；马达驱动的 <code>free_torsion</code> 鞭毛给出正确的胞体反向旋转。验证残差 <code>||sum(r&times;f)+sum(m)|| / ||sum(m)||</code> ~ 1e-16。</span></li>
+          <li><span class="en"><strong>Not</strong> bitwise-identical to v7.4.6 for any pili-bearing config (small for slow rotlet activity, O(1) for fast motor / spiral pili); pili-free runs are unaffected.</span><span class="zh">对任何含鞭毛算例与 v7.4.6 <strong>不</strong>逐位一致（rotlet 活动缓慢时很小，快速马达/螺旋鞭毛可达 O(1)）；无鞭毛算例不受影响。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-800 p-6">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">v7.4.6 &mdash; 2026-06-03</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
           <span class="en">Code-quality &amp; documentation pass</span><span class="zh">代码质量与文档一致性维护</span>
         </h3>
@@ -1851,7 +1862,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v7.4.6 &middot; 2026-06-03</li>
+        <li>v7.5.0 &middot; 2026-06-10</li>
       </ul>
     </div>
   </div>

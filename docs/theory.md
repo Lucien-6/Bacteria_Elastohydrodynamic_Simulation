@@ -4,8 +4,8 @@ English | [中文](theory.zh-CN.md)
 [Back to README](../README.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Updated:** 2026-06-03
-> **Version:** 7.4.6
+> **Updated:** 2026-06-10
+> **Version:** 7.5.0
 
 This document contains the model details that were formerly embedded in the long README. The repository entry page is now intentionally short; practical run instructions are in [`../USER_GUIDE.md`](../USER_GUIDE.md), and release history is in [`../CHANGELOG.md`](../CHANGELOG.md).
 
@@ -210,6 +210,14 @@ The main blocks are:
 - `A_twist`: torsional resistance operator.
 - `B_global`: maps distributed forces and torques into global force, moment, and pilus moment-balance equations.
 - `R`: gravitational force, elastic moments, active moments, background-flow corrections, and motor torque terms.
+
+**Global angular-momentum balance (since v7.5.0).** The total hydrodynamic torque the swimmer exerts on the fluid is the sum of the Stokeslet moment and the net rotlet torque,
+
+```math
+\mathbf{T} = \sum_i \mathbf{r}_i \times \mathbf{f}_i + \sum_s \mathbf{m}_s,
+```
+
+so the moment rows of `B_global` include **both** the `sum(r x f)` block and the net rotlet block `sum(m)` (the same `m` that drives the translational rotlet flow `M_rotlet`). Including `sum(m)` makes a force/torque-free swimmer exactly torque-free and yields the correct body counter-rotation for a motor-driven / spinning pilus. The Lorentz-reciprocal partner of the rotlet→translation coupling (the Stokeslet→axial-spin term) is **not** added: the adaptive force-point regularization (`eps_ij = eps_j`, `eps_body != eps_pili`) already breaks exact mobility symmetry, so that `O(eps^2)` term is neither uniquely defined nor needed to close the torque balance.
 
 Solves use MATLAB backslash / LU factorization rather than explicit matrix inversion.
 

@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bacteria Elastohydrodynamic Simulation — Research Presentation</title>
+
+<!-- reveal.js core + theme -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/theme/white.css" id="theme">
+
+<style>
+  :root{
+    --navy:#0f2b46;
+    --navy-2:#163e63;
+    --teal:#0d9488;
+    --teal-l:#14b8a6;
+    --ink:#1f2a37;
+    --muted:#5b6b7b;
+    --bg:#f7fafc;
+    --card:#ffffff;
+    --line:#dbe4ec;
+    --code:#0b3d57;
+  }
+
+  /* ---------- Language switching (hide-only rules keep natural display) ---------- */
+  html[data-lang="en"] .lang-zh{ display:none !important; }
+  html[data-lang="zh"] .lang-en{ display:none !important; }
+
+  /* ---------- Global typography ---------- */
+  .reveal{
+    font-family:"Arial","Helvetica Neue",Helvetica,Arial,sans-serif;
+    font-size:26px; color:var(--ink); font-weight:400;
+  }
+  .reveal .slides{ text-align:left; }
+
+  /* Each slide = flex column: content grows, footer pinned below (never overlaps).
+     Target only the visible (.present) slide so reveal's display:block does not
+     win the cascade; hidden slides keep reveal's display:none. */
+  .reveal .slides section{ height:100%; box-sizing:border-box; padding:30px 52px 14px 52px; }
+  .reveal .slides > section.present{ display:flex !important; flex-direction:column !important; }
+  .reveal .slides section .content{ flex:1 1 auto; min-height:0;
+    display:flex; flex-direction:column; justify-content:safe center; }
+  /* per-slide compaction for the densest slide(s) */
+  .reveal .slides section.tight .eq{ margin:.28em 0; padding:5px 16px; }
+  .reveal .slides section.tight p{ margin:.34em 0; }
+  .reveal .slides section.tight li{ margin:.22em 0; }
+  /* Root & Motor slide (dense): tighten body rhythm to stay above footer */
+  .reveal .slides section.compact-root .bar{ margin:.06em 0 .48em 0; }
+  .reveal .slides section.compact-root .cols{ gap:16px; }
+  .reveal .slides section.compact-root .card{ padding:11px 16px; }
+  .reveal .slides section.compact-root .card h3{ margin-bottom:.12em; }
+  .reveal .slides section.compact-root .card.gold{ margin-top:10px; }
+  .reveal .slides section.compact-root p{ margin:.24em 0; line-height:1.38; }
+  .reveal .slides section.compact-root .eq{ margin:.22em 0; padding:4px 14px; }
+  /* Background Flow slide (sparse): looser rhythm to fill vertical space */
+  .reveal .slides section.spacious-flow .bar{ margin:.1em 0 1.05em 0; }
+  .reveal .slides section.spacious-flow p{ margin:.72em 0; }
+  .reveal .slides section.spacious-flow .eq{ margin:.85em 0; padding:10px 18px; }
+  .reveal .slides section.spacious-flow .cols-3{ gap:26px; align-items:stretch; }
+  .reveal .slides section.spacious-flow .card{ padding:22px 24px; }
+  .reveal .slides section.spacious-flow .card h3{ margin-bottom:.4em; }
+  .reveal .slides section.spacious-flow .card p{ margin:.5em 0; }
+  /* Slide 13 (display) — RSM Discretization: dense; tighten to stay above footer */
+  .reveal .slides section.compact-rsm{ padding-top:20px; padding-bottom:8px; }
+  .reveal .slides section.compact-rsm h2{ margin-bottom:.1em; }
+  .reveal .slides section.compact-rsm .bar{ margin:.02em 0 .26em 0; }
+  .reveal .slides section.compact-rsm p{ margin:.14em 0; line-height:1.24; }
+  .reveal .slides section.compact-rsm .eq{ margin:.16em 0; padding:3px 14px; }
+  .reveal .slides section.compact-rsm .cols{ gap:16px; margin-top:.18em; }
+  .reveal .slides section.compact-rsm .card{ padding:8px 16px; }
+  .reveal .slides section.compact-rsm .card h3{ margin-bottom:.06em; }
+  .reveal .slides section.compact-rsm .card .center{ margin:.08em 0; }
+  /* Slide 14 (display) — RSS Theory: loosen to reduce bottom blank */
+  .reveal .slides section.spacious-rss .bar{ margin:.12em 0 1.05em 0; }
+  .reveal .slides section.spacious-rss p{ margin:.8em 0; }
+  .reveal .slides section.spacious-rss .eq{ margin:.95em 0; padding:11px 18px; }
+  .reveal .slides section.spacious-rss .cols{ gap:30px; }
+  .reveal .slides section.spacious-rss .card{ padding:22px 24px; }
+  .reveal .slides section.spacious-rss .card p{ margin:.6em 0; }
+  /* Dense derivation slides (RSS integrals, matrices, elasticity): keep body above footer */
+  .reveal .slides section.compact-deriv{ padding-top:22px; padding-bottom:8px; }
+  .reveal .slides section.compact-deriv h2{ margin-bottom:.08em; font-size:1.22em; }
+  .reveal .slides section.compact-deriv .bar{ margin:.02em 0 .42em 0; }
+  .reveal .slides section.compact-deriv p{ margin:.26em 0; line-height:1.3; }
+  .reveal .slides section.compact-deriv li{ margin:.16em 0; line-height:1.3; }
+  .reveal .slides section.compact-deriv .eq{ margin:.26em 0; padding:4px 14px; }
+  .reveal .slides section.compact-deriv .cols{ gap:18px; }
+  .reveal .slides section.compact-deriv .card{ padding:9px 15px; }
+  .reveal .slides section.compact-deriv .card h3{ margin-bottom:.1em; }
+
+  .reveal h1,.reveal h2,.reveal h3,.reveal h4{
+    font-family:"Arial","Helvetica Neue",Helvetica,sans-serif;
+    color:var(--navy); text-transform:none; letter-spacing:0;
+    line-height:1.16; margin:0 0 .28em 0; font-weight:700;
+  }
+  .reveal h2{ font-size:1.34em; }
+  .reveal h3{ font-size:1.0em; color:var(--navy-2); }
+  .reveal p{ line-height:1.46; margin:.48em 0; }
+  .reveal li{ line-height:1.46; }
+  .reveal ul,.reveal ol{ margin:.24em 0 .24em 1.0em; }
+  .reveal li{ margin:.32em 0; }
+  .reveal strong{ color:var(--navy); }
+  .reveal em{ color:var(--teal); font-style:normal; font-weight:600; }
+  .reveal a{ color:var(--teal); }
+
+  .kicker{
+    display:inline-block; font-size:.5em; font-weight:700; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--teal); margin-bottom:.45em;
+  }
+  .bar{ width:70px; height:5px; border-radius:3px; background:var(--teal); margin:.1em 0 .75em 0; }
+
+  /* ---------- Cards & grids ---------- */
+  .cols{ display:grid; grid-template-columns:1fr 1fr; gap:26px; align-items:start; }
+  .cols-3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px; align-items:start; }
+  .card{
+    background:var(--card); border:1px solid var(--line); border-left:5px solid var(--teal);
+    border-radius:12px; padding:17px 21px; box-shadow:0 6px 18px rgba(15,43,70,.06);
+  }
+  .card h3{ margin-top:0; }
+  .card.alt{ border-left-color:var(--navy-2); }
+  .card.gold{ border-left-color:#b08900; }
+  .muted{ color:var(--muted); }
+  .small{ font-size:.78em; }
+  .tiny{ font-size:.62em; }
+  .center{ text-align:center; }
+
+  .chips{ display:flex; flex-wrap:wrap; gap:10px; margin:.5em 0; }
+  .chip{ background:#e8f5f3; color:#0b6b62; border:1px solid #b9e2dc; border-radius:999px; padding:6px 14px; font-size:.64em; font-weight:600; }
+
+  .reveal table{ font-size:.72em; border-collapse:collapse; width:100%; margin:.2em 0; }
+  .reveal table th{ background:var(--navy); color:#fff; text-align:left; padding:9px 12px; font-weight:600; border:none; }
+  .reveal table td{ padding:8px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  .reveal table tr:nth-child(even) td{ background:#f2f6f9; }
+
+  .reveal code{ font-family:"Consolas","SF Mono",Menlo,monospace; background:#eef3f7; color:var(--code); padding:2px 7px; border-radius:6px; font-size:.86em; }
+  .reveal pre{ box-shadow:none; width:100%; margin:.3em 0; }
+  .reveal pre code{ display:block; padding:14px 16px; border-radius:10px; background:#0f2b46; color:#e7eef5; font-size:1.12em; line-height:1.5; border:1px solid #0b2236; white-space:pre-wrap; word-break:break-word; }
+
+  .eq{ background:#f3f8fb; border:1px solid #d6e6f0; border-radius:12px; padding:7px 16px; margin:.5em 0; }
+
+  /* ---------- Reference list ---------- */
+  .refs{ margin-top:.5em; padding-top:.5em; border-top:1px solid var(--line); }
+  .refs-title{ font-size:.62em; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+               color:var(--teal); margin:0 0 .25em 0; }
+  .refs ol{ margin:0; padding-left:1.5em; counter-reset:ref; list-style:none; }
+  .refs ol li{ position:relative; margin:.18em 0; line-height:1.4; padding-left:.2em; text-indent:0; }
+  .refs ol li::before{ counter-increment:ref; content:"[" counter(ref) "]";
+                       position:absolute; left:-1.5em; color:var(--teal); font-weight:700; }
+  .refs em{ color:var(--ink); font-style:italic; font-weight:400; }
+  .refs strong{ color:var(--navy); }
+
+  /* footer is now in normal flow at slide bottom */
+  .footer{ flex:0 0 auto; padding-top:9px; margin-top:7px; border-top:1px solid var(--line);
+           font-size:12.5px; color:var(--muted); letter-spacing:.04em; }
+  .footer b{ color:var(--navy); font-weight:700; }
+
+  /* dark / title / section slides */
+  .dark{ color:#eaf2f8; } .dark h1,.dark h2,.dark h3{ color:#fff; }
+  .dark .kicker{ color:var(--teal-l); } .dark .muted{ color:#a9c0d2; } .dark .bar{ background:var(--teal-l); }
+  .fill{ height:100%; display:flex; flex-direction:column; justify-content:center; }
+  .title-wrap h1{ font-size:2.0em; line-height:1.1; }
+  .title-meta{ margin-top:1.1em; font-size:.6em; color:#a9c0d2; line-height:1.8; }
+  .section-num{ font-size:5.2em; font-weight:800; color:rgba(255,255,255,.14); line-height:1; }
+
+  /* mermaid container */
+  #arch-mermaid{ background:transparent; text-align:center; }
+  #arch-mermaid svg{ max-width:100%; height:auto; }
+  .mm-hint{ font-size:.6em; color:var(--muted); margin-top:6px; }
+  /* Center program names inside architecture nodes */
+  .reveal .mermaid .nodeLabel{ text-align:center; }
+  .reveal .mermaid .nodeLabel p{ margin:0; padding:0; line-height:1.15; }
+
+  .reveal .slide-number{ background:var(--navy); font-size:14px; }
+
+  /* ---------- Language toggle ---------- */
+  #lang-toggle{
+    position:fixed; top:14px; right:16px; z-index:60;
+    display:flex; gap:0; border:1px solid var(--teal); border-radius:999px;
+    overflow:hidden; font-family:"Arial",sans-serif; box-shadow:0 3px 10px rgba(15,43,70,.18);
+    background:#fff;
+  }
+  #lang-toggle button{
+    border:none; background:#fff; color:var(--teal); cursor:pointer;
+    font-size:13px; font-weight:700; padding:6px 14px; letter-spacing:.04em;
+  }
+  #lang-toggle button.active{ background:var(--teal); color:#fff; }
+
+  /* node-click toast for mermaid interactivity */
+  #mm-toast{
+    position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+    background:var(--navy); color:#eaf2f8; padding:14px 20px; border-radius:12px;
+    font-size:15px; line-height:1.5; text-align:left; font-family:"Arial",sans-serif;
+    box-shadow:0 10px 30px rgba(0,0,0,.3); border:1px solid #2b5e86;
+    opacity:0; pointer-events:none; transition:all .25s ease; z-index:70;
+    max-width:64vw; width:max-content;
+  }
+  #mm-toast .mm-title{ display:block; font-weight:700; color:#7fe3d6; margin-bottom:3px; font-size:14px; }
+  #mm-toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+
+<body>
+
+<!-- Language toggle -->
+<div id="lang-toggle">
+  <button id="btn-en" class="active" onclick="setLang('en')">EN</button>
+  <button id="btn-zh" onclick="setLang('zh')">中文</button>
+</div>
+<div id="mm-toast"></div>
+
+<div class="reveal">
+<div class="slides">
+
+<!-- ============ 1. TITLE ============ -->
+<section data-background-gradient="linear-gradient(135deg,#0f2b46 0%,#163e63 60%,#0d9488 140%)">
+  <div class="content fill title-wrap dark">
+    <span class="kicker"><span class="lang-en">Low-Reynolds-Number Elastohydrodynamics · MATLAB</span><span class="lang-zh">低雷诺数弹性流体动力学 · MATLAB</span></span>
+    <h1><span class="lang-en">Bacteria Elastohydrodynamic<br>Simulation</span><span class="lang-zh">细菌弹性流体动力学<br>仿真</span></h1>
+    <div class="bar"></div>
+    <p class="muted" style="font-size:.7em;max-width:20em;">
+      <span class="lang-en">Settling dynamics of a rigid bacterial body coupled to flexible Kirchhoff pili / flagella in Stokes flow.</span>
+      <span class="lang-zh">Stokes 流中刚性细菌胞体与柔性 Kirchhoff 纤毛 / 鞭毛耦合的沉降动力学。</span>
+    </p>
+    <div class="title-meta">
+      <div><b style="color:#fff;">Author</b> &nbsp; Lucien &nbsp;·&nbsp; lucien-6@qq.com</div>
+      <div><b style="color:#fff;">Version</b> &nbsp; 7.5.0 &nbsp;·&nbsp; 2026-06-10</div>
+      <div><b style="color:#fff;">Methods</b> &nbsp; RSM + RSS + Rotlet · Kirchhoff rods · Quaternion · Brownian</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2. OUTLINE ============ -->
+<section>
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Outline</span><span class="lang-zh">大纲</span></span>
+    <h2><span class="lang-en">Presentation Roadmap</span><span class="lang-zh">汇报路线图</span></h2>
+    <div class="bar"></div>
+    <div class="cols">
+      <div class="card">
+        <h3><span class="lang-en">Part I — Motivation</span><span class="lang-zh">第一部分 — 动机</span></h3>
+        <ul class="lang-en"><li>Background &amp; physical problem</li><li>Objectives</li></ul>
+        <ul class="lang-zh"><li>研究背景与物理问题</li><li>研究目标</li></ul>
+        <h3 style="margin-top:.6em;"><span class="lang-en">Part II — Theory</span><span class="lang-zh">第二部分 — 理论</span></h3>
+        <ul class="lang-en"><li>Nondimensionalization &amp; state vector</li><li>Hydrodynamics: RSM / RSS / rotlet</li><li>Coupled linear system</li><li>Kirchhoff elastic moments</li><li>Root coupling, flow, Brownian motion</li></ul>
+        <ul class="lang-zh"><li>无量纲化与状态向量</li><li>流体力学：RSM / RSS / rotlet</li><li>耦合线性系统</li><li>Kirchhoff 弹性力矩</li><li>根部耦合、背景流、布朗运动</li></ul>
+      </div>
+      <div class="card alt">
+        <h3><span class="lang-en">Part III — Implementation</span><span class="lang-zh">第三部分 — 实现</span></h3>
+        <ul class="lang-en"><li>Algorithm &amp; time-integration loop</li><li>Project architecture</li></ul>
+        <ul class="lang-zh"><li>算法与时间积分循环</li><li>项目架构</li></ul>
+        <h3 style="margin-top:.6em;"><span class="lang-en">Part IV — Practice</span><span class="lang-zh">第四部分 — 实践</span></h3>
+        <ul class="lang-en"><li>Usage: inline / JSON / programmatic</li><li>Outputs</li><li>Summary</li></ul>
+        <ul class="lang-zh"><li>使用方式：内联 / JSON / 编程调用</li><li>输出</li><li>总结</li></ul>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Research Presentation</span><span class="lang-zh">科研汇报</span></div>
+</section>
+
+<!-- ============ DIVIDER 01 ============ -->
+<section data-background-color="#0f2b46">
+  <div class="content fill dark">
+    <div class="section-num">01</div>
+    <span class="kicker">Part I</span>
+    <h2 style="font-size:1.9em;"><span class="lang-en">Background &amp; Objectives</span><span class="lang-zh">研究背景与目标</span></h2>
+    <div class="bar"></div>
+  </div>
+</section>
+
+<!-- ============ 3. BACKGROUND ============ -->
+<section>
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Background</span><span class="lang-zh">研究背景</span></span>
+    <h2><span class="lang-en">Why Simulate Bacteria Settling with Pili?</span><span class="lang-zh">为何模拟带纤毛细菌的沉降？</span></h2>
+    <div class="bar"></div>
+    <div class="cols">
+      <div>
+        <p class="lang-en">Bacteria swim, sink, and adhere in a world dominated by viscosity. At their scale the <em>Reynolds number is essentially zero</em>, so inertia vanishes and motion is governed by <strong>Stokes flow</strong>.</p>
+        <p class="lang-en">Their surface appendages — <strong>pili and flagella</strong> — are slender, flexible filaments that bend, twist, and (for flagella) are driven by rotary motors, strongly coupling to the fluid.</p>
+        <p class="lang-zh">细菌在以黏性主导的世界中游动、沉降与黏附。在其尺度下<em>雷诺数几乎为零</em>，惯性可忽略，运动由 <strong>Stokes 流</strong>支配。</p>
+        <p class="lang-zh">其表面附器——<strong>纤毛与鞭毛</strong>——是细长柔性丝，可弯曲、扭转，鞭毛还由旋转马达驱动，并与流体强烈耦合。</p>
+      </div>
+      <div class="card">
+        <h3><span class="lang-en">Modelling challenge</span><span class="lang-zh">建模挑战</span></h3>
+        <ul class="lang-en"><li>Body and appendages share <em>one</em> fluid → fully coupled hydrodynamics.</li><li>Filaments are elastic &amp; inextensible → Kirchhoff-rod mechanics.</li><li>Thermal fluctuations matter at micron scale → Brownian dynamics.</li><li>Geometry spans orders of magnitude (body µm vs. filament radius nm).</li></ul>
+        <ul class="lang-zh"><li>胞体与附器共享<em>同一</em>流体 → 完全耦合的流体力学。</li><li>丝弹性且不可伸长 → Kirchhoff 杆力学。</li><li>微米尺度下热涨落重要 → 布朗动力学。</li><li>几何尺度跨数量级（胞体 µm 与丝半径 nm）。</li></ul>
+      </div>
+    </div>
+    <div class="chips">
+      <span class="chip"><span class="lang-en">Zero Reynolds number</span><span class="lang-zh">零雷诺数</span></span>
+      <span class="chip"><span class="lang-en">Elasto-hydrodynamic coupling</span><span class="lang-zh">弹性-流体耦合</span></span>
+      <span class="chip"><span class="lang-en">Multi-scale geometry</span><span class="lang-zh">多尺度几何</span></span>
+      <span class="chip"><span class="lang-en">Stochastic thermal motion</span><span class="lang-zh">随机热运动</span></span>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Background</span><span class="lang-zh">研究背景</span></div>
+</section>
+
+<!-- ============ 4. PHYSICAL PROBLEM ============ -->
+<section>
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Physical Problem</span><span class="lang-zh">物理问题</span></span>
+    <h2><span class="lang-en">The System Being Modelled</span><span class="lang-zh">所建模的系统</span></h2>
+    <div class="bar"></div>
+    <div class="cols-3">
+      <div class="card">
+        <h3><span class="lang-en">Body</span><span class="lang-zh">胞体</span></h3>
+        <p class="small lang-en">Rigid capsule (two hemispherical caps + cylinder), sphere-like body, or an imported custom 3-D point cloud.</p>
+        <p class="small lang-zh">刚性胶囊体（两半球帽 + 圆柱）、类球体，或导入的自定义三维点云。</p>
+      </div>
+      <div class="card">
+        <h3><span class="lang-en">Pili / Flagella</span><span class="lang-zh">纤毛 / 鞭毛</span></h3>
+        <p class="small lang-en">One or more <em>inextensible Kirchhoff elastic rods</em>, parametric or imported centerlines, optionally motor-driven.</p>
+        <p class="small lang-zh">一根或多根<em>不可伸长 Kirchhoff 弹性杆</em>，参数化或导入中心线，可选马达驱动。</p>
+      </div>
+      <div class="card">
+        <h3><span class="lang-en">Fluid</span><span class="lang-zh">流体</span></h3>
+        <p class="small lang-en">Zero-Reynolds-number <em>Stokes flow</em>; all body–pili interactions retained via a global mobility solve.</p>
+        <p class="small lang-zh">零雷诺数 <em>Stokes 流</em>；通过全局迁移率求解保留所有胞体–纤毛相互作用。</p>
+      </div>
+    </div>
+    <div class="card alt" style="margin-top:20px;">
+      <h3><span class="lang-en">Coupling principle</span><span class="lang-zh">耦合原理</span></h3>
+      <p class="small lang-en" style="margin:0;">Interactions between <strong>every</strong> body surface point and pilus node are kept — no decoupling approximation. Body rigid-body motion, pilus shape evolution, and the surrounding flow are solved together at each instant.</p>
+      <p class="small lang-zh" style="margin:0;"><strong>每一个</strong>胞体表面点与纤毛节点之间的相互作用都被保留——不作解耦近似。胞体刚体运动、纤毛形状演化与周围流场在每一时刻被联立求解。</p>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Physical Problem</span><span class="lang-zh">物理问题</span></div>
+</section>
+
+<!-- ============ 4b. BACTERIAL MODEL SCHEMATIC ============ -->
+<section>
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Model at a Glance</span><span class="lang-zh">模型一览</span></span>
+    <h2><span class="lang-en">Bacterial Model Schematic</span><span class="lang-zh">细菌模型示意图</span></h2>
+    <div class="bar"></div>
+    <div style="text-align:center;">
+      <svg viewBox="0 0 1000 430" style="width:100%; max-width:960px; height:auto;"
+           font-family="Arial, Helvetica, sans-serif" aria-label="Bacterial model schematic">
+        <!-- ===== forces & moments list (left side) ===== -->
+        <text class="lang-en" x="30" y="96" font-size="19" font-weight="700" fill="#0f2b46">Forces &amp; moments</text>
+        <text class="lang-zh" x="30" y="96" font-size="19" font-weight="700" fill="#0f2b46">力与力矩</text>
+        <g font-size="18" fill="#1f4e79">
+          <text class="lang-en" x="30" y="132">&#8226; Gravity</text>
+          <text class="lang-en" x="30" y="164">&#8226; Buoyancy</text>
+          <text class="lang-en" x="30" y="196">&#8226; Fluid viscous force</text>
+          <text class="lang-en" x="30" y="228">&#8226; Pili elastic force</text>
+          <text class="lang-en" x="30" y="260">&#8226; Brownian random force</text>
+          <text class="lang-en" x="30" y="292">&#8226; Pili active moment</text>
+          <text class="lang-zh" x="30" y="132">&#8226; 重力</text>
+          <text class="lang-zh" x="30" y="164">&#8226; 浮力</text>
+          <text class="lang-zh" x="30" y="196">&#8226; 流体粘性力</text>
+          <text class="lang-zh" x="30" y="228">&#8226; 纤毛弹性力</text>
+          <text class="lang-zh" x="30" y="260">&#8226; 布朗随机力</text>
+          <text class="lang-zh" x="30" y="292">&#8226; 纤毛主动力矩</text>
+        </g>
+
+        <!-- ===== capsule body ===== -->
+        <rect x="620" y="135" width="300" height="160" rx="80" ry="80"
+              fill="#e3eef6" stroke="#2c5d86" stroke-width="2.5"/>
+        <!-- body surface points (RSM collocation points): dense & uniform -->
+        <g fill="#1f4e79">
+          <!-- top / bottom straight edges -->
+          <circle cx="700" cy="135" r="5.5"/><circle cx="728" cy="135" r="5.5"/><circle cx="756" cy="135" r="5.5"/><circle cx="784" cy="135" r="5.5"/><circle cx="812" cy="135" r="5.5"/><circle cx="840" cy="135" r="5.5"/>
+          <circle cx="700" cy="295" r="5.5"/><circle cx="728" cy="295" r="5.5"/><circle cx="756" cy="295" r="5.5"/><circle cx="784" cy="295" r="5.5"/><circle cx="812" cy="295" r="5.5"/><circle cx="840" cy="295" r="5.5"/>
+          <!-- right cap -->
+          <circle cx="874" cy="143" r="5.5"/><circle cx="908" cy="173" r="5.5"/><circle cx="920" cy="215" r="5.5"/><circle cx="908" cy="257" r="5.5"/><circle cx="874" cy="287" r="5.5"/>
+          <!-- left cap -->
+          <circle cx="666" cy="143" r="5.5"/><circle cx="632" cy="173" r="5.5"/><circle cx="620" cy="215" r="5.5"/><circle cx="632" cy="257" r="5.5"/><circle cx="666" cy="287" r="5.5"/>
+          <!-- interior rows (pseudo-3D coverage) -->
+          <circle cx="660" cy="175" r="5.5"/><circle cx="700" cy="175" r="5.5"/><circle cx="740" cy="175" r="5.5"/><circle cx="780" cy="175" r="5.5"/><circle cx="820" cy="175" r="5.5"/><circle cx="860" cy="175" r="5.5"/>
+          <circle cx="655" cy="215" r="5.5"/><circle cx="695" cy="215" r="5.5"/><circle cx="735" cy="215" r="5.5"/><circle cx="775" cy="215" r="5.5"/><circle cx="815" cy="215" r="5.5"/><circle cx="855" cy="215" r="5.5"/>
+          <circle cx="660" cy="255" r="5.5"/><circle cx="700" cy="255" r="5.5"/><circle cx="740" cy="255" r="5.5"/><circle cx="780" cy="255" r="5.5"/><circle cx="820" cy="255" r="5.5"/><circle cx="860" cy="255" r="5.5"/>
+        </g>
+
+        <!-- ===== pilus: connected segments (RSS), smooth gentle curve ===== -->
+        <polyline points="588,213 555,220 522,226 489,230 456,231 423,230 390,226 357,220 324,214"
+                  fill="none" stroke="#0d9488" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <g fill="#0d9488" stroke="#ffffff" stroke-width="1.5">
+          <circle cx="555" cy="220" r="6"/><circle cx="522" cy="226" r="6"/><circle cx="489" cy="230" r="6"/><circle cx="456" cy="231" r="6"/><circle cx="423" cy="230" r="6"/><circle cx="390" cy="226" r="6"/><circle cx="357" cy="220" r="6"/><circle cx="324" cy="214" r="6"/>
+        </g>
+        <!-- pilus root: clamped, offset a small distance from the body surface -->
+        <circle cx="588" cy="213" r="8" fill="#b4532a" stroke="#ffffff" stroke-width="2"/>
+
+        <!-- ===== RSM callout (body) ===== -->
+        <line x1="780" y1="74" x2="775" y2="132" stroke="#2c5d86" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text class="lang-en" x="780" y="38" font-size="21" font-weight="700" fill="#0f2b46" text-anchor="middle">Body surface = point cloud</text>
+        <text class="lang-en" x="780" y="64" font-size="20" fill="#1f4e79" text-anchor="middle">&#8594; Regularized Stokeslet Method (RSM)</text>
+        <text class="lang-zh" x="780" y="38" font-size="21" font-weight="700" fill="#0f2b46" text-anchor="middle">胞体表面 = 点云</text>
+        <text class="lang-zh" x="780" y="64" font-size="20" fill="#1f4e79" text-anchor="middle">&#8594; 正则化 Stokeslet 方法 (RSM)</text>
+
+        <!-- ===== RSS callout (pilus) ===== -->
+        <line x1="456" y1="348" x2="456" y2="237" stroke="#0d9488" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text class="lang-en" x="456" y="372" font-size="21" font-weight="700" fill="#0f2b46" text-anchor="middle">Pilus = connected segments</text>
+        <text class="lang-en" x="456" y="398" font-size="20" fill="#0d8378" text-anchor="middle">&#8594; Regularized Stokeslet Segments (RSS)</text>
+        <text class="lang-zh" x="456" y="372" font-size="21" font-weight="700" fill="#0f2b46" text-anchor="middle">纤毛 = 相连线段</text>
+        <text class="lang-zh" x="456" y="398" font-size="20" fill="#0d8378" text-anchor="middle">&#8594; 正则化 Stokeslet 段 (RSS)</text>
+
+        <!-- ===== clamp / free-torsion label (leader slopes to upper-left) ===== -->
+        <line x1="583" y1="207" x2="500" y2="108" stroke="#b4532a" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text class="lang-en" x="498" y="100" font-size="18" font-weight="600" fill="#b4532a" text-anchor="end">Clamped &amp; free torsion</text>
+        <text class="lang-zh" x="498" y="100" font-size="18" font-weight="600" fill="#b4532a" text-anchor="end">固接与自由扭转</text>
+      </svg>
+    </div>
+    <div class="chips" style="justify-content:center;">
+      <span class="chip"><span class="lang-en">Stokes flow · Re &#8594; 0</span><span class="lang-zh">Stokes 流 · Re &#8594; 0</span></span>
+      <span class="chip"><span class="lang-en">Fully coupled mobility solve</span><span class="lang-zh">全耦合迁移率求解</span></span>
+      <span class="chip"><span class="lang-en">Inextensible Kirchhoff elastic rod</span><span class="lang-zh">不可伸长 Kirchhoff 弹性杆</span></span>
+      <span class="chip"><span class="lang-en">Quaternion body orientation</span><span class="lang-zh">四元数胞体姿态</span></span>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Model Schematic</span><span class="lang-zh">模型示意图</span></div>
+</section>
+
+<!-- ============ 5. OBJECTIVES ============ -->
+<section>
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Objectives</span><span class="lang-zh">研究目标</span></span>
+    <h2><span class="lang-en">Project Goals</span><span class="lang-zh">项目目标</span></h2>
+    <div class="bar"></div>
+    <div class="cols">
+      <div class="card">
+        <h3><span class="lang-en">Scientific</span><span class="lang-zh">科学目标</span></h3>
+        <ul class="lang-en"><li>Resolve <em>coupled</em> settling &amp; propulsion of a bacterial body with flexible appendages.</li><li>Capture elastic bending/twisting, intrinsic curvature, and active internal moments.</li><li>Quantify trajectories, sinking velocity, and orientation under gravity, flow, or motor drive.</li></ul>
+        <ul class="lang-zh"><li>解析带柔性附器细菌的<em>耦合</em>沉降与推进。</li><li>刻画弹性弯曲/扭转、内禀曲率与主动内力矩。</li><li>定量给出重力、流场或马达驱动下的轨迹、沉降速度与姿态。</li></ul>
+      </div>
+      <div class="card alt">
+        <h3><span class="lang-en">Engineering</span><span class="lang-zh">工程目标</span></h3>
+        <ul class="lang-en"><li>A reproducible, configuration-driven MATLAB framework (inline / JSON / batch).</li><li>Publication-grade outputs: figures, animation, CSV, logs.</li><li>Optional Brownian dynamics and parallel parameter sweeps.</li></ul>
+        <ul class="lang-zh"><li>可复现、配置驱动的 MATLAB 框架（内联 / JSON / 批处理）。</li><li>出版级输出：图、动画、CSV、日志。</li><li>可选布朗动力学与并行参数扫描。</li></ul>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Objectives</span><span class="lang-zh">研究目标</span></div>
+</section>
+
+<!-- ============ DIVIDER 02 ============ -->
+<section data-background-color="#0f2b46">
+  <div class="content fill dark">
+    <div class="section-num">02</div>
+    <span class="kicker">Part II</span>
+    <h2 style="font-size:1.9em;"><span class="lang-en">Theory &amp; Methods</span><span class="lang-zh">理论与方法</span></h2>
+    <div class="bar"></div>
+  </div>
+</section>
+
+<!-- ============ 6. METHODS OVERVIEW ============ -->
+<section>
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Methods Overview</span><span class="lang-zh">方法总览</span></span>
+    <h2><span class="lang-en">Numerical Building Blocks</span><span class="lang-zh">数值方法构件</span></h2>
+    <div class="bar"></div>
+    <table class="lang-en">
+      <tr><th>Component</th><th>Method</th><th>Source</th></tr>
+      <tr><td>Body hydrodynamics</td><td>Regularized Stokeslet Method (RSM) on surface points</td><td>Cortez et&nbsp;al. (2005)</td></tr>
+      <tr><td>Pili hydrodynamics</td><td>Regularized Stokeslet Segments (RSS), exact segment integration</td><td>Cortez (2018)</td></tr>
+      <tr><td>Twist–flow coupling</td><td>Regularized rotlet segments</td><td>Cortez (2018)</td></tr>
+      <tr><td>Pili elasticity</td><td>Kirchhoff elastic rod with Euler-angle directors</td><td>Walker (2020)</td></tr>
+      <tr><td>Body orientation</td><td>Quaternion kinematics</td><td>Project</td></tr>
+      <tr><td>Time integration</td><td><code>ode15s</code> with event-driven segmenting</td><td>Project</td></tr>
+    </table>
+    <table class="lang-zh">
+      <tr><th>组件</th><th>方法</th><th>来源</th></tr>
+      <tr><td>胞体流体力学</td><td>表面点上的正则化 Stokeslet 法 (RSM)</td><td>Cortez 等 (2005)</td></tr>
+      <tr><td>纤毛流体力学</td><td>正则化 Stokeslet 段 (RSS)，段精确积分</td><td>Cortez (2018)</td></tr>
+      <tr><td>扭转–流场耦合</td><td>正则化 rotlet 段</td><td>Cortez (2018)</td></tr>
+      <tr><td>纤毛弹性</td><td>Euler 角 director 的 Kirchhoff 弹性杆</td><td>Walker (2020)</td></tr>
+      <tr><td>胞体姿态</td><td>四元数运动学</td><td>本项目</td></tr>
+      <tr><td>时间积分</td><td><code>ode15s</code> + 事件驱动分段</td><td>本项目</td></tr>
+    </table>
+    <p class="small muted lang-en">Key advantage: RSS integrates the regularized kernel <em>exactly</em> along each straight segment, decoupling segment length from regularization radius (~10 segments / µm typical).</p>
+    <p class="small muted lang-zh">关键优势：RSS 沿每条直段<em>精确</em>积分正则化核，使段长与正则化半径解耦（典型约 10 段/µm）。</p>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Methods</span><span class="lang-zh">方法</span></div>
+</section>
+
+<!-- ============ 7. NONDIMENSIONALIZATION ============ -->
+<section>
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Nondimensionalization</span><span class="lang-zh">无量纲化</span></span>
+    <h2><span class="lang-en">Consistent Reference Scales</span><span class="lang-zh">一致的参考尺度</span></h2>
+    <div class="bar"></div>
+    <div class="cols">
+      <div>
+        <table class="lang-en">
+          <tr><th>Quantity</th><th>Symbol</th><th>Definition</th></tr>
+          <tr><td>Length</td><td>\(L_0\)</td><td>body <code>major_axis</code></td></tr>
+          <tr><td>Bending stiffness</td><td>\(EI\)</td><td>\(E\pi r_{\text{pili}}^4/4\)</td></tr>
+          <tr><td>Time</td><td>\(T_0\)</td><td>\(8\pi\mu L_0^4/EI\)</td></tr>
+          <tr><td>Velocity</td><td>\(U_0\)</td><td>\(L_0/T_0\)</td></tr>
+          <tr><td>Force</td><td>\(F_0\)</td><td>\(EI/L_0^2\)</td></tr>
+        </table>
+        <table class="lang-zh">
+          <tr><th>物理量</th><th>符号</th><th>定义</th></tr>
+          <tr><td>长度</td><td>\(L_0\)</td><td>胞体 <code>major_axis</code></td></tr>
+          <tr><td>弯曲刚度</td><td>\(EI\)</td><td>\(E\pi r_{\text{pili}}^4/4\)</td></tr>
+          <tr><td>时间</td><td>\(T_0\)</td><td>\(8\pi\mu L_0^4/EI\)</td></tr>
+          <tr><td>速度</td><td>\(U_0\)</td><td>\(L_0/T_0\)</td></tr>
+          <tr><td>力</td><td>\(F_0\)</td><td>\(EI/L_0^2\)</td></tr>
+        </table>
+      </div>
+      <div>
+        <div class="card">
+          <h3><span class="lang-en">Key dimensionless numbers</span><span class="lang-zh">关键无量纲数</span></h3>
+          <p style="margin:.2em 0;"><span class="lang-en">Elastic–gravity number:</span><span class="lang-zh">弹性–重力数：</span> \(E_g = \dfrac{F_{\text{sink}}L_0^2}{EI}\)</p>
+          <p style="margin:.2em 0;"><span class="lang-en">Pili slenderness:</span><span class="lang-zh">纤毛细长比：</span> \(\varepsilon = \dfrac{r_{\text{pili}}}{L_0}\)</p>
+          <p style="margin:.2em 0;"><span class="lang-en">Poisson ratio \(\sigma\) — user-supplied.</span><span class="lang-zh">泊松比 \(\sigma\) —— 由用户提供。</span></p>
+        </div>
+        <div class="eq center">\[ F_{\text{sink}} = (\rho_{\text{bac}}-\rho_{\text{fluid}})\,V_{\text{body}}\,g \]</div>
+        <p class="small muted lang-en">Gravity enters the RHS as \(\mathbf{R}_{1:3} = -E_g\,\hat{\mathbf g}\), with \(\hat{\mathbf g}=[0,0,-1]^{\mathsf T}\).</p>
+        <p class="small muted lang-zh">重力以 \(\mathbf{R}_{1:3} = -E_g\,\hat{\mathbf g}\)（\(\hat{\mathbf g}=[0,0,-1]^{\mathsf T}\)）进入右端项。</p>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Nondimensionalization</span><span class="lang-zh">无量纲化</span></div>
+</section>
+
+<!-- ============ 8. STATE VECTOR & QUATERNION ============ -->
+<section>
+  <div class="content">
+    <span class="kicker"><span class="lang-en">State &amp; Kinematics</span><span class="lang-zh">状态与运动学</span></span>
+    <h2><span class="lang-en">Global State Vector and Body Orientation</span><span class="lang-zh">全局状态向量与胞体姿态</span></h2>
+    <div class="bar"></div>
+    <p class="lang-en">The full state stacks body position, the body orientation quaternion, and each pilus rod's Euler-angle fields:</p>
+    <p class="lang-zh">完整状态堆叠了胞体位置、胞体姿态四元数，以及每根纤毛杆的 Euler 角场：</p>
+    <div class="eq center">\[ \mathbf{Z} = \big[\, \mathbf{X}_{\text{cm}},\ \mathbf{q},\ \boldsymbol{\theta}_1,\boldsymbol{\phi}_1,\boldsymbol{\psi}_1,\ \ldots,\ \boldsymbol{\theta}_M,\boldsymbol{\phi}_M,\boldsymbol{\psi}_M \,\big] \]</div>
+    <div class="cols">
+      <div>
+        <p class="small lang-en">The quaternion \(\mathbf{q}\) (body→lab rotation) is advanced by the Hamilton product:</p>
+        <p class="small lang-zh">四元数 \(\mathbf{q}\)（胞体→实验室系旋转）由 Hamilton 乘积推进：</p>
+        <div class="eq center">\[ \frac{d\mathbf{q}}{dt} = \tfrac12 \begin{bmatrix} 0 \\ \boldsymbol{\Omega} \end{bmatrix} \otimes \mathbf{q} \]</div>
+        <p class="small muted lang-en">\(\boldsymbol{\Omega}\) = body angular velocity in the <em>lab frame</em>, from <code>z_dot(4:6)</code>.</p>
+        <p class="small muted lang-zh">\(\boldsymbol{\Omega}\) = <em>实验室系</em>下的胞体角速度，取自 <code>z_dot(4:6)</code>。</p>
+      </div>
+      <div class="card">
+        <h3><span class="lang-en">Per-pilus material frame</span><span class="lang-zh">逐纤毛材料标架</span></h3>
+        <p class="small lang-en">Euler angles \((\theta,\phi,\psi)\) define directors \((\mathbf{d}_1,\mathbf{d}_2,\mathbf{d}_3)\), where \(\mathbf{d}_3\) is the segment tangent. <code>reconstruct_geometry.m</code> maps \(\mathbf{Z}\) to lab-frame points &amp; directors.</p>
+        <p class="small lang-zh">Euler 角 \((\theta,\phi,\psi)\) 定义 director \((\mathbf{d}_1,\mathbf{d}_2,\mathbf{d}_3)\)，其中 \(\mathbf{d}_3\) 为段切向。<code>reconstruct_geometry.m</code> 将 \(\mathbf{Z}\) 映射为实验室系坐标与 director。</p>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">State Vector</span><span class="lang-zh">状态向量</span></div>
+</section>
+
+<!-- ============ 8b. GIMBAL LOCK / ADAPTIVE BASIS ============ -->
+<section class="compact-deriv">
+  <div class="content">
+    <span class="kicker"><span class="lang-en">State &amp; Kinematics · Robustness</span><span class="lang-zh">状态与运动学 · 鲁棒性</span></span>
+    <h2><span class="lang-en">Avoiding Gimbal Lock — Per-Pilus Adaptive Basis</span><span class="lang-zh">规避万向死锁 — 逐纤毛自适应基</span></h2>
+    <div class="bar"></div>
+    <p class="small lang-en">Each pilus frame is parametrized by Euler angles \((\theta,\phi,\psi)\) relative to a per-pilus reference basis \(\mathbf{R}_k\); \(\theta\) is the tilt of the tangent \(\mathbf{d}_3\) from that basis's pole.</p>
+    <p class="small lang-zh">每根纤毛的标架由相对其参考基 \(\mathbf{R}_k\) 的 Euler 角 \((\theta,\phi,\psi)\) 参数化；\(\theta\) 为切向 \(\mathbf{d}_3\) 偏离该基极轴的倾角。</p>
+    <div class="cols">
+      <div>
+        <h3 class="lang-en">The singularity</h3>
+        <h3 class="lang-zh">奇异性</h3>
+        <p class="small lang-en">As the tangent nears a pole (\(\theta\to 0\) or \(\pi\)), \(\phi\) and \(\psi\) become indistinguishable — classic <em>gimbal lock</em> — and the angular-velocity → Euler-rate map carries a diverging \(1/\sin\theta\) factor, making the ODE stiff:</p>
+        <p class="small lang-zh">当切向逼近极轴（\(\theta\to 0\) 或 \(\pi\)）时，\(\phi\) 与 \(\psi\) 不可区分 —— 即<em>万向死锁</em> —— 角速度 → Euler 速率映射含发散的 \(1/\sin\theta\) 因子，使 ODE 变刚性：</p>
+        <div class="eq center" style="font-size:.92em;">\[ \dot{\boldsymbol{\Theta}} = \mathbf{J}_{\text{euler}}(\theta)\,\boldsymbol{\omega},\quad \lVert\mathbf{J}_{\text{euler}}\rVert \sim \tfrac{1}{\sin\theta}\to\infty \]</div>
+      </div>
+      <div>
+        <h3 class="lang-en">The fix (Walker 2020)</h3>
+        <h3 class="lang-zh">解决（Walker 2020）</h3>
+        <p class="small lang-en">Each pilus carries its own basis \(\mathbf{R}_k\) (<code>params.rot{k}</code>, initially \(\mathbf{I}\)). An <code>ode15s</code> event halts integration just before any node reaches a pole:</p>
+        <p class="small lang-zh">每根纤毛各自携带参考基 \(\mathbf{R}_k\)（<code>params.rot{k}</code>，初始为 \(\mathbf{I}\)）。<code>ode15s</code> 事件在任一节点到达极点前中止积分：</p>
+        <div class="eq center" style="font-size:.92em;">\[ \min_{k,i}\big(\theta_{k,i},\,\pi-\theta_{k,i}\big) < \tfrac{\delta}{2},\ \ \delta=\pi/20 \]</div>
+      </div>
+    </div>
+    <p class="small lang-en" style="margin:.1em 0;"><code>adaptive_basis_check.m</code> then re-poles <em>only</em> the offending pilus — pick the axis farthest from all current tangents, reflect into it (Householder), recompute \((\theta,\phi,\psi)\), re-orthonormalize \(\mathbf{R}_k\) (SVD), and restart:</p>
+    <p class="small lang-zh" style="margin:.1em 0;"><code>adaptive_basis_check.m</code> 随即<em>仅</em>对该纤毛重选极轴 —— 取离所有当前切向最远的方向，反射到该基（Householder），重算 \((\theta,\phi,\psi)\)，对 \(\mathbf{R}_k\) 重正交化（SVD）后重启：</p>
+    <div class="eq center" style="font-size:.86em;">\[ \hat{\mathbf z}_{\text{new}}=\arg\max_{\hat{\mathbf v}}\,\min_i\lVert\hat{\mathbf v}\mp\mathbf{d}_3^{(i)}\rVert,\qquad \mathbf{R}_{\text{local}}=\mathbf{I}+2\mathbf{K}^2,\qquad \mathbf{R}_k\leftarrow\mathbf{R}_{\text{local}}\mathbf{R}_k \]</div>
+    <div class="card alt">
+      <p class="small lang-en" style="margin:0;"><strong>Per-pilus &amp; on-demand:</strong> only the pilus nearing a pole is re-based, so the overhead is negligible. Curvature is built from director <em>dot products</em>, hence <em>basis-invariant</em> — the physics and intrinsic curvature \(\kappa_{i,0}\) are unchanged. This is exactly the <em>event-driven segmenting</em> of the time-integration loop.</p>
+      <p class="small lang-zh" style="margin:0;"><strong>逐纤毛、按需触发：</strong>仅对逼近极点的纤毛换基，开销可忽略。曲率由 director <em>点积</em>构成，故<em>与基无关</em> —— 物理与内禀曲率 \(\kappa_{i,0}\) 保持不变。这正是时间积分循环中的<em>事件驱动分段</em>。</p>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Adaptive Basis</span><span class="lang-zh">自适应基</span> · Walker (2020)</div>
+</section>
+
+<!-- ============ 9a. RSM THEORY ============ -->
+<section>
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Hydrodynamics · 1a</span><span class="lang-zh">流体力学 · 1a</span></span>
+    <h2><span class="lang-en">From Stokes Flow to the Regularized Stokeslet</span><span class="lang-zh">从 Stokes 流到正则化 Stokeslet</span></h2>
+    <div class="bar"></div>
+    <div class="cols">
+      <div>
+        <p class="small lang-en">At zero Reynolds number the flow obeys the <strong>steady Stokes equations</strong> — linear, instantaneous, inertia-free:</p>
+        <p class="small lang-zh">零雷诺数下流动服从<strong>稳态 Stokes 方程</strong>——线性、瞬时、无惯性：</p>
+        <div class="eq center">\[ \mu\nabla^2\mathbf{u} - \nabla p + \mathbf{f} = \mathbf{0}, \qquad \nabla\!\cdot\!\mathbf{u}=0 \]</div>
+        <p class="small lang-en">A singular point force is replaced by a smooth, unit-weight <em>blob</em> \(\phi_{\varepsilon}\) (Cortez–Fauci–Medovikov 2005):</p>
+        <p class="small lang-zh">奇异点力由一个光滑、单位权重的 <em>blob</em> \(\phi_{\varepsilon}\) 取代（Cortez–Fauci–Medovikov 2005）：</p>
+        <div class="eq center">\[ \phi_{\varepsilon}(r) = \frac{15\,\varepsilon^{4}}{8\pi\,(r^{2}+\varepsilon^{2})^{7/2}}, \quad \int_{\mathbb{R}^3}\!\phi_{\varepsilon}\,dV = 1 \]</div>
+      </div>
+      <div>
+        <p class="small lang-en">The velocity from one regularized force \(\mathbf{f}_0\) at \(\mathbf{y}_0\) (with \(\mathbf{r}=\mathbf{x}-\mathbf{y}_0,\ r=\lVert\mathbf{r}\rVert\)):</p>
+        <p class="small lang-zh">位于 \(\mathbf{y}_0\) 的单个正则化力 \(\mathbf{f}_0\) 产生的速度（\(\mathbf{r}=\mathbf{x}-\mathbf{y}_0,\ r=\lVert\mathbf{r}\rVert\)）：</p>
+        <div class="eq center">\[ \mathbf{u}(\mathbf{x}) = \frac{1}{8\pi\mu}\,\mathbf{S}^{\varepsilon}(\mathbf{r})\,\mathbf{f}_0 \]</div>
+        <div class="eq center">\[ S^{\varepsilon}_{ij} = \frac{(r^{2}+2\varepsilon^{2})\,\delta_{ij} + r_i r_j}{(r^{2}+\varepsilon^{2})^{3/2}} \]</div>
+        <div class="card alt">
+          <p class="small lang-en" style="margin:0;">As \(\varepsilon\to0\) the classical Stokeslet is recovered; for \(\varepsilon>0\) the field is <em>smooth and bounded</em> at \(r=0\), removing the singularity that plagues boundary-integral methods.</p>
+          <p class="small lang-zh" style="margin:0;">当 \(\varepsilon\to0\) 恢复经典 Stokeslet；当 \(\varepsilon>0\) 时速度场在 \(r=0\) 处<em>光滑有界</em>，消除了边界积分法的奇异性。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">RSM Theory</span><span class="lang-zh">RSM 理论</span> · Cortez (2005)</div>
+</section>
+
+<!-- ============ 9b. RSM DISCRETIZATION ============ -->
+<section class="compact-rsm">
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Hydrodynamics · 1b</span><span class="lang-zh">流体力学 · 1b</span></span>
+    <h2><span class="lang-en">RSM Discretization on the Body Surface</span><span class="lang-zh">胞体表面的 RSM 离散</span></h2>
+    <div class="bar"></div>
+    <p class="small lang-en">The body surface carries \(N\) regularized forces \(\mathbf{f}_n\). By linearity of Stokes flow, velocities superpose into a dense <strong>mobility relation</strong>:</p>
+    <p class="small lang-zh">胞体表面布置 \(N\) 个正则化力 \(\mathbf{f}_n\)。由 Stokes 流的线性性，速度叠加为稠密的<strong>迁移率关系</strong>：</p>
+    <div class="eq center">\[ \mathbf{u}(\mathbf{x}_m) = \frac{1}{8\pi\mu}\sum_{n=1}^{N}\mathbf{S}^{\varepsilon}(\mathbf{x}_m-\mathbf{x}_n)\,\mathbf{f}_n \;\equiv\; (\mathbf{M}\,\mathbf{f})_m \]</div>
+    <p class="small lang-en">Because the body is rigid, every surface point velocity is tied to six body DOF (\(\mathbf{U},\boldsymbol{\Omega}\)) — this is the \(\mathbf{Q}\) block of the coupled solve:</p>
+    <p class="small lang-zh">由于胞体刚性，每个表面点速度都由 6 个胞体自由度（\(\mathbf{U},\boldsymbol{\Omega}\)）决定——即耦合求解中的 \(\mathbf{Q}\) 块：</p>
+    <div class="eq center">\[ \mathbf{u}(\mathbf{x}_n) = \mathbf{U} + \boldsymbol{\Omega}\times(\mathbf{x}_n-\mathbf{X}_{\text{cm}}) \]</div>
+    <div class="cols">
+      <div class="card">
+        <h3><span class="lang-en">Body regularization (numerical)</span><span class="lang-zh">胞体正则化（数值）</span></h3>
+        <div class="center">\[ \varepsilon_{\text{body}} = h_{\text{mean}}/2.6667 \]</div>
+        <p class="small lang-en">\(h_{\text{mean}}\) = mean nearest-neighbour spacing of body points; a <em>resolution</em> parameter calibrated by a Stokes-sphere sweep (overridable).</p>
+        <p class="small lang-zh">\(h_{\text{mean}}\) = 胞体点平均最近邻间距；是由 Stokes 球扫描标定的<em>分辨率</em>参数（可覆盖）。</p>
+      </div>
+      <div class="card alt">
+        <h3><span class="lang-en">Root–body gap</span><span class="lang-zh">根部–胞体间隙</span></h3>
+        <div class="center">\[ \mathrm{dis}=1.1\,(\varepsilon_{\text{body}}+\varepsilon_{\text{pili}})\,L_0 \]</div>
+        <p class="small lang-en">Separates regularized kernels at each pilus root, avoiding near-singular body–pilus interactions.</p>
+        <p class="small lang-zh">在各纤毛根部分离正则化核，避免胞体–纤毛近奇异相互作用。</p>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">RSM Discretization</span><span class="lang-zh">RSM 离散</span></div>
+</section>
+
+<!-- ============ 10a. RSS — CONCEPT ============ -->
+<section class="spacious-rss">
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Hydrodynamics · 2a</span><span class="lang-zh">流体力学 · 2a</span></span>
+    <h2><span class="lang-en">Pili — Regularized Stokeslet Segments (RSS)</span><span class="lang-zh">纤毛 — 正则化 Stokeslet 段 (RSS)</span></h2>
+    <div class="bar"></div>
+    <div class="cols">
+      <div>
+        <p class="small lang-en">RSM lumps force at <em>points</em> — fine for the body, but a slender pilus is better described by force distributed <em>continuously</em> along each straight segment \(\mathbf{y}_0\!\to\!\mathbf{y}_1\) (Cortez 2018). With \(\mathbf{v}=\mathbf{y}_1-\mathbf{y}_0\), \(t\in[0,1]\), length \(L\):</p>
+        <p class="small lang-zh">RSM 把力集中到<em>点</em>上——对胞体适用，但细长纤毛更宜将力沿每条直段 \(\mathbf{y}_0\!\to\!\mathbf{y}_1\) <em>连续</em>分布（Cortez 2018）。记 \(\mathbf{v}=\mathbf{y}_1-\mathbf{y}_0\)、\(t\in[0,1]\)、段长 \(L\)：</p>
+        <div class="eq center">\[ \mathbf{y}(t) = \mathbf{y}_0 + t\,\mathbf{v},\qquad \mathbf{f}(t) = (1-t)\,\mathbf{f}_0 + t\,\mathbf{f}_1 \]</div>
+        <p class="small lang-en">i.e. a <strong>linear force density</strong> fixed by the two endpoint forces \(\mathbf{f}_0,\mathbf{f}_1\).</p>
+        <p class="small lang-zh">即由两端点力 \(\mathbf{f}_0,\mathbf{f}_1\) 确定的<strong>线性力密度</strong>。</p>
+      </div>
+      <div>
+        <p class="small lang-en">The induced velocity is the <em>exact</em> line integral of the <strong>same</strong> regularized kernel \(\mathbf{S}^{\varepsilon}\), which evaluates in closed form to a two-block relation:</p>
+        <p class="small lang-zh">诱导速度是<strong>同一</strong>正则化核 \(\mathbf{S}^{\varepsilon}\) 沿该段的<em>精确</em>线积分，可闭式求得为两块关系：</p>
+        <div class="eq center">\[ \mathbf{u}(\mathbf{x}) = \frac{1}{8\pi\mu}\!\int_0^1\! \mathbf{S}^{\varepsilon}\!\big(\mathbf{x}-\mathbf{y}(t)\big)\,\mathbf{f}(t)\,L\,dt = \mathbf{M}_1\mathbf{f}_0 + \mathbf{M}_2\mathbf{f}_1 \]</div>
+        <div class="card alt">
+          <p class="small lang-en" style="margin:0;">Integrating <em>along</em> the segment (not point quadrature) decouples the segment length \(h\) from \(\varepsilon\). Here \(\varepsilon_{\text{pili}}=r_{\text{pili}}/L_0\) is the <em>physical</em> filament radius (effective tube radius \(r_e\approx0.97\,\varepsilon\)), so ~10 segments/µm stay accurate where point-RSM would need hundreds of nodes.</p>
+          <p class="small lang-zh" style="margin:0;">沿段<em>积分</em>（而非点求积）使段长 \(h\) 与 \(\varepsilon\) 解耦。此处 \(\varepsilon_{\text{pili}}=r_{\text{pili}}/L_0\) 是<em>物理</em>丝半径（等效管半径 \(r_e\approx0.97\,\varepsilon\)），故约 10 段/µm 即可精确，而点式 RSM 需数百节点。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">RSS Concept</span><span class="lang-zh">RSS 概念</span> · Cortez (2018)</div>
+</section>
+
+<!-- ============ 10b. RSS — EXACT SEGMENT INTEGRATION ============ -->
+<section class="compact-deriv">
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Hydrodynamics · 2b</span><span class="lang-zh">流体力学 · 2b</span></span>
+    <h2><span class="lang-en">RSS — How \(\mathbf{M}_1,\mathbf{M}_2\) Are Computed</span><span class="lang-zh">RSS — \(\mathbf{M}_1,\mathbf{M}_2\) 如何计算</span></h2>
+    <div class="bar"></div>
+    <div class="cols">
+      <div>
+        <p class="small lang-en">With \(R(t)^2=\lVert\mathbf{x}-\mathbf{y}(t)\rVert^2+\varepsilon^2\), every term of the integrand is a polynomial in \(t\) times a power of \(R\). The integral therefore reduces to <em>one</em> scalar family:</p>
+        <p class="small lang-zh">记 \(R(t)^2=\lVert\mathbf{x}-\mathbf{y}(t)\rVert^2+\varepsilon^2\)，被积式每项都是 \(t\) 的多项式乘 \(R\) 的幂，积分归约为<em>同一</em>组标量积分：</p>
+        <div class="eq center">\[ T_{n,q} = \int_0^1 t^{\,n} R(t)^{\,q}\,dt,\quad q\in\{-1,-3,-5\} \]</div>
+      </div>
+      <div>
+        <p class="small lang-en">All \(T_{n,q}\) follow one recursion in \(n\), seeded by the closed forms \(T_{0,-1},T_{0,-3}\) — no quadrature, no special functions:</p>
+        <p class="small lang-zh">所有 \(T_{n,q}\) 由关于 \(n\) 的一条递推给出，并以闭式 \(T_{0,-1},T_{0,-3}\) 起步 —— 无需求积、无特殊函数：</p>
+        <div class="eq center" style="font-size:.82em;">\[ T_{n,q} = \frac{t^{\,n-1}R^{q+2}}{(q{+}2)L^2}\Big|_0^1 - \frac{n{-}1}{(q{+}2)L^2}\,T_{n-2,q+2} - \frac{(\mathbf{x}_0\!\cdot\!\mathbf{v})}{L^2}\,T_{n-1,q} \]</div>
+      </div>
+    </div>
+    <p class="small lang-en" style="margin-top:.1em;">Collecting terms, the two \(3{\times}3\) blocks combine the \(T_{n,q}\) with the dyads \(\mathbf{x}_0\mathbf{x}_0^{\mathsf T},\ \mathbf{x}_0\mathbf{v}^{\mathsf T}{+}\mathbf{v}\mathbf{x}_0^{\mathsf T},\ \mathbf{v}\mathbf{v}^{\mathsf T}\) (\(\mathbf{x}_0=\mathbf{x}-\mathbf{y}_0\)) — these are the \(\mathbf{M}_1,\mathbf{M}_2\) from the previous slide:</p>
+    <p class="small lang-zh" style="margin-top:.1em;">整理后，两个 \(3{\times}3\) 块由 \(T_{n,q}\) 与并矢 \(\mathbf{x}_0\mathbf{x}_0^{\mathsf T},\ \mathbf{x}_0\mathbf{v}^{\mathsf T}{+}\mathbf{v}\mathbf{x}_0^{\mathsf T},\ \mathbf{v}\mathbf{v}^{\mathsf T}\) 组合（\(\mathbf{x}_0=\mathbf{x}-\mathbf{y}_0\)）—— 即上一页的 \(\mathbf{M}_1,\mathbf{M}_2\)：</p>
+    <div class="eq center" style="font-size:.8em;">\[ \mathbf{M}_2 = L\big[(T_{1,-1}{+}\varepsilon^2T_{1,-3})\mathbf{I} + T_{1,-3}\mathbf{x}_0\mathbf{x}_0^{\mathsf T} + T_{2,-3}(\mathbf{x}_0\mathbf{v}^{\mathsf T}{+}\mathbf{v}\mathbf{x}_0^{\mathsf T}) + T_{3,-3}\mathbf{v}\mathbf{v}^{\mathsf T}\big] \]</div>
+    <div class="eq center" style="font-size:.8em;">\[ \mathbf{M}_1 = L\big[(T_{0,-1}{+}\varepsilon^2T_{0,-3})\mathbf{I} + T_{0,-3}\mathbf{x}_0\mathbf{x}_0^{\mathsf T} + T_{1,-3}(\mathbf{x}_0\mathbf{v}^{\mathsf T}{+}\mathbf{v}\mathbf{x}_0^{\mathsf T}) + T_{2,-3}\mathbf{v}\mathbf{v}^{\mathsf T}\big] - \mathbf{M}_2 \]</div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">RSS Segment Integration</span><span class="lang-zh">RSS 段积分</span> · Cortez (2018)</div>
+</section>
+
+<!-- ============ 10c. RSS ROTLET + TWIST ============ -->
+<section class="compact-deriv">
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Hydrodynamics · 2c</span><span class="lang-zh">流体力学 · 2c</span></span>
+    <h2><span class="lang-en">Regularized Rotlet Segments &amp; Twist Coupling</span><span class="lang-zh">正则化 rotlet 段与扭转耦合</span></h2>
+    <div class="bar"></div>
+    <div class="cols">
+      <div>
+        <p class="small lang-en">A twisting filament also drives flow. The velocity from a linear torque density \(\boldsymbol{\tau}=\boldsymbol{\tau}_a+t\,\boldsymbol{\tau}_b\) along the segment is the curl of the Stokeslet field:</p>
+        <p class="small lang-zh">扭转的丝同样驱动流动。沿段的线性力矩密度 \(\boldsymbol{\tau}=\boldsymbol{\tau}_a+t\,\boldsymbol{\tau}_b\) 产生的速度是 Stokeslet 场的旋度：</p>
+        <div class="eq center">\[ 8\pi\mu\,\mathbf{u} = L\!\int_0^1\!\Big(\tfrac{2}{R^3}+\tfrac{3\varepsilon^2}{R^5}\Big)(\boldsymbol{\tau}\times\mathbf{x})\,dt \]</div>
+        <p class="small lang-en">which collapses onto the <em>same</em> \(T_{n,q}\) family (now with \(q=-3,-5\)):</p>
+        <p class="small lang-zh">它同样归约到<em>相同</em>的 \(T_{n,q}\) 族（此时 \(q=-3,-5\)）：</p>
+        <div class="eq center">\[ \tfrac{8\pi\mu}{L}\mathbf{u} = \sum_{n=0}^{2}\boldsymbol{\tau}_n\big(2T_{n,-3}+3\varepsilon^2T_{n,-5}\big) \]</div>
+      </div>
+      <div>
+        <p class="small lang-en">In the assembled system this becomes the project's compact skew-operator form:</p>
+        <p class="small lang-zh">在组装系统中即为本项目的紧凑反对称算子形式：</p>
+        <div class="eq center">\[ \mathbf{u}(\mathbf{x}) = -L\big(c_a[\mathbf{x}_0]_{\times} + c_b[\mathbf{v}]_{\times}\big)\boldsymbol{\tau} \]</div>
+        <p class="small lang-en">\([\cdot]_\times\) = skew operator, \(\mathbf{v}=\mathbf{y}_1-\mathbf{y}_0\); coefficients \(c_a,c_b\) are linear combinations of \(T_{n,-3},T_{n,-5}\). This is the \(\mathbf{M}_{\text{rotlet}}\) block.</p>
+        <p class="small lang-zh">\([\cdot]_\times\) = 反对称算子，\(\mathbf{v}=\mathbf{y}_1-\mathbf{y}_0\)；系数 \(c_a,c_b\) 为 \(T_{n,-3},T_{n,-5}\) 的线性组合，即 \(\mathbf{M}_{\text{rotlet}}\) 块。</p>
+        <div class="card alt">
+          <p class="small lang-en" style="margin:0;">For bacterial pili this twist–translation coupling scales with high powers of \(\varepsilon\) — numerically tiny, but it keeps the formulation theoretically complete and the rotlet provides the torsional resistance feeding \(\widetilde{\mathbf{A}}_{\text{twist}}\).</p>
+          <p class="small lang-zh" style="margin:0;">对细菌纤毛，该扭转–平动耦合按 \(\varepsilon\) 的高次幂衰减——数值上极小，但保证理论表述完整，且 rotlet 提供注入 \(\widetilde{\mathbf{A}}_{\text{twist}}\) 的扭转阻力。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Rotlet Segments</span><span class="lang-zh">Rotlet 段</span> · Cortez (2018)</div>
+</section>
+
+<!-- ============ 11. COUPLED SYSTEM ============ -->
+<section>
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Coupled System</span><span class="lang-zh">耦合系统</span></span>
+    <h2><span class="lang-en">One Linear Solve per RHS Evaluation</span><span class="lang-zh">每次右端求值解一次线性系统</span></h2>
+    <div class="bar"></div>
+    <div class="cols">
+      <div>
+        <div class="eq center">\[ \mathbf{L}\,\dot{\mathbf{z}} = \mathbf{R}, \qquad \mathbf{L} = -\,\mathbf{B}\,\mathbf{A}\,\mathbf{Q} \]</div>
+        <div class="eq center">\[ \mathbf{A}\mathbf{Q} = \begin{bmatrix} \mathbf{M}_{\text{weighted}}^{-1}\,\mathbf{Q}_{\text{trans,corr}} \\[4pt] \widetilde{\mathbf{A}}_{\text{twist}}\,\mathbf{Q}_{\text{twist}} \end{bmatrix} \]</div>
+        <div class="eq center">\[ \mathbf{Q}_{\text{trans,corr}} = \mathbf{Q}_{\text{trans}} - \mathbf{M}_{\text{rotlet}}\,\widetilde{\mathbf{A}}_{\text{twist}}\,\mathbf{Q}_{\text{twist}} \]</div>
+        <p class="small muted lang-en">Solved by backslash / LU factorization — never explicit inversion.</p>
+        <p class="small muted lang-zh">用反斜杠 / LU 分解求解 —— 从不显式求逆。</p>
+      </div>
+      <div class="card">
+        <h3><span class="lang-en">How to read it</span><span class="lang-zh">如何理解</span></h3>
+        <p class="small lang-en" style="margin:.2em 0;">\(\mathbf{Q}\) maps body &amp; pili <em>rates</em> to node velocities; the mobility \(\mathbf{A}\) (built from \(\mathbf{M}_{\text{weighted}}\) and the torsional \(\widetilde{\mathbf{A}}_{\text{twist}}\)) turns velocities into tractions; \(\mathbf{B}\) collects those into force, moment &amp; pilus moment-balance equations. <em>How each is built: next slide.</em></p>
+        <p class="small lang-zh" style="margin:.2em 0;">\(\mathbf{Q}\) 将胞体与纤毛<em>速率</em>映射为节点速度；迁移率 \(\mathbf{A}\)（由 \(\mathbf{M}_{\text{weighted}}\) 与扭转 \(\widetilde{\mathbf{A}}_{\text{twist}}\) 构成）把速度化为面力；\(\mathbf{B}\) 将其汇成力、力矩与纤毛力矩平衡方程。<em>各矩阵如何构建见下一页。</em></p>
+        <p class="small lang-en" style="margin:.2em 0;"><strong>RHS</strong> \(\mathbf{R}\): gravity \(-E_g\hat{\mathbf g}\), elastic + active + motor moments, and the background-flow correction.</p>
+        <p class="small lang-zh" style="margin:.2em 0;"><strong>右端</strong> \(\mathbf{R}\)：重力 \(-E_g\hat{\mathbf g}\)、弹性 + 主动 + 马达力矩，以及背景流修正。</p>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Coupled System</span><span class="lang-zh">耦合系统</span></div>
+</section>
+
+<!-- ============ 11b. MATRIX ANATOMY & ASSEMBLY ============ -->
+<section class="compact-deriv">
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Coupled System · Assembly</span><span class="lang-zh">耦合系统 · 组装</span></span>
+    <h2><span class="lang-en">Anatomy of \(\mathbf{Q}\), \(\mathbf{B}\) and \(\mathbf{M}\)</span><span class="lang-zh">\(\mathbf{Q}\)、\(\mathbf{B}\) 与 \(\mathbf{M}\) 矩阵剖析</span></h2>
+    <div class="bar"></div>
+    <p class="small lang-en">For \(M\) pili with \(N_k\) segments and \(N_{\text{tot}}\) hydrodynamic points, three sizes drive every block (<code>build_coupled_lin_sys.m</code>):</p>
+    <p class="small lang-zh">设 \(M\) 根纤毛（每根 \(N_k\) 段）、共 \(N_{\text{tot}}\) 个水动力点，三个维度决定全部矩阵块（<code>build_coupled_lin_sys.m</code>）：</p>
+    <div class="eq center">\[ n_{\text{state}}=6+3\!\sum_k\! N_k,\quad n_{\text{vel}}=3N_{\text{tot}}+\!\sum_k\! N_k,\quad n_{\text{force}}=3N_{\text{tot}}+3\!\sum_k\! N_k \]</div>
+    <div class="cols-3">
+      <div class="card">
+        <h3>\(\mathbf{Q}\) <span class="lang-en">— rates → velocities</span><span class="lang-zh">— 速率 → 速度</span></h3>
+        <p class="tiny lang-en" style="margin:.1em 0;">\([n_{\text{vel}}\times n_{\text{state}}]\). Body block is the rigid Jacobian \([\mathbf{I}\,\;-[\mathbf{r}_i]_\times]\); each pilus block maps Euler-rates through directors, scaled by \(\ell_k/N_k\), rotated to the lab frame.</p>
+        <p class="tiny lang-zh" style="margin:.1em 0;">\([n_{\text{vel}}\times n_{\text{state}}]\)。胞体块为刚体 Jacobian \([\mathbf{I}\,\;-[\mathbf{r}_i]_\times]\)；各纤毛块经 director 将 Euler 速率映射为速度，乘 \(\ell_k/N_k\) 并旋转到实验室系。</p>
+      </div>
+      <div class="card alt">
+        <h3>\(\mathbf{M}\) <span class="lang-en">— mobility</span><span class="lang-zh">— 迁移率</span></h3>
+        <p class="tiny lang-en" style="margin:.1em 0;">\([3N_{\text{tot}}\times 3N_{\text{force}}]\). Dense, non-symmetric: body–body RSM point-Stokeslets + pili \(\mathbf{M}_1,\mathbf{M}_2\) segment blocks + cross terms. Factored <em>once</em> by LU (<code>decomposition</code>) and reused.</p>
+        <p class="tiny lang-zh" style="margin:.1em 0;">\([3N_{\text{tot}}\times 3N_{\text{force}}]\)。稠密非对称：胞体 RSM 点 Stokeslet + 纤毛 \(\mathbf{M}_1,\mathbf{M}_2\) 段块 + 交叉项。用 LU（<code>decomposition</code>）<em>一次</em>分解并复用。</p>
+      </div>
+      <div class="card">
+        <h3>\(\mathbf{B}\) <span class="lang-en">— forces → balance</span><span class="lang-zh">— 力 → 平衡</span></h3>
+        <p class="tiny lang-en" style="margin:.1em 0;">\([n_{\text{state}}\times n_{\text{force}}]\). Rows 1–3 sum forces; rows 4–6 are \(\sum w_i\,\mathbf{r}_i\times\mathbf{f}_i\) (trapezoidal \(w_i\)); per-pilus rows are the Kirchhoff moment balance, scaled by \(\ell_k^{3}\).</p>
+        <p class="tiny lang-zh" style="margin:.1em 0;">\([n_{\text{state}}\times n_{\text{force}}]\)。第 1–3 行求和力；第 4–6 行为 \(\sum w_i\,\mathbf{r}_i\times\mathbf{f}_i\)（梯形权 \(w_i\)）；逐纤毛行为 Kirchhoff 力矩平衡，乘 \(\ell_k^{3}\)。</p>
+      </div>
+    </div>
+    <p class="small lang-en">The assembly forms \(\mathbf{A}\mathbf{Q}\) by the mobility solve \(\mathbf{M}_{\text{w}}^{-1}\mathbf{Q}_{\text{trans,corr}}\) (rotlet-corrected) stacked with \(\widetilde{\mathbf{A}}_{\text{twist}}\mathbf{Q}_{\text{twist}}\); then \(\mathbf{L}=-\mathbf{B}\,\mathbf{A}\mathbf{Q}\). Finally <strong>Step 7</strong> overwrites each root's 2–3 rows with the clamped / free-torsion kinematic constraint via the Euler Jacobian \(\mathbf{J}_{\text{euler}}\).</p>
+    <p class="small lang-zh">组装时由迁移率求解 \(\mathbf{M}_{\text{w}}^{-1}\mathbf{Q}_{\text{trans,corr}}\)（经 rotlet 修正）与 \(\widetilde{\mathbf{A}}_{\text{twist}}\mathbf{Q}_{\text{twist}}\) 堆叠得 \(\mathbf{A}\mathbf{Q}\)，再得 \(\mathbf{L}=-\mathbf{B}\,\mathbf{A}\mathbf{Q}\)。最后<strong>第 7 步</strong>用 Euler Jacobian \(\mathbf{J}_{\text{euler}}\) 将各根部 2–3 行替换为 clamped / free-torsion 运动学约束。</p>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Matrix Assembly</span><span class="lang-zh">矩阵组装</span></div>
+</section>
+
+<!-- ============ 12. ELASTIC MOMENTS ============ -->
+<section>
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Elasticity</span><span class="lang-zh">弹性</span></span>
+    <h2><span class="lang-en">Kirchhoff Rod — Curvature &amp; Twist</span><span class="lang-zh">Kirchhoff 杆 — 曲率与扭转</span></h2>
+    <div class="bar"></div>
+    <div class="cols">
+      <div>
+        <p class="small lang-en">Darboux (rotation) vector and director evolution:</p>
+        <p class="small lang-zh">Darboux（旋转）向量与 director 演化：</p>
+        <div class="eq center">\[ \mathbf{U} = \kappa_1\mathbf{d}_1 + \kappa_2\mathbf{d}_2 + \kappa_3\mathbf{d}_3 \]</div>
+        <div class="eq center">\[ \mathbf{d}_{\alpha}' = \mathbf{U}\times\mathbf{d}_{\alpha} \]</div>
+        <p class="small muted lang-en">Primes denote arclength derivatives.</p>
+        <p class="small muted lang-zh">撇号表示对弧长求导。</p>
+      </div>
+      <div>
+        <p class="small lang-en">Curvature components (relative to intrinsic \(\kappa_{\cdot,0}\)):</p>
+        <p class="small lang-zh">曲率分量（相对内禀值 \(\kappa_{\cdot,0}\)）：</p>
+        <div class="eq center">\[ \kappa_1 = \mathbf{d}_3\!\cdot\!\mathbf{d}_2' - \kappa_{1,0} \] \[ \kappa_2 = \mathbf{d}_1\!\cdot\!\mathbf{d}_3' - \kappa_{2,0} \] \[ \kappa_3 = \frac{\mathbf{d}_2\!\cdot\!\mathbf{d}_1' - \kappa_{3,0}}{1+\sigma} \]</div>
+      </div>
+    </div>
+    <p class="small lang-en"><strong>Twist factor</strong> \(1/(1+\sigma)\) is exactly \(GJ/EI\) for a circular cross-section (\(J=2I,\ G=E/[2(1+\sigma)]\)). Intrinsic curvature: <code>frozen·zero·constant·helix</code>. Active moments: off · traveling wave · custom.</p>
+    <p class="small lang-zh"><strong>扭转因子</strong> \(1/(1+\sigma)\) 对圆截面恰为 \(GJ/EI\)（\(J=2I,\ G=E/[2(1+\sigma)]\)）。内禀曲率：<code>frozen·zero·constant·helix</code>。主动力矩：关闭 · 行波 · 自定义。</p>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Elastic Moments</span><span class="lang-zh">弹性力矩</span></div>
+</section>
+
+<!-- ============ 12b. CURVATURE → ELASTIC FORCES ============ -->
+<section class="compact-deriv">
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Elasticity · Forces</span><span class="lang-zh">弹性 · 受力</span></span>
+    <h2><span class="lang-en">From Curvature to Elastic Forces</span><span class="lang-zh">从曲率到弹性力</span></h2>
+    <div class="bar"></div>
+    <div class="cols">
+      <div>
+        <p class="small lang-en"><strong>1 · Constitutive law.</strong> Given the curvature deviations \(\kappa_i\) from the previous slide, the elastic restoring moment per unit length is simply</p>
+        <p class="small lang-zh"><strong>1 · 本构关系。</strong>由上一页的曲率偏差 \(\kappa_i\)，单位长度弹性恢复力矩为</p>
+        <div class="eq center">\[ \mathbf{m}_{\text{el}} = EI\,(\kappa_1\mathbf{d}_1 + \kappa_2\mathbf{d}_2 + \kappa_3\mathbf{d}_3) \]</div>
+        <p class="small muted lang-en">A single \(EI\) suffices because the torsion factor \(1/(1+\sigma)=GJ/EI\) is already folded into \(\kappa_3\).</p>
+        <p class="small muted lang-zh">用单一 \(EI\) 即可——扭转因子 \(1/(1+\sigma)=GJ/EI\) 已并入 \(\kappa_3\)。</p>
+        <p class="small lang-en"><strong>2 · Discretization.</strong> The \(\kappa_i\) are evaluated on node-centred directors (segment-mean + SVD polar projection) with finite differences (\(\Delta s=1/N_k\)) — reusing the <em>same</em> nodal frames as the mobility assembly, so geometry stays consistent.</p>
+        <p class="small lang-zh"><strong>2 · 离散化。</strong>\(\kappa_i\) 在节点处 director（段均值 + SVD 极分解投影）上以有限差分（\(\Delta s=1/N_k\)）求值——复用与迁移率组装<em>相同</em>的节点标架，保持几何一致。</p>
+      </div>
+      <div>
+        <p class="small lang-en"><strong>3 · Force / torque balance.</strong> On the inextensible rod, internal force \(\mathbf{F}\) and couple \(\mathbf{T}\) satisfy (Cortez 2018, Kirchhoff form):</p>
+        <p class="small lang-zh"><strong>3 · 力 / 力矩平衡。</strong>不可伸长杆上，内力 \(\mathbf{F}\) 与内力偶 \(\mathbf{T}\) 满足（Cortez 2018，Kirchhoff 形式）：</p>
+        <div class="eq center">\[ \mathbf{f}+\frac{\partial\mathbf{F}}{\partial s}=\mathbf{0},\qquad \boldsymbol{\tau}+\frac{\partial\mathbf{T}}{\partial s}+\frac{\partial\mathbf{X}}{\partial s}\times\mathbf{F}=\mathbf{0} \]</div>
+        <p class="small lang-en">so the fluid force/torque densities \(\mathbf{f},\boldsymbol{\tau}\) the rod feeds back are arclength derivatives of \(\mathbf{F},\mathbf{T}\) — assembled into the moment-balance rows of \(\mathbf{B}\) and the RHS \(\mathbf{R}\).</p>
+        <p class="small lang-zh">因此杆反馈给流体的力/力矩密度 \(\mathbf{f},\boldsymbol{\tau}\) 是 \(\mathbf{F},\mathbf{T}\) 的弧长导数 —— 装配进 \(\mathbf{B}\) 的力矩平衡行与右端项 \(\mathbf{R}\)。</p>
+        <div class="card alt">
+          <p class="small lang-en" style="margin:0;">Root handling: \(\kappa_1(1),\kappa_2(1)\) are zeroed (bending locked). For <code>free_torsion</code>, \(\kappa_3(1)\) is <em>kept</em> so the torsional elastic moment drives \(\dot\psi_1\); <code>clamped</code> zeros it and the BC row takes over.</p>
+          <p class="small lang-zh" style="margin:0;">根部处理：\(\kappa_1(1),\kappa_2(1)\) 置零（弯曲锁定）。<code>free_torsion</code> 下<em>保留</em> \(\kappa_3(1)\)，由扭转弹性力矩驱动 \(\dot\psi_1\)；<code>clamped</code> 则置零并由边界条件行接管。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Elastic Forces</span><span class="lang-zh">弹性力</span> · Cortez (2018) / Walker (2020)</div>
+</section>
+
+<!-- ============ 13. ROOT & MOTOR ============ -->
+<section class="compact-root">
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Boundary &amp; Drive</span><span class="lang-zh">边界与驱动</span></span>
+    <h2><span class="lang-en">Root Coupling and Motor Torque</span><span class="lang-zh">根部耦合与马达力矩</span></h2>
+    <div class="bar"></div>
+    <div class="cols">
+      <div class="card">
+        <h3><code>clamped</code></h3>
+        <p class="small lang-en">Root bending <em>and</em> twist angles locked to the body frame — rigid attachment.</p>
+        <p class="small lang-zh">根部弯曲<em>与</em>扭转角均锁定到胞体标架 —— 刚性附着。</p>
+      </div>
+      <div class="card alt">
+        <h3><code>free_torsion</code></h3>
+        <p class="small lang-en">Root bending locked, but root twist angle \(\psi_1\) evolves dynamically — enabling motor-driven flagella.</p>
+        <p class="small lang-zh">根部弯曲锁定，但根部扭转角 \(\psi_1\) 动态演化 —— 支持马达驱动鞭毛。</p>
+      </div>
+    </div>
+    <div class="card gold">
+      <h3><span class="lang-en">Conservation-consistent motor</span><span class="lang-zh">守恒一致的马达</span></h3>
+      <p class="small lang-en" style="margin:0;">In <code>free_torsion</code>, the root \(\mathbf{d}_3\) moment row may receive elastic torsion, an active \(\mathbf{d}_3\) moment, and a constant motor torque. <strong>No explicit motor reaction term is injected into</strong> \(\mathbf{R}_{4:6}\): those rows are the angular-momentum balance of the <em>whole</em> coupled system, so an internal body↔pilus torque cancels in the sum. The body's angular response emerges implicitly from the coupled Stokes solve.</p>
+      <p class="small lang-zh" style="margin:0;">在 <code>free_torsion</code> 下，根部 \(\mathbf{d}_3\) 力矩行可接收弹性扭转、主动 \(\mathbf{d}_3\) 力矩与常值马达力矩。<strong>不向</strong> \(\mathbf{R}_{4:6}\) <strong>显式注入马达反作用项</strong>：这些行是<em>整个</em>耦合系统的角动量平衡，胞体↔纤毛间的内部力矩在求和中相消。胞体的角响应由耦合 Stokes 求解隐式给出。</p>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Root &amp; Motor</span><span class="lang-zh">根部与马达</span></div>
+</section>
+
+<!-- ============ 14. BACKGROUND FLOW ============ -->
+<section class="spacious-flow">
+  <div class="content">
+    <span class="kicker"><span class="lang-en">External Forcing</span><span class="lang-zh">外部驱动</span></span>
+    <h2><span class="lang-en">Background Flow</span><span class="lang-zh">背景流</span></h2>
+    <div class="bar"></div>
+    <p class="small lang-en">A prescribed steady flow is incorporated through a hydrodynamic correction to the RHS:</p>
+    <p class="small lang-zh">给定的稳态流场通过对右端项的流体力学修正引入：</p>
+    <div class="eq center">\[ \mathbf{R} \;\leftarrow\; \mathbf{R} - \mathbf{B}\,\mathbf{A}^{-1}\,\mathbf{u}_{\text{bg}}^{\ast} \]</div>
+    <div class="cols-3">
+      <div class="card"><h3><code>off</code></h3><p class="small lang-en">Quiescent fluid; no background flow.</p><p class="small lang-zh">静止流体；无背景流。</p></div>
+      <div class="card"><h3><code>uniform</code></h3><p class="small lang-en">Constant velocity, user-defined direction.</p><p class="small lang-zh">恒定速度，用户定义方向。</p></div>
+      <div class="card"><h3><code>shear_z</code></h3><p class="small lang-en">Finite-thickness clipped shear layer.</p><p class="small lang-zh">有限厚度截断剪切层。</p></div>
+    </div>
+    <p class="small muted lang-en">Background velocities use the same scales: \(\mathbf{u}_{\text{bg}}^{\ast}=\mathbf{u}_{\text{bg}}/U_0\).</p>
+    <p class="small muted lang-zh">背景速度采用相同尺度：\(\mathbf{u}_{\text{bg}}^{\ast}=\mathbf{u}_{\text{bg}}/U_0\)。</p>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Background Flow</span><span class="lang-zh">背景流</span></div>
+</section>
+
+<!-- ============ 15. BROWNIAN ============ -->
+<section>
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Stochastic Motion · 1</span><span class="lang-zh">随机运动 · 1</span></span>
+    <h2><span class="lang-en">Brownian Dynamics — Effective Mobility</span><span class="lang-zh">布朗动力学 — 有效迁移率</span></h2>
+    <div class="bar"></div>
+    <div class="cols">
+      <div>
+        <p class="small lang-en">Thermal motion is added by <strong>operator splitting</strong> around the deterministic solve:</p>
+        <p class="small lang-zh">热运动通过在确定性求解外层<strong>算符分裂</strong>引入：</p>
+        <ol class="small lang-en"><li>Integrate the deterministic coupled system with <code>ode15s</code>.</li><li>At each Brownian node, compute the <em>full-system</em> effective body mobility.</li><li>Apply a correlated 6-D translation–rotation kick (next slide).</li></ol>
+        <ol class="small lang-zh"><li>用 <code>ode15s</code> 积分确定性耦合系统。</li><li>在每个布朗节点计算<em>全系统</em>有效胞体迁移率。</li><li>施加关联的 6 维平动–转动扰动（见下一页）。</li></ol>
+        <p class="small muted lang-en"><strong>Why full-system?</strong> The body never diffuses in isolation — every pilus segment adds drag and hydrodynamic coupling, so the mobility must come from the assembled \(\mathbf{L}\), not an isolated body resistance.</p>
+        <p class="small muted lang-zh"><strong>为何用全系统？</strong>胞体从不孤立扩散——每段纤毛都增加阻力与水动力耦合，故迁移率须取自组装后的 \(\mathbf{L}\)，而非孤立胞体阻力。</p>
+      </div>
+      <div>
+        <p class="small lang-en">Probe the <em>same</em> cached LU with six unit generalized body loads \(-\mathbf{e}_i\); the top \(6\times6\) of the responses is the effective body mobility:</p>
+        <p class="small lang-zh">用 6 个单位广义胞体载荷 \(-\mathbf{e}_i\) 探测<em>同一</em>缓存 LU，取响应前 \(6\times6\) 即有效胞体迁移率：</p>
+        <div class="eq center">\[ \mathbf{M}_{\text{eff}}^{\ast}(:,i) = \big(\mathbf{L}^{-1}(-\mathbf{e}_i)\big)_{1:6},\ \ i=1,\dots,6 \]</div>
+        <div class="card alt">
+          <p class="small lang-en" style="margin:0;">\(\mathbf{M}_{\text{eff}}^{\ast}\) is symmetrized as \(\tfrac12(\mathbf{M}+\mathbf{M}^{\mathsf T})\) and its positive-definiteness asserted at runtime — it then feeds the fluctuation–dissipation step on the next slide.</p>
+          <p class="small lang-zh" style="margin:0;">\(\mathbf{M}_{\text{eff}}^{\ast}\) 对称化为 \(\tfrac12(\mathbf{M}+\mathbf{M}^{\mathsf T})\) 并在运行时校验正定性——随后进入下一页的涨落–耗散步骤。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Brownian Dynamics</span><span class="lang-zh">布朗动力学</span></div>
+</section>
+
+<!-- ============ 15b. BROWNIAN — EFFECTIVE MOBILITY DETAIL ============ -->
+<section class="compact-deriv">
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Stochastic Motion · 2</span><span class="lang-zh">随机运动 · 2</span></span>
+    <h2><span class="lang-en">Fluctuation–Dissipation: the Brownian Kick</span><span class="lang-zh">涨落–耗散：布朗扰动</span></h2>
+    <div class="bar"></div>
+    <div class="cols">
+      <div>
+        <p class="small lang-en">Restoring dimensions on \(\mathbf{M}_{\text{eff}}^{\ast}\), the fluctuation–dissipation theorem fixes the effective diffusion tensor:</p>
+        <p class="small lang-zh">对 \(\mathbf{M}_{\text{eff}}^{\ast}\) 恢复量纲后，由涨落–耗散定理确定有效扩散张量：</p>
+        <div class="eq center">\[ \mathbf{D}_{\text{eff}} = k_B T\,\mathbf{M}_{\text{eff,dim}} \]</div>
+        <p class="small lang-en">Its Cholesky factor \(\mathbf{L}_{\text{eff}}\) "colours" white noise so the random increment carries the correct correlations:</p>
+        <p class="small lang-zh">其 Cholesky 因子 \(\mathbf{L}_{\text{eff}}\) 为白噪声“着色”，使随机增量带有正确的关联：</p>
+        <div class="eq center">\[ \mathbf{L}_{\text{eff}}\mathbf{L}_{\text{eff}}^{\mathsf T} = 2\,\mathbf{D}_{\text{eff}} \]</div>
+      </div>
+      <div>
+        <p class="small lang-en">One Brownian step is the correlated 6-D translation–rotation kick:</p>
+        <p class="small lang-zh">单个布朗步即关联的 6 维平动–转动扰动：</p>
+        <div class="eq center">\[ \delta\mathbf{U} = \mathbf{L}_{\text{eff}}\,\boldsymbol{\eta}\,\sqrt{\Delta t_B},\quad \boldsymbol{\eta}\sim\mathcal{N}(\mathbf{0},\mathbf{I}_6) \]</div>
+        <p class="small lang-en">Split into \(\delta\mathbf{U}=[\delta\mathbf{X},\delta\boldsymbol{\Theta}]\), it is applied between deterministic <code>ode15s</code> sub-intervals; the rotation part \(\delta\boldsymbol{\Theta}\) updates the body quaternion.</p>
+        <p class="small lang-zh">分为 \(\delta\mathbf{U}=[\delta\mathbf{X},\delta\boldsymbol{\Theta}]\)，施加于确定性 <code>ode15s</code> 子区间之间；转动部分 \(\delta\boldsymbol{\Theta}\) 更新胞体四元数。</p>
+        <div class="card alt">
+          <p class="tiny lang-en" style="margin:0;">Optional <code>fixman_midpoint</code> re-evaluates \(\mathbf{M}_{\text{eff}}\) at a stochastic midpoint to recover the configuration-dependent Itô drift (≈2× mobility cost). A logged RNG seed makes every stochastic run reproducible.</p>
+          <p class="tiny lang-zh" style="margin:0;">可选 <code>fixman_midpoint</code> 在随机中点重算 \(\mathbf{M}_{\text{eff}}\) 以恢复依赖构型的 Itô 漂移（约 2 倍开销）。记录的随机种子使每次随机运行可复现。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Brownian Kick</span><span class="lang-zh">布朗扰动</span></div>
+</section>
+
+<!-- ============ DIVIDER 03 ============ -->
+<section data-background-color="#0f2b46">
+  <div class="content fill dark">
+    <div class="section-num">03</div>
+    <span class="kicker">Part III</span>
+    <h2 style="font-size:1.9em;"><span class="lang-en">Algorithm &amp; Architecture</span><span class="lang-zh">算法与架构</span></h2>
+    <div class="bar"></div>
+  </div>
+</section>
+
+<!-- ============ 16. ALGORITHM ============ -->
+<section>
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Algorithm</span><span class="lang-zh">算法</span></span>
+    <h2><span class="lang-en">Time-Integration Pipeline</span><span class="lang-zh">时间积分流水线</span></h2>
+    <div class="bar"></div>
+    <div class="cols">
+      <div>
+        <h3><span class="lang-en">Per RHS — <code>ode_coupled_rhs.m</code></span><span class="lang-zh">每次右端 — <code>ode_coupled_rhs.m</code></span></h3>
+        <ol class="small lang-en"><li><code>reconstruct_geometry</code>: \(\mathbf{Z}\to\) lab-frame points &amp; directors.</li><li><code>build_coupled_lin_sys</code>: assemble \(\mathbf{L}=-\mathbf{B}\mathbf{A}\mathbf{Q}\) (cached LU).</li><li>Assemble \(\mathbf{R}\): gravity, elastic + active + motor moments, flow correction.</li><li>Apply root BCs (clamped / free-torsion).</li><li>Solve \(\mathbf{L}\dot{\mathbf z}=\mathbf{R}\); pack \(\dot{\mathbf Z}\).</li></ol>
+        <ol class="small lang-zh"><li><code>reconstruct_geometry</code>：\(\mathbf{Z}\to\) 实验室系坐标与 director。</li><li><code>build_coupled_lin_sys</code>：组装 \(\mathbf{L}=-\mathbf{B}\mathbf{A}\mathbf{Q}\)（缓存 LU）。</li><li>组装 \(\mathbf{R}\)：重力、弹性 + 主动 + 马达力矩、流场修正。</li><li>施加根部边界条件（clamped / free-torsion）。</li><li>求解 \(\mathbf{L}\dot{\mathbf z}=\mathbf{R}\)；打包 \(\dot{\mathbf Z}\)。</li></ol>
+      </div>
+      <div class="card">
+        <h3><span class="lang-en">Outer loop — <code>run_simulation.m</code></span><span class="lang-zh">外层循环 — <code>run_simulation.m</code></span></h3>
+        <ul class="small lang-en"><li>Adaptive <code>ode15s</code> with <em>event-driven segmenting</em>: stop on Euler-angle singularity or time limit.</li><li><code>adaptive_basis_check</code>: rotate per-pilus basis away from \(\theta\to0,\pi\).</li><li>Re-normalize the body quaternion each segment.</li><li>Inject correlated Brownian kicks at Brownian nodes.</li><li>Post-process → units, derived quantities, exports.</li></ul>
+        <ul class="small lang-zh"><li>自适应 <code>ode15s</code> + <em>事件驱动分段</em>：遇 Euler 角奇点或超时即停。</li><li><code>adaptive_basis_check</code>：将逐纤毛基底旋转远离 \(\theta\to0,\pi\)。</li><li>每段后重新归一化胞体四元数。</li><li>在布朗节点注入关联布朗扰动。</li><li>后处理 → 单位、导出量、输出文件。</li></ul>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Algorithm</span><span class="lang-zh">算法</span></div>
+</section>
+
+<!-- ============ 17. ARCHITECTURE (interactive Mermaid) ============ -->
+<section>
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></span>
+    <h2><span class="lang-en">Interactive Module Dependency Map</span><span class="lang-zh">可交互模块依赖图</span></h2>
+    <div class="bar"></div>
+    <pre class="mermaid" id="arch-mermaid">
+flowchart TD
+  ENTRY["main_coupled_simulation.m"] --> LC["load_sim_config.m"]
+  ENTRY --> RUN["run_simulation.m"]
+  RUN --> VAL["validate_simulation_params.m"]
+  RUN --> INIT["init_coupled_params.m"]
+  RUN --> STATE["init_coupled_state.m"]
+  RUN --> ODE["ode15s + ode_coupled_rhs.m"]
+  RUN --> BROWN["compute_effective_body_brownian.m"]
+  RUN --> FLOW["compute_plot_flowfield.m"]
+  RUN --> OUT["Outputs: .mat / .csv / .png / .mp4 / .log"]
+  INIT --> CAP["capsule_body_building.m"]
+  INIT --> PIB["pili_building.m"]
+  PIB --> PTB["pili_type_building.m"]
+  ODE --> BLS["build_coupled_lin_sys.m"]
+  BROWN --> BLS
+  ODE --> AM["coupled_active_moment.m"]
+  ODE --> BF["coupled_background_flow.m"]
+  BLS --> RG["reconstruct_geometry.m"]
+  BLS --> BGR["build_global_resistance.m"]
+  RG --> PD["pili_directors.m"]
+  RG --> PSC["pili_spatial_coords.m"]
+
+  classDef core fill:#f1faf8,stroke:#0d9488,stroke-width:2px,color:#0f2b46;
+  classDef io fill:#fdfaf0,stroke:#b08900,stroke-width:2px,color:#5a4500;
+  classDef def fill:#ffffff,stroke:#163e63,stroke-width:1.3px,color:#0f2b46;
+  class ENTRY,LC,VAL,INIT,STATE,CAP,PIB,PTB,AM,BF,RG,PD,PSC def;
+  class RUN,ODE,BLS,BGR,BROWN core;
+  class OUT,FLOW io;
+
+  click ENTRY call mmNode("ENTRY")
+  click LC call mmNode("LC")
+  click RUN call mmNode("RUN")
+  click VAL call mmNode("VAL")
+  click INIT call mmNode("INIT")
+  click STATE call mmNode("STATE")
+  click ODE call mmNode("ODE")
+  click BROWN call mmNode("BROWN")
+  click FLOW call mmNode("FLOW")
+  click OUT call mmNode("OUT")
+  click CAP call mmNode("CAP")
+  click PIB call mmNode("PIB")
+  click PTB call mmNode("PTB")
+  click BLS call mmNode("BLS")
+  click AM call mmNode("AM")
+  click BF call mmNode("BF")
+  click RG call mmNode("RG")
+  click BGR call mmNode("BGR")
+  click PD call mmNode("PD")
+  click PSC call mmNode("PSC")
+    </pre>
+    <p class="mm-hint center"><span class="lang-en">Tip: click any node to see its role.</span><span class="lang-zh">提示：点击任意节点查看其作用。</span></p>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Architecture</span><span class="lang-zh">架构</span></div>
+</section>
+
+<!-- ============ DIVIDER 04 ============ -->
+<section data-background-color="#0f2b46">
+  <div class="content fill dark">
+    <div class="section-num">04</div>
+    <span class="kicker">Part IV</span>
+    <h2 style="font-size:1.9em;"><span class="lang-en">Usage, Outputs &amp; Summary</span><span class="lang-zh">使用、输出与总结</span></h2>
+    <div class="bar"></div>
+  </div>
+</section>
+
+<!-- ============ 18. USAGE ============ -->
+<section>
+  <div class="content">
+    <span class="kicker"><span class="lang-en">How to Run</span><span class="lang-zh">如何运行</span></span>
+    <h2><span class="lang-en">Three Configuration Paths</span><span class="lang-zh">三种配置方式</span></h2>
+    <div class="bar"></div>
+    <div class="cols-3">
+      <div>
+        <h3><span class="lang-en">A · Inline</span><span class="lang-zh">A · 内联</span></h3>
+        <p class="tiny muted lang-en">Edit the <code>cfg</code> block, then run.</p>
+        <p class="tiny muted lang-zh">编辑 <code>cfg</code> 块后运行。</p>
+        <pre><code>% main_coupled_simulation.m
+% edit cfg = struct(...)
+main_coupled_simulation</code></pre>
+      </div>
+      <div>
+        <h3><span class="lang-en">B · JSON</span><span class="lang-zh">B · JSON</span></h3>
+        <p class="tiny muted lang-en">Point to a JSON config file.</p>
+        <p class="tiny muted lang-zh">指向一个 JSON 配置文件。</p>
+        <pre><code>config_file = ...
+ 'configs/my_case.json';
+main_coupled_simulation</code></pre>
+      </div>
+      <div>
+        <h3><span class="lang-en">C · Programmatic</span><span class="lang-zh">C · 编程调用</span></h3>
+        <p class="tiny muted lang-en">Call the engine directly.</p>
+        <p class="tiny muted lang-zh">直接调用引擎。</p>
+        <pre><code>cfg = load_sim_config( ...
+   'configs/config_example.json');
+cfg.auto_confirm = true;
+[results,params,out] = ...
+   run_simulation(cfg);</code></pre>
+      </div>
+    </div>
+    <p class="small lang-en"><strong>Batch:</strong> <code>batch_sweep/batch_run_from_json.m</code> runs every <code>*.json</code> in a folder (optional <code>parfor</code>, duplicate <code>case_name</code> skip, real-time <code>batch_summary_*.log</code>); <code>batch_repeat_brownian.m</code> repeats stochastic runs; analysis via <code>post_processing/postprocess_cases.m</code>.</p>
+    <p class="small lang-zh"><strong>批处理：</strong><code>batch_sweep/batch_run_from_json.m</code> 运行文件夹内每个 <code>*.json</code>（可选 <code>parfor</code>、重复 <code>case_name</code> 跳过、实时 <code>batch_summary_*.log</code>）；<code>batch_repeat_brownian.m</code> 重复随机运行；分析用 <code>post_processing/postprocess_cases.m</code>。</p>
+    <p class="tiny muted lang-en">Requirements: MATLAB R2020b+ · S2 Sampling Toolbox (capsule bodies) · Parallel Computing Toolbox (optional) · no Python / pip.</p>
+    <p class="tiny muted lang-zh">环境要求：MATLAB R2020b+ · S2 Sampling Toolbox（胶囊体）· Parallel Computing Toolbox（可选）· 无需 Python / pip。</p>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Usage</span><span class="lang-zh">使用方法</span></div>
+</section>
+
+<!-- ============ 19. OUTPUTS ============ -->
+<section>
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Outputs</span><span class="lang-zh">输出</span></span>
+    <h2><span class="lang-en">What a Run Produces</span><span class="lang-zh">一次运行的产物</span></h2>
+    <div class="bar"></div>
+    <p class="small muted lang-en">Written under <code>output/&lt;case_name&gt;/</code> or a timestamped run folder.</p>
+    <p class="small muted lang-zh">写入 <code>output/&lt;case_name&gt;/</code> 或带时间戳的运行文件夹。</p>
+    <table class="lang-en">
+      <tr><th>File</th><th>Purpose</th></tr>
+      <tr><td><code>simulation_results.mat</code></td><td>Full <code>results</code> and <code>params</code> structures.</td></tr>
+      <tr><td><code>timeseries.csv</code></td><td>Scalar time series for external analysis.</td></tr>
+      <tr><td><code>config.json</code></td><td>Saved run configuration for exact reproduction.</td></tr>
+      <tr><td><code>summary_plot</code> .png/.pdf/.html</td><td>Trajectory and summary figure.</td></tr>
+      <tr><td><code>flowfield_panels</code> .png/.pdf/.html</td><td>XZ / YZ flow-field panels (2×2).</td></tr>
+      <tr><td><code>initial_pose</code> .png/.pdf/.html</td><td>Initial pose preview (when enabled).</td></tr>
+      <tr><td><code>bacteria_3d_motion.mp4</code></td><td>Optional 3-D animation.</td></tr>
+      <tr><td><code>simulation.log</code> · <code>brownian_rng_seed.txt</code></td><td>Run log · Brownian seed (if enabled).</td></tr>
+    </table>
+    <table class="lang-zh">
+      <tr><th>文件</th><th>用途</th></tr>
+      <tr><td><code>simulation_results.mat</code></td><td>完整 <code>results</code> 与 <code>params</code> 结构体。</td></tr>
+      <tr><td><code>timeseries.csv</code></td><td>供外部分析的标量时间序列。</td></tr>
+      <tr><td><code>config.json</code></td><td>保存的运行配置，便于精确复现。</td></tr>
+      <tr><td><code>summary_plot</code> .png/.pdf/.html</td><td>轨迹与汇总图。</td></tr>
+      <tr><td><code>flowfield_panels</code> .png/.pdf/.html</td><td>XZ / YZ 流场面板（2×2）。</td></tr>
+      <tr><td><code>initial_pose</code> .png/.pdf/.html</td><td>初始位姿预览（启用时）。</td></tr>
+      <tr><td><code>bacteria_3d_motion.mp4</code></td><td>可选三维动画。</td></tr>
+      <tr><td><code>simulation.log</code> · <code>brownian_rng_seed.txt</code></td><td>运行日志 · 布朗随机种子（启用时）。</td></tr>
+    </table>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · <span class="lang-en">Outputs</span><span class="lang-zh">输出</span></div>
+</section>
+
+<!-- ============ 21. SUMMARY ============ -->
+<section>
+  <div class="content">
+    <span class="kicker"><span class="lang-en">Summary</span><span class="lang-zh">总结</span></span>
+    <h2><span class="lang-en">Key Takeaways</span><span class="lang-zh">要点回顾</span></h2>
+    <div class="bar"></div>
+    <div class="cols">
+      <div class="card">
+        <h3><span class="lang-en">What it delivers</span><span class="lang-zh">能力</span></h3>
+        <ul class="small lang-en"><li>A <em>fully coupled</em> body–pili elastohydrodynamic solver in Stokes flow.</li><li>RSM + RSS + rotlet hydrodynamics with Kirchhoff elasticity and quaternion body motion.</li><li>Optional Brownian dynamics, background flow, and motor-driven flagella.</li></ul>
+        <ul class="small lang-zh"><li>Stokes 流中<em>完全耦合</em>的胞体–纤毛弹性流体动力学求解器。</li><li>RSM + RSS + rotlet 流体力学，结合 Kirchhoff 弹性与四元数胞体运动。</li><li>可选布朗动力学、背景流与马达驱动鞭毛。</li></ul>
+      </div>
+      <div class="card alt">
+        <h3><span class="lang-en">Why it is robust</span><span class="lang-zh">为何稳健</span></h3>
+        <ul class="small lang-en"><li>Consistent nondimensionalization &amp; Walker-scaling homogeneity.</li><li>Configuration-driven, reproducible, batch-capable.</li><li>Publication-grade, multi-format outputs.</li></ul>
+        <ul class="small lang-zh"><li>一致的无量纲化与 Walker 尺度齐次性。</li><li>配置驱动、可复现、支持批处理。</li><li>出版级多格式输出。</li></ul>
+      </div>
+    </div>
+    <p class="small muted lang-en">Documentation: <code>README.md</code> · <code>USER_GUIDE.md</code> · <code>docs/theory.md</code> · <code>CHANGELOG.md</code>.</p>
+    <p class="small muted lang-zh">文档：<code>README.md</code> · <code>USER_GUIDE.md</code> · <code>docs/theory.md</code> · <code>CHANGELOG.md</code>。</p>
+    <div class="refs">
+      <h3 class="refs-title"><span class="lang-en">References</span><span class="lang-zh">参考文献</span></h3>
+      <ol class="tiny muted">
+        <li>Cortez, R., Fauci, L., &amp; Medovikov, A. (2005). The method of regularized Stokeslets in three dimensions: analysis, validation, and application to helical swimming. <em>Phys. Fluids</em>, <strong>17</strong>(3), 031504.</li>
+        <li>Cortez, R. (2018). Regularized Stokeslet segments. <em>J. Comput. Phys.</em>, <strong>375</strong>, 783–796.</li>
+        <li>Walker, B. J., Ishimoto, K., &amp; Gaffney, E. A. (2020). Efficient simulation of filament elastohydrodynamics in three dimensions. <em>Phys. Rev. Fluids</em>, <strong>5</strong>, 123103.</li>
+      </ol>
+    </div>
+  </div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · v7.5.0</div>
+</section>
+
+<!-- ============ 22. THANK YOU ============ -->
+<section data-background-gradient="linear-gradient(135deg,#0f2b46 0%,#163e63 55%,#0d9488 140%)">
+  <div class="content fill dark center" style="align-items:center;text-align:center;">
+    <span class="kicker"><span class="lang-en">Thank You</span><span class="lang-zh">谢谢</span></span>
+    <h1 style="font-size:1.85em;"><span class="lang-en">Questions &amp; Discussion</span><span class="lang-zh">提问与讨论</span></h1>
+    <div class="bar" style="margin-left:auto;margin-right:auto;"></div>
+    <p class="muted" style="font-size:.68em;">Lucien &nbsp;·&nbsp; lucien-6@qq.com &nbsp;·&nbsp; Version 7.5.0 (2026-06-10)</p>
+  </div>
+</section>
+
+</div>
+</div>
+
+<!-- reveal.js core + plugins -->
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/plugin/notes/notes.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/plugin/math/math.js"></script>
+<!-- Mermaid (UMD) -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+<script>
+  /* ---------- Language toggle ---------- */
+  function setLang(lang){
+    document.documentElement.setAttribute('data-lang', lang);
+    document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+    document.getElementById('btn-zh').classList.toggle('active', lang === 'zh');
+    try{ localStorage.setItem('ppt-lang', lang); }catch(e){}
+    if(window.Reveal && Reveal.isReady && Reveal.isReady()){ Reveal.layout(); }
+  }
+  (function initLang(){
+    var q = new URLSearchParams(location.search).get('lang');
+    if(q === 'zh' || q === 'en'){ setLang(q); return; }
+    var saved = 'en';
+    try{ saved = localStorage.getItem('ppt-lang') || 'en'; }catch(e){}
+    setLang(saved === 'zh' ? 'zh' : 'en');
+  })();
+
+  /* ---------- Mermaid node-click toast (bilingual, detailed) ---------- */
+  var NODE_INFO = {
+    ENTRY: { t:'main_coupled_simulation.m',
+      en:'User entry point. Defines an inline <code>cfg</code> struct or loads a JSON file, adds the project paths defensively, then delegates the actual run to <code>run_simulation</code>.',
+      zh:'用户入口。定义内联 <code>cfg</code> 结构体或加载 JSON 文件，稳健地添加工程路径，然后把实际运行交给 <code>run_simulation</code>。' },
+    LC: { t:'src/config/load_sim_config.m',
+      en:'JSON configuration loader. Parses a config file into the flat <code>cfg</code> struct, filling project fallback defaults (e.g. T_obs=30 s, dt=0.1 s, rho_bac=1180).',
+      zh:'JSON 配置加载器。将配置文件解析为扁平 <code>cfg</code> 结构体，并填入工程回退默认值（如 T_obs=30 s、dt=0.1 s、rho_bac=1180）。' },
+    RUN: { t:'run_simulation.m',
+      en:'Core engine. Runs validation and initialization, the adaptive <code>ode15s</code> integration loop with event-driven segmenting, Brownian kicks, post-processing (units & derived quantities), and all exports (MAT/CSV/figures/MP4/log).',
+      zh:'核心引擎。执行参数校验与初始化、带事件分段的自适应 <code>ode15s</code> 积分循环、布朗扰动、后处理（单位与导出量）以及全部输出（MAT/CSV/图/MP4/日志）。' },
+    VAL: { t:'src/config/validate_simulation_params.m',
+      en:'Pre-flight parameter validation. Checks ranges and consistency, rejects parametric/custom geometry mixing, and warns on suboptimal numerics before a long run.',
+      zh:'运行前参数校验。检查取值范围与一致性，拒绝参数化/自定义几何混用，并在长时运行前对欠佳的数值设置发出告警。' },
+    INIT: { t:'src/config/init_coupled_params.m',
+      en:'Builds the <code>params</code> struct: body & pili geometry, nondimensional scales (L0, EI, T0, U0, F0), intrinsic curvature, active moments, root coupling, motor torque, and background flow.',
+      zh:'构建 <code>params</code> 结构体：胞体与纤毛几何、无量纲尺度（L0、EI、T0、U0、F0）、内禀曲率、主动力矩、根部耦合、马达力矩与背景流。' },
+    STATE: { t:'src/config/init_coupled_state.m',
+      en:'Constructs the initial global state vector Z0: body at origin with the chosen orientation, per-pilus initial Euler angles, and an enforced clamped-root geometry for consistency.',
+      zh:'构建初始全局状态向量 Z0：胞体置于原点并取设定姿态、逐纤毛初始 Euler 角，并强制 clamped 根部几何以保证一致性。' },
+    ODE: { t:'src/core/ode_coupled_rhs.m',
+      en:'The ODE right-hand side. Assembles R (gravity, elastic + active + motor moments, background-flow correction), applies root boundary conditions, solves L·z_dot = R, and packs dZ/dt.',
+      zh:'ODE 右端函数。组装 R（重力、弹性 + 主动 + 马达力矩、背景流修正），施加根部边界条件，求解 L·z_dot = R，并打包 dZ/dt。' },
+    BROWN: { t:'src/physics/compute_effective_body_brownian.m',
+      en:'Probes the coupled linear system with six unit body loads to obtain the full-system 6×6 effective mobility, the diffusion tensor D=kT·M, and its Cholesky factor for correlated Brownian kicks.',
+      zh:'用 6 个单位胞体载荷探测耦合线性系统，得到全系统 6×6 有效迁移率、扩散张量 D=kT·M 及其 Cholesky 因子，用于生成关联布朗扰动。' },
+    FLOW: { t:'src/visualization/compute_plot_flowfield.m',
+      en:'Reconstructs the end-state geometry, evaluates the flow on XZ and YZ planes around the body centre, masks body interiors, and exports a 2×2 panel figure.',
+      zh:'重建末态几何，在胞体中心周围的 XZ 与 YZ 平面上求流场，屏蔽胞体内部，并导出 2×2 面板图。' },
+    OUT: { t:'Run products',
+      en:'Outputs written per run: <code>simulation_results.mat</code>, <code>timeseries.csv</code>, <code>config.json</code>, summary &amp; flow-field figures (PNG/PDF/HTML), optional <code>bacteria_3d_motion.mp4</code>, <code>simulation.log</code>, and the Brownian RNG seed.',
+      zh:'每次运行的产物：<code>simulation_results.mat</code>、<code>timeseries.csv</code>、<code>config.json</code>、汇总图与流场图（PNG/PDF/HTML）、可选 <code>bacteria_3d_motion.mp4</code>、<code>simulation.log</code> 及布朗随机种子。' },
+    CAP: { t:'src/geometry/capsule_body_building.m',
+      en:'Builds the capsule body-surface point cloud — two hemispherical caps plus a cylindrical midsection — distributing points by surface area.',
+      zh:'构建胶囊体表面点云——两个半球帽加一段圆柱——按表面积分配点。' },
+    PIB: { t:'src/geometry/pili_building.m',
+      en:'Constructs parametric pili (linear, parabolic, circular, sinusoidal, conical spiral), applies attachment-site placement, and resamples to N vertices.',
+      zh:'构建参数化纤毛（直线、抛物、圆、正弦、锥形螺旋），应用附着点定位，并重采样到 N 个顶点。' },
+    PTB: { t:'src/geometry/pili_type_building.m',
+      en:'Generates the raw 3-D coordinates of a single pilus morphology in its local frame, with arclength-uniform resampling and deflection rotations.',
+      zh:'在局部坐标系中生成单根纤毛形态的原始三维坐标，含弧长均匀重采样与偏转旋转。' },
+    BLS: { t:'src/core/build_coupled_lin_sys.m',
+      en:'Assembles the coupled system matrix L = −B·A·Q: builds Q_global and B_global, applies clamped / free-torsion root boundary conditions, and reuses a cached LU factorization.',
+      zh:'组装耦合系统矩阵 L = −B·A·Q：构建 Q_global 与 B_global，施加 clamped / free-torsion 根部边界条件，并复用缓存的 LU 分解。' },
+    AM: { t:'src/physics/coupled_active_moment.m',
+      en:'Computes time-varying active internal moments (traveling wave or custom), projected onto the local director basis, with root-segment moment handling.',
+      zh:'计算随时间变化的主动内力矩（行波或自定义），投影到局部 director 基底，并处理根段力矩。' },
+    BF: { t:'src/physics/coupled_background_flow.m',
+      en:'Evaluates the background flow (off / uniform / shear_z) at every hydrodynamic point and the associated twist rates, feeding the RHS flow correction.',
+      zh:'在每个水动力点上求背景流（off / uniform / shear_z）及相应扭转速率，提供右端项的流场修正。' },
+    RG: { t:'src/geometry/reconstruct_geometry.m',
+      en:'Maps the state vector Z to lab-frame body points, pilus nodes, and director vectors used by the hydrodynamic solve.',
+      zh:'将状态向量 Z 映射为水动力求解所用的实验室系胞体点、纤毛节点与 director 向量。' },
+    BGR: { t:'src/core/build_global_resistance.m',
+      en:'Builds the global mobility matrix (body RSM + pili RSS blocks) and the torsional-resistance / rotlet-segment blocks, using the vectorized Cortez recurrences.',
+      zh:'用向量化的 Cortez 递推构建全局迁移率矩阵（胞体 RSM + 纤毛 RSS 块）以及扭转阻力 / rotlet 段块。' },
+    PD: { t:'src/math/pili_directors.m',
+      en:'Computes the material-frame directors (d1, d2, d3) from the Euler angles (theta, phi, psi).',
+      zh:'由 Euler 角 (theta, phi, psi) 计算材料标架 director (d1, d2, d3)。' },
+    PSC: { t:'src/math/pili_spatial_coords.m',
+      en:'Reconstructs pilus node positions by cumulatively integrating tangent vectors from the root (vectorized via cumsum, v7.4.6).',
+      zh:'通过从根部累积积分切向量重建纤毛节点位置（v7.4.6 起用 cumsum 向量化）。' }
+  };
+  var toastTimer = null;
+  window.mmNode = function(key){
+    var lang = document.documentElement.getAttribute('data-lang') || 'en';
+    var info = NODE_INFO[key];
+    var t = document.getElementById('mm-toast');
+    if(!info){ t.textContent = key; }
+    else { t.innerHTML = '<span class="mm-title">' + info.t + '</span>' + (info[lang] || info.en); }
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 6000);
+  };
+
+  /* ---------- Mermaid init + lazy render (avoids 0-width in hidden slides) ---------- */
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: 'loose',
+    theme: 'base',
+    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis', nodeSpacing: 24, rankSpacing: 40, padding: 6 },
+    themeVariables: {
+      fontFamily: 'Arial, Helvetica, sans-serif',
+      fontSize: '20px',
+      lineColor: '#163e63',
+      primaryColor: '#ffffff',
+      primaryTextColor: '#0f2b46',
+      primaryBorderColor: '#163e63'
+    }
+  });
+
+  var mermaidDone = false;
+  function renderArchMermaid(){
+    if(mermaidDone) return;
+    var el = document.getElementById('arch-mermaid');
+    if(!el) return;
+    var section = el.closest('section');
+    // render only when its slide is actually visible (non-zero width)
+    if(section && section.classList.contains('present')){
+      mermaidDone = true;
+      mermaid.run({ nodes: [el] }).then(function(){
+        if(window.Reveal && Reveal.layout) Reveal.layout();
+      }).catch(function(err){ mermaidDone = false; console.error('mermaid', err); });
+    }
+  }
+
+  /* ---------- reveal.js init ---------- */
+  Reveal.initialize({
+    width: 1280,
+    height: 720,
+    margin: 0.04,
+    minScale: 0.2,
+    maxScale: 1.6,
+    hash: true,
+    controls: true,
+    progress: true,
+    center: false,
+    slideNumber: 'c/t',
+    transition: 'slide',
+    plugins: [ RevealMath.MathJax3, RevealNotes ],
+    math: {
+      mathjax: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js',
+      tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']], packages: { '[+]': ['ams'] } },
+      options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] }
+    }
+  }).then(function(){
+    renderArchMermaid();
+  });
+  Reveal.on('slidechanged', renderArchMermaid);
+</script>
+</body>
+</html>

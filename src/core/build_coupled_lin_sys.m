@@ -202,6 +202,20 @@ B_global(5, 3:3:3*N_total) = -w_all .* rax;
 B_global(6, 1:3:3*N_total) = -w_all .* ray;
 B_global(6, 2:3:3*N_total) =  w_all .* rax;
 
+%  Net rotlet (axial torsional) torque in the system angular-momentum
+%  balance.  The pili rotlet strengths m (the twist/torque-density block of
+%  the force vector, columns 3*N_total+1:end) are point couples that the
+%  filaments exert on the fluid, in the SAME nondimensional torque units and
+%  sign convention as r x f (the regularised rotlet velocity u = (m x r)*ker
+%  matches the standard rotlet u = (T x r)/r^3 with T = m).  The total
+%  hydrodynamic torque on a free swimmer is therefore sum(r x f) + sum(m),
+%  not sum(r x f) alone; rows 4-6 must include BOTH for an exact torque-free
+%  (or prescribed-external-torque) balance.  This is mandatory physics (total
+%  angular-momentum flux), hard-wired ON -- there is no leading-order variant.
+B_global(4, 3*N_total+1 : 3 : n_force) = 1;
+B_global(5, 3*N_total+2 : 3 : n_force) = 1;
+B_global(6, 3*N_total+3 : 3 : n_force) = 1;
+
 row_offset       = 6;
 col_offset_trans = 3 * N_body;
 col_offset_twist = 3 * N_total;
