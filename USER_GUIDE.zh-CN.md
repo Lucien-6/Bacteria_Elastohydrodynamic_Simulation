@@ -3,10 +3,12 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 7.5.0
+> **版本:** 7.7.0
 > **更新日期:** 2026-06-10
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
+
+版本提示：v7.7.0 将布朗动力学改为显式严格 Ito 热漂移与 SPD 投影扩散，移除旧的 Brownian 中点选项，修正 Kirchhoff 扭矩密度缩放，并让最终流场提取使用实际达到的终止时间。
 
 ## 1. 运行前准备
 
@@ -90,7 +92,7 @@ main_coupled_simulation
 | `root_coupling` | `clamped`、`free_torsion` | `build_coupled_lin_sys.m` |
 | `motor_torque.type` | `off`、`constant` | `init_coupled_params.m` |
 
-布朗 JSON 字段由 [`load_sim_config.m`](src/config/load_sim_config.m) 映射：`brownian.enable`、`brownian.temperature` → `Temper`、`brownian.rng_seed`、`brownian.dt_B_ratio`、`brownian.fixman_midpoint`。
+布朗 JSON 字段由 [`load_sim_config.m`](src/config/load_sim_config.m) 映射：`brownian.enable`、`brownian.temperature` -> `Temper`、`brownian.rng_seed`、`brownian.dt_B_ratio`。
 
 权威格式以仓库中的示例 JSON 文件和 [`src/config/load_sim_config.m`](src/config/load_sim_config.m) 的实现为准。
 
@@ -164,11 +166,13 @@ run('batch_sweep/batch_run_from_json.m');
 
 在 JSON 中设置 `brownian.enable`，或在 MATLAB 中设置 `cfg.enable_brown`。
 
+自 v7.7.0 起，Brownian 更新采用严格 body-only Ito 形式：通过有限差分显式计算热漂移 `kBT*div(M_eff)`，并使用 SPD 投影后的扩散协方差。当前不再提供用户可配置的中点漂移选项。
+
 重要选项包括：
 
+- `brownian.temperature`: 正的流体绝对温度，单位 K；启用布朗运动时必需。
 - `brownian.rng_seed`: 固定正整数种子，用于可复现运行。
 - `brownian.dt_B_ratio`: 布朗时间步相对于输出时间步的比例。
-- `brownian.fixman_midpoint`: 启用 Fixman 中点修正，用于处理构型依赖迁移率。
 
 启用布朗运动后，实际使用的随机种子会保存到 `config.json`、`brownian_rng_seed.txt`、`simulation.log` 和 `simulation_results.mat`。
 

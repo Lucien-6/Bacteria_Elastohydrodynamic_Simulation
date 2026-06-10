@@ -19,7 +19,7 @@
 %      case_name, minor_axis, major_axis, N_body, alpha_0, eps_body,
 %      Pili_Matrix, pili_ext, seg_per_um, E, r_pili, sigma_p,
 %      mu, rho_bac, rho_fluid, T_obs, AbsTol, RelTol,
-%      delta, tlim, dt, enable_brown, Temper, dt_B, fixman_midpoint, brown_rng_seed,
+%      delta, tlim, dt, enable_brown, Temper, dt_B, brown_rng_seed,
 %      preview_initial, generate_animation, animation_fps, animation_skip,
 %      auto_confirm, compute_flowfield,
 %      flowfield_grid_spacing, flowfield_grid_range,
@@ -135,7 +135,6 @@ cfg.enable_brown     = logical(get_json(jbr, 'enable', false));
 cfg.Temper           = get_json(jbr, 'temperature', 293.15);
 dt_B_ratio           = get_json(jbr, 'dt_B_ratio', 0.5);
 cfg.dt_B             = cfg.dt * dt_B_ratio;
-cfg.fixman_midpoint  = logical(get_json(jbr, 'fixman_midpoint', false));
 
 % Optional: positive scalar = fixed twister seed; omit / NaN / nonpositive = time-based default
 if isfield(jbr, 'rng_seed')

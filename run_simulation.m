@@ -22,7 +22,7 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Log banner version: 7.5.0 (2026-06-10) — keep in sync with README / CHANGELOG
+%  Log banner version: 7.7.0 (2026-06-10) - keep in sync with README / CHANGELOG
 %
 %  Path: defensive addpath(project root) so run_simulation(cfg) works when
 %  invoked without main_coupled_simulation.m. Unified policy = this line plus
@@ -76,11 +76,6 @@ dt                     = cfg.dt;
 enable_brown           = cfg.enable_brown;
 Temper                 = cfg.Temper;
 dt_B                   = cfg.dt_B;
-if isfield(cfg, 'fixman_midpoint')
-    fixman_midpoint = logical(cfg.fixman_midpoint);
-else
-    fixman_midpoint = false;   % backward-compatible with cfg structs predating this field
-end
 preview_initial        = cfg.preview_initial;
 generate_animation     = cfg.generate_animation;
 animation_fps          = cfg.animation_fps;
@@ -237,7 +232,7 @@ logf_file = @(varargin) log_file_only(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Bacteria Elastohydrodynamic Simulation\n');
-logf('  Version 7.5.0\n');
+logf('  Version 7.7.0\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -339,8 +334,8 @@ logf('[PARAMS] Preview: %s\n', mat2str(preview_initial));
 logf('[PARAMS] Animation: fps = %d, skip = %d\n', animation_fps, animation_skip);
 logf('[PARAMS] Flowfield: grid = %.2f um, range = %.1f um, quiver_skip = %d\n', ...
     flowfield_grid_spacing, flowfield_grid_range, flowfield_quiver_skip);
-logf('[PARAMS] Brownian: enable = %s, Temper = %.2f K, dt_B = %.4f s, fixman = %s\n', ...
-    mat2str(enable_brown), Temper, dt_B, mat2str(fixman_midpoint));
+logf('[PARAMS] Brownian: enable = %s, Temper = %.2f K, dt_B = %.4f s, Ito drift = strict finite-difference\n', ...
+    mat2str(enable_brown), Temper, dt_B);
 if enable_brown
     logf('[PARAMS] Brownian RNG: seed = %d (twister), saved for reproducibility\n', ...
         brown_rng_seed_used);
@@ -365,7 +360,6 @@ val_cfg = struct( ...
     'AbsTol', AbsTol, 'RelTol', RelTol, 'tlim', tlim, ...
     'enable_brown', enable_brown, 'dt_B', dt_B, ...
     'animation_fps', animation_fps, 'sigma_p', sigma_p, ...
-    'fixman_midpoint', fixman_midpoint, ...
     'geometry_mode', geometry_mode);
 if isfield(cfg, 'background_flow')
     val_cfg.background_flow = cfg.background_flow;
@@ -409,7 +403,6 @@ params = init_coupled_params( ...
     'delta',        delta, ...
     'Temper',       Temper, ...
     'enable_brown', enable_brown, ...
-    'fixman_midpoint', fixman_midpoint, ...
     'intrinsic_curvature', intrinsic_curvature_cfg, ...
     'active_moment',       active_moment_cfg, ...
     'root_coupling',       root_coupling_cfg, ...
@@ -450,7 +443,7 @@ if ~isempty(eps_body_cfg)
     logf('[INIT]   eps_body (RSM override, L0): %.6f  (h_mean = %.6f)\n', ...
         params.eps_body, params.body_h_mean);
 end
-logf('[INIT]   alpha_0 = %.4f rad (%.1f deg) — initial body tilt\n', ...
+logf('[INIT]   alpha_0 = %.4f rad (%.1f deg) -initial body tilt\n', ...
     params.alpha_0, rad2deg(params.alpha_0));
 logf('[INIT]   F_sink = %.2e N, F_0 = %.2e N\n', F_sink_N, params.scales.F_0);
 logf('[INIT]   V_body = %.4e m^3\n', V_body_m3);
@@ -650,7 +643,7 @@ if preview_initial
     % Interactive confirmation dialog (skipped in headless mode)
     if auto_confirm
         user_choice = 'Proceed';
-        logf('[PREVIEW] Auto-confirm enabled — skipping interactive dialog.\n');
+        logf('[PREVIEW] Auto-confirm enabled -skipping interactive dialog.\n');
     else
         logf('[PREVIEW] Waiting for user confirmation...\n');
         user_choice = questdlg( ...
@@ -742,11 +735,7 @@ if params.brown_enabled
     T_brown_next   = dt_B_dimless;
     logf('[BROWN] Brownian dynamics enabled (full-system effective friction)\n');
     logf('[BROWN] dt_B = %.4f s = %.4e T*\n', dt_B, dt_B_dimless);
-    if params.brown_fixman_midpoint
-        logf('[BROWN] Fixman midpoint correction: ENABLED (2x mobility evaluation per step)\n');
-    else
-        logf('[BROWN] Fixman midpoint correction: DISABLED (single evaluation per step)\n');
-    end
+    logf('[BROWN] Strict Ito drift correction: ENABLED (body-only finite-difference div(M))\n');
     brown_kick_count    = 0;
     brown_log_interval  = 100;
 else
@@ -840,35 +829,15 @@ while T_achieved < T_obs_dimless
         brown_tol = dt_B_dimless * 1e-8;
         if T_achieved >= T_brown_next - brown_tol
 
-            if params.brown_fixman_midpoint
-                % --- Fixman midpoint correction (2x mobility evaluation) ---
-                L_0_chol = compute_effective_body_brownian(Z_end, params);
-                eta_6d   = randn(6, 1);
-                dU_trial = L_0_chol * eta_6d * sqrt(dt_B);
-
-                % Half-step predictor state
-                Z_mid = Z_end;
-                Z_mid(1:3) = Z_mid(1:3) + 0.5 * dU_trial(1:3) / params.scales.L_0;
-                dTheta_half = 0.5 * dU_trial(4:6);
-                ang_h = norm(dTheta_half);
-                if ang_h > 1e-15
-                    dq_h = [cos(ang_h/2); (sin(ang_h/2)/ang_h) * dTheta_half];
-                else
-                    dq_h = [1; 0; 0; 0];
-                end
-                Z_mid(4:7) = quat_multiply(dq_h, Z_mid(4:7));
-                Z_mid(4:7) = Z_mid(4:7) / norm(Z_mid(4:7));
-                Z_mid = enforce_clamped_geometry(Z_mid, params);
-
-                % Corrector: recompute L at midpoint, SAME eta
-                L_mid  = compute_effective_body_brownian(Z_mid, params);
-                dU_dim = L_mid * eta_6d * sqrt(dt_B);
-            else
-                % --- Simple per-step evaluation (no drift correction) ---
-                L_eff_step = compute_effective_body_brownian(Z_end, params);
-                eta_6d     = randn(6, 1);
-                dU_dim     = L_eff_step * eta_6d * sqrt(dt_B);
-            end
+            % --- Strict body-only Ito Brownian step ---
+            % Mobility-dependent noise requires the thermal drift
+            % kB*T*div(M).  The drift is computed by finite differences in
+            % the same six body coordinates that receive the stochastic kick;
+            % pili internal Brownian modes remain intentionally disabled.
+            L_eff_step = compute_effective_body_brownian(Z_end, params);
+            drift_6d   = compute_body_ito_drift(Z_end, params);
+            eta_6d     = randn(6, 1);
+            dU_dim     = drift_6d * dt_B + L_eff_step * eta_6d * sqrt(dt_B);
 
             % -- Apply translational displacement (lab frame) --
             dX_lab     = dU_dim(1:3);
@@ -893,8 +862,8 @@ while T_achieved < T_obs_dimless
             T_brown_next       = (brown_kick_count + 1) * dt_B_dimless;
 
             if brown_kick_count <= 5 || mod(brown_kick_count, brown_log_interval) == 0
-                logf('[BROWN] Kick #%d at t* = %.4e | |dX| = %.2e m | |dTheta| = %.2e rad\n', ...
-                    brown_kick_count, T_achieved, norm(dX_lab), ang);
+                logf('[BROWN] Kick #%d at t* = %.4e | |dX| = %.2e m | |dTheta| = %.2e rad | |drift| = %.2e /s\n', ...
+                    brown_kick_count, T_achieved, norm(dX_lab), ang, norm(drift_6d));
             end
         end
     end
@@ -1235,12 +1204,12 @@ end
 n_snapshots  = min(10, NT);
 snap_indices = round(linspace(1, NT, n_snapshots));
 
-% Time-gradient colormaps: light (early) → dark (late)
+% Time-gradient colormaps: light (early) -dark (late)
 body_cmap = [linspace(0.75, 0.10, n_snapshots)', ...   % R
              linspace(0.92, 0.55, n_snapshots)', ...   % G
              linspace(0.78, 0.25, n_snapshots)'];      % B  (light→dark green)
 
-% Per-pili time-gradient colormaps: light (early) → dark (late)
+% Per-pili time-gradient colormaps: light (early) -dark (late)
 pili_cmaps = cell(M_pili, 1);
 for k = 1:M_pili
     base_c = pili_colors(k, :);
@@ -1512,7 +1481,7 @@ if generate_animation
         anim_fig_w_new = 2 * ceil(max(round(anim_fig_w * scale), 1800) / 2);
         anim_fig_h_new = 2 * round(anim_fig_w_new / ideal_ar / 2);
         anim_fig_h_new = max(anim_fig_h_new, 480);
-        logf('[ANIM] Ideal size %d x %d exceeds codec limit [%d x %d] — rescaled to %d x %d.\n', ...
+        logf('[ANIM] Ideal size %d x %d exceeds codec limit [%d x %d] -rescaled to %d x %d.\n', ...
             anim_fig_w, anim_fig_h, anim_max_w, anim_max_h, anim_fig_w_new, anim_fig_h_new);
         anim_fig_w = anim_fig_w_new;
         anim_fig_h = anim_fig_h_new;
@@ -1520,7 +1489,7 @@ if generate_animation
     logf('[ANIM] Figure size (logical): %d x %d px  (1x3 layout: 3D + XZ + YZ)\n', ...
         anim_fig_w, anim_fig_h);
 
-    % Create (invisible) animation figure — 3-panel layout
+    % Create (invisible) animation figure -3-panel layout
     fig_anim = figure('Units', 'pixels', 'Position', [50, 50, anim_fig_w, anim_fig_h], ...
                       'Color', 'w', 'Visible', 'off');
     set(fig_anim, 'DefaultAxesFontName',  'Arial', ...
@@ -1583,7 +1552,7 @@ if generate_animation
         new_log_h = 2 * floor(anim_fig_h * shrink / 2);
         new_log_w = max(new_log_w, 400);
         new_log_h = max(new_log_h, 300);
-        logf('[ANIM] Physical size exceeds codec limit [%d x %d] — shrinking figure to %d x %d logical.\n', ...
+        logf('[ANIM] Physical size exceeds codec limit [%d x %d] -shrinking figure to %d x %d logical.\n', ...
             anim_max_w, anim_max_h, new_log_w, new_log_h);
         set(fig_anim, 'Position', [50, 50, new_log_w, new_log_h]);
         anim_fig_w = new_log_w;
@@ -1604,7 +1573,7 @@ if generate_animation
               vid_w, vid_h);
     end
 
-    % Now open VideoWriter — frame size is known
+    % Now open VideoWriter -frame size is known
     mp4_file = fullfile(output_dir, 'bacteria_3d_motion.mp4');
     vid = VideoWriter(mp4_file, 'MPEG-4');
     vid.FrameRate = animation_fps;
@@ -1722,7 +1691,7 @@ if generate_animation
 
         drawnow;
 
-        % Capture frame (no rect — let MATLAB return natural physical pixels)
+        % Capture frame (no rect -let MATLAB return natural physical pixels)
         frame = getframe(fig_anim);
         [fh, fw, ~] = size(frame.cdata);
         if fh ~= vid_h || fw ~= vid_w
@@ -1759,7 +1728,7 @@ if compute_flowfield
     flow_opts.grid_range_um   = flowfield_grid_range;
     flow_opts.quiver_skip     = flowfield_quiver_skip;
     flow_opts.chunk_size      = flowfield_chunk_size;
-    compute_plot_flowfield(last_Z, params, output_dir, run_id, logf, flow_opts);
+    compute_plot_flowfield(last_Z, params, output_dir, run_id, logf, flow_opts, T_achieved);
     t_flow_elapsed = toc(t_flow_start);
     logf('[FLOW] Flow field visualisation completed in %s\n\n', format_duration(t_flow_elapsed));
 else
@@ -1860,7 +1829,7 @@ function dual_log(fid, varargin)
 %DUAL_LOG  Write formatted message to both console and log file (with timestamp)
     msg = sprintf(varargin{:});
     ts  = char(datetime('now', 'Format', 'HH:mm:ss'));
-    fprintf('%s', msg);                    % Console (no timestamp — cleaner)
+    fprintf('%s', msg);                    % Console (no timestamp -cleaner)
     fprintf(fid, '[%s] %s', ts, msg);     % File (with timestamp)
 end
 
@@ -1946,6 +1915,51 @@ end
 function u8 = im2uint8_mat(Z)
     Z = max(0, min(255, round(Z)));
     u8 = uint8(Z);
+end
+
+function drift_6d = compute_body_ito_drift(Z, params)
+%COMPUTE_BODY_ITO_DRIFT  Finite-difference kBT*div(M) for body-only Brownian.
+%  Coordinates are physical [m,m,m,rad,rad,rad].  The perturbations are
+%  applied to the body pose only, then root geometry is projected back to the
+%  current clamped/free-torsion constraints.
+    kB = 1.380649e-23;
+    kBT = kB * params.dim.Temper;
+    drift_6d = zeros(6, 1);
+
+    h_trans = max(1e-5 * params.scales.L_0, 1e-12);
+    h_rot   = 1e-5;
+    h = [h_trans; h_trans; h_trans; h_rot; h_rot; h_rot];
+
+    for j = 1:6
+        Z_plus  = perturb_body_pose(Z, params, j,  h(j));
+        Z_minus = perturb_body_pose(Z, params, j, -h(j));
+
+        [~, ~, M_plus]  = compute_effective_body_brownian(Z_plus,  params);
+        [~, ~, M_minus] = compute_effective_body_brownian(Z_minus, params);
+
+        drift_6d = drift_6d + kBT * (M_plus(:, j) - M_minus(:, j)) / (2 * h(j));
+    end
+end
+
+function Zp = perturb_body_pose(Z, params, coord_idx, step_phys)
+%PERTURB_BODY_POSE  Perturb one body coordinate in physical units.
+    Zp = Z;
+    if coord_idx <= 3
+        Zp(coord_idx) = Zp(coord_idx) + step_phys / params.scales.L_0;
+    else
+        axis_vec = zeros(3, 1);
+        axis_vec(coord_idx - 3) = 1;
+        dtheta = step_phys * axis_vec;
+        ang = norm(dtheta);
+        if ang > 1e-15
+            dq = [cos(ang / 2); (sin(ang / 2) / ang) * dtheta];
+        else
+            dq = [1; 0; 0; 0];
+        end
+        Zp(4:7) = quat_multiply(dq, Zp(4:7));
+        Zp(4:7) = Zp(4:7) / norm(Zp(4:7));
+    end
+    Zp = enforce_clamped_geometry(Zp, params);
 end
 
 function str = format_duration(seconds)

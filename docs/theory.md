@@ -5,7 +5,7 @@ English | [中文](theory.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Updated:** 2026-06-10
-> **Version:** 7.5.0
+> **Version:** 7.7.0
 
 This document contains the model details that were formerly embedded in the long README. The repository entry page is now intentionally short; practical run instructions are in [`../USER_GUIDE.md`](../USER_GUIDE.md), and release history is in [`../CHANGELOG.md`](../CHANGELOG.md).
 
@@ -169,7 +169,7 @@ c_a[\mathbf{x}_0]_{\times}
 \boldsymbol{\tau}.
 ```
 
-where `tau` is the segment torque density. For typical bacterial pili, this coupling is very small because it scales with high powers of slenderness, but it keeps the formulation theoretically complete.
+where `tau` is the segment torque density. The implementation stores the Cortez (2018) full-curl rotlet segment kernel as `M_rotlet`; when this block is coupled reciprocally to Stokeslet translation, the physical standard-rotlet convention is enforced through the factor `0.5*M_rotlet`.
 
 ## 6. Coupled Linear System
 
@@ -182,44 +182,66 @@ At each ODE right-hand-side call, the simulator assembles:
 with:
 
 ```math
-\mathbf{L} = -\mathbf{B}\mathbf{A}\mathbf{Q},
+\mathbf{L} = -\mathbf{B}\mathbf{A}\mathbf{Q}.
 ```
 
+Since v7.6.0, axial twist no longer uses a local RFT torsional resistance. The translational and axial-spin unknowns are coupled through the grand mobility:
+
 ```math
-\mathbf{A}\mathbf{Q}
+\begin{bmatrix}
+\mathbf{u} \\
+\omega_\parallel
+\end{bmatrix}
 =
 \begin{bmatrix}
-\mathbf{M}_{\mathrm{weighted}}^{-1}\mathbf{Q}_{\mathrm{trans,corr}} \\
-\widetilde{\mathbf{A}}_{\mathrm{twist}}\mathbf{Q}_{\mathrm{twist}}
+\mathbf{M}_{\mathrm{weighted}} & \mathbf{C}_{\mathrm{twist}} \\
+\mathbf{C}_{\mathrm{twist}}^{\mathsf T} & \mathbf{M}_{\mathrm{twist}}
+\end{bmatrix}
+\begin{bmatrix}
+\mathbf{f} \\
+\mathbf{m}
 \end{bmatrix},
 ```
 
+where `M_twist` is the non-local segment-integral axial rotation mobility and
+
 ```math
-\mathbf{Q}_{\mathrm{trans,corr}}
-=
-\mathbf{Q}_{\mathrm{trans}}
-- \mathbf{M}_{\mathrm{rotlet}}
-\widetilde{\mathbf{A}}_{\mathrm{twist}}
-\mathbf{Q}_{\mathrm{twist}}.
+\mathbf{C}_{\mathrm{twist}} = \tfrac{1}{2}\mathbf{M}_{\mathrm{rotlet}}\mathbf{D}_{\mathrm{twist}}.
 ```
+
+The `1/2` factor converts Cortez's full-curl rotlet segment kernel to the physical standard-rotlet convention. The code applies the inverse action by Schur complement:
+
+```math
+\mathbf{S}_{\mathrm{twist}}
+=
+\mathbf{M}_{\mathrm{twist}}
+-
+\mathbf{C}_{\mathrm{twist}}^{\mathsf T}
+\mathbf{M}_{\mathrm{weighted}}^{-1}
+\mathbf{C}_{\mathrm{twist}},
+```
+
+so the same coupled operator is used in the main linear system and in background-flow corrections.
 
 The main blocks are:
 
 - `Q_global`: maps generalized rates to body and pilus node velocities.
-- `M_weighted`: full hydrodynamic mobility matrix, including body RSM and pili RSS blocks.
-- `A_twist`: torsional resistance operator.
-- `B_global`: maps distributed forces and torques into global force, moment, and pilus moment-balance equations.
+- `M_weighted`: full translational hydrodynamic mobility matrix, including body RSM and pili RSS blocks.
+- `M_twist`: non-local axial twist mobility.
+- `D_twist`: embeds scalar axial torque density into segment-aligned 3D rotlet vectors.
+- `C_twist`: reciprocal translation/twist coupling with physical standard-rotlet scaling.
+- `B_global`: maps distributed forces and line-integrated torques into global force, moment, and pilus moment-balance equations.
 - `R`: gravitational force, elastic moments, active moments, background-flow corrections, and motor torque terms.
 
-**Global angular-momentum balance (since v7.5.0).** The total hydrodynamic torque the swimmer exerts on the fluid is the sum of the Stokeslet moment and the net rotlet torque,
+**Global angular-momentum balance (since v7.6.0).** The total hydrodynamic torque the swimmer exerts on the fluid is the sum of the Stokeslet moment and the line-integrated net rotlet torque,
 
 ```math
-\mathbf{T} = \sum_i \mathbf{r}_i \times \mathbf{f}_i + \sum_s \mathbf{m}_s,
+\mathbf{T} = \sum_i \mathbf{r}_i \times \mathbf{f}_i + \sum_s L_s \mathbf{m}_s,
 ```
 
-so the moment rows of `B_global` include **both** the `sum(r x f)` block and the net rotlet block `sum(m)` (the same `m` that drives the translational rotlet flow `M_rotlet`). Including `sum(m)` makes a force/torque-free swimmer exactly torque-free and yields the correct body counter-rotation for a motor-driven / spinning pilus. The Lorentz-reciprocal partner of the rotlet→translation coupling (the Stokeslet→axial-spin term) is **not** added: the adaptive force-point regularization (`eps_ij = eps_j`, `eps_body != eps_pili`) already breaks exact mobility symmetry, so that `O(eps^2)` term is neither uniquely defined nor needed to close the torque balance.
+because `m_s` is a torque density on segment `s`. Therefore the moment rows of `B_global` include both `sum(r x f)` and `sum(L_s m_s)`. This makes a force/torque-free swimmer exactly torque-free and yields the correct body counter-rotation for motor-driven or spinning pili.
 
-Solves use MATLAB backslash / LU factorization rather than explicit matrix inversion.
+Solves use MATLAB decomposition / LU factorization rather than explicit matrix inversion.
 
 ## 7. Elastic Rod Moments
 
@@ -334,7 +356,7 @@ k_B T\,\mathbf{M}_{\mathrm{eff,dim}},
 \boldsymbol{\eta}\sim\mathcal{N}(\mathbf{0},\mathbf{I}_6).
 ```
 
-The optional `fixman_midpoint` mode recomputes the mobility at a stochastic midpoint to approximate the configuration-dependent Ito drift. This doubles the mobility-evaluation cost per Brownian step.
+The Ito drift term is computed explicitly by finite differences of the SPD-projected body mobility in the six body coordinates. This replaces the former midpoint approximation and keeps the Brownian update in a single strict stochastic interpretation.
 
 ## 11. Flow-Field Visualization
 

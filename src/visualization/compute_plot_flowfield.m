@@ -1,4 +1,4 @@
-function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_opts)
+function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_opts, t_final)
 %COMPUTE_PLOT_FLOWFIELD  Compute and plot flow field panels at final state
 %
 %  Description:
@@ -19,6 +19,7 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 %  Syntax:
 %    compute_plot_flowfield(Z_final, params, output_dir, run_id, logf)
 %    compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_opts)
+%    compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_opts, t_final)
 %
 %  Inputs:
 %    Z_final    - Final state vector from ODE integration
@@ -31,6 +32,8 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 %                   .grid_range_um    Grid extent [um]        (default: 10.0)
 %                   .quiver_skip      Quiver subsample        (default: 5)
 %                   .chunk_size       Eval-point chunk size   (default: 2000)
+%    t_final    - (Optional) Dimensionless time associated with Z_final.
+%                 Required for time-dependent active moments.
 %
 %  References:
 %    [1] Cortez et al. (2005), Phys. Fluids 17, 031504.
@@ -41,6 +44,7 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 
 %% ---- Configuration ----
 if nargin < 6 || isempty(flow_opts), flow_opts = struct(); end
+if nargin < 7 || isempty(t_final), t_final = 0; end
 grid_spacing_um = get_flow_opt(flow_opts, 'grid_spacing_um', 0.05);
 grid_range_um   = get_flow_opt(flow_opts, 'grid_range_um',   10.0);
 quiver_skip     = get_flow_opt(flow_opts, 'quiver_skip',     5);
@@ -100,7 +104,7 @@ N_total = size(X_all, 1);
 %  ======================================================================
 logf('[FLOW] Computing ODE right-hand side for force extraction...\n');
 t_flow_start = tic;
-dZ = ode_coupled_rhs(0, Z_final, params);
+dZ = ode_coupled_rhs(t_final, Z_final, params);
 
 %% ======================================================================
 %  Step 3: Extract kinematic quantities from dZ
@@ -181,30 +185,24 @@ end
 %  Step 6: Build hydrodynamic matrices (re-use existing function)
 %  ======================================================================
 logf('[FLOW] Building hydrodynamic matrices...\n');
-[M_weighted, A_twist_cells, M_rotlet] = build_global_resistance(X_all, params, geom);
-
-A_twist_total = [];
-for k = 1:M_pili
-    A_twist_total = blkdiag(A_twist_total, A_twist_cells{k});
-end
+[M_weighted, M_twist, M_rotlet, D_twist] = build_global_resistance(X_all, params, geom);
 
 %% ======================================================================
 %  Step 7: Compute torque density and solve for force coefficients
 %  ======================================================================
-if ~isempty(A_twist_total)
-    tau = A_twist_total * v_twist;
-    if ~isempty(M_rotlet)
-        v_trans_corr = v_trans - M_rotlet * tau;
-    else
-        v_trans_corr = v_trans;
-    end
+logf('[FLOW] Solving for force coefficients (%d DOFs)...\n', 3*N_total);
+if ~isempty(M_twist)
+    C_twist  = 0.5 * (M_rotlet * D_twist);
+    Minv_v   = M_weighted \ v_trans;
+    Minv_C   = M_weighted \ C_twist;
+    S_twist  = M_twist - C_twist' * Minv_C;
+    m_twist  = S_twist \ (v_twist - C_twist' * Minv_v);
+    f_coeffs = Minv_v - Minv_C * m_twist;
+    tau      = D_twist * m_twist;
 else
     tau = zeros(0, 1);
-    v_trans_corr = v_trans;
+    f_coeffs = M_weighted \ v_trans;
 end
-
-logf('[FLOW] Solving for force coefficients (%d DOFs)...\n', 3*N_total);
-f_coeffs = M_weighted \ v_trans_corr;
 
 %% ======================================================================
 %  Step 8: Precompute shared data structures for velocity evaluation
@@ -773,7 +771,8 @@ if seg_data.active
         uy_ev(idx) = uy_ev(idx) + uy_M1 + uy_M2;
         uz_ev(idx) = uz_ev(idx) + uz_M1 + uz_M2;
 
-        % Rotlet contribution (Cortez 2018 Sec. 2.5)
+        % Rotlet contribution.  The stored formulas are Cortez's full-curl
+        % rotlet; physical torque-induced velocity uses half of this kernel.
         if seg_data.has_rotlet
             R0_3 = R0.^3;  R1_3 = R1.^3;
 
@@ -796,9 +795,9 @@ if seg_data.active
             ty = seg_data.tau_y';
             tz = seg_data.tau_z';
 
-            ux_ev(idx) = ux_ev(idx) + sum( Rxy.*ty + Rxz.*tz, 2);
-            uy_ev(idx) = uy_ev(idx) + sum(-Rxy.*tx + Ryz.*tz, 2);
-            uz_ev(idx) = uz_ev(idx) + sum(-Rxz.*tx - Ryz.*ty, 2);
+            ux_ev(idx) = ux_ev(idx) + 0.5 * sum( Rxy.*ty + Rxz.*tz, 2);
+            uy_ev(idx) = uy_ev(idx) + 0.5 * sum(-Rxy.*tx + Ryz.*tz, 2);
+            uz_ev(idx) = uz_ev(idx) + 0.5 * sum(-Rxz.*tx - Ryz.*ty, 2);
         end
 
         if show_progress

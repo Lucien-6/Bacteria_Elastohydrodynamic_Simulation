@@ -5,7 +5,7 @@
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
 > **更新日期:** 2026-06-10
-> **版本:** 7.5.0
+> **版本:** 7.7.0
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -14,9 +14,9 @@
 
 - 支持参数化胶囊胞体或导入自定义胞体点云。
 - 支持参数化纤毛或导入自定义纤毛中心线。
-- RSM/RSS 混合流体力学模型，并包含 Rotlet 线段扭转耦合。
+- RSM/RSS 混合流体力学模型，并包含非局部线段积分扭转迁移率、互易 Schur 互补耦合和物理标准 rotlet 缩放。
 - Kirchhoff 弹性杆模型，支持内禀曲率和主动力矩。
-- 可选胞体布朗运动，扩散张量来自完整胞体-纤毛耦合有效迁移率。
+- 可选胞体布朗运动，扩散张量来自完整胞体-纤毛耦合有效迁移率，并使用 SPD 投影协方差与显式严格 Ito 热漂移。
 - 可选背景流：关闭、均匀流或有限厚度剪切流。
 - 支持自由扭转根部边界条件和恒定马达力矩，用于马达驱动鞭毛。
 - 支持 MATLAB 内联配置、JSON 配置和程序化批处理运行。
@@ -93,8 +93,8 @@ cfg.auto_confirm = true;
 | [`src/config/init_coupled_state.m`](src/config/init_coupled_state.m) | 初始状态向量构建。 |
 | [`src/core/ode_coupled_rhs.m`](src/core/ode_coupled_rhs.m) | 耦合弹性流体动力学 ODE 右端项。 |
 | [`src/core/build_coupled_lin_sys.m`](src/core/build_coupled_lin_sys.m) | 耦合线性系统组装。 |
-| [`src/physics/compute_effective_body_brownian.m`](src/physics/compute_effective_body_brownian.m) | 全系统有效布朗迁移率与扩散计算。 |
-| [`src/visualization/compute_plot_flowfield.m`](src/visualization/compute_plot_flowfield.m) | 末状态流场计算与图像导出。 |
+| [`src/physics/compute_effective_body_brownian.m`](src/physics/compute_effective_body_brownian.m) | 全系统有效布朗迁移率、SPD 扩散张量和 Cholesky 噪声因子计算。 |
+| [`src/visualization/compute_plot_flowfield.m`](src/visualization/compute_plot_flowfield.m) | 在实际达到的终止时间进行末状态流场计算与图像导出。 |
 
 ## 文档导航
 
@@ -108,7 +108,7 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **7.5.0 (2026-06-10)**。本版为物理修正：全局角动量平衡在 `sum(r x f)` 之外纳入鞭毛净 rotlet 力矩 `sum(m)`，使马达驱动/自旋鞭毛产生正确的胞体反向旋转，自由游动体严格力矩为零。**相对 v7.4.6，所有含鞭毛算例的数值输出都会改变**（无鞭毛算例不受影响）。**v7.4.6** 为代码质量与文档一致性维护版（向量化 `pili_spatial_coords`、清理死代码、修正 lint）。**v7.4.5** 为 **`batch_run_from_json.m`** 增加可选 `parfor` 并行批跑。**v7.4.4** 加强运行前配置校验。**v7.4.0** 为 `batch_repeat_brownian.m` 增加并行。详见 [`CHANGELOG.md`](CHANGELOG.md)。
+当前版本为 **7.7.0 (2026-06-10)**。本版是在 v7.6.0 基础上的物理正确性更新：布朗运动改用显式严格 Ito 漂移 `kBT*div(M_eff)` 与 SPD 投影扩散张量，旧的 Brownian 中点选项已移除；Kirchhoff 扭矩密度列使用修正后的 `ell_k^2` 缩放；最终流场提取使用实际达到的终止时间，使含时主动力矩保持正确相位。**这会改变布朗、含纤毛、扭矩活跃或含时主动力矩算例的数值输出。** v7.6.0 引入了非局部 `M_twist` Schur 互补扭转耦合与物理 `0.5*M_rotlet` 缩放。详见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## 许可证
 

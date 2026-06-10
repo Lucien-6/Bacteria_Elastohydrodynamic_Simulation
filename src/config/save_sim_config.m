@@ -151,11 +151,6 @@ if cfg.dt > 0
 else
     j.brownian.dt_B_ratio = 0.5;
 end
-if isfield(cfg, 'fixman_midpoint')
-    j.brownian.fixman_midpoint = cfg.fixman_midpoint;
-else
-    j.brownian.fixman_midpoint = false;
-end
 if logical(cfg.enable_brown) && isfield(cfg, 'brown_rng_seed') ...
         && isscalar(cfg.brown_rng_seed) && isnumeric(cfg.brown_rng_seed) ...
         && isfinite(cfg.brown_rng_seed) && cfg.brown_rng_seed > 0

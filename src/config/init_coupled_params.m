@@ -41,7 +41,6 @@ function params = init_coupled_params(varargin)
 %                  -pi/2 = inverted (-Z).  Range: [-pi/2, pi/2]
 %    'Temper'      Absolute temperature [K]            (default: 293.15)
 %    'enable_brown' Enable body Brownian motion        (default: false)
-%    'fixman_midpoint' Enable Fixman midpoint correction (default: false)
 %    'eps_body'      Optional RSM regularisation length [L0], dimensionless.
 %                    If empty (default), uses eps_body = h_mean/2.6667 from the
 %                    surface mesh.  If set to a positive scalar, overrides
@@ -82,7 +81,6 @@ addParameter(p, 'alpha_0',    pi/2,   @isnumeric);
 addParameter(p, 'initial_orientation', [], @(x) isempty(x) || isstruct(x));
 addParameter(p, 'Temper',      293.15,  @isnumeric);
 addParameter(p, 'enable_brown', false,  @(x) islogical(x) || (isnumeric(x) && isscalar(x)));
-addParameter(p, 'fixman_midpoint', false, @(x) islogical(x) || (isnumeric(x) && isscalar(x)));
 addParameter(p, 'intrinsic_curvature', {}, @iscell);
 addParameter(p, 'active_moment', {}, @iscell);
 addParameter(p, 'root_coupling', {}, @iscell);
@@ -818,7 +816,8 @@ end
 %  coupled body-pili linear system.  No pre-computation is needed here.
 %  The old body-only routine compute_body_brownian_params.m has been
 %  removed; its functionality is fully superseded by the new method.
-params.brown_fixman_midpoint = logical(p.Results.fixman_midpoint);
+%  Thermal drift is handled explicitly in run_simulation.m with the strict
+%  body-only Ito finite-difference correction kB*T*div(M).
 
 %% Run token for cross-step persistent caches in ode_coupled_rhs
 %  ode_coupled_rhs.m keeps a persistent dpsi_1 cache for motor speed-

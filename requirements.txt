@@ -1,11 +1,12 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 7.5.0 (2026-06-10)
+# Release: 7.7.0 (2026-06-10)
 #
-# v7.5.0: physics correction — global angular-momentum balance now includes the
-# net pili rotlet torque sum(m) (build_coupled_lin_sys.m rows 4-6) in addition to
-# sum(r x f). Changes outputs for all pili-bearing configs (pili-free unaffected).
-# See CHANGELOG.md.
+# v7.7.0: strict Brownian Ito drift with SPD-projected diffusion, corrected
+# Kirchhoff torque-density scaling, final flow-field phase fix, and removal of
+# the former midpoint Brownian option. See CHANGELOG.md.
+# v7.6.0: non-local M_twist Schur-complement coupling with physical
+# 0.5*M_rotlet cross-coupling and line-integrated torque sum(L_s m_s).
 # v7.4.6: code-quality and documentation-consistency pass — vectorised
 # pili_spatial_coords (cumsum), dead-code removal in pili_building.m, lint
 # cleanup, and a warning-only dt_B heuristic fix. No numerical change. See CHANGELOG.md.

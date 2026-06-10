@@ -5,7 +5,7 @@ English | [中文](README.zh-CN.md)
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
 > **Updated:** 2026-06-10
-> **Version:** 7.5.0
+> **Version:** 7.7.0
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -14,9 +14,9 @@ This project simulates the low-Reynolds-number settling dynamics of a rigid bact
 
 - Rigid capsule or imported custom body geometry.
 - Parametric or imported custom pili centerlines.
-- Coupled RSM/RSS hydrodynamics with rotlet-segment twist coupling.
+- Coupled RSM/RSS hydrodynamics with non-local segment-integral twist mobility, reciprocal Schur-complement coupling, and physical standard-rotlet scaling.
 - Kirchhoff elastic rods with intrinsic curvature and active moment options.
-- Optional body Brownian dynamics using the full coupled effective mobility tensor.
+- Optional body Brownian dynamics using the full coupled effective mobility tensor, SPD-projected covariance, and explicit strict Ito thermal drift.
 - Optional background flow: off, uniform, or finite-thickness shear.
 - Free-torsion root coupling and constant motor torque for motor-driven flagella.
 - Inline MATLAB configuration, JSON configuration, and programmatic batch execution.
@@ -99,8 +99,8 @@ Results are written under `output/<case_name>/` or an automatically timestamped 
 | [`src/config/init_coupled_state.m`](src/config/init_coupled_state.m) | Initial state vector construction. |
 | [`src/core/ode_coupled_rhs.m`](src/core/ode_coupled_rhs.m) | Coupled elastohydrodynamic ODE right-hand side. |
 | [`src/core/build_coupled_lin_sys.m`](src/core/build_coupled_lin_sys.m) | Coupled linear system assembly. |
-| [`src/physics/compute_effective_body_brownian.m`](src/physics/compute_effective_body_brownian.m) | Full-system effective Brownian mobility and diffusion. |
-| [`src/visualization/compute_plot_flowfield.m`](src/visualization/compute_plot_flowfield.m) | End-state flow-field evaluation and figure export. |
+| [`src/physics/compute_effective_body_brownian.m`](src/physics/compute_effective_body_brownian.m) | Full-system effective Brownian mobility, SPD diffusion, and Cholesky noise factor. |
+| [`src/visualization/compute_plot_flowfield.m`](src/visualization/compute_plot_flowfield.m) | End-state flow-field evaluation at the achieved final time and figure export. |
 
 ## Documentation
 
@@ -114,7 +114,7 @@ Results are written under `output/<case_name>/` or an automatically timestamped 
 
 ## Version Notes
 
-The current release is **7.5.0 (2026-06-10)**. It is a physics correction: the global angular-momentum balance now includes the net pili rotlet torque `sum(m)` in addition to `sum(r x f)`, so a motor-driven / spinning pilus produces the correct body counter-rotation and a free swimmer is exactly torque-free. **This changes numerical outputs for all pili-bearing configurations vs. v7.4.6** (pili-free runs are unaffected). **v7.4.6** was a code-quality and documentation-consistency pass (vectorised `pili_spatial_coords`, dead-code removal, lint cleanup). **v7.4.5** added optional `parfor` parallel scheduling to **`batch_run_from_json.m`**. **v7.4.4** hardened pre-run configuration validation. **v7.4.0** added parallel scheduling to **`batch_repeat_brownian.m`**. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
+The current release is **7.7.0 (2026-06-10)**. It is a physics-correctness update on top of v7.6.0: Brownian motion now uses an explicit strict Ito drift `kBT*div(M_eff)` with SPD-projected diffusion, the former midpoint Brownian option has been removed, Kirchhoff torque-density columns use the corrected `ell_k^2` scaling, and final flow-field extraction uses the achieved final time so time-dependent active moments keep the correct phase. **This can change numerical outputs for Brownian, pili-bearing, torque-active, or time-dependent active-moment configurations.** v7.6.0 introduced the non-local `M_twist` Schur-complement twist coupling and physical `0.5*M_rotlet` scaling. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 

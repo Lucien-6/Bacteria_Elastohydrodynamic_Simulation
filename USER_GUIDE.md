@@ -3,10 +3,12 @@
 English | [中文](USER_GUIDE.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Version:** 7.5.0
+> **Version:** 7.7.0
 > **Updated:** 2026-06-10
 
 This guide is for running simulations, choosing the right configuration path, finding outputs, and post-processing completed cases. For model equations and derivations, see [`docs/theory.md`](docs/theory.md). For release history, see [`CHANGELOG.md`](CHANGELOG.md).
+
+Release note: v7.7.0 makes Brownian dynamics use explicit strict Ito thermal drift with SPD-projected diffusion, removes the former midpoint Brownian option, corrects Kirchhoff torque-density scaling, and makes final flow-field extraction use the achieved final time.
 
 ## 1. Before You Run
 
@@ -91,7 +93,7 @@ A typical top-level layout includes:
 | `root_coupling` | `clamped`, `free_torsion` | `build_coupled_lin_sys.m` |
 | `motor_torque.type` | `off`, `constant` | `init_coupled_params.m` |
 
-Brownian JSON fields mapped by [`load_sim_config.m`](src/config/load_sim_config.m): `brownian.enable`, `brownian.temperature` → `Temper`, `brownian.rng_seed`, `brownian.dt_B_ratio`, `brownian.fixman_midpoint`.
+Brownian JSON fields mapped by [`load_sim_config.m`](src/config/load_sim_config.m): `brownian.enable`, `brownian.temperature` -> `Temper`, `brownian.rng_seed`, `brownian.dt_B_ratio`.
 
 The authoritative schemas are the tracked example files and the loader implementation in [`src/config/load_sim_config.m`](src/config/load_sim_config.m).
 
@@ -167,11 +169,13 @@ For `free_torsion`, the root twist angle $\psi_1$ evolves dynamically. The motor
 
 Set `brownian.enable` in JSON or `cfg.enable_brown` in MATLAB.
 
+Since v7.7.0, Brownian updates use the strict body-only Ito form with explicit finite-difference thermal drift `kBT*div(M_eff)` and an SPD-projected diffusion covariance. There is no user-facing midpoint drift option.
+
 Important options:
 
+- `brownian.temperature`: positive fluid temperature in Kelvin; required when Brownian dynamics are enabled.
 - `brownian.rng_seed`: fixed positive seed for reproducible runs.
 - `brownian.dt_B_ratio`: Brownian time step relative to output step.
-- `brownian.fixman_midpoint`: enables the Fixman midpoint correction for configuration-dependent mobility.
 
 When Brownian dynamics are enabled, the realized seed is saved in `config.json`, `brownian_rng_seed.txt`, `simulation.log`, and `simulation_results.mat`.
 

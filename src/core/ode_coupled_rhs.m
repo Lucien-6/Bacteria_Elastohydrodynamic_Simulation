@@ -51,43 +51,17 @@ for k = 1:M_pili
     end
 end
 
-% Cross-call state for motor speed-limiting (free_torsion + constant motor).
-%
-% MATLAB structs are passed by value, so any field assignment to `params`
-% inside this function would be invisible to subsequent ODE calls (the
-% solver re-passes the original `params` every time).  We therefore use a
-% persistent variable to remember the most recent dpsi_1 rate.
-%
-% NOTE on numerical semantics:
-%   ode15s is an adaptive multi-step implicit solver that may evaluate the
-%   RHS multiple times per accepted step (Newton iterations, rejected
-%   steps, error estimation, dense-output interpolation).  DPSI1_PREV
-%   therefore caches dpsi_1 from the LAST RHS EVALUATION, which is in
-%   general NOT the previous physically-accepted time step.  The
-%   speed-limiting model
-%       tau_eff = tau_motor * (1 - |omega| / omega_max)
-%   is consequently applied as an EXPLICIT LAGGED APPROXIMATION rather
-%   than an implicit nonlinear coupling.  This is intentional — it keeps
-%   the linear system unchanged and avoids per-call Newton iterations —
-%   and is accurate when |omega| stays well below omega_max.  Configurations
-%   that drive the motor close to stall should reduce AbsTol/RelTol or
-%   increase max_omega_Hz to widen the safety margin.
-%
-% A run-token (`params.run_token`, set once per simulation in
-% init_coupled_params) lets us reset the cache between independent runs in
-% the same MATLAB session.  `clear ode_coupled_rhs` (issued in
-% run_simulation.m before each ODE integration) is also performed as a
-% defensive belt-and-braces reset.
-persistent DPSI1_PREV LAST_RUN_TOKEN;
-current_token = [];
-if isfield(params, 'run_token')
-    current_token = params.run_token;
-end
-if isempty(DPSI1_PREV) || ~isequal(LAST_RUN_TOKEN, current_token) ...
-        || numel(DPSI1_PREV) ~= M_pili
-    DPSI1_PREV    = cell(M_pili, 1);   % all empty -> first-call zero speed
-    LAST_RUN_TOKEN = current_token;
-end
+% Motor speed-limiting (free_torsion + constant motor) is handled by an
+% EXACT in-call self-consistent solve (see Step 8d / Step 9 below), NOT by a
+% lagged persistent cache.  Because the assembled system is linear in the
+% motor torque, the stall-curve coupling
+%       tau_eff = tau_motor * (1 - |omega| / omega_max),   omega = dpsi_1
+% is resolved within a single RHS evaluation using one extra back-substitution
+% per motor against the already-factored lin_sys (multi-column right-hand
+% side, so lin_sys is factorised only once).  This keeps the RHS a PURE
+% function of (t, Z) -- a prerequisite for ode15s' internal Jacobian and
+% error control -- and is exact even near stall (defect-2 remediation).
+% The former persistent DPSI1_PREV / run-token machinery has been removed.
 
 %% Steps 1-7: Build coupled linear system (geometry + hydrodynamics + root BC)
 has_bg_flow = ~strcmp(params.bg_flow.type, 'off');
@@ -102,7 +76,17 @@ n_state  = 6 + 3 * sum(N_segs);
 R_global = zeros(n_state, 1);
 R_global(1:3) = -Eg * g_hat;
 
+% Collectors for motorised pili (free_torsion + constant motor).  The motor
+% torque is NOT added to R_global in this loop; R_global is assembled as the
+% motor-free baseline RHS and the stall-curve torque is resolved exactly in
+% Step 9 (defect-2 remediation).
+motor_rows    = [];   % moment-balance row index (segment-1 psi_1 row) per motor
+motor_psicols = [];   % state-rate column index of dpsi_1 per motor
+motor_tau     = [];   % constant motor torque (dimensionless)
+motor_ommax   = [];   % stall speed (dimensionless)
+
 row_offset = 6;
+col_state  = 6;       % running offset to locate each pilus's dpsi_1 column
 for k = 1:M_pili
     N_k = N_segs(k);
     [kappa1, kappa2, kappa3] = compute_pili_elastic_moments( ...
@@ -122,68 +106,33 @@ for k = 1:M_pili
         R_global(idx_k) = R_global(idx_k) - M_act(:);
     end
 
-    %% Step 8d: Apply motor torque for free-torsion pili
+    %% Step 8d: Record motor torque for free-torsion pili (resolved in Step 9)
     if strcmp(rc{k}, 'free_torsion') && isfield(params, 'motor_cfg') && ...
             ~strcmp(params.motor_cfg{k}.type, 'off')
         mc_k = params.motor_cfg{k};
         switch mc_k.type
             case 'constant'
-                tau_motor = mc_k.torque_dimless;
-                % Speed-limiting: read dpsi_1 from the most recent RHS
-                % evaluation (persistent cache, see header note).  This
-                % is an EXPLICIT LAGGED feedback — the cached value is
-                % NOT guaranteed to be the previous accepted time step
-                % under ode15s' adaptive multi-step behaviour, but the
-                % linear stall-curve model tolerates this when the motor
-                % operates well below omega_max.  On the first ODE call
-                % DPSI1_PREV{k} is empty -> zero starting speed.
-                omega_motor = 0;
-                if k <= numel(DPSI1_PREV) && ~isempty(DPSI1_PREV{k})
-                    omega_motor = DPSI1_PREV{k};
-                end
-                % Linear torque reduction as |omega| approaches max_omega.
-                max_om = mc_k.max_omega_dimless;
-                if abs(omega_motor) < max_om
-                    tau_eff = tau_motor * (1 - abs(omega_motor) / max_om);
-                else
-                    tau_eff = 0;
-                end
-                % Apply motor torque to pili root (d3/torsional component).
-                % The +tau enters the segment-1 d3 moment-balance row, which
-                % under free_torsion is the natural equation driving dpsi_1.
-                r3 = row_offset + 3;
-                R_global(r3) = R_global(r3) + tau_eff;
-
-                % NOTE (v7.3.0): NO term is added to R_global(4:6).
+                % The motor torque enters the segment-1 d3 (psi_1) moment-
+                % balance row, which under free_torsion is the natural
+                % equation driving dpsi_1.  We only RECORD the row, the
+                % corresponding dpsi_1 column, and the stall-curve parameters
+                % here; the self-consistent torque is solved EXACTLY in Step 9
+                % (the system is linear in tau, so this needs no iteration on
+                % the full linear system).
                 %
-                % Rows 4-6 of R_global are the FULL SYSTEM angular-momentum
-                % balance: B_global rows 4-6 (built in build_coupled_lin_sys.m)
-                % sum r x f over body + every pilus node with quadrature
-                % weights, i.e. they enforce sum(r x f_on_fluid) = 0.
-                %
-                % The motor torque between body and pilus is INTERNAL: the
-                % action +tau on the pilus and the reaction -tau on the
-                % body cancel exactly when summed over the whole body+pilus
-                % system, so by Newton's third law no contribution belongs
-                % in the system moment equation.  Adding any term there is
-                % equivalent to claiming an external moment on the
-                % body+pilus that does not exist, and over-prescribes the
-                % body's rotation rate.
-                %
-                % The body's reaction motion is propagated implicitly: the
-                % motor enters the pilus moment-balance row above, drives
-                % dpsi_1, and through the global mobility solve and the
-                % root kinematic constraints (theta_1, phi_1 locked to
-                % body Omega) the body's angular velocity adjusts
-                % self-consistently.
-                %
-                % Earlier versions added either
-                %   -tau_eff * J_euler(3,:)'   (v7.0.x)
-                % or
-                %   -tau_eff * d3_lab_seg1     (v7.2.x)
-                % to R_global(4:6).  Both injected an internal torque into
-                % the system equation and were physically incorrect.
-                % Removed in v7.3.0; see CHANGELOG.
+                % NOTE: NO term is added to R_global(4:6).  Rows 4-6 are the
+                % FULL SYSTEM angular-momentum balance.  The motor torque
+                % between body and pilus is INTERNAL: the action (+tau) on the
+                % pilus and the reaction (-tau) on the body cancel when summed
+                % over the whole body+pilus system (Newton's third law), so no
+                % contribution belongs in the system moment equation.  The
+                % body's reaction motion is propagated implicitly through the
+                % global mobility solve and the root kinematic constraints
+                % (theta_1, phi_1 locked to body Omega).
+                motor_rows(end+1)    = row_offset + 3;          %#ok<AGROW>
+                motor_psicols(end+1) = col_state + 2*N_k + 1;   %#ok<AGROW>
+                motor_tau(end+1)     = mc_k.torque_dimless;     %#ok<AGROW>
+                motor_ommax(end+1)   = mc_k.max_omega_dimless;  %#ok<AGROW>
             otherwise
                 error('ode_coupled_rhs:UnknownMotorType', ...
                     ['Pili %d: motor_cfg.type = ''%s'' is not implemented in RHS. ', ...
@@ -192,6 +141,7 @@ for k = 1:M_pili
     end
 
     row_offset = row_offset + 3 * N_k;
+    col_state  = col_state  + 3 * N_k;
 end
 
 %% Step 8c: Subtract background flow contribution
@@ -224,17 +174,38 @@ for k = 1:M_pili
     row_offset_bc = row_offset_bc + 3 * N_k;
 end
 
-%% Step 9: Solve
-z_dot = lin_sys \ R_global;
+%% Step 9: Solve (with exact self-consistent motor speed-limiting)
+%  The assembled system is linear in the motor torques, so
+%      z_dot = zdot_base + sum_i tau_i * S(:, i),
+%  where zdot_base solves the motor-free baseline RHS and S(:, i) is the
+%  response to a unit torque on motor i.  Both come from a SINGLE
+%  factorisation of lin_sys via a multi-column right-hand side.  The
+%  stall-curve law
+%      tau_i = tau_motor_i * (1 - |omega_i| / omega_max_i),  omega_i = dpsi_1,i
+%  is then solved self-consistently in the reduced motor space (closed form
+%  for a single motor; damped fixed point for several).  This replaces the
+%  former lagged persistent cache and makes the RHS a pure function of
+%  (t, Z) (defect-2 remediation).
+n_motor = numel(motor_rows);
+if n_motor == 0
+    z_dot = lin_sys \ R_global;
+else
+    E_motor = zeros(n_state, n_motor);
+    for i = 1:n_motor
+        E_motor(motor_rows(i), i) = 1;
+    end
 
-% Store dpsi_1 for the lagged motor speed-limiting feedback on the next
-% RHS call (see header note on adaptive-solver semantics).  Only
-% free_torsion pili with a constant motor read the cache; other
-% configurations still write it (cheap, no branching) but never consume.
-for k = 1:M_pili
-    N_k = N_segs(k);
-    psi1_col = 6 + 3*sum(N_segs(1:k-1)) + 2*N_k + 1;
-    DPSI1_PREV{k} = z_dot(psi1_col);
+    sol_aug   = lin_sys \ [R_global, E_motor];
+    zdot_base = sol_aug(:, 1);
+    S_motor   = sol_aug(:, 2:end);
+
+    a_omega = zdot_base(motor_psicols);     % [n_motor x 1] baseline dpsi_1
+    B_omega = S_motor(motor_psicols, :);    % [n_motor x n_motor] sensitivity
+
+    tau_eff = solve_motor_self_consistent(a_omega(:), B_omega, ...
+        motor_tau(:), motor_ommax(:), get_rhs_logf(params));
+
+    z_dot = zdot_base + S_motor * tau_eff;
 end
 
 %% Step 10: Pack state rates
@@ -279,16 +250,118 @@ function back = apply_Ainv_u(u_bg, hydro)
         Ainv = hydro.M_weighted;
     end
 
-    if ~isempty(hydro.A_twist_total)
-        Aw = hydro.A_twist_total * u_w;
-        if ~isempty(hydro.M_rotlet)
-            u_t = u_t - hydro.M_rotlet * Aw;
+    if isfield(hydro, 'M_twist') && ~isempty(hydro.M_twist)
+        Minv_u = Ainv \ u_t;
+        rhs_w  = u_w - hydro.C_twist' * Minv_u;
+
+        if isfield(hydro, 'dS_twist') && ~isempty(hydro.dS_twist)
+            m_twist = hydro.dS_twist \ rhs_w;
+        else
+            m_twist = hydro.S_twist \ rhs_w;
         end
-        Au_t = Ainv \ u_t;
-        Au   = [Au_t; Aw];
+
+        if isfield(hydro, 'Minv_C_twist') && ~isempty(hydro.Minv_C_twist)
+            Au_t = Minv_u - hydro.Minv_C_twist * m_twist;
+        else
+            Au_t = Ainv \ (u_t - hydro.C_twist * m_twist);
+        end
+        Au = [Au_t; hydro.D_twist * m_twist];
     else
         Au = Ainv \ u_t;
     end
 
     back = hydro.B_global * Au;
+end
+
+
+function tau = solve_motor_self_consistent(a, B, tau_motor, om_max, logf_h)
+%SOLVE_MOTOR_SELF_CONSISTENT  Exact stall-curve torque(s) for free-torsion motors
+%
+%  Solves the reduced self-consistency problem
+%      omega = a + B * tau,
+%      tau_i = motor_law(omega_i),
+%  where  motor_law(om) = tau_motor*(1 - |om|/om_max)  if |om| < om_max,
+%  else 0.  Here a (= baseline dpsi_1) and B (= sensitivity of dpsi_1 to a
+%  unit motor torque) are precomputed from a single factorisation of the
+%  coupled linear system, so this routine performs NO further linear solves.
+%
+%  For a single motor the solution is closed form; for several motors a
+%  damped fixed-point iteration is used (the map is a contraction whenever
+%  the feedback gain |B*tau_motor/om_max| < 1, i.e. away from the critical
+%  stall-feedback limit).
+    n = numel(a);
+    if n == 1
+        tau = motor_law_root_scalar(a, B(1,1), tau_motor(1), om_max(1));
+        return;
+    end
+
+    tau   = zeros(n, 1);
+    relax = 0.7;
+    for it = 1:500 %#ok<NASGU>
+        omega   = a + B * tau;
+        tau_t   = motor_law_vec(omega, tau_motor, om_max);
+        tau_new = (1 - relax) * tau + relax * tau_t;
+        if norm(tau_new - tau, inf) <= 1e-13 * (1 + norm(tau_new, inf))
+            tau = tau_new;
+            return;
+        end
+        tau = tau_new;
+    end
+    if ~isempty(logf_h)
+        logf_h('[ODE] WARNING: motor self-consistent solve did not fully converge (n=%d motors).\n', n);
+    end
+end
+
+
+function tau = motor_law_root_scalar(a, b, tm, om_max)
+%MOTOR_LAW_ROOT_SCALAR  Closed-form self-consistent torque for one motor
+%  f(omega) = a + b*tau(omega) - omega is continuous, piecewise linear and
+%  strictly decreasing (for subcritical feedback), so it has a unique root.
+%  Exactly one of the three branches below satisfies its own consistency
+%  test; the saturated branch (tau = 0) is the continuous fallback.
+    if ~(om_max > 0)
+        tau = tm;   % no speed limiting if om_max is non-positive
+        return;
+    end
+
+    % Active branch, omega >= 0:  tau = tm*(1 - omega/om_max)
+    om_p = (a + b*tm) / (1 + b*tm/om_max);
+    if om_p >= 0 && abs(om_p) < om_max
+        tau = tm * (1 - abs(om_p)/om_max);
+        return;
+    end
+
+    % Active branch, omega < 0:   tau = tm*(1 + omega/om_max)
+    om_n = (a + b*tm) / (1 - b*tm/om_max);
+    if om_n < 0 && abs(om_n) < om_max
+        tau = tm * (1 - abs(om_n)/om_max);
+        return;
+    end
+
+    % Saturated branch: |omega| >= om_max  =>  tau = 0
+    tau = 0;
+end
+
+
+function tau = motor_law_vec(omega, tau_motor, om_max)
+%MOTOR_LAW_VEC  Elementwise stall-curve torque from current angular speeds
+    n   = numel(omega);
+    tau = zeros(n, 1);
+    for i = 1:n
+        if om_max(i) > 0 && abs(omega(i)) < om_max(i)
+            tau(i) = tau_motor(i) * (1 - abs(omega(i)) / om_max(i));
+        else
+            tau(i) = 0;
+        end
+    end
+end
+
+
+function logf_h = get_rhs_logf(params)
+%GET_RHS_LOGF  Retrieve logf handle from params (empty if unavailable)
+    if isstruct(params) && isfield(params, 'logf') && ~isempty(params.logf)
+        logf_h = params.logf;
+    else
+        logf_h = [];
+    end
 end

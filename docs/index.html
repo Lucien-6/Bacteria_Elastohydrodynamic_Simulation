@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.5.0 (MATLAB): RSM+RSS Stokes flow, Kirchhoff pili, Brownian dynamics, global torque balance with net rotlet torque, optional parfor JSON folder batch (batch_run_from_json), parallel Brownian repeat batches, free-torsion motors, JSON config.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.7.0 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.5.0 &middot; 2026-06-10</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.7.0 &middot; 2026-06-10</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 7.5.0 &bull; 2026-06-10
+      Version 7.7.0 &bull; 2026-06-10
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -537,19 +537,19 @@ tailwind.config = {
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en"><strong>v7.5.0</strong> is a physics correction: the global angular-momentum balance now includes the net pili rotlet torque <code>sum(m)</code> in addition to <code>sum(r&times;f)</code>, so a motor-driven / spinning pilus produces the correct body counter-rotation and a free swimmer is exactly torque-free. This changes numerical outputs for all pili-bearing configurations vs. v7.4.6 (pili-free runs are unaffected). <strong>v7.4.6</strong> was a code-quality and documentation-consistency pass. <strong>v7.4.5</strong> added optional <code>parfor</code> parallel scheduling to <code>batch_run_from_json.m</code>. <strong>v7.4.0</strong> added parallel Brownian repeat batches. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
-      <span class="zh"><strong>v7.5.0</strong> 为物理修正：全局角动量平衡在 <code>sum(r&times;f)</code> 之外纳入鞭毛净 rotlet 力矩 <code>sum(m)</code>，使马达驱动/自旋鞭毛产生正确的胞体反向旋转，自由游动体严格力矩为零。相对 v7.4.6，所有含鞭毛算例的数值输出都会改变（无鞭毛算例不受影响）。<strong>v7.4.6</strong> 为代码质量与文档一致性维护版。<strong>v7.4.5</strong> 为 <code>batch_run_from_json.m</code> 增加可选 <code>parfor</code> 并行 JSON 批跑。<strong>v7.4.0</strong> 增加布朗重复并行批量。详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
+      <span class="en"><strong>v7.7.0</strong> is a physics-correctness update: Brownian motion now uses explicit strict Ito drift with SPD-projected diffusion, the former midpoint Brownian option is removed, Kirchhoff torque-density scaling is corrected, and final flow-field extraction uses the achieved final time. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
+      <span class="zh"><strong>v7.7.0</strong> 为物理正确性更新：布朗运动改用显式严格 Ito 漂移与 SPD 投影扩散，移除旧的 Brownian 中点选项，修正 Kirchhoff 扭矩密度缩放，并让最终流场提取使用实际终止时间。详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
-        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.5.0 &mdash; 2026-06-10</p>
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.7.0 &mdash; 2026-06-10</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
-          <span class="en">Global torque-balance physics fix</span><span class="zh">全局力矩平衡物理修正</span>
+          <span class="en">Strict Ito Brownian and torque-scaling correction</span><span class="zh">严格 Ito Brownian 与扭矩缩放修正</span>
         </h3>
         <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
-          <li><span class="en">The system angular-momentum balance (<code>build_coupled_lin_sys.m</code> rows 4-6) now includes the net pili rotlet torque <code>sum(m)</code> in addition to <code>sum(r&times;f)</code> — the total hydrodynamic torque the swimmer exerts on the fluid.</span><span class="zh">系统角动量平衡（<code>build_coupled_lin_sys.m</code> 第 4-6 行）在 <code>sum(r&times;f)</code> 之外纳入鞭毛净 rotlet 力矩 <code>sum(m)</code>——即游动体作用于流体的总水动力矩。</span></li>
-          <li><span class="en">A force/torque-free swimmer is now exactly torque-free; a motor-driven <code>free_torsion</code> pilus produces the correct body counter-rotation. Verified residual <code>||sum(r&times;f)+sum(m)|| / ||sum(m)||</code> ~ 1e-16.</span><span class="zh">受力/力矩自由的游动体现在严格力矩为零；马达驱动的 <code>free_torsion</code> 鞭毛给出正确的胞体反向旋转。验证残差 <code>||sum(r&times;f)+sum(m)|| / ||sum(m)||</code> ~ 1e-16。</span></li>
-          <li><span class="en"><strong>Not</strong> bitwise-identical to v7.4.6 for any pili-bearing config (small for slow rotlet activity, O(1) for fast motor / spiral pili); pili-free runs are unaffected.</span><span class="zh">对任何含鞭毛算例与 v7.4.6 <strong>不</strong>逐位一致（rotlet 活动缓慢时很小，快速马达/螺旋鞭毛可达 O(1)）；无鞭毛算例不受影响。</span></li>
+          <li><span class="en">Brownian kicks use explicit <code>kBT*div(M_eff)</code> Ito drift and SPD-projected diffusion covariance.</span><span class="zh">Brownian 位移使用显式 <code>kBT*div(M_eff)</code> Ito 漂移与 SPD 投影扩散协方差。</span></li>
+          <li><span class="en">The former midpoint Brownian option is removed from configs, validators, examples, batch scripts, and docs.</span><span class="zh">旧的 Brownian 中点选项已从配置、校验、示例、批处理脚本和文档中移除。</span></li>
+          <li><span class="en">Kirchhoff torque-density columns now scale with <code>ell_k^2</code>; final flow-field force extraction uses <code>T_achieved</code>.</span><span class="zh">Kirchhoff 扭矩密度列改用 <code>ell_k^2</code> 缩放；最终流场力系提取使用 <code>T_achieved</code>。</span></li>
         </ul>
       </div>
       <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-800 p-6">
@@ -908,42 +908,39 @@ M_eff_dimless = z_dot_probe(1:6, :);  % 6x6 effective mobility</code></pre>
       </p>
     </div>
 
-    <!-- Fixman midpoint (collapsible) -->
+    <!-- Explicit Ito drift (collapsible) -->
     <div class="bg-white dark:bg-navy-900 rounded-xl border border-gray-200 dark:border-navy-700 overflow-hidden">
       <button onclick="this.nextElementSibling.classList.toggle('open'); this.querySelector('svg').classList.toggle('rotate-180')"
         class="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 dark:hover:bg-navy-800 transition">
         <span class="font-semibold text-sm">
-          <span class="en">Optional: Fixman Midpoint Correction</span>
-          <span class="zh">可选：Fixman 中点修正</span>
+          <span class="en">Strict Ito Drift Correction</span>
+          <span class="zh">严格 Ito 漂移修正</span>
         </span>
         <svg class="w-5 h-5 text-gray-400 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
       </button>
       <div class="collapsible-body px-5 pb-5">
         <p class="text-gray-600 dark:text-gray-400 text-sm mb-4">
           <span class="en">When $\mathbf{M}_\text{eff}$ depends on the configuration (as it does here &mdash; pili change shape over time),
-          the It&ocirc; form of the overdamped SDE acquires a <strong>spurious drift term</strong>
+          the It&ocirc; form of the overdamped SDE acquires a <strong>thermal drift term</strong>
           $k_B T\,\nabla_{\!\mathbf{q}}\!\cdot\!\mathbf{M}_\text{eff}$. Directly computing this divergence
-          requires $O(n)$ additional linear solves, which is prohibitively expensive.</span>
+          in the six body coordinates gives a single, strict stochastic interpretation for the Brownian update.</span>
           <span class="zh">当 $\mathbf{M}_\text{eff}$ 依赖于构型时（此处确实如此——纤毛形状随时间变化），
-          过阻尼 SDE 的 It&ocirc; 形式会产生一个<strong>伪漂移项</strong>
-          $k_B T\,\nabla_{\!\mathbf{q}}\!\cdot\!\mathbf{M}_\text{eff}$。直接计算此散度
-          需要 $O(n)$ 次额外线性求解，计算成本过高。</span>
+          过阻尼 SDE 的 It&ocirc; 形式会产生一个<strong>热漂移项</strong>
+          $k_B T\,\nabla_{\!\mathbf{q}}\!\cdot\!\mathbf{M}_\text{eff}$。在六个胞体坐标上直接计算该散度，
+          使 Brownian 更新保持单一、严格的随机解释。</span>
         </p>
         <p class="text-gray-600 dark:text-gray-400 text-sm mb-3">
-          <span class="en">The <strong>Fixman midpoint scheme</strong> captures this drift implicitly:</span>
-          <span class="zh"><strong>Fixman 中点格式</strong>隐式捕捉该漂移：</span>
+          <span class="en">The implemented step uses:</span>
+          <span class="zh">当前实现采用：</span>
         </p>
         <ol class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-decimal list-inside mb-4">
-          <li><span class="en">Compute $\mathbf{L}_n$ at current configuration $\mathbf{q}_n$</span><span class="zh">在当前构型 $\mathbf{q}_n$ 处计算 $\mathbf{L}_n$</span></li>
-          <li><span class="en">Draw random vector $\boldsymbol{\eta} \sim \mathcal{N}(\mathbf{0},\,\mathbf{I}_6)$</span><span class="zh">生成随机向量 $\boldsymbol{\eta} \sim \mathcal{N}(\mathbf{0},\,\mathbf{I}_6)$</span></li>
-          <li><span class="en">Trial kick: $\Delta\mathbf{U}_\text{trial} = \mathbf{L}_n\,\boldsymbol{\eta}\,\sqrt{\Delta t_B}$</span><span class="zh">试探步：$\Delta\mathbf{U}_\text{trial} = \mathbf{L}_n\,\boldsymbol{\eta}\,\sqrt{\Delta t_B}$</span></li>
-          <li><span class="en">Half-step: $\mathbf{q}_\text{mid} = \mathbf{q}_n + \tfrac{1}{2}\,\Delta\mathbf{U}_\text{trial}$</span><span class="zh">半步推进：$\mathbf{q}_\text{mid} = \mathbf{q}_n + \tfrac{1}{2}\,\Delta\mathbf{U}_\text{trial}$</span></li>
-          <li><span class="en">Recompute $\mathbf{L}_\text{mid}$ at midpoint configuration</span><span class="zh">在中点构型处重新计算 $\mathbf{L}_\text{mid}$</span></li>
-          <li><span class="en">Final kick: $\Delta\mathbf{U} = \mathbf{L}_\text{mid}\,\boldsymbol{\eta}\,\sqrt{\Delta t_B}$ &mdash; <strong>same</strong> $\boldsymbol{\eta}$!</span><span class="zh">最终位移：$\Delta\mathbf{U} = \mathbf{L}_\text{mid}\,\boldsymbol{\eta}\,\sqrt{\Delta t_B}$ &mdash; 使用<strong>相同的</strong> $\boldsymbol{\eta}$！</span></li>
+          <li><span class="en">Project the diffusion tensor to an SPD covariance before Cholesky sampling.</span><span class="zh">Cholesky 采样前将扩散张量投影为 SPD 协方差。</span></li>
+          <li><span class="en">Evaluate $k_B T\,\nabla\!\cdot\!\mathbf{M}_\text{eff}$ by centered finite differences over translation and rotation coordinates.</span><span class="zh">对平动和转动坐标做中心差分，计算 $k_B T\,\nabla\!\cdot\!\mathbf{M}_\text{eff}$。</span></li>
+          <li><span class="en">Apply $\Delta\mathbf{U}=\mathbf{b}_\text{Ito}\Delta t_B+\mathbf{L}\boldsymbol{\eta}\sqrt{\Delta t_B}$ to the body pose.</span><span class="zh">将 $\Delta\mathbf{U}=\mathbf{b}_\text{Ito}\Delta t_B+\mathbf{L}\boldsymbol{\eta}\sqrt{\Delta t_B}$ 施加到胞体姿态。</span></li>
         </ol>
         <p class="text-xs text-gray-500 dark:text-gray-500">
-          <span class="en">Cost: 2&times; linear system solve per Brownian step. Controlled via <code class="text-teal-600">fixman_midpoint</code> in the JSON config.</span>
-          <span class="zh">代价：每个布朗步需 2 次线性求解。通过 JSON 配置中的 <code class="text-teal-600">fixman_midpoint</code> 控制。</span>
+          <span class="en">Cost: one covariance evaluation plus centered finite-difference mobility probes per Brownian step; no midpoint option is exposed.</span>
+          <span class="zh">代价：每个布朗步需要一次协方差评估和中心差分迁移率探测；不再暴露中点选项。</span>
         </p>
       </div>
     </div>
@@ -1341,7 +1338,7 @@ graph TD
 │   └── config_motor_flagella_example.json   % Motor flagella JSON template
 ├── docs/
 │   ├── index.html                         % This documentation page
-│   ├── theory.md                          % Theory, Brownian scope, and Itô / Fixman notes
+│   ├── theory.md                          % Theory, Brownian scope, and strict Itô notes
 │   └── theory.zh-CN.md                    % 中文理论文档
 ├── geometry/                              % Example geometry CSV files
 ├── output/                                % Simulation outputs
@@ -1459,7 +1456,6 @@ cfg.N_body       = 200;
 cfg.enable_brown = true;
 cfg.Temper       = 293.15;       % [K]
 cfg.dt_B         = cfg.dt / 2;
-cfg.fixman_midpoint = false;
 
 % Background flow (default: off)
 cfg.background_flow.type = 'off';
@@ -1521,8 +1517,7 @@ cfg = load_sim_config('configs/config_example.json');
     "brownian": {
         "enable": false,
         "temperature": 293.15,
-        "dt_B_ratio": 0.5,
-        "fixman_midpoint": false
+        "dt_B_ratio": 0.5
     },
     "output": {
         "preview_initial": true,
@@ -1588,7 +1583,6 @@ run('batch_sweep/batch_run_from_json.m');</code></pre>
             <tr><td class="px-4 py-2 font-mono text-xs">enable_brown</td><td class="px-4 py-2"><code>brownian.enable</code></td><td class="px-4 py-2"><code>false</code></td><td class="px-4 py-2"><span class="en">Master switch for Brownian motion</span><span class="zh">布朗运动总开关</span></td></tr>
             <tr><td class="px-4 py-2 font-mono text-xs">Temper</td><td class="px-4 py-2"><code>brownian.temperature</code></td><td class="px-4 py-2"><code>293.15</code> K</td><td class="px-4 py-2"><span class="en">Fluid temperature</span><span class="zh">流体温度</span></td></tr>
             <tr><td class="px-4 py-2 font-mono text-xs">dt_B</td><td class="px-4 py-2"><code>brownian.dt_B_ratio</code> &times; dt</td><td class="px-4 py-2"><code>dt/2</code></td><td class="px-4 py-2"><span class="en">Brownian time step (fixed, dimensional)</span><span class="zh">布朗时间步长（固定、有量纲）</span></td></tr>
-            <tr><td class="px-4 py-2 font-mono text-xs">fixman_midpoint</td><td class="px-4 py-2"><code>brownian.fixman_midpoint</code></td><td class="px-4 py-2"><code>false</code></td><td class="px-4 py-2"><span class="en">Enable Fixman midpoint drift correction (2&times; cost)</span><span class="zh">启用 Fixman 中点漂移修正（2 倍代价）</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -1862,7 +1856,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v7.5.0 &middot; 2026-06-10</li>
+        <li>v7.7.0 &middot; 2026-06-10</li>
       </ul>
     </div>
   </div>

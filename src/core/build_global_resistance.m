@@ -1,9 +1,9 @@
-function [M_weighted, A_twist_cells, M_rotlet] = build_global_resistance(X_all, params, geom)
-%BUILD_GLOBAL_RESISTANCE  Global hydrodynamic mobility and torsional resistance
+function [M_weighted, M_twist, M_rotlet, D_twist] = build_global_resistance(X_all, params, geom)
+%BUILD_GLOBAL_RESISTANCE  Global hydrodynamic mobility and twist mobility
 %
 %  Description:
 %    Builds the translational mobility matrix for ALL points (body + pili)
-%    and the torsional RFT resistance for pili segments.
+%    and the full non-local axial twist mobility for pili segments.
 %
 %    Mobility method:
 %      Body columns :  RSM point forces (Cortez 2005)
@@ -13,13 +13,17 @@ function [M_weighted, A_twist_cells, M_rotlet] = build_global_resistance(X_all, 
 %    Translational:  Returns M_weighted (NOT its inverse).  The caller
 %    computes M_weighted \ Q directly, avoiding O(N^3) full inversion.
 %
-%    Torsional:  A_twist{k} = ell_k * eps_k^2 * Atilde_k / 2
-%                (diagonal per pili, RFT).
+%    Torsional:  M_twist maps scalar axial torque densities on all pili
+%                segments to scalar axial fluid angular velocities at all
+%                segment midpoints.  It replaces the former diagonal local
+%                RFT resistance with a full non-local segment-integral
+%                mobility.
 %
 %    Rotlet segment mobility (Cortez 2018):
 %      M_rotlet maps 3D torque densities (per segment) to translational
-%      velocities (per eval point).  This captures the hydrodynamic
-%      coupling between torsion and translation that RFT neglects.
+%      velocities (per eval point) using Cortez's full-curl rotlet.  Callers
+%      use 0.5*M_rotlet for the physical standard rotlet so that the coupled
+%      [u; omega] mobility is Lorentz-reciprocal.
 %
 %    Adaptive epsilon strategy:
 %      Body points  :  eps_body = h_mean / 2.6667 (default; batch sweep optimum;
@@ -38,7 +42,7 @@ function [M_weighted, A_twist_cells, M_rotlet] = build_global_resistance(X_all, 
 %      (RSS integrals already incorporate the segment-length weight)
 %
 %  Syntax:
-%    [M_weighted, A_twist_cells, M_rotlet] = build_global_resistance(X_all, params, geom)
+%    [M_weighted, M_twist, M_rotlet, D_twist] = build_global_resistance(X_all, params, geom)
 %
 %  Inputs:
 %    X_all  - [N_total x 3] All point positions in lab frame
@@ -47,8 +51,9 @@ function [M_weighted, A_twist_cells, M_rotlet] = build_global_resistance(X_all, 
 %
 %  Outputs:
 %    M_weighted    - [3*N_total x 3*N_total] Weighted mobility matrix
-%    A_twist_cells - {M x 1} Cell array, each [3*N_k x N_k] torsional map
-%    M_rotlet      - [3*N_total x 3*N_seg_all] Rotlet segment mobility
+%    M_twist       - [N_seg_all x N_seg_all] Axial twist mobility
+%    M_rotlet      - [3*N_total x 3*N_seg_all] Cortez rotlet segment mobility
+%    D_twist       - [3*N_seg_all x N_seg_all] Axial torque embedding
 %
 %  References:
 %    [1] Cortez et al. (2005), Phys. Fluids 17, 031504.
@@ -276,25 +281,123 @@ M_rotlet(row_y, 3:3:end) =  Ryz;
 M_rotlet(row_z, 1:3:end) = -Rxz;
 M_rotlet(row_z, 2:3:end) = -Ryz;
 
-%% Build torsional resistance for each pilus (RFT)
-A_twist_cells = cell(M, 1);
+%% ---- Axial torque embedding and full non-local twist mobility ----
+D_twist = zeros(3 * N_seg_all, N_seg_all);
+d3_all  = zeros(N_seg_all, 3);
 
+seg_offset = 0;
 for k = 1:M
-    N_k   = N_segs(k);
-    eps_k = params.epsilon / params.ell(k);
-
-    d3_k = geom.d3{k};                  % [N_k x 3] in lab frame
-
-    %  Vectorised block-diagonal assembly of Atilde_k:
-    %    Atilde_k(3(j-1)+1 : 3j, j) = d3_k(j,:)'   for j = 1..N_k
-    %  Uses linear indexing so every output cell is written exactly once.
-    Atilde_k  = zeros(3*N_k, N_k);
-    rows_3xNk = reshape(1:3*N_k, 3, N_k);                     % 3 x N_k
-    cols_3xNk = repmat(1:N_k, 3, 1);                          % 3 x N_k
-    lin_idx   = sub2ind([3*N_k, N_k], rows_3xNk, cols_3xNk);
-    Atilde_k(lin_idx) = d3_k';                                % d3_k' is 3 x N_k
-
-    A_twist_cells{k} = params.ell(k) * eps_k^2 * Atilde_k / 2;
+    N_k = N_segs(k);
+    idx = seg_offset + (1:N_k);
+    d3_all(idx, :) = geom.d3{k};
+    seg_offset = seg_offset + N_k;
 end
 
+if N_seg_all > 0
+    rows_3xNs = reshape(1:3*N_seg_all, 3, N_seg_all);
+    cols_3xNs = repmat(1:N_seg_all, 3, 1);
+    lin_idx   = sub2ind([3*N_seg_all, N_seg_all], rows_3xNs, cols_3xNs);
+    D_twist(lin_idx) = d3_all';
+
+    M_twist = compute_nonlocal_twist_mobility(y0_all, y1_all, d3_all, eps_pili);
+else
+    M_twist = [];
+end
+
+end
+
+
+function M_twist = compute_nonlocal_twist_mobility(y0_all, y1_all, d3_all, eps_pili)
+%COMPUTE_NONLOCAL_TWIST_MOBILITY  Segment-integral axial rotation mobility
+%
+%  M_twist(i,j) maps a scalar axial torque density on source segment j
+%  (torque vector = d3_j * m_j) to the scalar axial fluid angular velocity
+%  at the midpoint of target segment i (omega_i = d3_i . Omega).
+%
+%  Cortez (2018) Eq. (3) defines the rotlet as the full curl of the
+%  regularised Stokeslet.  The physical rod angular velocity is half the
+%  fluid vorticity, and the reciprocal standard rotlet is half of Cortez's
+%  full-curl rotlet; therefore the final prefactor is L/4.
+
+mids  = 0.5 * (y0_all + y1_all);
+v_all = y0_all - y1_all;
+L_all = sqrt(sum(v_all.^2, 2));
+L2_all = L_all .* L_all;
+
+e2 = eps_pili^2;
+e4 = e2^2;
+
+% Source-segment data are row vectors for broadcasting over target rows.
+L_r   = L_all';
+L2_r  = L2_all';
+v1_r  = v_all(:,1)';
+v2_r  = v_all(:,2)';
+v3_r  = v_all(:,3)';
+
+% x(alpha) = target_mid - (y0 - alpha*v) = x0 + alpha*v.
+x01 = bsxfun(@minus, mids(:,1), y0_all(:,1)');
+x02 = bsxfun(@minus, mids(:,2), y0_all(:,2)');
+x03 = bsxfun(@minus, mids(:,3), y0_all(:,3)');
+
+r0_sq = x01.^2 + x02.^2 + x03.^2;
+x11 = x01 + v1_r;
+x12 = x02 + v2_r;
+x13 = x03 + v3_r;
+r1_sq = x11.^2 + x12.^2 + x13.^2;
+
+R0 = sqrt(r0_sq + e2);
+R1 = sqrt(r1_sq + e2);
+
+d0 = x01 .* v1_r + x02 .* v2_r + x03 .* v3_r;
+d1 = d0 + L2_r;
+
+H0 = max(L_r .* R0 + d0, 1e-300);
+H1 = max(L_r .* R1 + d1, 1e-300);
+
+inv_L2 = 1 ./ L2_r;
+d0_L2  = d0 .* inv_L2;
+
+T0m3 = 1./(R0 .* H0) - 1./(R1 .* H1);
+
+d_sq = L2_r .* (r0_sq + e2) - d0.^2;
+d_sq = max(d_sq, e2 .* L2_r);
+inv_d_sq = 1 ./ d_sq;
+
+R0_3 = R0.^3;
+R1_3 = R1.^3;
+T0m5 = inv_d_sq / 3 .* (d1 ./ R1_3 - d0 ./ R0_3) ...
+     + 2 * L2_r .* inv_d_sq / 3 .* T0m3;
+T1m5 = (1./R0_3 - 1./R1_3) .* (inv_L2 / 3) - d0_L2 .* T0m5;
+T2m5 = -1./(3 * R1_3 .* L2_r) + T0m3 .* (inv_L2 / 3) - d0_L2 .* T1m5;
+
+R0_5 = R0.^5;
+R1_5 = R1.^5;
+T0m7 = inv_d_sq / 5 .* (d1 ./ R1_5 - d0 ./ R0_5) ...
+     + 4 * L2_r .* inv_d_sq / 5 .* T0m5;
+T1m7 = (1./R0_5 - 1./R1_5) .* (inv_L2 / 5) - d0_L2 .* T0m7;
+T2m7 = -1./(5 * R1_5 .* L2_r) + T0m5 .* (inv_L2 / 5) - d0_L2 .* T1m7;
+
+P0 = -2 * T0m3 - 3 * e2 * T0m5 + 15 * e4 * T0m7;
+S0 =  6 * T0m5 + 15 * e2 * T0m7;
+S1 =  6 * T1m5 + 15 * e2 * T1m7;
+S2 =  6 * T2m5 + 15 * e2 * T2m7;
+
+ei_x = d3_all(:,1);  ei_y = d3_all(:,2);  ei_z = d3_all(:,3);
+ej_x = d3_all(:,1)'; ej_y = d3_all(:,2)'; ej_z = d3_all(:,3)';
+
+ei_dot_ej = ei_x * ej_x + ei_y * ej_y + ei_z * ej_z;
+ei_dot_x0 = ei_x .* x01 + ei_y .* x02 + ei_z .* x03;
+ej_dot_x0 = x01 .* ej_x + x02 .* ej_y + x03 .* ej_z;
+ei_dot_v  = ei_x .* v1_r + ei_y .* v2_r + ei_z .* v3_r;
+ej_dot_v  = ej_x .* v1_r + ej_y .* v2_r + ej_z .* v3_r;
+
+M_twist = (L_r / 4) .* ( ...
+    ei_dot_ej .* P0 ...
+  + ei_dot_x0 .* ej_dot_x0 .* S0 ...
+  + (ei_dot_x0 .* ej_dot_v + ei_dot_v .* ej_dot_x0) .* S1 ...
+  + ei_dot_v .* ej_dot_v .* S2);
+
+% The target midpoint/source segment quadrature is not exactly symmetric for
+% curved or unequal segments; enforce the reciprocal operator used downstream.
+M_twist = 0.5 * (M_twist + M_twist.');
 end

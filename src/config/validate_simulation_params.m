@@ -17,7 +17,7 @@ function validate_simulation_params(cfg, logf_h)
 %      T_obs, dt, minor_axis, major_axis, N_body, seg_per_um,
 %      Pili_Matrix, E, r_pili, mu, rho_bac, rho_fluid,
 %      AbsTol, RelTol, tlim, enable_brown, dt_B, Temper,
-%      animation_fps, sigma_p, fixman_midpoint
+%      animation_fps, sigma_p
 %    logf_h - (Optional) Logger function handle for dual-channel output.
 %             If omitted or empty, falls back to warning-only.
 %
@@ -202,24 +202,9 @@ if cfg.enable_brown
     if cfg.dt_B <= 0
         errs{end+1} = 'Brownian time step dt_B must be > 0 when enable_brown = true.';
     end
-end
-
-% Fixman midpoint
-if isfield(cfg, 'fixman_midpoint') && cfg.fixman_midpoint && ~cfg.enable_brown
-    warns{end+1} = 'fixman_midpoint = true has no effect when enable_brown = false.';
-end
-
-has_pili = (~isempty(cfg.Pili_Matrix)) || ...
-    (strcmp(geometry_mode, 'custom') && isfield(cfg, 'custom_geometry') && ...
-     isstruct(cfg.custom_geometry) && isfield(cfg.custom_geometry, 'pili') && ...
-     ~isempty(cfg.custom_geometry.pili));
-
-if cfg.enable_brown && isfield(cfg, 'fixman_midpoint') && ~cfg.fixman_midpoint ...
-        && has_pili
-    warns{end+1} = ['Brownian enabled with pili present but fixman_midpoint = false: ', ...
-        'the kB*T * div(M_eff) Ito drift term is omitted (simple Euler-Maruyama). ', ...
-        'For long-time diffusion statistics or large-amplitude pili motion, ', ...
-        'consider enabling fixman_midpoint (see Brownian_Implementation_Plan.md section 2.4.1).'];
+    if ~isfield(cfg, 'Temper') || ~isfinite(cfg.Temper) || cfg.Temper <= 0
+        errs{end+1} = 'Temper must be a finite positive temperature [K] when enable_brown = true.';
+    end
 end
 
 %% ---- Warnings (both modes) ----
@@ -481,9 +466,12 @@ function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
                     %
                     % If this ratio is too close to 1 the motor is operating at
                     % stall, where:
-                    %   (a) the speed-limiter dominates dynamics so the
-                    %       DPSI1_PREV explicit-lag approximation in
-                    %       ode_coupled_rhs.m may visibly slow convergence;
+                    %   (a) the speed-limiter dominates the dynamics, so the
+                    %       ode15s step may shrink as it resolves the stiff
+                    %       torque-balance (the stall-curve torque itself is
+                    %       now solved EXACTLY in-call -- see ode_coupled_rhs.m
+                    %       Step 9 -- so there is no lag-approximation error,
+                    %       but the underlying dynamics are still stiff);
                     %   (b) results become highly sensitive to the empirical
                     %       linear stall curve and rarely represent real
                     %       biological motors well.
@@ -499,9 +487,9 @@ function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
                         if ratio >= 0.7
                             warns{end+1} = sprintf(['Pili %d: motor is operating ', ...
                                 'near stall (omega_steady/omega_max ~ %.2f). The ', ...
-                                'speed-limiter dominates dynamics; the explicit-lag ', ...
-                                'approximation for tau_eff(dpsi_1) in ode_coupled_rhs.m ', ...
-                                'may slow convergence and make the ode15s step shrink. ', ...
+                                'speed-limiter dominates the dynamics; although ', ...
+                                'tau_eff(dpsi_1) is now solved exactly in-call, the ', ...
+                                'stiff torque-balance may still shrink the ode15s step. ', ...
                                 'Consider a larger max_omega_Hz, smaller torque_pN_nm, ', ...
                                 'or a longer pilus.'], kk, ratio);
                         elseif ratio >= 0.4

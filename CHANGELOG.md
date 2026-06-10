@@ -10,25 +10,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [7.5.0] — 2026-06-10
+## [7.7.0] — 2026-06-10
 
-Physics correction to the global angular-momentum balance — **changes numerical outputs for all pili-bearing configurations**.
+Strict Brownian Ito drift and physics-correctness cleanup — **changes numerical outputs for Brownian, pili-bearing torque-balance, and time-dependent active-moment configurations**.
+
+### Changed
+
+- **`run_simulation.m` — strict body-only Ito Brownian step**: Brownian kicks now use the explicit drift term `kBT*div(M_eff)` computed by centered finite differences in the six body coordinates, plus correlated noise from the current SPD-projected diffusion tensor.
+- **`src/physics/compute_effective_body_brownian.m` — SPD covariance projection**: diffusion tensors are projected through symmetric eigenvalue clamping before Cholesky sampling, replacing the previous unit-diagonal regularisation fallback.
+- **Brownian configuration cleanup**: removed the former user-facing midpoint drift option from the MATLAB config path, JSON load/save path, validators, example JSON files, batch scripts, website, and user documentation. Brownian dynamics now expose one stochastic interpretation: the strict Ito path.
 
 ### Fixed
 
-- **`src/core/build_coupled_lin_sys.m` — net pili rotlet torque now enters the system torque balance (rows 4-6)**: the global angular-momentum balance previously summed only the Stokeslet contribution `sum(r x f)` and omitted the direct net torque `sum(m)` from the regularized rotlet segments, even though the rotlet flow (`M_rotlet`) is already part of the translational mobility. The total hydrodynamic torque the swimmer exerts on the fluid is `sum(r x f) + sum(m)`, so the moment-balance rows now include **both** terms. With this fix a force/torque-free swimmer is exactly torque-free, and a motor-driven `free_torsion` pilus produces the physically correct body counter-rotation about the spin axis. Verified on a decisive straight-axial-pilus test: the residual `||sum(r x f) + sum(m)|| / ||sum(m)||` drops from O(1) to ~1e-16 while the net force balance is preserved to machine precision.
+- **`src/core/build_coupled_lin_sys.m` — Kirchhoff torque-density scaling**: force-density columns keep the `ell_k^3` scaling while torque-density columns now use `ell_k^2`, matching the line-torque dimensional scaling.
+- **`src/visualization/compute_plot_flowfield.m` and `run_simulation.m` — final flow-field phase**: final flow-field force extraction now calls `ode_coupled_rhs` at `T_achieved` instead of hard-coding `t=0`, so time-dependent active moments keep the correct final phase.
+- **Brownian validation**: Brownian-enabled runs now require a finite positive temperature before diffusion and drift computation.
 
 ### Compatibility
 
-- **NOT bitwise-identical to v7.4.6** for any configuration containing pili. The added `sum(m)` torque term alters the solved body angular velocity (and, through the coupled solve, the full trajectory) by an amount that is small for slow / weak rotlet activity but can be O(1) for fast motor-driven or strongly spinning (e.g. spiral) pili. **Pili-free configurations are unaffected.**
-
-### Notes
-
-- The Lorentz-reciprocal partner of the kept rotlet→translation coupling (the Stokeslet→axial-spin term, `G^T`) was investigated and intentionally **not** added: the method's adaptive, force-point regularization (`eps_ij = eps_j`, `eps_body != eps_pili`) already breaks exact mobility symmetry, so that `O(eps^2)` term is neither uniquely defined nor required for the torque balance, which is closed by `sum(m)` alone.
+- **Not bitwise-identical to v7.6.0** for Brownian-enabled cases, torque-active pili cases, or cases with time-dependent active moments shown in final flow-field panels.
+- JSON files containing the removed midpoint Brownian field are still loadable because unknown JSON fields are ignored, but newly saved configs and examples no longer write that field.
 
 ### Documentation
 
-- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**: version **7.5.0**, date **2026-06-10**.
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**, **`docs/presentation.html`**: version **7.7.0**, date **2026-06-10**.
+
+---
+
+## [7.6.0] — 2026-06-10
+
+Non-local pili twist-coupling physics upgrade — **changes numerical outputs for all pili-bearing configurations**.
+
+### Changed
+
+- **`src/core/build_global_resistance.m` — replaced local RFT axial twist resistance with non-local `M_twist` mobility**: pili twist now uses a segment-integral axial rotation mobility assembled from Cortez (2018) regularized-segment recurrences, with the scalar axial torque density embedded through `D_twist`.
+- **`src/core/build_coupled_lin_sys.m` and `src/core/ode_coupled_rhs.m` — Schur-complement twist solve**: the coupled force/twist system now solves through `M_weighted`, `M_twist`, and the reciprocal twist cross block instead of the former local `A_twist_total` path.
+- **Physical rotlet normalization**: the stored Cortez (2018) segment rotlet is used with a `0.5` factor in the cross-coupling block, because Cortez's rotlet kernel is the full curl of the regularized Stokeslet and is twice the standard physical rotlet.
+
+### Fixed
+
+- **`src/core/build_coupled_lin_sys.m` — line-integrated net pili torque now enters the system torque balance (rows 4-6)**: the global angular-momentum balance uses `sum(r x f) + sum(L_s m_s)`, not bare `sum(m)`, because the rotlet strength is a torque density along each segment. With this fix a force/torque-free swimmer remains torque-free, and a motor-driven `free_torsion` pilus produces the physically correct body counter-rotation about the spin axis.
+- **`src/visualization/compute_plot_flowfield.m` — flow-field reconstruction follows the same non-local twist solve and physical `0.5*M_rotlet` scaling** used by the dynamics.
+
+### Compatibility
+
+- **NOT bitwise-identical to v7.4.6** for any configuration containing pili. The non-local twist solve, physical standard-rotlet scaling, and line-integrated `sum(L_s m_s)` torque term can change the solved body angular velocity and full trajectory. The effect is small for weak twist activity but can be O(1) for fast motor-driven or strongly spinning pili. **Pili-free configurations are unaffected.**
+
+### Documentation
+
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**, **`docs/presentation.html`**: version **7.6.0**, date **2026-06-10**.
 
 ---
 
@@ -463,7 +493,7 @@ Comprehensive hardening pass on the custom-geometry feature, covering correctnes
 - **`init_coupled_params.m`**: Added `geometry_mode` and `custom_geometry` parameters to `inputParser`. Introduced `switch` statements to dispatch body construction to `capsule_body_building` (parametric) or `custom_body_building` (custom), and pili construction to `pili_building` or `custom_pili_building`. Dynamically determines `L_0` and `V_body` based on the chosen mode. Stores geometry-specific metadata (`body_type`, `body_faces`, `body_verts`, `custom_attachment_sites`). Added a guard to error if `V_body` is `NaN` or non-positive (e.g., due to triangulation failure).
 - **`load_sim_config.m`**: Reads the `geometry_mode` field. For `'custom'` mode, parses the `custom_geometry` node and explicitly sets parametric-specific fields (`minor_axis`, `major_axis`, `N_body`, `Pili_Matrix`) to `NaN` or empty to enforce the "no mixing" constraint. `alpha_0` and `eps_body` for custom mode are read from the `custom_geometry` node if present and promoted to the top-level `cfg` struct. `N_segments` derivation is now conditional on `geometry_mode`.
 - **`save_sim_config.m`**: Writes the `geometry_mode` field and uses a `switch` statement to correctly save either the `body`/`pili` nodes (for parametric mode) or the `custom_geometry` node (for custom mode). For custom mode, `alpha_0` and `eps_body` are moved back into the `custom_geometry` sub-struct for consistency.
-- **`validate_simulation_params.m`**: Added a top-level `geometry_mode` switch. For `'custom'` mode, calls `validate_custom_geometry.m` and includes explicit checks to error if any parametric-specific fields (`Pili_Matrix`, `minor_axis`, `major_axis`, `N_body`) are set. Common validations apply regardless of geometry mode. The Brownian Fixman midpoint warning now correctly checks for custom pili. The Stokes-Einstein `dt_B` warning applies only in parametric mode where `major_axis` is defined.
+- **`validate_simulation_params.m`**: Added a top-level `geometry_mode` switch. For `'custom'` mode, calls `validate_custom_geometry.m` and includes explicit checks to error if any parametric-specific fields (`Pili_Matrix`, `minor_axis`, `major_axis`, `N_body`) are set. Common validations apply regardless of geometry mode. Brownian validation now correctly handles custom pili. The Stokes-Einstein `dt_B` warning applies only in parametric mode where `major_axis` is defined.
 - **`run_simulation.m`**: Unpacks `geometry_mode` and `custom_geometry_cfg` from `cfg`. Parameter validation passes these new fields. Logging conditionally prints geometry details. Visualization routines (initial pose preview, summary plots, and animation) use `trisurf()` with the automatically generated mesh for custom bodies, replacing `surf()` for parametric capsules. Axis limit calculations adapt for both geometry types.
 - **`main_coupled_simulation.m`**: Added comments explaining the `geometry_mode` options and a commented-out inline configuration example for custom mode. Inline parameter structure refined with an `if/else` block for parametric vs. custom-specific configuration, with common parameters defined outside the block. Explicit initialization of `cfg.alpha_0`, `cfg.Pili_Matrix`, and `cfg.pili_ext` in the custom branch ensures these top-level fields are always defined.
 
@@ -477,7 +507,7 @@ Comprehensive hardening pass on the custom-geometry feature, covering correctnes
 
 - **Inline custom mode**: Missing `cfg.alpha_0`, `cfg.Pili_Matrix`, and `cfg.pili_ext` fields in the custom branch of `main_coupled_simulation.m` caused runtime "Reference to non-existent field" errors. All three fields are now explicitly initialized.
 - **Custom body volume `NaN` propagation**: If `custom_body_building.m` failed to triangulate, `V_body = NaN` would silently propagate to physical parameters. `init_coupled_params.m` now errors explicitly on invalid volume.
-- **Fixman midpoint warning in custom mode**: The warning for `enable_brown + pili + fixman_midpoint=false` was suppressed in custom mode because `cfg.Pili_Matrix` is `zeros(8,0)`. The check now also considers `cfg.custom_geometry.pili`.
+- **Brownian warning in custom mode**: The custom-mode Brownian validation path now also considers `cfg.custom_geometry.pili`.
 - **Custom mode log output**: `run_simulation.m` no longer prints `NaN` for parametric-specific fields (`major_axis`, `minor_axis`, `N_body`) in custom mode; logging is conditional on `geometry_mode`.
 - **`validate_custom_geometry.m` documentation**: Removed the misleading "volume plausibility" claim from the header (the function validates configuration only, not derived geometric properties).
 - **`read_geometry_csv_mat.m` 3×3 ambiguity**: Refined the MAT file reading logic to specifically distinguish 3×N (N>3) matrices from ambiguous 3×3 matrices (issues a warning, assumes N×3 = 3 points).
@@ -548,8 +578,8 @@ Comprehensive hardening pass on the custom-geometry feature, covering correctnes
 
 ### Added
 
-- **`Brownian_Implementation_Plan.md` (tracked companion)**: New repository document with **§1.5 — Scope & Simplifying Assumptions** (modelled body 6 DOF + pili-induced drag through the coupled mobility; deliberate omission of pili internal thermal modes; extension references) and **§2.4.1 — Stochastic Interpretation & Missing Drift** (Itô form, missing drift when `fixman_midpoint=false`, Fixman recovery, decision matrix). The file was previously listed in `.gitignore` and therefore missing from a clean clone; it is now versioned so cross-references in `validate_simulation_params.m` resolve.
-- **`validate_simulation_params.m`**: Two new Brownian-related warnings. (a) When `enable_brown = true` and `Pili_Matrix` is non-empty but `fixman_midpoint = false`, a warning is emitted recommending Fixman to avoid the missing Itô drift. (b) When `dt_B` exceeds 10% of a Stokes-Einstein back-of-envelope estimate of `min(tau_trans, tau_rot)` (using the major semi-axis as a conservative radius), a warning suggests a smaller `dt_B` for accurate Brownian statistics. Both warnings are inert when `enable_brown = false`.
+- **`Brownian_Implementation_Plan.md` (tracked companion)**: New repository document with **§1.5 — Scope & Simplifying Assumptions** (modelled body 6 DOF + pili-induced drag through the coupled mobility; deliberate omission of pili internal thermal modes; extension references) and **§2.4.1 — Stochastic Interpretation & Missing Drift**. The file was previously listed in `.gitignore` and therefore missing from a clean clone; it is now versioned so cross-references in `validate_simulation_params.m` resolve.
+- **`validate_simulation_params.m`**: Two new Brownian-related warnings. One covered configuration-dependent Brownian drift in pili-bearing cases, and one warns when `dt_B` exceeds 10% of a Stokes-Einstein back-of-envelope estimate of `min(tau_trans, tau_rot)` (using the major semi-axis as a conservative radius). Both warnings are inert when `enable_brown = false`.
 - **`compute_effective_body_brownian.m`**: Read-only numerical diagnostics injected into the existing computation path. (a) Before the mandatory symmetrisation of `M_eff_dimless`, the relative Frobenius asymmetry `||M-Mᵀ||_F / ||M||_F` is computed and compared against `1e-6`; exceeding that threshold emits `compute_effective_body_brownian:AsymmetryHigh` to prevent silent masking of `lin_sys` assembly bugs or catastrophic conditioning. (b) After dimensionalisation, `rcond(M_eff_dim)` is evaluated; values below `1e-10` emit `compute_effective_body_brownian:IllConditioned` to warn about near-singular effective mobility before the downstream Cholesky. Both hooks are diagnostic only — the numerical output (`L_eff`, `D_eff`, `M_eff_dim`) and function signature are unchanged.
 
 ### Changed
@@ -955,16 +985,16 @@ Comprehensive hardening pass on the custom-geometry feature, covering correctnes
 
 - **`build_coupled_lin_sys.m`** (NEW): Extracted Steps 1-7 from `ode_coupled_rhs.m` into a reusable subroutine that assembles the coupled body-pili linear system with clamped BC. Shared by the ODE RHS and the Brownian mobility computation.
 - **`compute_effective_body_brownian.m`** (NEW): Computes the full-system effective 6×6 body mobility by probing the coupled linear system, dimensionalises it, and returns the Cholesky factor for Euler-Maruyama Brownian dynamics. Implicitly captures pili hydrodynamic drag via Schur complement.
-- **`fixman_midpoint`** configuration option: Optional Fixman midpoint correction for configuration-dependent diffusion drift (2× mobility evaluation per Brownian step).
+- **Brownian drift option**: Added an early optional midpoint approximation for configuration-dependent diffusion drift. This option has since been removed in favor of the strict explicit Ito drift path.
 
 ### Changed
 
 - **`ode_coupled_rhs.m`**: Refactored to call `build_coupled_lin_sys` for Steps 1-7, retaining only elastic moment computation and state-rate packing.
-- **`run_simulation.m`**: Brownian kick block replaced: uses per-step dynamically computed `L_eff` (6×6 Cholesky) from full-system effective friction; generates 6D correlated noise (translation-rotation coupling included); supports optional Fixman midpoint correction.
-- **`init_coupled_params.m`**: Removed one-time body-only `compute_body_brownian_params` call at initialisation; Brownian diffusion is now computed dynamically per step; added `fixman_midpoint` parameter.
-- **`load_sim_config.m`**: Parses new `fixman_midpoint` field from the `brownian` JSON block.
-- **`config_example.json`**: Added `fixman_midpoint: false` to the `brownian` block.
-- **`validate_simulation_params.m`**: Added validation for `fixman_midpoint` parameter.
+- **`run_simulation.m`**: Brownian kick block replaced: uses per-step dynamically computed `L_eff` (6×6 Cholesky) from full-system effective friction and generates 6D correlated noise (translation-rotation coupling included).
+- **`init_coupled_params.m`**: Removed one-time body-only `compute_body_brownian_params` call at initialisation; Brownian diffusion is now computed dynamically per step.
+- **`load_sim_config.m`**: Added Brownian JSON parsing for the full-system effective friction path.
+- **`config_example.json`**: Added Brownian configuration fields to the `brownian` block.
+- **`validate_simulation_params.m`**: Added validation for Brownian configuration parameters.
 - **`Brownian_Implementation_Plan.md`**: Added upgrade notice documenting the transition from body-only to full-system effective friction.
 - **`README.md`**: Updated section 16, file listings, architecture diagram, and feature descriptions.
 
@@ -975,8 +1005,8 @@ Comprehensive hardening pass on the custom-geometry feature, covering correctnes
 
 ### Fixed
 
-- **`main_coupled_simulation.m`**: Added missing `cfg.fixman_midpoint` to inline configuration block (runtime crash when using inline config path).
-- **`configs/OnePili-P1-L3.json`**: Added missing `fixman_midpoint` field to the `brownian` block.
+- **`main_coupled_simulation.m`**: Added missing Brownian configuration wiring to the inline configuration block.
+- **`configs/OnePili-P1-L3.json`**: Added missing Brownian fields to the `brownian` block.
 
 ---
 

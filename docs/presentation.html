@@ -224,7 +224,7 @@
     </p>
     <div class="title-meta">
       <div><b style="color:#fff;">Author</b> &nbsp; Lucien &nbsp;·&nbsp; lucien-6@qq.com</div>
-      <div><b style="color:#fff;">Version</b> &nbsp; 7.5.0 &nbsp;·&nbsp; 2026-06-10</div>
+      <div><b style="color:#fff;">Version</b> &nbsp; 7.7.0 &nbsp;·&nbsp; 2026-06-10</div>
       <div><b style="color:#fff;">Methods</b> &nbsp; RSM + RSS + Rotlet · Kirchhoff rods · Quaternion · Brownian</div>
     </div>
   </div>
@@ -938,8 +938,8 @@
         <p class="small lang-en">Split into \(\delta\mathbf{U}=[\delta\mathbf{X},\delta\boldsymbol{\Theta}]\), it is applied between deterministic <code>ode15s</code> sub-intervals; the rotation part \(\delta\boldsymbol{\Theta}\) updates the body quaternion.</p>
         <p class="small lang-zh">分为 \(\delta\mathbf{U}=[\delta\mathbf{X},\delta\boldsymbol{\Theta}]\)，施加于确定性 <code>ode15s</code> 子区间之间；转动部分 \(\delta\boldsymbol{\Theta}\) 更新胞体四元数。</p>
         <div class="card alt">
-          <p class="tiny lang-en" style="margin:0;">Optional <code>fixman_midpoint</code> re-evaluates \(\mathbf{M}_{\text{eff}}\) at a stochastic midpoint to recover the configuration-dependent Itô drift (≈2× mobility cost). A logged RNG seed makes every stochastic run reproducible.</p>
-          <p class="tiny lang-zh" style="margin:0;">可选 <code>fixman_midpoint</code> 在随机中点重算 \(\mathbf{M}_{\text{eff}}\) 以恢复依赖构型的 Itô 漂移（约 2 倍开销）。记录的随机种子使每次随机运行可复现。</p>
+          <p class="tiny lang-en" style="margin:0;">The configuration-dependent Itô drift \(k_B T\,\nabla\!\cdot\!\mathbf{M}_{\text{eff}}\) is computed explicitly by six-coordinate finite differences of the SPD-projected body mobility. A logged RNG seed makes every stochastic run reproducible.</p>
+          <p class="tiny lang-zh" style="margin:0;">构型依赖的 Itô 漂移 \(k_B T\,\nabla\!\cdot\!\mathbf{M}_{\text{eff}}\) 通过对 SPD 投影后的胞体迁移率做六坐标有限差分显式计算。记录的随机种子使每次随机运行可复现。</p>
         </div>
       </div>
     </div>
@@ -1156,7 +1156,7 @@ cfg.auto_confirm = true;
       </ol>
     </div>
   </div>
-  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · v7.5.0</div>
+  <div class="footer"><b>Bacteria Elastohydrodynamic Simulation</b> · v7.7.0</div>
 </section>
 
 <!-- ============ 22. THANK YOU ============ -->
@@ -1165,7 +1165,7 @@ cfg.auto_confirm = true;
     <span class="kicker"><span class="lang-en">Thank You</span><span class="lang-zh">谢谢</span></span>
     <h1 style="font-size:1.85em;"><span class="lang-en">Questions &amp; Discussion</span><span class="lang-zh">提问与讨论</span></h1>
     <div class="bar" style="margin-left:auto;margin-right:auto;"></div>
-    <p class="muted" style="font-size:.68em;">Lucien &nbsp;·&nbsp; lucien-6@qq.com &nbsp;·&nbsp; Version 7.5.0 (2026-06-10)</p>
+    <p class="muted" style="font-size:.68em;">Lucien &nbsp;·&nbsp; lucien-6@qq.com &nbsp;·&nbsp; Version 7.7.0 (2026-06-10)</p>
   </div>
 </section>
 

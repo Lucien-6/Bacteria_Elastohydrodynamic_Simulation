@@ -1,5 +1,5 @@
 %% main_coupled_simulation.m
-%  Bacteria Elastohydrodynamic Simulation — Entry Point
+%  Bacteria Elastohydrodynamic Simulation - Entry Point
 %
 %  Description:
 %    Lightweight entry script that defines the simulation configuration
@@ -15,7 +15,7 @@
 %      flagellum driven by a constant motor torque.  Buoyancy is OFF on
 %      purpose: rho_bac = rho_fluid = 998.232 kg/m^3 isolates motor-driven
 %      rotation and propulsion from gravitational sinking.  This is NOT
-%      the documented project default — the standard sinking workflow uses
+%      the documented project default - the standard sinking workflow uses
 %      rho_bac = 1180 kg/m^3.  Likewise T_obs = 20 s and dt = 0.01 s are
 %      tuned for the high-frequency motor diagnostic (the JSON loader
 %      fallback defaults in load_sim_config.m are T_obs = 30 s, dt = 0.1 s).
@@ -32,14 +32,14 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Documentation release: 7.5.0 (2026-06-10) — see README.md / CHANGELOG.md
+%  Documentation release: 7.7.0 (2026-06-10) - see README.md / CHANGELOG.md
 
 close all force;
 clear; clc;
 
 % Path policy (project root): main entry here + defensive addpath inside
 % run_simulation(). Post-processing and batch sweep scripts keep their own
-% addpath calls when run standalone — that layout is intentional.
+% addpath calls when run standalone - that layout is intentional.
 proj_root = fileparts(mfilename('fullpath'));
 addpath(proj_root);
 addpath(genpath(fullfile(proj_root, 'src')));
@@ -240,7 +240,7 @@ else
     % -------- Simulation Time & Numerics --------
     % NOTE: T_obs / dt below are tuned for the high-frequency motor demo;
     % the JSON loader fallback defaults are T_obs = 30 s, dt = 0.1 s for sinking studies.
-    cfg.T_obs  = 1.0;                    % [s]   Total observation time
+    cfg.T_obs  = 0.5;                    % [s]   Total observation time
     cfg.AbsTol = 1e-4;                    % ODE absolute tolerance
     cfg.RelTol = 1e-4;                    % ODE relative tolerance
     cfg.delta  = pi / 20;                 % [rad] Euler angle singularity threshold
@@ -251,7 +251,8 @@ else
     cfg.enable_brown     = false;          % true = enable Brownian motion
     cfg.Temper           = 293.15;        % [K]   Fluid temperature (20 deg C)
     cfg.dt_B             = cfg.dt / 2;    % [s]   Brownian time step
-    cfg.fixman_midpoint  = false;         % true = Fixman midpoint drift correction (2x cost)
+    % Brownian thermal drift is handled by the strict Ito finite-difference
+    % correction in run_simulation.m.
     % Optional: cfg.brown_rng_seed = positive integer for fixed twister seed; omit = MMddHHmmss at run start
 
     % -------- Preview & Animation --------

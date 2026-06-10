@@ -33,7 +33,8 @@ function [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params)
 %    hydro   - (Optional, 3rd output) Hydrodynamic intermediate struct
 %              for background flow computation.  Fields:
 %                .B_global, .M_weighted, .dM_weighted,
-%                .A_twist_total, .M_rotlet, .n_trans
+%                .M_twist, .D_twist, .C_twist, .Minv_C_twist,
+%                .S_twist, .dS_twist, .M_rotlet, .n_trans
 %              .dM_weighted is a reusable LU decomposition object for
 %              M_weighted \ rhs solves (lets apply_Ainv_u skip a second
 %              full LU factorisation in the background-flow branch of
@@ -57,8 +58,8 @@ X_all   = geom.X_all;
 X_cm    = geom.X_cm;
 N_total = size(X_all, 1);
 
-%% Step 2: Build global mobility / resistance matrices
-[M_weighted, A_twist_cells, M_rotlet] = build_global_resistance(X_all, params, geom);
+%% Step 2: Build global mobility matrices
+[M_weighted, M_twist, M_rotlet, D_twist] = build_global_resistance(X_all, params, geom);
 
 %% Step 3-4: Build B, Q matrices
 %  NOTE: Step 5 (elastic restoring moments RHS) is intentionally omitted
@@ -155,13 +156,6 @@ for k = 1:M
     twist_row  = twist_row + N_k;
 end
 
-%% Build torsional resistance block (single blkdiag call; O(M) vs O(M^2))
-if M > 0
-    A_twist_total = blkdiag(A_twist_cells{:});
-else
-    A_twist_total = [];
-end
-
 %% Build B_global: [n_state x n_force]
 B_global = zeros(n_state, n_force);
 
@@ -202,19 +196,23 @@ B_global(5, 3:3:3*N_total) = -w_all .* rax;
 B_global(6, 1:3:3*N_total) = -w_all .* ray;
 B_global(6, 2:3:3*N_total) =  w_all .* rax;
 
-%  Net rotlet (axial torsional) torque in the system angular-momentum
-%  balance.  The pili rotlet strengths m (the twist/torque-density block of
-%  the force vector, columns 3*N_total+1:end) are point couples that the
-%  filaments exert on the fluid, in the SAME nondimensional torque units and
-%  sign convention as r x f (the regularised rotlet velocity u = (m x r)*ker
-%  matches the standard rotlet u = (T x r)/r^3 with T = m).  The total
-%  hydrodynamic torque on a free swimmer is therefore sum(r x f) + sum(m),
-%  not sum(r x f) alone; rows 4-6 must include BOTH for an exact torque-free
-%  (or prescribed-external-torque) balance.  This is mandatory physics (total
-%  angular-momentum flux), hard-wired ON -- there is no leading-order variant.
-B_global(4, 3*N_total+1 : 3 : n_force) = 1;
-B_global(5, 3*N_total+2 : 3 : n_force) = 1;
-B_global(6, 3*N_total+3 : 3 : n_force) = 1;
+%  Net axial couple in the system angular-momentum balance.  Cortez (2018)
+%  defines the rotlet source as a torque density on a line segment, so the
+%  physical net couple is the segment line integral sum_s L_s*(D_twist*m)_s.
+%  The twist block of the force vector stores these 3D torque densities.
+twist_seg_lengths = zeros(1, sum(N_segs));
+seg_count = 0;
+for k = 1:M
+    N_k = N_segs(k);
+    X_k = geom.X_pili{k};
+    seg_lengths_k = sqrt(sum(diff(X_k, 1, 1).^2, 2));
+    twist_seg_lengths(seg_count + (1:N_k)) = seg_lengths_k(:)';
+    seg_count = seg_count + N_k;
+end
+
+B_global(4, 3*N_total+1 : 3 : n_force) = twist_seg_lengths;
+B_global(5, 3*N_total+2 : 3 : n_force) = twist_seg_lengths;
+B_global(6, 3*N_total+3 : 3 : n_force) = twist_seg_lengths;
 
 row_offset       = 6;
 col_offset_trans = 3 * N_body;
@@ -357,17 +355,21 @@ for k = 1:M
     R_f_trans = kron(eye(N_k+1), rot_k);
     R_f_twist = kron(eye(N_k), rot_k);
     R_f_block = blkdiag(R_f_trans, R_f_twist);
-    B_k_lab   = ell_k_B^3 * (B_k * R_f_block);
+    B_k_rot   = B_k * R_f_block;
 
     f_cols_start = col_offset_trans + 1;
     f_cols_end   = col_offset_trans + 3*(N_k+1);
     t_cols_start = col_offset_twist + 1;
     t_cols_end   = col_offset_twist + 3*N_k;
 
+    n_force_cols_k = 3 * (N_k + 1);
+    B_k_lab_force  = ell_k_B^3 * B_k_rot(:, 1:n_force_cols_k);
+    B_k_lab_tau    = ell_k_B^2 * B_k_rot(:, n_force_cols_k+1:end);
+
     B_global(row_offset+1 : row_offset+3*N_k, f_cols_start:f_cols_end) = ...
-        B_k_lab(:, 1:3*(N_k+1));
+        B_k_lab_force;
     B_global(row_offset+1 : row_offset+3*N_k, t_cols_start:t_cols_end) = ...
-        B_k_lab(:, 3*(N_k+1)+1:end);
+        B_k_lab_tau;
 
     row_offset       = row_offset + 3 * N_k;
     col_offset_trans = col_offset_trans + 3 * (N_k + 1);
@@ -399,20 +401,32 @@ Q_trans  = Q_global(1:n_trans, :);
 % skips backslash's per-call symmetry / triangular heuristics.
 dM_weighted = decomposition(M_weighted, 'lu', 'CheckCondition', false);
 
-if ~isempty(A_twist_total)
-    Q_twist  = Q_global(n_trans+1:end, :);
-    AQ_twist = A_twist_total * Q_twist;
+C_twist      = [];
+Minv_C_twist = [];
+S_twist      = [];
+dS_twist     = [];
 
-    if ~isempty(M_rotlet)
-        Q_trans_corr = Q_trans - M_rotlet * AQ_twist;
-    else
-        Q_trans_corr = Q_trans;
-    end
-    AQ_trans = dM_weighted \ Q_trans_corr;
-    AQ       = [AQ_trans; AQ_twist];
+if ~isempty(M_twist)
+    Q_twist = Q_global(n_trans+1:end, :);
+
+    % Full reciprocal mobility inverse:
+    %   [u_t] = [Mtt  C] [f]
+    %   [u_w]   [C' Mll] [m]
+    % where C uses the physical standard rotlet, i.e. half of Cortez's
+    % full-curl rotlet in build_global_resistance.m.
+    C_twist      = 0.5 * (M_rotlet * D_twist);
+    Minv_Q_trans = dM_weighted \ Q_trans;
+    Minv_C_twist = dM_weighted \ C_twist;
+    S_twist      = M_twist - C_twist' * Minv_C_twist;
+    dS_twist     = decomposition(S_twist, 'lu', 'CheckCondition', false);
+
+    AQ_twist_scalar = dS_twist \ (Q_twist - C_twist' * Minv_Q_trans);
+    AQ_trans        = Minv_Q_trans - Minv_C_twist * AQ_twist_scalar;
+    AQ_twist        = D_twist * AQ_twist_scalar;
+    AQ              = [AQ_trans; AQ_twist];
 else
     AQ_trans = dM_weighted \ Q_trans;
-    AQ = AQ_trans;
+    AQ       = AQ_trans;
 end
 
 lin_sys = -B_global * AQ;
@@ -422,7 +436,12 @@ if nargout >= 3
     hydro.B_global      = B_global;
     hydro.M_weighted    = M_weighted;
     hydro.dM_weighted   = dM_weighted;
-    hydro.A_twist_total = A_twist_total;
+    hydro.M_twist       = M_twist;
+    hydro.D_twist       = D_twist;
+    hydro.C_twist       = C_twist;
+    hydro.Minv_C_twist  = Minv_C_twist;
+    hydro.S_twist       = S_twist;
+    hydro.dS_twist      = dS_twist;
     hydro.M_rotlet      = M_rotlet;
     hydro.n_trans        = n_trans;
 end

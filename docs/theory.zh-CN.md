@@ -5,7 +5,7 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **更新日期:** 2026-06-10
-> **版本:** 7.5.0
+> **版本:** 7.7.0
 
 本文档承接原长版 README 中的理论、模型和数值方法说明。仓库首页现在保持精简；实际运行步骤见 [`../USER_GUIDE.md`](../USER_GUIDE.md)，版本历史见 [`../CHANGELOG.md`](../CHANGELOG.md)。
 
@@ -169,7 +169,7 @@ c_a[\mathbf{x}_0]_{\times}
 \boldsymbol{\tau}.
 ```
 
-其中 `tau` 为线段扭矩密度。对典型细菌纤毛而言，该耦合量级很小，但保留它可以使公式结构更完整。
+其中 `tau` 为线段扭矩密度。实现中将 Cortez (2018) 的全旋度 rotlet 线段核保存为 `M_rotlet`；当该分块与 Stokeslet 平动互易耦合时，通过 `0.5*M_rotlet` 因子转换为物理标准 rotlet 约定。
 
 ## 6. 耦合线性系统
 
@@ -182,44 +182,66 @@ c_a[\mathbf{x}_0]_{\times}
 其中：
 
 ```math
-\mathbf{L} = -\mathbf{B}\mathbf{A}\mathbf{Q},
+\mathbf{L} = -\mathbf{B}\mathbf{A}\mathbf{Q}.
 ```
 
+自 v7.6.0 起，轴向扭转不再使用局部 RFT 扭转阻力。平动与轴向自旋未知量通过如下大迁移率耦合：
+
 ```math
-\mathbf{A}\mathbf{Q}
+\begin{bmatrix}
+\mathbf{u} \\
+\omega_\parallel
+\end{bmatrix}
 =
 \begin{bmatrix}
-\mathbf{M}_{\mathrm{weighted}}^{-1}\mathbf{Q}_{\mathrm{trans,corr}} \\
-\widetilde{\mathbf{A}}_{\mathrm{twist}}\mathbf{Q}_{\mathrm{twist}}
+\mathbf{M}_{\mathrm{weighted}} & \mathbf{C}_{\mathrm{twist}} \\
+\mathbf{C}_{\mathrm{twist}}^{\mathsf T} & \mathbf{M}_{\mathrm{twist}}
+\end{bmatrix}
+\begin{bmatrix}
+\mathbf{f} \\
+\mathbf{m}
 \end{bmatrix},
 ```
 
+其中 `M_twist` 为非局部线段积分轴向转动迁移率，且
+
 ```math
-\mathbf{Q}_{\mathrm{trans,corr}}
-=
-\mathbf{Q}_{\mathrm{trans}}
-- \mathbf{M}_{\mathrm{rotlet}}
-\widetilde{\mathbf{A}}_{\mathrm{twist}}
-\mathbf{Q}_{\mathrm{twist}}.
+\mathbf{C}_{\mathrm{twist}} = \tfrac{1}{2}\mathbf{M}_{\mathrm{rotlet}}\mathbf{D}_{\mathrm{twist}}.
 ```
+
+`1/2` 因子将 Cortez 的全旋度 rotlet 线段核转换为物理标准 rotlet 约定。代码通过 Schur 互补施加逆作用：
+
+```math
+\mathbf{S}_{\mathrm{twist}}
+=
+\mathbf{M}_{\mathrm{twist}}
+-
+\mathbf{C}_{\mathrm{twist}}^{\mathsf T}
+\mathbf{M}_{\mathrm{weighted}}^{-1}
+\mathbf{C}_{\mathrm{twist}},
+```
+
+因此主线性系统与背景流修正使用同一个耦合算子。
 
 主要矩阵块为：
 
 - `Q_global`: 将广义速率映射为胞体和纤毛节点速度。
-- `M_weighted`: 全局水动力迁移率矩阵，包含胞体 RSM 和纤毛 RSS 分块。
-- `A_twist`: 扭转阻力算子。
-- `B_global`: 将分布力和扭矩映射到全局力平衡、力矩平衡和纤毛力矩平衡方程。
+- `M_weighted`: 全局平动水动力迁移率矩阵，包含胞体 RSM 和纤毛 RSS 分块。
+- `M_twist`: 非局部轴向扭转迁移率。
+- `D_twist`: 将标量轴向扭矩密度嵌入为沿线段方向的 3D rotlet 向量。
+- `C_twist`: 采用物理标准 rotlet 缩放的平动/扭转互易耦合。
+- `B_global`: 将分布力和线积分力矩映射到全局力平衡、力矩平衡和纤毛力矩平衡方程。
 - `R`: 重力、弹性力矩、主动力矩、背景流修正和马达力矩项。
 
-**全局角动量平衡（自 v7.5.0 起）。** 游动体作用于流体的总水动力矩为 Stokeslet 力矩与净 rotlet 力矩之和：
+**全局角动量平衡（自 v7.6.0 起）。** 游动体作用于流体的总水动力矩为 Stokeslet 力矩与线积分后的净 rotlet 力矩之和：
 
 ```math
-\mathbf{T} = \sum_i \mathbf{r}_i \times \mathbf{f}_i + \sum_s \mathbf{m}_s,
+\mathbf{T} = \sum_i \mathbf{r}_i \times \mathbf{f}_i + \sum_s L_s \mathbf{m}_s,
 ```
 
-因此 `B_global` 的力矩行**同时**包含 `sum(r x f)` 分块与净 rotlet 分块 `sum(m)`（即驱动平动 rotlet 流 `M_rotlet` 的同一组 `m`）。纳入 `sum(m)` 后，受力/力矩自由的游动体严格力矩为零，马达驱动/自旋纤毛能给出正确的胞体反向旋转。rotlet→平动耦合的 Lorentz 互易配对项（Stokeslet→轴向自旋项）**未**加入：自适应的力点正则化（`eps_ij = eps_j`，`eps_body != eps_pili`）本就破坏了精确迁移率对称性，因此该 `O(eps^2)` 项既无唯一定义，也非闭合力矩平衡所必需。
+因为 `m_s` 是第 `s` 段上的扭矩密度。因此 `B_global` 的力矩行同时包含 `sum(r x f)` 与 `sum(L_s m_s)`。这使受力/力矩自由的游动体严格力矩为零，并使马达驱动或自旋纤毛给出正确的胞体反向旋转。
 
-求解使用 MATLAB 反斜杠 / LU 分解，不显式计算矩阵逆。
+求解使用 MATLAB decomposition / LU 分解，不显式计算矩阵逆。
 
 ## 7. 弹性杆力矩
 
@@ -334,7 +356,7 @@ k_B T\,\mathbf{M}_{\mathrm{eff,dim}},
 \boldsymbol{\eta}\sim\mathcal{N}(\mathbf{0},\mathbf{I}_6).
 ```
 
-可选 `fixman_midpoint` 会在随机中点重新计算迁移率，以近似构型依赖 Ito 漂移。代价是每个布朗步需要约两次迁移率评估。
+Ito 漂移项通过对 SPD 投影后的六维胞体迁移率做有限差分显式计算。这替代了旧的中点近似，使 Brownian 更新保持单一、严格的随机解释。
 
 ## 11. 流场可视化
 

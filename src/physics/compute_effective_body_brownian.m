@@ -91,7 +91,10 @@ if rel_asym > 1e-3
         rel_asym);
 end
 
-% Symmetrise (numerical round-off may break exact symmetry)
+% Symmetrise the mobility used by the Brownian covariance.  The deterministic
+% coupled solve still uses the original hydrodynamic operator; this path
+% constructs the fluctuation-dissipation tensor for the body-only stochastic
+% increment.
 M_eff_dimless = 0.5 * (M_eff_dimless + M_eff_dimless');
 
 %  Diagnostic: condition number of the DIMENSIONLESS effective mobility.
@@ -147,20 +150,20 @@ M_eff_dim = 0.5 * (M_eff_dim + M_eff_dim');
 %% Step 5: Diffusion tensor and Cholesky decomposition
 kB    = 1.380649e-23;
 Temper = params.dim.Temper;
+if ~(isfinite(Temper) && Temper > 0)
+    error('compute_effective_body_brownian:InvalidTemperature', ...
+        'Brownian temperature must be finite and positive, got %.4g K.', Temper);
+end
 
 D_eff = kB * Temper * M_eff_dim;
-D_eff = 0.5 * (D_eff + D_eff');
-
-% Positive-definiteness check with diagonal regularisation fallback
-[~, flag] = chol(2 * D_eff);
-if flag ~= 0
-    eigvals = eig(D_eff);
-    min_eig = min(eigvals);
-    logf_h('[BROWN] WARNING: 2*D_eff not positive definite (min eigenvalue = %.2e). Regularising...\n', min_eig);
+[D_eff, was_projected, min_eig_before] = project_spd_covariance(D_eff);
+if was_projected
+    logf_h('[BROWN] WARNING: D_eff was not positive definite (min eigenvalue = %.2e). Projected to nearest SPD covariance.\n', ...
+        min_eig_before);
     warning('compute_effective_body_brownian:NotPosDef', ...
-        '2*D_eff not positive definite (min eigenvalue = %.2e). Regularising...', min_eig);
-    reg = max(eps(norm(D_eff, 'fro')), abs(min_eig) * (1 + 1e-6));
-    D_eff = D_eff + eye(6) * reg;
+        'D_eff was not positive definite (min eigenvalue = %.2e). Projected to nearest SPD covariance.', ...
+        min_eig_before);
+    M_eff_dim = D_eff / (kB * Temper);
 end
 
 L_eff = chol(2 * D_eff, 'lower');
@@ -177,4 +180,30 @@ function logf_h = get_brown_logf(params)
     else
         logf_h = @(varargin) fprintf(varargin{:});
     end
+end
+
+
+function [A_spd, was_projected, min_eig_before] = project_spd_covariance(A)
+%PROJECT_SPD_COVARIANCE  Symmetric positive-definite projection for 6x6 D.
+%  The Brownian covariance is represented in the mixed coordinate vector
+%  [x;y;z;theta_x;theta_y;theta_z].  If round-off or a non-reciprocal
+%  hydrodynamic discretisation leaves a tiny negative eigenvalue, clamp the
+%  symmetric spectrum instead of adding a unit-scaled diagonal correction.
+    A_sym = 0.5 * (A + A');
+    [V, D] = eig(A_sym);
+    lam = real(diag(D));
+    min_eig_before = min(lam);
+    max_eig = max(lam);
+    floor_eig = max(eps(max(norm(A_sym, 'fro'), 1)), eps(max_eig) * max(max_eig, 1));
+
+    if min_eig_before > floor_eig
+        A_spd = A_sym;
+        was_projected = false;
+        return;
+    end
+
+    lam = max(lam, floor_eig);
+    A_spd = V * diag(lam) * V';
+    A_spd = 0.5 * (A_spd + A_spd');
+    was_projected = true;
 end

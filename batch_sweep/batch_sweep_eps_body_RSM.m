@@ -72,7 +72,6 @@ cfg_base.dt     = 0.1;
 cfg_base.enable_brown = false;
 cfg_base.Temper       = 293.15;
 cfg_base.dt_B         = cfg_base.dt / 2;
-cfg_base.fixman_midpoint = false;
 
 cfg_base.preview_initial    = false;
 cfg_base.generate_animation = false;

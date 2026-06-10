@@ -88,13 +88,16 @@ for k = 1:M
             v_opt = v_opt / v_opt_norm;
         end
 
-        % Householder reflection about the plane perpendicular to v_opt:
+        % Basis rotation by pi about the axis v_opt:
         %   K = skew(v_opt),  rot_local = I + 2*K^2 = 2*v_opt*v_opt' - I
-        %   This is a reflection (det = -1), not a proper rotation.
-        %   However, it is a valid basis change in Kirchhoff rod theory because
-        %   the director d3 is a first-order angular quantity and a sign flip
-        %   does not affect the physical curvature binormal.  Walker (2020)
-        %   uses this form for its simplicity and numerical stability.
+        %   For a UNIT vector v_opt this is a PROPER rotation of angle pi
+        %   about v_opt (eigenvalues {+1, -1, -1}, so det = +1) -- NOT a
+        %   reflection.  It maps the basis z-axis (the Euler-angle
+        %   singularity location) to its image mirrored across v_opt,
+        %   relocating the singularity away from the current tangents while
+        %   PRESERVING frame handedness (the right-handed triad d1 x d2 = d3
+        %   is retained, so curvature/twist signs are unaffected).  Walker
+        %   (2020) uses this form for its simplicity and numerical stability.
         K = [0, -v_opt(3), v_opt(2); ...
              v_opt(3), 0, -v_opt(1); ...
             -v_opt(2), v_opt(1), 0];
