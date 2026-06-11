@@ -10,6 +10,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [7.8.0] — 2026-06-11
+
+Reference-curvature and motor-torque nondimensionalisation correctness fixes — **changes numerical outputs for curved/helical `frozen`-curvature pili and for `free_torsion` constant-motor configurations**.
+
+### Fixed
+
+- **`src/config/init_coupled_params.m` — intrinsic curvature `kb0` discretisation consistency**: the reference curvature `kb0` is now built with the same node-director operator (`compute_node_directors`, SVD-projected segment averaging) and the same finite-difference stencil used by the run-time curvature in `src/physics/compute_pili_elastic_moments.m`, replacing the former "duplicate-end" nodal-director construction (`d1NC0 = [d1_0; d1_0(end,:)]`). A `frozen`-curvature pilus in its reference configuration is now an exact zero-moment equilibrium (`kappa_live - kb0 == 0` to machine precision), removing the spurious initial elastic restoring moment that previously acted on curved or helical pili at `t = 0`. Applied to both the parametric and custom geometry branches.
+- **`src/config/init_coupled_params.m` — constant motor-torque nondimensionalisation**: the motor torque enters the segment-1 `psi_1` twist moment-balance row, whose moment scale is `EI / L_pili` under the per-pilus normalised arc length `s' in [0,1]` (`ds = 1/N_k`). The nondimensionalisation now divides by `EI / L_pili` (with `L_pili = ell * L_0`) instead of `EI / L_0`, matching the active-moment convention. This restores the intended applied motor-torque magnitude, which was previously off by the factor `ell = L_pili / L_0`. The stall-speed nondimensionalisation (`max_omega_dimless`) was already correct and is unchanged. Applied to both the parametric and custom geometry branches.
+
+### Compatibility
+
+- **Not bitwise-identical to v7.7.0** for: (a) pili with curved or helical `frozen` intrinsic curvature — straight pili are unaffected, since their reference curvature is zero under both schemes; (b) `free_torsion` pili driven by a `constant` motor torque, where the effective torque changes by the factor `ell`. All other configurations (pili-free, straight-pili, `zero`/`constant`/`helix` intrinsic-curvature overrides, and active-moment-only driving) are numerically unchanged.
+
+### Documentation
+
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**, **`docs/presentation.html`**: version **7.8.0**, date **2026-06-11**.
+
+---
+
 ## [7.7.0] — 2026-06-10
 
 Strict Brownian Ito drift and physics-correctness cleanup — **changes numerical outputs for Brownian, pili-bearing torque-balance, and time-dependent active-moment configurations**.

@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-06-10
-> **Version:** 7.7.0
+> **Updated:** 2026-06-11
+> **Version:** 7.8.0
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -114,7 +114,7 @@ Results are written under `output/<case_name>/` or an automatically timestamped 
 
 ## Version Notes
 
-The current release is **7.7.0 (2026-06-10)**. It is a physics-correctness update on top of v7.6.0: Brownian motion now uses an explicit strict Ito drift `kBT*div(M_eff)` with SPD-projected diffusion, the former midpoint Brownian option has been removed, Kirchhoff torque-density columns use the corrected `ell_k^2` scaling, and final flow-field extraction uses the achieved final time so time-dependent active moments keep the correct phase. **This can change numerical outputs for Brownian, pili-bearing, torque-active, or time-dependent active-moment configurations.** v7.6.0 introduced the non-local `M_twist` Schur-complement twist coupling and physical `0.5*M_rotlet` scaling. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
+The current release is **7.8.0 (2026-06-11)**. It is a nondimensionalisation-correctness update on top of v7.7.0: the reference (intrinsic) curvature `kb0` is now discretised with the same SVD-projected node-director operator and finite-difference stencil as the run-time curvature, so a `frozen`-curvature pilus starts as an exact zero-moment equilibrium; and the constant motor torque is now nondimensionalised by `EI/L_pili` (instead of `EI/L_0`), matching the active-moment convention and correcting the applied torque by the factor `ell = L_pili/L_0`. **This can change numerical outputs for curved/helical `frozen`-curvature pili and for `free_torsion` constant-motor configurations; straight-pili and pili-free cases are unaffected.** v7.7.0 introduced the explicit strict Ito Brownian drift with SPD-projected diffusion; v7.6.0 introduced the non-local `M_twist` Schur-complement twist coupling and physical `0.5*M_rotlet` scaling. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 

@@ -3,12 +3,12 @@
 English | [中文](USER_GUIDE.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Version:** 7.7.0
-> **Updated:** 2026-06-10
+> **Version:** 7.8.0
+> **Updated:** 2026-06-11
 
 This guide is for running simulations, choosing the right configuration path, finding outputs, and post-processing completed cases. For model equations and derivations, see [`docs/theory.md`](docs/theory.md). For release history, see [`CHANGELOG.md`](CHANGELOG.md).
 
-Release note: v7.7.0 makes Brownian dynamics use explicit strict Ito thermal drift with SPD-projected diffusion, removes the former midpoint Brownian option, corrects Kirchhoff torque-density scaling, and makes final flow-field extraction use the achieved final time.
+Release note: v7.8.0 discretises the reference (intrinsic) curvature `kb0` with the same SVD-projected node-director operator as the run-time curvature, so a `frozen`-curvature pilus starts as an exact zero-moment equilibrium, and nondimensionalises the constant motor torque by `EI/L_pili` (matching the active-moment convention). v7.7.0 made Brownian dynamics use explicit strict Ito thermal drift with SPD-projected diffusion, removed the former midpoint Brownian option, corrected Kirchhoff torque-density scaling, and made final flow-field extraction use the achieved final time.
 
 ## 1. Before You Run
 

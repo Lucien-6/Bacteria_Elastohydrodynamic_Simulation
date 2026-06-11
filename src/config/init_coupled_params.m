@@ -422,10 +422,14 @@ if M_pili > 0 && strcmp(geometry_mode, 'parametric')
         % Store first-segment director frame (body-local)
         params.D_local{k} = [d1_0(1,:)', d2_0(1,:)', d3_0(1,:)'];
 
-        % Compute intrinsic curvature at nodes
-        d1NC0 = [d1_0; d1_0(end,:)];
-        d2NC0 = [d2_0; d2_0(end,:)];
-        d3NC0 = [d3_0; d3_0(end,:)];
+        % Compute intrinsic curvature at nodes.
+        % Use the SAME node-director operator (compute_node_directors:
+        % SVD-projected segment averaging) and the SAME finite-difference
+        % stencil as the run-time curvature in compute_pili_elastic_moments.m.
+        % This guarantees kappa_live - kb0 == 0 (bit-exact) in the reference
+        % configuration, so a 'frozen' pilus starts as an exact zero-moment
+        % equilibrium instead of carrying a spurious restoring moment.
+        [d1NC0, d2NC0, d3NC0] = compute_node_directors(d1_0, d2_0, d3_0, N_segments(k));
 
         d1NCds0 = [d1NC0(2,:)-d1NC0(1,:); ...
                    d1NC0(2:end,:)-d1NC0(1:end-1,:)] * N_segments(k);
@@ -534,9 +538,18 @@ if M_pili > 0 && strcmp(geometry_mode, 'parametric')
                 params.motor_cfg{k} = mt_k;
 
             case 'constant'
-                % Nondimensionalise: torque_dimless = torque [N*m] / (EI / L_0)
+                % Nondimensionalise the motor torque.  The motor torque is
+                % injected into the segment-1 d3 (psi_1) twist moment-balance
+                % row in ode_coupled_rhs.m, i.e. the SAME row type that carries
+                % the elastic / active internal moments.  Because curvature and
+                % twist are discretised on the per-pilus normalised arc length
+                % s' in [0,1] (ds = 1/N_k), that row's moment scale is
+                % EI / L_pili (NOT EI / L_0).  The torque must therefore use the
+                % pilus length L_pili = ell * L_0, consistent with the active-
+                % moment nondimensionalisation above.
                 %   torque_pN_nm * 1e-21 gives N*m
-                mt_k.torque_dimless = mt_k.torque_pN_nm * 1e-21 / (EI / L_0);
+                L_pili_phys = params.ell(k) * L_0;
+                mt_k.torque_dimless = mt_k.torque_pN_nm * 1e-21 / (EI / L_pili_phys);
                 % Nondimensionalise: max_omega_dimless = max_omega [Hz] * 2*pi * T_0
                 mt_k.max_omega_dimless = mt_k.max_omega_Hz * 2 * pi * T_0;
                 params.motor_cfg{k} = mt_k;
@@ -619,10 +632,14 @@ else
             % Store first-segment director frame (body-local)
             params.D_local{k} = [d1_0(1,:)', d2_0(1,:)', d3_0(1,:)'];
 
-            % Compute intrinsic curvature at nodes
-            d1NC0 = [d1_0; d1_0(end,:)];
-            d2NC0 = [d2_0; d2_0(end,:)];
-            d3NC0 = [d3_0; d3_0(end,:)];
+            % Compute intrinsic curvature at nodes.
+            % Use the SAME node-director operator (compute_node_directors:
+            % SVD-projected segment averaging) and the SAME finite-difference
+            % stencil as the run-time curvature in compute_pili_elastic_moments.m.
+            % This guarantees kappa_live - kb0 == 0 (bit-exact) in the reference
+            % configuration, so a 'frozen' pilus starts as an exact zero-moment
+            % equilibrium instead of carrying a spurious restoring moment.
+            [d1NC0, d2NC0, d3NC0] = compute_node_directors(d1_0, d2_0, d3_0, N_segments(k));
 
             d1NCds0 = [d1NC0(2,:)-d1NC0(1,:); ...
                        d1NC0(2:end,:)-d1NC0(1:end-1,:)] * N_segments(k);
@@ -731,7 +748,12 @@ else
                     params.motor_cfg{k} = mt_k;
 
                 case 'constant'
-                    mt_k.torque_dimless = mt_k.torque_pN_nm * 1e-21 / (EI / L_0);
+                    % Motor torque enters the segment-1 psi_1 twist moment-
+                    % balance row, whose scale is EI / L_pili (per-pilus s' in
+                    % [0,1] arc-length normalisation), matching the active-
+                    % moment convention.  Use L_pili = ell * L_0, not L_0.
+                    L_pili_phys = params.ell(k) * L_0;
+                    mt_k.torque_dimless = mt_k.torque_pN_nm * 1e-21 / (EI / L_pili_phys);
                     mt_k.max_omega_dimless = mt_k.max_omega_Hz * 2 * pi * T_0;
                     params.motor_cfg{k} = mt_k;
 

@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.7.0 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.8.0 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.7.0 &middot; 2026-06-10</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.8.0 &middot; 2026-06-11</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 7.7.0 &bull; 2026-06-10
+      Version 7.8.0 &bull; 2026-06-11
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -537,12 +537,23 @@ tailwind.config = {
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en"><strong>v7.7.0</strong> is a physics-correctness update: Brownian motion now uses explicit strict Ito drift with SPD-projected diffusion, the former midpoint Brownian option is removed, Kirchhoff torque-density scaling is corrected, and final flow-field extraction uses the achieved final time. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
-      <span class="zh"><strong>v7.7.0</strong> 为物理正确性更新：布朗运动改用显式严格 Ito 漂移与 SPD 投影扩散，移除旧的 Brownian 中点选项，修正 Kirchhoff 扭矩密度缩放，并让最终流场提取使用实际终止时间。详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
+      <span class="en"><strong>v7.8.0</strong> is a nondimensionalisation-correctness update: the reference (intrinsic) curvature <code>kb0</code> is now discretised with the same SVD-projected node-director operator as the run-time curvature (exact zero-moment <code>frozen</code> equilibrium), and the constant motor torque is nondimensionalised by <code>EI/L_pili</code> instead of <code>EI/L_0</code>. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
+      <span class="zh"><strong>v7.8.0</strong> 为无量纲化正确性更新：内禀（参考）曲率 <code>kb0</code> 改用与运行时曲率相同的 SVD 投影节点 director 算子离散（<code>frozen</code> 精确零力矩平衡），常值电机力矩改用 <code>EI/L_pili</code>（而非 <code>EI/L_0</code>）无量纲化。详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
-        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.7.0 &mdash; 2026-06-10</p>
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.8.0 &mdash; 2026-06-11</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Reference-curvature and motor-torque nondimensionalisation fixes</span><span class="zh">参考曲率与电机力矩无量纲化修正</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">Intrinsic curvature <code>kb0</code> now uses the same <code>compute_node_directors</code> (SVD-projected) operator and finite-difference stencil as the run-time curvature, so a <code>frozen</code> pilus is an exact zero-moment equilibrium at <code>t = 0</code>.</span><span class="zh">内禀曲率 <code>kb0</code> 改用与运行时曲率相同的 <code>compute_node_directors</code>（SVD 投影）算子与有限差分模板，使 <code>frozen</code> 纤毛在 <code>t = 0</code> 时为精确零力矩平衡态。</span></li>
+          <li><span class="en">Constant motor torque is nondimensionalised by <code>EI/L_pili</code> (<code>L_pili = ell*L_0</code>) instead of <code>EI/L_0</code>, matching the active-moment convention and correcting the applied torque by the factor <code>ell</code>.</span><span class="zh">常值电机力矩改用 <code>EI/L_pili</code>（<code>L_pili = ell*L_0</code>）而非 <code>EI/L_0</code> 无量纲化，与主动力矩约定一致，修正了偏差因子 <code>ell</code>。</span></li>
+          <li><span class="en">Affects curved/helical <code>frozen</code>-curvature pili and <code>free_torsion</code> constant-motor cases; straight-pili and pili-free cases unchanged.</span><span class="zh">影响弯曲/螺旋 <code>frozen</code> 曲率纤毛与 <code>free_torsion</code> 常值电机算例；直纤毛与无纤毛算例不变。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-800 p-6">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">v7.7.0 &mdash; 2026-06-10</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
           <span class="en">Strict Ito Brownian and torque-scaling correction</span><span class="zh">严格 Ito Brownian 与扭矩缩放修正</span>
         </h3>
@@ -1856,7 +1867,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v7.7.0 &middot; 2026-06-10</li>
+        <li>v7.8.0 &middot; 2026-06-11</li>
       </ul>
     </div>
   </div>
