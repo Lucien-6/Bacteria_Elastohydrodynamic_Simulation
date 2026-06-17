@@ -1,3 +1,4 @@
 output/
 .ruff_cache/
 .mypy_cache/
+.understand-anything/
