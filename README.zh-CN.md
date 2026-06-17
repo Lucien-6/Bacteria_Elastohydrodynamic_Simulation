@@ -4,8 +4,8 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-06-11
-> **版本:** 7.8.0
+> **更新日期:** 2026-06-17
+> **版本:** 7.9.0
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -108,7 +108,7 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **7.8.0 (2026-06-11)**。本版是在 v7.7.0 基础上的无量纲化正确性更新：内禀（参考）曲率 `kb0` 现采用与运行时曲率相同的 SVD 投影节点 director 算子与有限差分模板进行离散，使 `frozen` 曲率纤毛在参考构型下成为精确的零力矩平衡态；常值电机力矩改用 `EI/L_pili`（而非 `EI/L_0`）无量纲化，与主动力矩约定一致，修正了原先偏差因子 `ell = L_pili/L_0` 的电机力矩幅值。**这会改变弯曲/螺旋 `frozen` 曲率纤毛以及 `free_torsion` 常值电机算例的数值输出；直纤毛与无纤毛算例不受影响。** v7.7.0 引入了显式严格 Ito 布朗漂移与 SPD 投影扩散；v7.6.0 引入了非局部 `M_twist` Schur 互补扭转耦合与物理 `0.5*M_rotlet` 缩放。详见 [`CHANGELOG.md`](CHANGELOG.md)。
+当前版本为 **7.9.0 (2026-06-17)**。本版是在 v7.8.0 基础上的参数验证深度重构：所有起飞前参数检查统一收口到 [`validate_simulation_params.m`](src/config/validate_simulation_params.m)，该函数现直接接受完整 `cfg` 结构（A2），并新增 `pili_ext` 数量一致性检查（P1）、`delta` 范围检查（P2）、`N_body` 上限警告（P4）、背景流方向与剪切轴正交性警告（P5）、`alpha_0` 范围检查（P6/A1，在 parametric 模式及 custom 模式下 `initial_orientation` 为空时生效）、`intrinsic_curvature` / `active_moment` / `motor_torque` 统一的字符串/结构体接受（P7/P8）、以及 `AbsTol`/`RelTol` 警告措辞改进（P9）。静态审查发现并修复了一个回归——custom 模式下 `initial_orientation` 为空时 `alpha_0` 检查丢失（Bugbot）；同时移除了 `init_coupled_params.m`（L314）的死代码。**本版不改变任何模拟输出，仅加强输入验证与错误报告。** v7.8.0 修正了参考曲率 `kb0` 离散化与常值电机力矩无量纲化；v7.7.0 引入了显式严格 Ito 布朗漂移与 SPD 投影扩散。完整历史详见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## 许可证
 

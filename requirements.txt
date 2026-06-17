@@ -1,7 +1,14 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 7.8.0 (2026-06-11)
+# Release: 7.9.0 (2026-06-17)
 #
+# v7.9.0: parameter-validation deep refactor — all pre-flight checks consolidated
+# into validate_simulation_params.m (full-cfg acceptance), pili_ext count consistency
+# (P1), delta range check (P2), N_body upper-bound warning (P4), background-flow
+# orthogonality warning (P5), alpha_0 range check (P6/A1, incl. custom-mode fallback),
+# unified string/struct acceptance for intrinsic_curvature/active_moment/motor_torque
+# (P7/P8), AbsTol/RelTol wording (P9), Bugbot-fixed alpha_0 custom-mode regression,
+# and dead-code removal in init_coupled_params.m. No numerical change. See CHANGELOG.md.
 # v7.8.0: reference-curvature kb0 discretised with the same SVD-projected
 # node-director operator as the run-time curvature (exact zero-moment frozen
 # equilibrium), and constant motor torque nondimensionalised by EI/L_pili

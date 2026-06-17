@@ -3,12 +3,12 @@
 English | [中文](USER_GUIDE.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Version:** 7.8.0
-> **Updated:** 2026-06-11
+> **Version:** 7.9.0
+> **Updated:** 2026-06-17
 
 This guide is for running simulations, choosing the right configuration path, finding outputs, and post-processing completed cases. For model equations and derivations, see [`docs/theory.md`](docs/theory.md). For release history, see [`CHANGELOG.md`](CHANGELOG.md).
 
-Release note: v7.8.0 discretises the reference (intrinsic) curvature `kb0` with the same SVD-projected node-director operator as the run-time curvature, so a `frozen`-curvature pilus starts as an exact zero-moment equilibrium, and nondimensionalises the constant motor torque by `EI/L_pili` (matching the active-moment convention). v7.7.0 made Brownian dynamics use explicit strict Ito thermal drift with SPD-projected diffusion, removed the former midpoint Brownian option, corrected Kirchhoff torque-density scaling, and made final flow-field extraction use the achieved final time.
+Release note: v7.9.0 consolidates all pre-flight parameter checks into `validate_simulation_params.m` (full-`cfg` acceptance), adds `pili_ext` count consistency (P1), `delta` range check (P2), `N_body` upper-bound warning (P4), background-flow orthogonality warning (P5), `alpha_0` range check (P6/A1, enforced in parametric mode and custom mode with empty `initial_orientation`), unified string/struct acceptance for `intrinsic_curvature` / `active_moment` / `motor_torque` (P7/P8), and improved `AbsTol`/`RelTol` wording (P9); fixes a custom-mode `alpha_0` regression (Bugbot) and removes dead code in `init_coupled_params.m`. No simulation outputs change. v7.8.0 discretised the reference (intrinsic) curvature `kb0` with the same SVD-projected node-director operator as the run-time curvature, so a `frozen`-curvature pilus starts as an exact zero-moment equilibrium, and nondimensionalised the constant motor torque by `EI/L_pili` (matching the active-moment convention).
 
 ## 1. Before You Run
 
@@ -85,13 +85,27 @@ A typical top-level layout includes:
 
 | Field | Allowed values | Source |
 | --- | --- | --- |
-| `intrinsic_curvature.type` | `frozen`, `zero`, `constant`, `helix` | `validate_simulation_params.m` |
+| `intrinsic_curvature` | bare string (`frozen`, `zero`, `constant`, `helix`) **or** struct with `.type` (v7.9.0 P7) | `validate_simulation_params.m` |
 | `intrinsic_curvature` (`constant`) | struct with 3-element `kappa` | `validate_simulation_params.m` |
-| `intrinsic_curvature` (`helix`) | struct with finite scalar `kappa_d2`, `kappa_d3` (bare string `"helix"` rejected) | `validate_simulation_params.m` |
-| `active_moment.type` | `off`, `traveling_wave`, `custom` | `validate_simulation_params.m` |
+| `intrinsic_curvature` (`helix`) | struct with finite scalar `kappa_d2`, `kappa_d3` | `validate_simulation_params.m` |
+| `active_moment` | bare string (`off`, `traveling_wave`, `custom`) **or** struct with `.type` (v7.9.0 P7) | `validate_simulation_params.m` |
+| `motor_torque` | bare string (`off`, `constant`) **or** struct with `.type` (v7.9.0 P7/P8) | `validate_simulation_params.m` |
 | `background_flow.type` | `off`, `uniform`, `shear_z` | `coupled_background_flow.m` |
 | `root_coupling` | `clamped`, `free_torsion` | `build_coupled_lin_sys.m` |
-| `motor_torque.type` | `off`, `constant` | `init_coupled_params.m` |
+
+### Pre-flight Parameter Checks (v7.9.0)
+
+[`validate_simulation_params.m`](src/config/validate_simulation_params.m) runs before initialisation and aggregates all errors into a single report. Notable checks added or tightened in v7.9.0:
+
+| Check | Condition | Severity |
+| --- | --- | --- |
+| `pili_ext` count consistency (P1) | `numel(pili_ext)` != number of pili (parametric: `size(Pili_Matrix,2)`; custom: `numel(custom_geometry.pili)`) | error |
+| `delta` range (P2) | `delta <= 0` | error |
+| `delta` range (P2) | `delta >= pi/4` (premature singularity event) | warning |
+| `N_body` upper bound (P4) | `N_body > 2000` (`O(N^2)` memory) | warning |
+| Background-flow orthogonality (P5) | `shear_z` with `direction` nearly parallel to `shear_axis` (`|cos(theta)| > 0.99`, zero vorticity) | warning |
+| `alpha_0` range (P6/A1) | outside `[-pi/2, pi/2]`; enforced in parametric mode and custom mode with empty `initial_orientation` | error |
+| `AbsTol` / `RelTol` wording (P9) | outside `(0, 1]`; recommended `1e-6 ~ 1e-3` | warning |
 
 Brownian JSON fields mapped by [`load_sim_config.m`](src/config/load_sim_config.m): `brownian.enable`, `brownian.temperature` -> `Temper`, `brownian.rng_seed`, `brownian.dt_B_ratio`.
 

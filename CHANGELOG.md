@@ -10,6 +10,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [7.9.0] — 2026-06-17
+
+Parameter-validation deep refactor — consolidates all pre-flight parameter checks into `validate_simulation_params.m`, fixes a custom-mode `alpha_0` regression caught by static review, and removes dead code in `init_coupled_params.m`. **No numerical change to simulation outputs**; this release strengthens input validation and error reporting only.
+
+### Changed
+
+- **`run_simulation.m` — pass the full `cfg` struct to the validator**: the manual partial-`val_cfg` construction is replaced by `validate_simulation_params(cfg, logf)`. All field accesses inside the validator are guarded by `isfield()`, so adding a new user-configurable parameter no longer requires updating the call site (A2).
+- **`src/config/validate_simulation_params.m` — full-cfg acceptance (A2)**: every field access is now guarded by `isfield()` / type checks, so the validator accepts the complete `cfg` struct from `run_simulation` / `load_sim_config` / batch sweeps without requiring a pre-curated subset. Missing optional fields are silently skipped.
+
+### Added
+
+- **`src/config/validate_simulation_params.m` — `pili_ext` count consistency (P1)**: in both parametric and custom geometry modes, an explicit error is raised when `numel(cfg.pili_ext)` does not match the number of defined pili (`size(Pili_Matrix, 2)` or `numel(custom_geometry.pili)`), preventing the silent fallback in `init_coupled_params` from masking user config errors.
+- **`src/config/validate_simulation_params.m` — `delta` range check (P2)**: `delta <= 0` now errors and `delta >= pi/4` warns, since extreme values break the Euler-angle singularity event in `run_simulation`.
+- **`src/config/validate_simulation_params.m` — `N_body` upper-bound warning (P4)**: `N_body > 2000` warns about the `O(N^2)` distance matrix in `init_coupled_params` with an estimated memory footprint.
+- **`src/config/validate_simulation_params.m` — background-flow orthogonality warning (P5)**: for `shear_z` flow, `direction` nearly parallel to `shear_axis` (`|cos(theta)| > 0.99`) warns that vorticity is ~0 and pili experience no shear-driven rotation despite a non-zero translational flow.
+- **`src/config/validate_simulation_params.m` — `alpha_0` range check (P6/A1)**: the `[-pi/2, pi/2]` range check for `alpha_0` was moved here from `init_coupled_params.m` so all parameter errors are reported in one pass. Enforced in parametric mode and in custom mode with empty `initial_orientation`; skipped in custom mode with non-empty `initial_orientation` (where `alpha_0` is ignored by `init_coupled_params`).
+- **`src/config/validate_simulation_params.m` — unified string/struct acceptance (P7)**: `intrinsic_curvature`, `active_moment`, and `motor_torque` now consistently accept bare strings (e.g. `'off'`, `'frozen'`) by coercing them to `struct('type', char(...))`, matching the `parse_pili_config` / `init_coupled_params` convention. Unknown string types now produce a type error instead of being silently dropped.
+- **`src/config/init_coupled_params.m` — `motor_torque` string acceptance (P8)**: both parametric and custom branches now coerce string `motor_torque` inputs to `struct('type', char(...))`, mirroring `intrinsic_curvature` and `active_moment`.
+
+### Fixed
+
+- **`src/config/validate_simulation_params.m` — `alpha_0` range check lost in custom mode (Bugbot)**: the P6/A1 refactor initially guarded the `alpha_0` check with `strcmp(geometry_mode, 'parametric')`, which let out-of-range `alpha_0` pass silently in custom mode when `initial_orientation` is empty (the fallback path where `init_coupled_params` still consumes `alpha_0` to build `q_0_init`). The guard now also fires in custom mode with empty `initial_orientation`.
+- **`src/config/validate_simulation_params.m` — `Temper` type robustness**: the Stokes-Einstein diagnostic now checks `isnumeric(cfg.Temper)` before `isfinite`, guarding against non-numeric `Temper` values from misconfigured JSON.
+- **`src/config/validate_simulation_params.m` — `AbsTol`/`RelTol` warning wording (P9)**: the warnings now explicitly state the recommended range `1e-6 ~ 1e-3`, so the default `1e-4` is not mistaken for "out of range".
+- **`src/config/validate_simulation_params.m` — error aggregation performance (P10)**: the aggregated error message is now built with a single loop + `strjoin` instead of `cellfun` + `strjoin`, reducing intermediate cell allocation when the error list is long (e.g. per-pilus errors across many pili).
+- **`src/config/init_coupled_params.m` — dead-code removal (L314)**: removed an `if/else` whose two branches both assigned `Pili_Matrix = zeros(8, 0)`; the custom-mode pilus count is recomputed later from `numel(custom_pili_cfg)`, so the branch was a no-op. Eliminates a MATLAB lint ERROR.
+
+### Compatibility
+
+- **Bitwise-identical to v7.8.0** for all simulation outputs. This release only tightens pre-flight validation and fixes a latent custom-mode `alpha_0` acceptance bug; no ODE rhs, linear-system, or post-processing code changed.
+- **Stricter input rejection**: configurations that previously passed validation with mismatched `pili_ext` counts (P1), out-of-range `delta` (P2), or out-of-range `alpha_0` in custom mode (Bugbot fix) will now error. These were always misconfigurations; they now fail fast with a clear message instead of silently producing unintended geometry.
+
+### Documentation
+
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**, **`docs/presentation.html`**: version **7.9.0**, date **2026-06-17**.
+
+---
+
 ## [7.8.0] — 2026-06-11
 
 Reference-curvature and motor-torque nondimensionalisation correctness fixes — **changes numerical outputs for curved/helical `frozen`-curvature pili and for `free_torsion` constant-motor configurations**.

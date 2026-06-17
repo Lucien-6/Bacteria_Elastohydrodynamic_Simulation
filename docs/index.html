@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.8.0 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.9.0 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.8.0 &middot; 2026-06-11</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.9.0 &middot; 2026-06-17</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 7.8.0 &bull; 2026-06-11
+      Version 7.9.0 &bull; 2026-06-17
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -537,12 +537,24 @@ tailwind.config = {
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en"><strong>v7.8.0</strong> is a nondimensionalisation-correctness update: the reference (intrinsic) curvature <code>kb0</code> is now discretised with the same SVD-projected node-director operator as the run-time curvature (exact zero-moment <code>frozen</code> equilibrium), and the constant motor torque is nondimensionalised by <code>EI/L_pili</code> instead of <code>EI/L_0</code>. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
-      <span class="zh"><strong>v7.8.0</strong> 为无量纲化正确性更新：内禀（参考）曲率 <code>kb0</code> 改用与运行时曲率相同的 SVD 投影节点 director 算子离散（<code>frozen</code> 精确零力矩平衡），常值电机力矩改用 <code>EI/L_pili</code>（而非 <code>EI/L_0</code>）无量纲化。详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
+      <span class="en"><strong>v7.9.0</strong> is a parameter-validation deep refactor: all pre-flight checks are consolidated into <code>validate_simulation_params.m</code> (full-<code>cfg</code> acceptance), with new <code>pili_ext</code> count consistency (P1), <code>delta</code> range check (P2), <code>N_body</code> upper-bound warning (P4), background-flow orthogonality warning (P5), <code>alpha_0</code> range check (P6/A1, incl. custom-mode fallback), unified string/struct acceptance for <code>intrinsic_curvature</code>/<code>active_moment</code>/<code>motor_torque</code> (P7/P8), and improved <code>AbsTol</code>/<code>RelTol</code> wording (P9). A Bugbot review fixed a custom-mode <code>alpha_0</code> regression and dead code was removed in <code>init_coupled_params.m</code>. No simulation outputs change. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
+      <span class="zh"><strong>v7.9.0</strong> 为参数验证深度重构：所有起飞前检查统一收口到 <code>validate_simulation_params.m</code>（直接接受完整 <code>cfg</code>），新增 <code>pili_ext</code> 数量一致性（P1）、<code>delta</code> 范围检查（P2）、<code>N_body</code> 上限警告（P4）、背景流正交性警告（P5）、<code>alpha_0</code> 范围检查（P6/A1，含 custom 模式回退路径）、<code>intrinsic_curvature</code>/<code>active_moment</code>/<code>motor_torque</code> 统一字符串/结构体接受（P7/P8）以及 <code>AbsTol</code>/<code>RelTol</code> 措辞改进（P9）。静态审查修复了 custom 模式下 <code>alpha_0</code> 回归，并移除 <code>init_coupled_params.m</code> 中的死代码。不改变任何模拟输出。详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
-        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.8.0 &mdash; 2026-06-11</p>
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.9.0 &mdash; 2026-06-17</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Parameter-validation deep refactor</span><span class="zh">参数验证深度重构</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">All pre-flight checks consolidated into <code>validate_simulation_params.m</code>, which now accepts the full <code>cfg</code> struct (<code>isfield</code>-guarded, A2); <code>run_simulation.m</code> passes <code>cfg</code> directly.</span><span class="zh">所有起飞前检查统一收口到 <code>validate_simulation_params.m</code>，该函数现直接接受完整 <code>cfg</code>（<code>isfield</code> 守卫，A2）；<code>run_simulation.m</code> 直接传入 <code>cfg</code>。</span></li>
+          <li><span class="en">New checks: <code>pili_ext</code> count consistency (P1), <code>delta</code> range (P2), <code>N_body</code> upper bound (P4), background-flow orthogonality (P5), <code>alpha_0</code> range (P6/A1, enforced in parametric mode and custom mode with empty <code>initial_orientation</code>), unified string/struct acceptance for <code>intrinsic_curvature</code>/<code>active_moment</code>/<code>motor_torque</code> (P7/P8), and improved <code>AbsTol</code>/<code>RelTol</code> wording (P9).</span><span class="zh">新增检查：<code>pili_ext</code> 数量一致性（P1）、<code>delta</code> 范围（P2）、<code>N_body</code> 上限（P4）、背景流正交性（P5）、<code>alpha_0</code> 范围（P6/A1，在 parametric 模式及 custom 模式下 <code>initial_orientation</code> 为空时生效）、<code>intrinsic_curvature</code>/<code>active_moment</code>/<code>motor_torque</code> 统一字符串/结构体接受（P7/P8）以及 <code>AbsTol</code>/<code>RelTol</code> 措辞改进（P9）。</span></li>
+          <li><span class="en">Bugbot review fixed a regression where the <code>alpha_0</code> check was lost in custom mode with empty <code>initial_orientation</code>; dead <code>if/else</code> removed in <code>init_coupled_params.m</code> (L314).</span><span class="zh">静态审查修复了 custom 模式下 <code>initial_orientation</code> 为空时 <code>alpha_0</code> 检查丢失的回归；移除 <code>init_coupled_params.m</code>（L314）中的死代码。</span></li>
+          <li><span class="en">Bitwise-identical numerical outputs vs. v7.8.0; only input validation and error reporting change.</span><span class="zh">数值输出与 v7.8.0 逐位一致；仅输入验证与错误报告发生变化。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-800 p-6">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">v7.8.0 &mdash; 2026-06-11</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
           <span class="en">Reference-curvature and motor-torque nondimensionalisation fixes</span><span class="zh">参考曲率与电机力矩无量纲化修正</span>
         </h3>
@@ -1867,7 +1879,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v7.8.0 &middot; 2026-06-11</li>
+        <li>v7.9.0 &middot; 2026-06-17</li>
       </ul>
     </div>
   </div>

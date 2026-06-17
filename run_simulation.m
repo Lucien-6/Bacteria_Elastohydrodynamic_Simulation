@@ -22,7 +22,7 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Log banner version: 7.8.0 (2026-06-11) - keep in sync with README / CHANGELOG
+%  Log banner version: 7.9.0 (2026-06-17) - keep in sync with README / CHANGELOG
 %
 %  Path: defensive addpath(project root) so run_simulation(cfg) works when
 %  invoked without main_coupled_simulation.m. Unified policy = this line plus
@@ -232,7 +232,7 @@ logf_file = @(varargin) log_file_only(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Bacteria Elastohydrodynamic Simulation\n');
-logf('  Version 7.8.0\n');
+logf('  Version 7.9.0\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -352,28 +352,13 @@ end
 %  =====================================================================
 
 logf('\n[VALIDATE] Running parameter sanity checks...\n');
-val_cfg = struct( ...
-    'T_obs', T_obs, 'dt', dt, 'minor_axis', minor_axis, ...
-    'major_axis', major_axis, 'N_body', N_body, 'seg_per_um', seg_per_um, ...
-    'Pili_Matrix', Pili_Matrix, 'E', E, 'r_pili', r_pili, 'mu', mu, ...
-    'rho_bac', rho_bac, 'rho_fluid', rho_fluid, ...
-    'AbsTol', AbsTol, 'RelTol', RelTol, 'tlim', tlim, ...
-    'enable_brown', enable_brown, 'dt_B', dt_B, 'Temper', Temper, ...
-    'animation_fps', animation_fps, 'sigma_p', sigma_p, ...
-    'geometry_mode', geometry_mode);
-if isfield(cfg, 'background_flow')
-    val_cfg.background_flow = cfg.background_flow;
-end
-if isfield(cfg, 'pili_ext')
-    val_cfg.pili_ext = cfg.pili_ext;
-end
-if isfield(cfg, 'custom_geometry') && ~isempty(cfg.custom_geometry)
-    val_cfg.custom_geometry = cfg.custom_geometry;
-end
-if isfield(cfg, 'initial_orientation')
-    val_cfg.initial_orientation = cfg.initial_orientation;
-end
-validate_simulation_params(val_cfg, logf);
+% Pass the full cfg struct directly to the validator.  All field accesses
+% inside validate_simulation_params are guarded by isfield(), so optional
+% or mode-specific fields (custom_geometry, initial_orientation, delta,
+% alpha_0, etc.) are handled gracefully without a duplicated field list
+% here.  Adding a new parameter therefore only requires updating the
+% validator, not this call site.
+validate_simulation_params(cfg, logf);
 logf('[VALIDATE] All parameter checks passed.\n');
 
 %% =====================================================================

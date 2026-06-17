@@ -3,12 +3,12 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 7.8.0
-> **更新日期:** 2026-06-11
+> **版本:** 7.9.0
+> **更新日期:** 2026-06-17
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-版本提示：v7.8.0 将内禀（参考）曲率 `kb0` 改用与运行时曲率相同的 SVD 投影节点 director 算子进行离散，使 `frozen` 曲率纤毛在参考构型下成为精确的零力矩平衡态，并将常值电机力矩改用 `EI/L_pili` 无量纲化（与主动力矩约定一致）。v7.7.0 将布朗动力学改为显式严格 Ito 热漂移与 SPD 投影扩散，移除旧的 Brownian 中点选项，修正 Kirchhoff 扭矩密度缩放，并让最终流场提取使用实际达到的终止时间。
+版本提示：v7.9.0 将所有起飞前参数检查统一收口到 `validate_simulation_params.m`（直接接受完整 `cfg` 结构），新增 `pili_ext` 数量一致性检查（P1）、`delta` 范围检查（P2）、`N_body` 上限警告（P4）、背景流方向与剪切轴正交性警告（P5）、`alpha_0` 范围检查（P6/A1，在 parametric 模式及 custom 模式下 `initial_orientation` 为空时生效）、`intrinsic_curvature` / `active_moment` / `motor_torque` 统一的字符串/结构体接受（P7/P8）、以及 `AbsTol`/`RelTol` 警告措辞改进（P9）；修复了 custom 模式下 `initial_orientation` 为空时 `alpha_0` 检查丢失的回归（Bugbot），并移除 `init_coupled_params.m` 中的死代码。本版不改变任何模拟输出。v7.8.0 将内禀（参考）曲率 `kb0` 改用与运行时曲率相同的 SVD 投影节点 director 算子进行离散，使 `frozen` 曲率纤毛在参考构型下成为精确的零力矩平衡态，并将常值电机力矩改用 `EI/L_pili` 无量纲化（与主动力矩约定一致）。
 
 ## 1. 运行前准备
 
@@ -84,13 +84,27 @@ main_coupled_simulation
 
 | 字段 | 合法值 | 代码来源 |
 | --- | --- | --- |
-| `intrinsic_curvature.type` | `frozen`、`zero`、`constant`、`helix` | `validate_simulation_params.m` |
+| `intrinsic_curvature` | 裸字符串（`frozen`、`zero`、`constant`、`helix`）**或**含 `.type` 的结构体（v7.9.0 P7） | `validate_simulation_params.m` |
 | `intrinsic_curvature`（`constant`） | 含 3 元素 `kappa` 的结构体 | `validate_simulation_params.m` |
-| `intrinsic_curvature`（`helix`） | 含有限标量 `kappa_d2`、`kappa_d3` 的结构体（裸字符串 `"helix"` 会被拒绝） | `validate_simulation_params.m` |
-| `active_moment.type` | `off`、`traveling_wave`、`custom` | `validate_simulation_params.m` |
+| `intrinsic_curvature`（`helix`） | 含有限标量 `kappa_d2`、`kappa_d3` 的结构体 | `validate_simulation_params.m` |
+| `active_moment` | 裸字符串（`off`、`traveling_wave`、`custom`）**或**含 `.type` 的结构体（v7.9.0 P7） | `validate_simulation_params.m` |
+| `motor_torque` | 裸字符串（`off`、`constant`）**或**含 `.type` 的结构体（v7.9.0 P7/P8） | `validate_simulation_params.m` |
 | `background_flow.type` | `off`、`uniform`、`shear_z` | `coupled_background_flow.m` |
 | `root_coupling` | `clamped`、`free_torsion` | `build_coupled_lin_sys.m` |
-| `motor_torque.type` | `off`、`constant` | `init_coupled_params.m` |
+
+### 起飞前参数检查（v7.9.0）
+
+[`validate_simulation_params.m`](src/config/validate_simulation_params.m) 在初始化前运行，并将所有错误聚合成单份报告。v7.9.0 新增或加强的检查：
+
+| 检查项 | 条件 | 严重度 |
+| --- | --- | --- |
+| `pili_ext` 数量一致性（P1） | `numel(pili_ext)` != 纤毛数（parametric：`size(Pili_Matrix,2)`；custom：`numel(custom_geometry.pili)`） | 错误 |
+| `delta` 范围（P2） | `delta <= 0` | 错误 |
+| `delta` 范围（P2） | `delta >= pi/4`（奇异事件过早触发） | 警告 |
+| `N_body` 上限（P4） | `N_body > 2000`（`O(N^2)` 内存） | 警告 |
+| 背景流正交性（P5） | `shear_z` 且 `direction` 与 `shear_axis` 近平行（`|cos(theta)| > 0.99`，零涡量） | 警告 |
+| `alpha_0` 范围（P6/A1） | 超出 `[-pi/2, pi/2]`；在 parametric 模式及 custom 模式下 `initial_orientation` 为空时生效 | 错误 |
+| `AbsTol` / `RelTol` 措辞（P9） | 超出 `(0, 1]`；推荐 `1e-6 ~ 1e-3` | 警告 |
 
 布朗 JSON 字段由 [`load_sim_config.m`](src/config/load_sim_config.m) 映射：`brownian.enable`、`brownian.temperature` -> `Temper`、`brownian.rng_seed`、`brownian.dt_B_ratio`。
 

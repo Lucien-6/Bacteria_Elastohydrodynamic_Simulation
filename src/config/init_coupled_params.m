@@ -59,6 +59,8 @@ function params = init_coupled_params(varargin)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
+%  Updated: 2026-06-17 — v7.9.0: P8 motor_torque string acceptance (both modes);
+%           removed dead if/else at former L314 (Pili_Matrix = zeros(8,0)).
 
 %% Parse inputs
 p = inputParser;
@@ -253,11 +255,9 @@ if ~isempty(init_orient_input)
     orientation_source = 'initial_orientation';
     params.alpha_0 = NaN;    % not applicable under explicit orientation
 else
-    % Legacy alpha_0 path (validated to [-pi/2, pi/2])
-    if alpha_0_input < -pi/2 || alpha_0_input > pi/2
-        error('init_coupled_params:InvalidAlpha0', ...
-            'alpha_0 = %.4f rad is outside valid range [-pi/2, pi/2].', alpha_0_input);
-    end
+    % Legacy alpha_0 path
+    % P6/A1: range [-pi/2, pi/2] is now enforced in validate_simulation_params
+    % before init_coupled_params runs.  We only store the value here.
     params.alpha_0 = alpha_0_input;
 
     % Custom-mode warning: alpha_0 inherits the parametric convention
@@ -313,11 +313,13 @@ switch geometry_mode
     case 'parametric'
         Pili_Matrix = p.Results.Pili_Matrix;
     case 'custom'
-        if isfield(custom_cfg, 'pili') && ~isempty(custom_cfg.pili)
-            Pili_Matrix = zeros(8, 0);   % Placeholder; custom pili built separately
-        else
-            Pili_Matrix = zeros(8, 0);   % No pili defined
-        end
+        % In custom mode, Pili_Matrix is intentionally empty here regardless
+        % of whether custom_cfg.pili is defined.  Custom pili are built
+        % separately by custom_pili_building (see the custom branch below,
+        % L568+), which recomputes M_pili from numel(custom_pili_cfg).
+        % The placeholder zeros(8, 0) keeps M_pili = 0 for the parametric-
+        % only guards (e.g. L324) that would otherwise index into it.
+        Pili_Matrix = zeros(8, 0);
 end
 
 M_pili      = size(Pili_Matrix, 2);
@@ -528,9 +530,14 @@ if M_pili > 0 && strcmp(geometry_mode, 'parametric')
         end
 
         % Motor torque configuration
+        % P8: accept string input (e.g. 'off') for interface consistency with
+        % intrinsic_curvature and active_moment above.
         mt_k = struct('type', 'off');
         if k <= numel(mt_input) && ~isempty(mt_input{k})
             mt_k = mt_input{k};
+            if ischar(mt_k) || isstring(mt_k)
+                mt_k = struct('type', char(mt_k));
+            end
         end
 
         switch mt_k.type
@@ -738,9 +745,13 @@ else
             end
 
             % Motor torque configuration
+            % P8: accept string input for interface consistency.
             mt_k = struct('type', 'off');
             if k <= numel(mt_input) && ~isempty(mt_input{k})
                 mt_k = mt_input{k};
+                if ischar(mt_k) || isstring(mt_k)
+                    mt_k = struct('type', char(mt_k));
+                end
             end
 
             switch mt_k.type
