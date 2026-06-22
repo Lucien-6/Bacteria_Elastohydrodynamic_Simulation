@@ -133,13 +133,22 @@ for ii = 1:n_runs
         sweep_dirs{ii}    = '';
         fprintf('\n  [FAIL] alpha_0 = %.1f deg: %s\n', ...
             rad2deg(alpha_values(ii)), ME.message);
+        if ~isempty(ME.stack)
+            fprintf('         Location: %s (line %d)\n', ...
+                ME.stack(1).name, ME.stack(1).line);
+        end
     end
 
     if sweep_fid ~= -1
         fprintf(sweep_fid, '[%02d/%02d] alpha_0 = %6.2f deg  status = %-8s  wall = %8.2f s\n', ...
             ii, n_runs, rad2deg(alpha_values(ii)), run_status(ii), run_walltime(ii));
         if run_status(ii) == "FAILED"
-            fprintf(sweep_fid, '         error: %s\n', run_errmsg(ii));
+            fprintf(sweep_fid, '         Identifier : %s\n', ME.identifier);
+            fprintf(sweep_fid, '         Message    : %s\n', run_errmsg(ii));
+            if ~isempty(ME.stack)
+                fprintf(sweep_fid, '         Location   : %s (line %d)\n', ...
+                    ME.stack(1).name, ME.stack(1).line);
+            end
         end
     end
 end

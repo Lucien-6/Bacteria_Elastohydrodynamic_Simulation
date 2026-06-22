@@ -10,6 +10,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [7.9.1] — 2026-06-22
+
+Post-review bug fixes — addresses two issues found in a front-to-back data-flow review: a non-physical negative diffusion coefficient in the batch post-processor, and missing error stack traces in three batch sweep scripts. **No simulation outputs change**; this release only fixes post-processing and batch error reporting.
+
+### Fixed
+
+- **`post_processing/postprocess_cases.m` — clamp `D_trans` to non-negative (Bug 2)**: the MSD least-squares fit `MSD(τ) = 6Dτ + V²τ²` could produce a negative `coeff(1)` (and hence a negative `D_trans_um2_s`) when the true motion is nearly ballistic (`D → 0`) or when finite-sampling noise dominates. `D_trans_um2_s` is now clamped with `max(0, coeff(1)) / 6`, mirroring the existing `max(0, coeff(2))` guard on `V_msd_um_s`. This eliminates non-physical negative diffusion coefficients in the Excel summary report.
+- **`batch_sweep/batch_sweep_alpha.m`, `batch_sweep/batch_sweep_pili_length.m`, `batch_sweep/batch_repeat_brownian.m` — capture error stack traces (Bug 6)**: the three batch scripts previously stored only `ME.message` on failure, losing the `ME.identifier` and `ME.stack(1)` location. All catch blocks now capture and write the error identifier, message, and top-of-stack location (`file (line N)`) to both the console and the summary log file, matching the existing style of `batch_sweep/batch_run_from_json.m`. In `batch_repeat_brownian.m`, the parallel branch additionally forwards `identifier` / `stack_name` / `stack_line` through the `DataQueue` so the `print_progress` callback can display them on the console in real time; the "empty results" failure path now sets a `"N/A (empty results)"` identifier placeholder instead of leaving a blank `Identifier :` line.
+
+### Compatibility
+
+- **Bitwise-identical to v7.9.0** for all simulation outputs. The MSD clamp only affects the post-processing Excel report (and only when the unclamped fit was already negative); the batch error-reporting changes only affect failure-path logging.
+
+### Documentation
+
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**, **`docs/presentation.html`**: version **7.9.1**, date **2026-06-22**.
+
+---
+
 ## [7.9.0] — 2026-06-17
 
 Parameter-validation deep refactor — consolidates all pre-flight parameter checks into `validate_simulation_params.m`, fixes a custom-mode `alpha_0` regression caught by static review, and removes dead code in `init_coupled_params.m`. **No numerical change to simulation outputs**; this release strengthens input validation and error reporting only.

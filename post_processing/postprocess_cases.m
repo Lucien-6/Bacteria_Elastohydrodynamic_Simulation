@@ -362,7 +362,10 @@ end
 A     = [tau_vec, tau_vec.^2];    % design matrix  (no intercept)
 coeff = A \ msd_vec;
 
-m.D_trans_um2_s = coeff(1) / 6;
+% Clamp D_trans to non-negative: a negative diffusion coefficient is
+% non-physical and arises from finite-sampling noise when the true motion
+% is nearly ballistic (D -> 0).  V_msd is already guarded by max(0, .).
+m.D_trans_um2_s = max(0, coeff(1)) / 6;
 m.V_msd_um_s    = sqrt(max(0, coeff(2)));
 
 msd_pred = A * coeff;

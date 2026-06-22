@@ -1,7 +1,11 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 7.9.0 (2026-06-17)
+# Release: 7.9.1 (2026-06-22)
 #
+# v7.9.1: post-review bug fixes — clamp D_trans to non-negative in
+# postprocess_cases.m MSD fit (Bug 2), and capture ME.identifier /
+# ME.stack(1) in batch_sweep_alpha.m, batch_sweep_pili_length.m, and
+# batch_repeat_brownian.m catch blocks (Bug 6). No numerical change. See CHANGELOG.md.
 # v7.9.0: parameter-validation deep refactor — all pre-flight checks consolidated
 # into validate_simulation_params.m (full-cfg acceptance), pili_ext count consistency
 # (P1), delta range check (P2), N_body upper-bound warning (P4), background-flow

@@ -3,12 +3,12 @@
 English | [中文](USER_GUIDE.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Version:** 7.9.0
-> **Updated:** 2026-06-17
+> **Version:** 7.9.1
+> **Updated:** 2026-06-22
 
 This guide is for running simulations, choosing the right configuration path, finding outputs, and post-processing completed cases. For model equations and derivations, see [`docs/theory.md`](docs/theory.md). For release history, see [`CHANGELOG.md`](CHANGELOG.md).
 
-Release note: v7.9.0 consolidates all pre-flight parameter checks into `validate_simulation_params.m` (full-`cfg` acceptance), adds `pili_ext` count consistency (P1), `delta` range check (P2), `N_body` upper-bound warning (P4), background-flow orthogonality warning (P5), `alpha_0` range check (P6/A1, enforced in parametric mode and custom mode with empty `initial_orientation`), unified string/struct acceptance for `intrinsic_curvature` / `active_moment` / `motor_torque` (P7/P8), and improved `AbsTol`/`RelTol` wording (P9); fixes a custom-mode `alpha_0` regression (Bugbot) and removes dead code in `init_coupled_params.m`. No simulation outputs change. v7.8.0 discretised the reference (intrinsic) curvature `kb0` with the same SVD-projected node-director operator as the run-time curvature, so a `frozen`-curvature pilus starts as an exact zero-moment equilibrium, and nondimensionalised the constant motor torque by `EI/L_pili` (matching the active-moment convention).
+Release note: v7.9.1 is a post-review bug-fix release: the batch post-processor's MSD diffusion-coefficient fit in `postprocess_cases.m` is now clamped to non-negative (Bug 2, preventing non-physical negative `D_trans` in the Excel report), and the three batch sweep scripts (`batch_sweep_alpha.m`, `batch_sweep_pili_length.m`, `batch_repeat_brownian.m`) now capture `ME.identifier` and `ME.stack(1)` in their catch blocks and write the error identifier, message, and top-of-stack location to both the console and the summary log file (Bug 6, matching `batch_run_from_json.m`'s existing style). No simulation outputs change. v7.9.0 consolidated all pre-flight parameter checks into `validate_simulation_params.m` (full-`cfg` acceptance, P1–P9). v7.8.0 discretised the reference (intrinsic) curvature `kb0` with the same SVD-projected node-director operator as the run-time curvature, so a `frozen`-curvature pilus starts as an exact zero-moment equilibrium, and nondimensionalised the constant motor torque by `EI/L_pili` (matching the active-moment convention).
 
 ## 1. Before You Run
 

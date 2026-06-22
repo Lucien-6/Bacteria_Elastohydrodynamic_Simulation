@@ -365,6 +365,8 @@ end
 run_status = repmat("PENDING", n_repeats, 1);
 run_outdir = repmat("",        n_repeats, 1);
 run_errmsg = repmat("",        n_repeats, 1);
+run_errid  = repmat("",        n_repeats, 1);   % ME.identifier for failed runs
+run_errloc = repmat("",        n_repeats, 1);   % 'file (line N)' for failed runs
 run_wall   = nan(n_repeats, 1);
 run_seed   = zeros(n_repeats, 1);   % 0 = unknown (timestamp serial branch)
 
@@ -399,14 +401,19 @@ if use_parallel
             if isempty(res_k)
                 run_status(k) = "FAILED";
                 run_errmsg(k) = "run_simulation returned empty results";
+                run_errid(k)  = "N/A (empty results)";
+                run_errloc(k) = "";
                 run_outdir(k) = string(dir_k);
                 send(progress_q, struct('k', k, 'status', "FAILED", ...
-                    'msg', 'empty results', 'wall', wall_k));
+                    'msg', 'empty results', 'wall', wall_k, ...
+                    'identifier', char(run_errid(k)), ...
+                    'stack_name', '', 'stack_line', NaN));
             else
                 run_status(k) = "OK";
                 run_outdir(k) = string(dir_k);
                 send(progress_q, struct('k', k, 'status', "OK", ...
-                    'msg', '', 'wall', wall_k));
+                    'msg', '', 'wall', wall_k, ...
+                    'identifier', '', 'stack_name', '', 'stack_line', NaN));
             end
         catch ME
             wall_k = toc(t_run);
@@ -414,8 +421,20 @@ if use_parallel
             run_status(k) = "FAILED";
             run_errmsg(k) = string(ME.message);
             run_outdir(k) = "";
+            run_errid(k)  = string(ME.identifier);
+            if ~isempty(ME.stack)
+                run_errloc(k) = sprintf('%s (line %d)', ME.stack(1).name, ME.stack(1).line);
+                stack_name_k  = ME.stack(1).name;
+                stack_line_k  = ME.stack(1).line;
+            else
+                run_errloc(k) = "";
+                stack_name_k  = '';
+                stack_line_k  = NaN;
+            end
             send(progress_q, struct('k', k, 'status', "FAILED", ...
-                'msg', ME.message, 'wall', wall_k));
+                'msg', ME.message, 'wall', wall_k, ...
+                'identifier', ME.identifier, ...
+                'stack_name', stack_name_k, 'stack_line', stack_line_k));
         end
     end
 
@@ -448,6 +467,8 @@ else
             if isempty(res_k)
                 run_status(k) = "FAILED";
                 run_errmsg(k) = "run_simulation returned empty results";
+                run_errid(k)  = "N/A (empty results)";
+                run_errloc(k) = "";
                 run_outdir(k) = string(dir_k);
                 fprintf('  [WARN] Empty results.\n');
             else
@@ -465,7 +486,17 @@ else
             run_status(k) = "FAILED";
             run_errmsg(k) = string(ME.message);
             run_outdir(k) = "";
+            run_errid(k)  = string(ME.identifier);
+            if ~isempty(ME.stack)
+                run_errloc(k) = sprintf('%s (line %d)', ME.stack(1).name, ME.stack(1).line);
+            else
+                run_errloc(k) = "";
+            end
             fprintf('  [ERR]  %s\n', ME.message);
+            if ~isempty(ME.stack)
+                fprintf('         Location: %s (line %d)\n', ...
+                    ME.stack(1).name, ME.stack(1).line);
+            end
         end
     end
 end
@@ -494,7 +525,11 @@ if fid_sum ~= -1
             k, seed_tag, run_status(k), run_wall(k));
 
         if run_status(k) == "FAILED" && strlength(run_errmsg(k)) > 0
-            fprintf(fid_sum, '  error: %s\n', run_errmsg(k));
+            fprintf(fid_sum, '         Identifier : %s\n', run_errid(k));
+            fprintf(fid_sum, '         Message    : %s\n', run_errmsg(k));
+            if strlength(run_errloc(k)) > 0
+                fprintf(fid_sum, '         Location   : %s\n', run_errloc(k));
+            end
         elseif strlength(run_outdir(k)) > 0
             fprintf(fid_sum, '  out: %s\n', run_outdir(k));
         end
@@ -740,6 +775,17 @@ function print_progress(msg, n_total)
         end
         fprintf('  [%3d/%3d] FAILED k=%03d  wall=%6.1f s  | err: %s\n', ...
             n_done, n_total, msg.k, msg.wall, err_one_line);
+        % Extended error details (identifier + location), mirroring the
+        % serial branch's console output and batch_run_from_json's parallel
+        % branch.  Fields are always present (sent by both catch paths).
+        if isfield(msg, 'identifier') && ~isempty(msg.identifier)
+            fprintf('         Identifier : %s\n', msg.identifier);
+        end
+        if isfield(msg, 'stack_name') && ~isempty(msg.stack_name) ...
+                && isfield(msg, 'stack_line') && isfinite(msg.stack_line)
+            fprintf('         Location   : %s (line %d)\n', ...
+                msg.stack_name, msg.stack_line);
+        end
     end
 end
 

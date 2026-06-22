@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-06-17
-> **Version:** 7.9.0
+> **Updated:** 2026-06-22
+> **Version:** 7.9.1
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -114,7 +114,7 @@ Results are written under `output/<case_name>/` or an automatically timestamped 
 
 ## Version Notes
 
-The current release is **7.9.0 (2026-06-17)**. It is a parameter-validation deep refactor on top of v7.8.0: all pre-flight parameter checks are consolidated into [`validate_simulation_params.m`](src/config/validate_simulation_params.m), which now accepts the full `cfg` struct directly (A2) and adds `pili_ext` count consistency (P1), `delta` range check (P2), `N_body` upper-bound warning (P4), background-flow orthogonality warning (P5), `alpha_0` range check (P6/A1, enforced in parametric mode and custom mode with empty `initial_orientation`), unified string/struct acceptance for `intrinsic_curvature` / `active_moment` / `motor_torque` (P7/P8), and improved `AbsTol`/`RelTol` wording (P9). A Bugbot review caught and fixed a regression where the `alpha_0` check was lost in custom mode with empty `initial_orientation`, and dead code in `init_coupled_params.m` (L314) was removed. **This release changes no simulation outputs; it only tightens input validation and error reporting.** v7.8.0 corrected the reference-curvature `kb0` discretisation and the constant motor-torque nondimensionalisation; v7.7.0 introduced the explicit strict Ito Brownian drift with SPD-projected diffusion. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
+The current release is **7.9.1 (2026-06-22)**. It is a post-review bug-fix release on top of v7.9.0: the batch post-processor's MSD diffusion-coefficient fit is now clamped to non-negative (Bug 2, preventing non-physical negative `D_trans` in the Excel report), and the three batch sweep scripts (`batch_sweep_alpha.m`, `batch_sweep_pili_length.m`, `batch_repeat_brownian.m`) now capture `ME.identifier` and `ME.stack(1)` in their catch blocks and write the error identifier, message, and top-of-stack location to both the console and the summary log file (Bug 6, matching the existing style of `batch_run_from_json.m`). **This release changes no simulation outputs; it only fixes post-processing and batch error reporting.** v7.9.0 was a parameter-validation deep refactor; v7.8.0 corrected the reference-curvature `kb0` discretisation and the constant motor-torque nondimensionalisation. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 

@@ -3,12 +3,12 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 7.9.0
-> **更新日期:** 2026-06-17
+> **版本:** 7.9.1
+> **更新日期:** 2026-06-22
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-版本提示：v7.9.0 将所有起飞前参数检查统一收口到 `validate_simulation_params.m`（直接接受完整 `cfg` 结构），新增 `pili_ext` 数量一致性检查（P1）、`delta` 范围检查（P2）、`N_body` 上限警告（P4）、背景流方向与剪切轴正交性警告（P5）、`alpha_0` 范围检查（P6/A1，在 parametric 模式及 custom 模式下 `initial_orientation` 为空时生效）、`intrinsic_curvature` / `active_moment` / `motor_torque` 统一的字符串/结构体接受（P7/P8）、以及 `AbsTol`/`RelTol` 警告措辞改进（P9）；修复了 custom 模式下 `initial_orientation` 为空时 `alpha_0` 检查丢失的回归（Bugbot），并移除 `init_coupled_params.m` 中的死代码。本版不改变任何模拟输出。v7.8.0 将内禀（参考）曲率 `kb0` 改用与运行时曲率相同的 SVD 投影节点 director 算子进行离散，使 `frozen` 曲率纤毛在参考构型下成为精确的零力矩平衡态，并将常值电机力矩改用 `EI/L_pili` 无量纲化（与主动力矩约定一致）。
+版本提示：v7.9.1 为审查后 Bug 修复版：批量后处理脚本 `postprocess_cases.m` 的 MSD 扩散系数拟合现加 `max(0, ...)` 下界保护（Bug 2，避免 Excel 报表中出现非物理的负 `D_trans`）；三个批处理脚本 `batch_sweep_alpha.m`、`batch_sweep_pili_length.m`、`batch_repeat_brownian.m` 的 catch 块现捕获 `ME.identifier` 与 `ME.stack(1)`，将错误标识、消息、栈顶位置（`file (line N)`）同时写入控制台与汇总日志（Bug 6，与 `batch_run_from_json.m` 既有风格一致）。本版不改变任何模拟输出。v7.9.0 将所有起飞前参数检查统一收口到 `validate_simulation_params.m`（直接接受完整 `cfg` 结构，P1–P9）。v7.8.0 将内禀（参考）曲率 `kb0` 改用与运行时曲率相同的 SVD 投影节点 director 算子进行离散，使 `frozen` 曲率纤毛在参考构型下成为精确的零力矩平衡态，并将常值电机力矩改用 `EI/L_pili` 无量纲化（与主动力矩约定一致）。
 
 ## 1. 运行前准备
 
