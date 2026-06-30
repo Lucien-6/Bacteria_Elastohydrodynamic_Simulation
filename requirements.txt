@@ -1,7 +1,21 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 7.9.1 (2026-06-22)
+# Release: 7.9.2 (2026-06-30)
 #
+# v7.9.2: numerical-robustness and documentation-accuracy release.
+#   (1) Defensive unit-quaternion normalisation in reconstruct_geometry.m and
+#       quat_to_rotmat.m (guards against ode15s trial-step |q|!=1 drift that
+#       would silently deform the body via a non-orthonormal rotation matrix).
+#   (2) Euler-angle convention label corrected from "ZXZ" to Walker (2020)'s
+#       actual R = Rz(phi)*Ry(-theta)*Rz(psi) (transpose of standard ZYZ active
+#       rotation). Comment-only; bitwise identical.
+#   (3) Brownian deterministic/stochastic operator-splitting approximation now
+#       documented in theory.md §10 with quantitative rel_asym diagnostic and
+#       user guidance for rel_asym > 1e-2.
+#   (4) Redundant symmetrisation of M_eff_dim removed (algebraically exact:
+#       Hadamard division by symmetric S*S' preserves symmetry).
+#   For well-behaved runs the quaternion guard is a no-op and the symmetrisation
+#   removal is exact, so outputs are identical to v7.9.1. See CHANGELOG.md.
 # v7.9.1: post-review bug fixes — clamp D_trans to non-negative in
 # postprocess_cases.m MSD fit (Bug 2), and capture ME.identifier /
 # ME.stack(1) in batch_sweep_alpha.m, batch_sweep_pili_length.m, and

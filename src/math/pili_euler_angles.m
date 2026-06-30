@@ -1,19 +1,28 @@
-﻿function [theta, phi, psi] = pili_euler_angles(d1, d2, d3)
+function [theta, phi, psi] = pili_euler_angles(d1, d2, d3)
 %PILI_EULER_ANGLES  Recover Euler angles from director vectors
 %
 %  Description:
 %    Inverse of pili_directors: recovers (theta, phi, psi) from the
 %    material frame directors (d1, d2, d3).  Adapted from Walker (2020).
 %
-%  Euler angle convention (ZXZ intrinsic rotation):
-%    The directors are obtained by applying three successive rotations
-%    starting from the reference basis {e1, e2, e3}:
-%      1. R_z(phi):   rotate about z by phi      (azimuthal)
-%      2. R_x(theta): rotate about new x by theta (polar / tilt)
-%      3. R_z(psi):   rotate about new z by psi   (material twist)
-%    This is the ZXZ convention (same as Walker 2020).  The tangent
-%    d3 = R_z(phi) * R_x(theta) * e3, and the material frame (d1, d2)
-%    are further rotated by psi around d3.
+%  Euler angle convention (Walker 2020, second-z rotation convention):
+%    The tangent director is the spherical-coordinate parameterisation
+%      d3 = (sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta))
+%    so theta is the polar angle from the z-axis and phi is the azimuth.
+%    The material frame (d1, d2) is obtained from d3 by a rotation of
+%    angle psi about d3:
+%      d1 = (-sin(phi)*cos(psi) - cos(theta)*cos(phi)*sin(psi),
+%             cos(phi)*cos(psi) - cos(theta)*sin(phi)*sin(psi),
+%             sin(theta)*sin(psi))
+%      d2 = ( sin(phi)*sin(psi) - cos(theta)*cos(phi)*cos(psi),
+%            -cos(phi)*sin(psi) - cos(theta)*sin(phi)*cos(psi),
+%             sin(theta)*cos(psi))
+%    This is the convention used by Walker (2020) directors.m.  The
+%    rotation sequence is R = Rz(phi) * Ry(-theta) * Rz(psi) (equivalently
+%    the transpose of the standard ZYZ active rotation), so it is NOT the
+%    textbook ZXZ convention despite the similar (theta, phi, psi) naming.
+%    The clamped-BC Jacobian J_euler_basis in build_coupled_lin_sys.m is
+%    derived consistently from this convention.
 %
 %  Syntax:
 %    [theta, phi, psi] = pili_euler_angles(d1, d2, d3)

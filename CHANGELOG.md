@@ -10,7 +10,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [7.9.1] — 2026-06-22
+## [7.9.2] — 2026-06-30
+
+Numerical-robustness and documentation-accuracy release. A front-to-back critical re-review of the underlying mathematical physics surfaced four actionable items: (1) a defensive quaternion normalisation guard against `ode15s` internal trial-step drift, (2) a corrected Euler-angle convention label (the directors follow Walker (2020)'s `R = Rz(phi)·Ry(-theta)·Rz(psi)`, NOT textbook ZXZ as previously documented), (3) a documented declaration of the deterministic/stochastic operator-splitting approximation in the Brownian path, with a quantitative `rel_asym` diagnostic, and (4) removal of a redundant symmetrisation in the Brownian mobility dimensionalisation. **No simulation outputs change** for configurations with a unit quaternion and reciprocal hydrodynamic discretisation; the quaternion guard only activates on numerical drift, and the symmetrisation removal is algebraically exact (Hadamard division by a symmetric outer product preserves symmetry).
+
+### Fixed
+
+- **`src/geometry/reconstruct_geometry.m` — defensive unit-quaternion normalisation**: `ode15s` internal trial steps may produce states with `|q| != 1`; the rotation-matrix formula in `quat_to_rotmat` is only orthonormal for `|q| = 1`, so a non-unit quaternion would silently deform the body (non-rigid surface points, non-conserved volume). The body quaternion is now normalised immediately after `unpack_state`, with a zero-norm fallback to identity orientation and a diagnostic warning. Only the local copy is touched; the solver's state vector and error control are not disturbed.
+- **`src/math/quat_to_rotmat.m` — defensive normalisation at the leaf**: a second normalisation guard at the function entry protects any other callers (test scripts, post-processing, visualisation helpers) against `|q| != 1`. Cost: one 4-vector norm + division per call — negligible.
+
+### Changed
+
+- **`src/physics/compute_effective_body_brownian.m` — remove redundant symmetrisation of `M_eff_dim`**: the dimensional mobility `M_eff_dim = M_eff_dimless ./ (S * S')` is already symmetric because `M_eff_dimless` was symmetrised earlier (Step 3) and Hadamard division by the symmetric outer product `S * S'` preserves symmetry. The explicit `0.5*(M + M')` line is removed and replaced with a derivation comment. Algebraically exact; no numerical change.
+- **`src/physics/compute_effective_body_brownian.m` — quantitative asymmetry diagnostic**: in addition to the existing `rel_asym > 1e-3` warning, a new `rel_asym > 1e-2` log line reports the current `eps_body` and `eps_pili` values and points the user to `theory.md §10 "Known approximation"` and §5.1 (RSM leak tolerance). This makes the deterministic/stochastic operator-splitting bias visible and actionable without changing the numerical path.
+- **Euler-angle convention label corrected (comment-only)**: the original `pili_euler_angles.m` docstring labelled the rotation sequence "ZXZ intrinsic rotation (`R_z(phi) → R_x(theta) → R_z(psi)`)". Re-analysis against the actual `pili_directors.m` formulas shows the convention is Walker (2020)'s `R = Rz(phi)·Ry(-theta)·Rz(psi)` (the transpose of the standard ZYZ active rotation), NOT textbook ZXZ. The `d3` director `d3 = (sin(theta)cos(phi), sin(theta)sin(phi), cos(theta))` is the spherical-coordinate tangent; the clamped-BC Jacobian `J_euler_basis` in `build_coupled_lin_sys.m` is derived consistently from this convention. Affected files: `pili_euler_angles.m`, `pili_directors.m`, `build_coupled_lin_sys.m` (new derivation comment on `J_euler_basis`), `init_coupled_state.m` (ZYZ → Walker wording), `docs/index.html`, `CHANGELOG.md`. Comment-only correction; bitwise identical outputs.
+
+### Documentation
+
+- **`docs/theory.md`, `docs/theory.zh-CN.md` — new "Known approximation" subsection in §10 (Brownian Dynamics)**: declares that the deterministic solve uses the raw (structurally non-symmetric when `eps_body != eps_pili`) hydrodynamic mobility `M_weighted`, while the Brownian covariance path uses the symmetrised effective body mobility `M_eff = 0.5*(M + M')` to satisfy the FDT requirement of a symmetric diffusion tensor. Documents the `rel_asym` diagnostic, its typical magnitude (`~1e-5..1e-3` for mixed-epsilon configurations, `<1e-10` for pure RSM), the Schur-complement attenuation, and user guidance for `rel_asym > 1e-2`.
+
+### Compatibility
+
+- **NOT bitwise-identical to v7.9.1** only in pathological cases where `ode15s` produced a non-unit quaternion that was previously passed through to `quat_to_rotmat` unnormalised. For all well-behaved runs the quaternion guard is a no-op (the quaternion is already unit to machine precision after the RHS projection in `ode_coupled_rhs.m`), and the symmetrisation removal is algebraically exact, so outputs are identical to v7.9.1.
+- The Euler-angle convention correction and Brownian documentation are comment/doc-only; no numerical change.
+
+### Documentation
+
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**, **`docs/presentation.html`**: version **7.9.2**, date **2026-06-30**.
+
+
 
 Post-review bug fixes — addresses two issues found in a front-to-back data-flow review: a non-physical negative diffusion coefficient in the batch post-processor, and missing error stack traces in three batch sweep scripts. **No simulation outputs change**; this release only fixes post-processing and batch error reporting.
 
@@ -25,7 +53,7 @@ Post-review bug fixes — addresses two issues found in a front-to-back data-flo
 
 ### Documentation
 
-- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**, **`docs/presentation.html`**: version **7.9.1**, date **2026-06-22**.
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**, **`docs/presentation.html`**: version **7.9.2**, date **2026-06-30**.
 
 ---
 
@@ -249,7 +277,7 @@ Comment audit and documentation accuracy corrections — **no numerical change**
 - **`read_geometry_csv_mat.m`**: preferred MAT variable-name list now includes `'coordinates'` (was omitted in the comment; code checked five names) and notes case-insensitive matching.
 - **`ode_coupled_rhs.m`**: evaluation-step header now explicitly maps Steps 1–4, 6–7 to `build_coupled_lin_sys.m` and Step 5 as not applicable (RHS term), with cross-file reference.
 - **`adaptive_basis_check.m`**: the "Householder-like rotation" comment (line 91) replaced with an accurate description: `I + 2*K² = 2*v*v' − I` is a Householder **reflection** (det = −1), not a proper rotation; Walker (2020) uses it as a basis change because director d3 sign flips do not affect the physical curvature binormal.
-- **`pili_euler_angles.m`**: added Euler angle convention specification (ZXZ intrinsic rotation: R_z(phi) → R_x(theta) → R_z(psi)) with reference to Walker (2020).
+- **`pili_euler_angles.m`**: added Euler angle convention specification. NOTE: the original entry labelled this "ZXZ intrinsic rotation (R_z(phi) → R_x(theta) → R_z(psi))"; re-analysis against the actual `pili_directors.m` formulas shows the convention is Walker (2020)'s R = Rz(phi)·Ry(−theta)·Rz(psi) (the transpose of standard ZYZ active rotation), NOT textbook ZXZ. The d3 director d3 = (sin(theta)cos(phi), sin(theta)sin(phi), cos(theta)) is the spherical-coordinate tangent; the clamped-BC Jacobian `J_euler_basis` in `build_coupled_lin_sys.m` is derived consistently from this convention. Comment-only correction; bitwise identical outputs.
 
 ### Added (documentation)
 

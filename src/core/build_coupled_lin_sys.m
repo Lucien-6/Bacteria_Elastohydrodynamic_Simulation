@@ -476,6 +476,15 @@ for k = 1:M
     phi1_col   = col_offset + N_k + 1;
     psi1_col   = col_offset + 2*N_k + 1;
 
+    %  Jacobian mapping lab-frame angular velocity Omega to the Walker (2020)
+    %  Euler-angle rates (dtheta, dphi, dpsi) of the first segment.
+    %  Derived from the director convention d3 = (sT*cP, sT*sP, cT) in
+    %  pili_directors.m (rotation R = Rz(phi) * Ry(-theta) * Rz(psi)).
+    %  Rows: dtheta = -sP*wx + cP*wy
+    %        dphi   = (-cT*cP/sT)*wx + (-cT*sP/sT)*wy + wz
+    %        dpsi   = (cP/sT)*wx + (sP/sT)*wy
+    %  Then J_euler = J_euler_basis * rot_k applies the per-pilus basis
+    %  rotation so Omega is expressed in the rot_k frame.
     J_euler_basis = [-sP,         cP,        0;
                      -cT*cP/sT,  -cT*sP/sT, 1;
                       cP/sT,      sP/sT,     0];

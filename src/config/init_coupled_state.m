@@ -90,10 +90,10 @@ end
 
 %% Enforce clamped geometry: correct first-segment Euler angles
 %  The first-segment directors must satisfy D_lab = R_body * D_local{k}.
-%  Setting psi = 0 above uses the ZYZ convention default, which does NOT
-%  account for the body rotation when alpha_0 != 0.  The enforce step
-%  overwrites the first-segment (theta, phi, psi) to be exactly consistent
-%  with the clamped boundary condition at the position level.
+%  Setting psi = 0 above uses the Walker (2020) convention default, which
+%  does NOT account for the body rotation when alpha_0 != 0.  The enforce
+%  step overwrites the first-segment (theta, phi, psi) to be exactly
+%  consistent with the clamped boundary condition at the position level.
 %
 %  We pass force_full_projection = true so that ψ_1 is projected even for
 %  free_torsion pili.  Otherwise, with alpha_0 ≠ 0 (or any non-identity

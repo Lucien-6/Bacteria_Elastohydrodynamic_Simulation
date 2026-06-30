@@ -4,8 +4,8 @@ English | [中文](theory.zh-CN.md)
 [Back to README](../README.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Updated:** 2026-06-22
-> **Version:** 7.9.1
+> **Updated:** 2026-06-30
+> **Version:** 7.9.2
 
 This document contains the model details that were formerly embedded in the long README. The repository entry page is now intentionally short; practical run instructions are in [`../USER_GUIDE.md`](../USER_GUIDE.md), and release history is in [`../CHANGELOG.md`](../CHANGELOG.md).
 
@@ -357,6 +357,12 @@ k_B T\,\mathbf{M}_{\mathrm{eff,dim}},
 ```
 
 The Ito drift term is computed explicitly by finite differences of the SPD-projected body mobility in the six body coordinates. This replaces the former midpoint approximation and keeps the Brownian update in a single strict stochastic interpretation.
+
+**Known approximation — deterministic/stochastic operator consistency.**
+
+The deterministic solve uses the raw hydrodynamic mobility `M_weighted`, which is structurally non-symmetric when `eps_body != eps_pili`: the body RSM block (source `eps = eps_body`) and the pili RSS block (source `eps = eps_pili`) apply different regularisation lengths to the same body–pili pair of entries, so Lorentz reciprocity is not exactly satisfied in the off-diagonal body↔pili coupling blocks. The Brownian covariance path, by contrast, uses the symmetrised effective body mobility `M_eff = 0.5*(M + M')` to satisfy the fluctuation-dissipation requirement of a symmetric diffusion tensor.
+
+This operator splitting therefore relies on the approximation that the non-reciprocal component is small. The implementation measures the relative asymmetry `rel_asym = ||M_eff - M_eff^T||_F / ||M_eff||_F` at every Brownian step and emits a warning when `rel_asym > 1e-3`. For typical mixed-epsilon configurations `rel_asym ~ 1e-5..1e-3`; for pure-RSM (no pili) systems it drops to `<1e-10` (LU round-off only). The Schur-complement extraction from the full `M_weighted` to the 6×6 body block further attenuates the non-symmetry, so the practical impact on the equilibrium distribution is bounded by `rel_asym` itself. For configurations where `eps_body ≈ eps_pili` the approximation becomes exact. Users seeking the strictest statistical fidelity should monitor the `[BROWN]` asymmetry log lines and, if `rel_asym > 1e-2`, consider tightening `eps_body` toward `eps_pili` (or vice versa) provided the body-surface resolution `N_body` is adjusted to keep the RSM leak within tolerance (see §5.1).
 
 ## 11. Flow-Field Visualization
 

@@ -1,4 +1,4 @@
-﻿function [d1, d2, d3] = pili_directors(theta, phi, psi)
+function [d1, d2, d3] = pili_directors(theta, phi, psi)
 %PILI_DIRECTORS  Material frame directors from Euler angles
 %
 %  Description:
@@ -22,6 +22,12 @@
 %  Note:
 %    Directors are in the pili's rotated basis (rot_k).
 %    Lab frame: d_lab = (rot_k' * d_basis')'
+%
+%  Euler angle convention:
+%    Uses the Walker (2020) convention (NOT textbook ZXZ).  The rotation
+%    sequence is R = Rz(phi) * Ry(-theta) * Rz(psi), i.e. the transpose of
+%    the standard ZYZ active rotation.  See pili_euler_angles.m for the full
+%    convention specification and J_euler_basis derivation.
 %
 %  References:
 %    [1] Walker et al. (2020), Physical Review E.

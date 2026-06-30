@@ -1,4 +1,4 @@
-﻿function geom = reconstruct_geometry(Z, params)
+function geom = reconstruct_geometry(Z, params)
 %RECONSTRUCT_GEOMETRY  Rebuild all spatial positions from state vector
 %
 %  Description:
@@ -31,6 +31,25 @@
 
 %% Unpack state
 [X_cm, q, pili_angles] = unpack_state(Z, params.N_segments);
+
+% Ensure unit quaternion.  ode15s internal trial steps may produce states
+% with |q| != 1; the rotation-matrix formula in quat_to_rotmat is only
+% orthonormal for |q| = 1, so a non-unit quaternion would deform the body
+% (non-rigid surface points, non-conserved volume).  Normalising here
+% protects ALL downstream geometry without disturbing the solver's state
+% vector or error control (we only touch the local copy used here).
+q_norm = norm(q);
+if q_norm > 0
+    q = q / q_norm;
+else
+    % Degenerate zero quaternion — fall back to identity orientation.
+    % This branch should never trigger in normal operation; the warning
+    % makes any occurrence visible for diagnosis.
+    warning('reconstruct_geometry:ZeroQuaternion', ...
+        'Body quaternion has zero norm; falling back to identity orientation.');
+    q = [1; 0; 0; 0];
+end
+
 R_body = quat_to_rotmat(q);
 
 %% Body surface points in lab frame

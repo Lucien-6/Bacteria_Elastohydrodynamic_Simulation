@@ -66,6 +66,17 @@ z_dot_probe = lin_sys \ R_probe;
 %% Step 3: Extract dimensionless 6x6 effective mobility
 M_eff_dimless = z_dot_probe(1:6, :);
 
+%  Retrieve regularisation lengths for the asymmetry diagnostic below.
+%  eps_body may be absent in edge-case params structs; guard with isfield.
+eps_body_val = NaN;
+eps_pili_val = NaN;
+if isfield(params, 'eps_body')
+    eps_body_val = params.eps_body;
+end
+if isfield(params, 'epsilon')
+    eps_pili_val = params.epsilon;
+end
+
 %  Diagnostic: measure asymmetry BEFORE symmetrisation.
 %  For pure-RSM (NoPili) systems, LU round-off on a ~90-dim matrix yields
 %  rel_asym ~ 1e-12..1e-10.  For RSM+RSS mixed configurations (eps_body !=
@@ -89,6 +100,18 @@ if rel_asym > 1e-3
          'RSM+RSS mixed epsilon; pure RSM yields <1e-10). Possible lin_sys assembly bug or ', ...
          'extreme conditioning; silent symmetrisation will still be applied.'], ...
         rel_asym);
+end
+if rel_asym > 1e-2
+    %  Quantitative guidance: at this level the deterministic/stochastic operator
+    %  splitting (see docs/theory.md §10 "Known approximation") may carry a
+    %  non-negligible bias in the equilibrium distribution.  Suggest the user
+    %  consider tightening eps_body toward eps_pili (or vice versa), provided
+    %  N_body is adjusted to keep the RSM leak within tolerance (§5.1).
+    logf_h(['[BROWN] NOTE: rel_asym = %.2e > 1e-2. The deterministic/stochastic ' ...
+         'operator-splitting bias may be non-negligible. Consider tightening eps_body ' ...
+         'toward eps_pili (currently eps_body=%.4e, eps_pili=%.4e), provided N_body ' ...
+         'is adjusted to keep the RSM leak within tolerance (see theory.md sec 5.1).\n'], ...
+        rel_asym, eps_body_val, eps_pili_val);
 end
 
 % Symmetrise the mobility used by the Brownian covariance.  The deterministic
@@ -138,14 +161,15 @@ coeff = 8 * pi * mu;
 S = [sqrt(coeff * L_0) * ones(3,1); sqrt(coeff * L_0^3) * ones(3,1)];
 M_eff_dim = M_eff_dimless ./ (S * S');
 
-% Symmetrise dimensional mobility
-M_eff_dim = 0.5 * (M_eff_dim + M_eff_dim');
-
-%  NOTE: the rcond conditioning diagnostic was moved up to Step 3 (on the
-%  dimensionless mobility) -- see the comment block above.  Probing the
-%  dimensional `M_eff_dim` here is statistically meaningless because its
-%  1-norm condition number is dominated by the TT/RR unit-scale ratio
-%  (~L_0^{-2}) rather than by the underlying physical conditioning.
+%  Note: no separate symmetrisation of M_eff_dim is needed here.
+%  M_eff_dimless was symmetrised at Step 3 (line above the rcond check),
+%  and the Hadamard division by the symmetric outer product (S * S')
+%  preserves symmetry:  (A ./ B)_ij = A_ij / B_ij, so if A_ij = A_ji and
+%  B_ij = B_ji then (A ./ B)_ij = (A ./ B)_ji.  The downstream
+%  project_spd_covariance helper re-symmetrises D_eff as a defensive
+%  measure (it is a standalone utility that may be called with non-symmetric
+%  input from other paths), but for the in-line flow here M_eff_dim is
+%  already symmetric by construction.
 
 %% Step 5: Diffusion tensor and Cholesky decomposition
 kB    = 1.380649e-23;

@@ -3,12 +3,12 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 7.9.1
-> **更新日期:** 2026-06-22
+> **版本:** 7.9.2
+> **更新日期:** 2026-06-30
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-版本提示：v7.9.1 为审查后 Bug 修复版：批量后处理脚本 `postprocess_cases.m` 的 MSD 扩散系数拟合现加 `max(0, ...)` 下界保护（Bug 2，避免 Excel 报表中出现非物理的负 `D_trans`）；三个批处理脚本 `batch_sweep_alpha.m`、`batch_sweep_pili_length.m`、`batch_repeat_brownian.m` 的 catch 块现捕获 `ME.identifier` 与 `ME.stack(1)`，将错误标识、消息、栈顶位置（`file (line N)`）同时写入控制台与汇总日志（Bug 6，与 `batch_run_from_json.m` 既有风格一致）。本版不改变任何模拟输出。v7.9.0 将所有起飞前参数检查统一收口到 `validate_simulation_params.m`（直接接受完整 `cfg` 结构，P1–P9）。v7.8.0 将内禀（参考）曲率 `kb0` 改用与运行时曲率相同的 SVD 投影节点 director 算子进行离散，使 `frozen` 曲率纤毛在参考构型下成为精确的零力矩平衡态，并将常值电机力矩改用 `EI/L_pili` 无量纲化（与主动力矩约定一致）。
+版本提示：v7.9.2 为数值健壮性与文档准确性版：(1) 在 `reconstruct_geometry.m` 与 `quat_to_rotmat.m` 中加入防御性单位四元数归一化，防止 `ode15s` 内部试探步产生 `|q| != 1` 时通过非正交旋转矩阵悄悄使胞体变形；(2) 更正 Euler 角约定标注——实际为 Walker (2020) 的 `R = Rz(phi)·Ry(-theta)·Rz(psi)`（标准 ZYZ 主动旋转的转置），而非此前文档所写的 ZXZ，仅注释/文档变更，数值输出逐位一致；(3) 在 `theory.zh-CN.md §10` 中显式声明布朗路径的确定性/随机算子分裂近似（确定性求解用原始 `M_weighted`，布朗协方差用对称化 `M_eff`），并增加 `rel_asym > 1e-2` 量化诊断与用户指引；(4) 移除 `M_eff_dim` 的冗余对称化（代数精确——对称矩阵逐元素除以对称外积 `S * S'` 保持对称性）。对于正常运行的仿真，四元数守卫为空操作、对称化移除为代数恒等，故输出与 v7.9.1 完全一致。v7.9.1 为审查后 Bug 修复（MSD `D_trans` 下界保护、批处理错误栈追踪捕获）。v7.9.0 将所有起飞前参数检查统一收口到 `validate_simulation_params.m`（直接接受完整 `cfg` 结构，P1–P9）。v7.8.0 将内禀（参考）曲率 `kb0` 改用与运行时曲率相同的 SVD 投影节点 director 算子进行离散，使 `frozen` 曲率纤毛在参考构型下成为精确的零力矩平衡态，并将常值电机力矩改用 `EI/L_pili` 无量纲化（与主动力矩约定一致）。
 
 ## 1. 运行前准备
 

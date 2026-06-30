@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-06-22
-> **Version:** 7.9.1
+> **Updated:** 2026-06-30
+> **Version:** 7.9.2
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -114,7 +114,7 @@ Results are written under `output/<case_name>/` or an automatically timestamped 
 
 ## Version Notes
 
-The current release is **7.9.1 (2026-06-22)**. It is a post-review bug-fix release on top of v7.9.0: the batch post-processor's MSD diffusion-coefficient fit is now clamped to non-negative (Bug 2, preventing non-physical negative `D_trans` in the Excel report), and the three batch sweep scripts (`batch_sweep_alpha.m`, `batch_sweep_pili_length.m`, `batch_repeat_brownian.m`) now capture `ME.identifier` and `ME.stack(1)` in their catch blocks and write the error identifier, message, and top-of-stack location to both the console and the summary log file (Bug 6, matching the existing style of `batch_run_from_json.m`). **This release changes no simulation outputs; it only fixes post-processing and batch error reporting.** v7.9.0 was a parameter-validation deep refactor; v7.8.0 corrected the reference-curvature `kb0` discretisation and the constant motor-torque nondimensionalisation. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
+The current release is **7.9.2 (2026-06-30)**. It is a numerical-robustness and documentation-accuracy release on top of v7.9.1: (1) a defensive unit-quaternion normalisation guard is added in `reconstruct_geometry.m` and `quat_to_rotmat.m` to protect against `ode15s` internal trial-step drift (`|q| != 1` would otherwise silently deform the body via a non-orthonormal rotation matrix); (2) the Euler-angle convention label is corrected from "ZXZ" to Walker (2020)'s actual `R = Rz(phi)·Ry(-theta)·Rz(psi)` (transpose of standard ZYZ active rotation) — comment-only, bitwise identical; (3) the Brownian path's deterministic/stochastic operator-splitting approximation (raw `M_weighted` for the deterministic solve vs symmetrised `M_eff` for the FDT covariance) is now explicitly documented in `theory.md §10` with a quantitative `rel_asym` diagnostic and user guidance for `rel_asym > 1e-2`; (4) a redundant symmetrisation of the dimensional mobility `M_eff_dim` is removed (algebraically exact — Hadamard division by the symmetric outer product `S * S'` preserves symmetry). **For well-behaved runs the quaternion guard is a no-op and the symmetrisation removal is exact, so outputs are identical to v7.9.1.** v7.9.1 was a post-review bug-fix release; v7.9.0 was a parameter-validation deep refactor; v7.8.0 corrected the reference-curvature `kb0` discretisation and the constant motor-torque nondimensionalisation. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 

@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.9.1 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.9.2 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.9.1 &middot; 2026-06-22</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.9.2 &middot; 2026-06-30</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 7.9.1 &bull; 2026-06-22
+      Version 7.9.2 &bull; 2026-06-30
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -537,12 +537,25 @@ tailwind.config = {
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en"><strong>v7.9.1</strong> is a post-review bug-fix release: the batch post-processor's MSD diffusion-coefficient fit in <code>postprocess_cases.m</code> is now clamped to non-negative (Bug 2, preventing non-physical negative <code>D_trans</code> in the Excel report), and the three batch sweep scripts (<code>batch_sweep_alpha.m</code>, <code>batch_sweep_pili_length.m</code>, <code>batch_repeat_brownian.m</code>) now capture <code>ME.identifier</code> and <code>ME.stack(1)</code> in their catch blocks and write the error identifier, message, and top-of-stack location to both the console and the summary log file (Bug 6, matching <code>batch_run_from_json.m</code>'s existing style). No simulation outputs change. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
-      <span class="zh"><strong>v7.9.1</strong> 为审查后 Bug 修复版：批量后处理脚本 <code>postprocess_cases.m</code> 的 MSD 扩散系数拟合现加 <code>max(0, ...)</code> 下界保护（Bug 2，避免 Excel 报表中出现非物理的负 <code>D_trans</code>）；三个批处理脚本 <code>batch_sweep_alpha.m</code>、<code>batch_sweep_pili_length.m</code>、<code>batch_repeat_brownian.m</code> 的 catch 块现捕获 <code>ME.identifier</code> 与 <code>ME.stack(1)</code>，将错误标识、消息、栈顶位置同时写入控制台与汇总日志（Bug 6，与 <code>batch_run_from_json.m</code> 既有风格一致）。不改变任何模拟输出。详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
+      <span class="en"><strong>v7.9.2</strong> is a numerical-robustness and documentation-accuracy release: (1) a defensive unit-quaternion normalisation guard is added in <code>reconstruct_geometry.m</code> and <code>quat_to_rotmat.m</code> to protect against <code>ode15s</code> internal trial-step drift (<code>|q| != 1</code> would otherwise silently deform the body via a non-orthonormal rotation matrix); (2) the Euler-angle convention label is corrected from "ZXZ" to Walker (2020)'s actual <code>R = Rz(phi)·Ry(-theta)·Rz(psi)</code> (transpose of standard ZYZ active rotation) — comment-only, bitwise identical; (3) the Brownian path's deterministic/stochastic operator-splitting approximation is now explicitly documented in <code>theory.md §10</code> with a quantitative <code>rel_asym</code> diagnostic and user guidance for <code>rel_asym &gt; 1e-2</code>; (4) a redundant symmetrisation of the dimensional mobility <code>M_eff_dim</code> is removed (algebraically exact). For well-behaved runs the quaternion guard is a no-op and the symmetrisation removal is exact, so outputs are identical to v7.9.1. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
+      <span class="zh"><strong>v7.9.2</strong> 为数值健壮性与文档准确性版：(1) 在 <code>reconstruct_geometry.m</code> 与 <code>quat_to_rotmat.m</code> 中加入防御性单位四元数归一化，防止 <code>ode15s</code> 内部试探步产生 <code>|q| != 1</code> 时通过非正交旋转矩阵悄悄使胞体变形；(2) 更正 Euler 角约定标注——实际为 Walker (2020) 的 <code>R = Rz(phi)·Ry(-theta)·Rz(psi)</code>（标准 ZYZ 主动旋转的转置），而非此前文档所写的 ZXZ，仅注释/文档变更，数值输出逐位一致；(3) 在 <code>theory.md §10</code> 中显式声明布朗路径的确定性/随机算子分裂近似，并增加 <code>rel_asym &gt; 1e-2</code> 量化诊断与用户指引；(4) 移除 <code>M_eff_dim</code> 的冗余对称化（代数精确）。对于正常运行的仿真，四元数守卫为空操作、对称化移除为代数恒等，故输出与 v7.9.1 完全一致。详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
-        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.9.1 &mdash; 2026-06-22</p>
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.9.2 &mdash; 2026-06-30</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Numerical robustness &amp; documentation accuracy</span><span class="zh">数值健壮性与文档准确性</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en"><strong>Quaternion guard:</strong> <code>reconstruct_geometry.m</code> and <code>quat_to_rotmat.m</code> now defensively normalise the body quaternion before computing the rotation matrix, protecting against <code>ode15s</code> trial-step <code>|q| != 1</code> drift that would silently deform the body. Zero-norm fallback to identity with diagnostic warning.</span><span class="zh"><strong>四元数守卫：</strong><code>reconstruct_geometry.m</code> 与 <code>quat_to_rotmat.m</code> 在计算旋转矩阵前防御性归一化体四元数，防止 <code>ode15s</code> 试探步 <code>|q| != 1</code> 漂移悄悄使胞体变形。零范数时回退到单位姿态并发出诊断警告。</span></li>
+          <li><span class="en"><strong>Euler convention correction:</strong> the director convention is relabelled from "ZXZ" to Walker (2020)'s actual <code>R = Rz(phi)·Ry(-theta)·Rz(psi)</code> (transpose of standard ZYZ active rotation). The <code>J_euler_basis</code> clamped-BC Jacobian is derived consistently from this convention. Comment-only; bitwise identical outputs.</span><span class="zh"><strong>Euler 约定更正：</strong>director 约定从"ZXZ"更正为 Walker (2020) 实际的 <code>R = Rz(phi)·Ry(-theta)·Rz(psi)</code>（标准 ZYZ 主动旋转的转置）。clamped 边界条件的 <code>J_euler_basis</code> 雅可比据此约定一致推导。仅注释变更；数值输出逐位一致。</span></li>
+          <li><span class="en"><strong>Brownian operator-splitting documentation:</strong> <code>theory.md §10</code> now declares that the deterministic solve uses the raw (structurally non-symmetric when <code>eps_body != eps_pili</code>) mobility <code>M_weighted</code>, while the Brownian covariance uses the symmetrised <code>M_eff = 0.5*(M + M')</code>. A new <code>rel_asym &gt; 1e-2</code> log line reports current <code>eps_body</code>/<code>eps_pili</code> and points to §5.1 (RSM leak tolerance).</span><span class="zh"><strong>布朗算子分裂文档化：</strong><code>theory.md §10</code> 显式声明确定性求解用原始（<code>eps_body != eps_pili</code> 时结构非对称）迁移率 <code>M_weighted</code>，布朗协方差用对称化 <code>M_eff = 0.5*(M + M')</code>。新增 <code>rel_asym &gt; 1e-2</code> 日志行报告当前 <code>eps_body</code>/<code>eps_pili</code> 并指向 §5.1（RSM 泄漏容差）。</span></li>
+          <li><span class="en"><strong>Redundant symmetrisation removed:</strong> the explicit <code>0.5*(M + M')</code> on the dimensional <code>M_eff_dim</code> is removed — it is already symmetric because <code>M_eff_dimless</code> was symmetrised earlier and Hadamard division by the symmetric outer product <code>S * S'</code> preserves symmetry. Algebraically exact; no numerical change.</span><span class="zh"><strong>移除冗余对称化：</strong>有量纲 <code>M_eff_dim</code> 上的显式 <code>0.5*(M + M')</code> 被移除——它已对称，因为 <code>M_eff_dimless</code> 此前已对称化，且逐元素除以对称外积 <code>S * S'</code> 保持对称性。代数精确；无数值变化。</span></li>
+          <li><span class="en">For well-behaved runs the quaternion guard is a no-op and the symmetrisation removal is exact, so outputs are identical to v7.9.1.</span><span class="zh">对于正常运行的仿真，四元数守卫为空操作、对称化移除为代数恒等，故输出与 v7.9.1 完全一致。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-800 p-6">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">v7.9.1 &mdash; 2026-06-22</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
           <span class="en">Post-review bug fixes</span><span class="zh">审查后 Bug 修复</span>
         </h3>
@@ -636,7 +649,7 @@ tailwind.config = {
           <span class="en">Comment audit &amp; documentation fix</span><span class="zh">注释审计与文档修正</span>
         </h3>
         <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
-          <li><span class="en"><code>Pili_Matrix</code> row semantics, <code>BP/PB</code> block annotations, ZXZ Euler convention, Householder reflection note.</span><span class="zh"><code>Pili_Matrix</code> 行语义、<code>BP/PB</code> 分块注释、ZXZ Euler 约定、Householder 反射说明。</span></li>
+          <li><span class="en"><code>Pili_Matrix</code> row semantics, <code>BP/PB</code> block annotations, Walker (2020) Euler convention (R = Rz(phi)·Ry(−theta)·Rz(psi), not textbook ZXZ), Householder reflection note.</span><span class="zh"><code>Pili_Matrix</code> 行语义、<code>BP/PB</code> 分块注释、Walker (2020) Euler 约定（R = Rz(phi)·Ry(−theta)·Rz(psi)，非教科书 ZXZ）、Householder 反射说明。</span></li>
           <li><span class="en">Comment-only; bitwise identical outputs vs. v7.4.1.</span><span class="zh">仅注释变更；数值输出与 v7.4.1 逐位一致。</span></li>
         </ul>
       </div>
@@ -1890,7 +1903,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v7.9.1 &middot; 2026-06-22</li>
+        <li>v7.9.2 &middot; 2026-06-30</li>
       </ul>
     </div>
   </div>
