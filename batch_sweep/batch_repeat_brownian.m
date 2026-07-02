@@ -66,10 +66,10 @@ n_repeats = 100;
 %     'timestamp' — SERIAL: unset cfg.brown_rng_seed; each run uses MMddHHmmss at start.
 %                   PARALLEL: pre-set cfg.brown_rng_seed = clock_base + k (unique per worker).
 %     'default'   — alias for 'timestamp' (backward-compatible pre-rename value).
-brown_rng_seed_mode = 'timestamp';   % 'timestamp' | 'fixed'   ('default' = alias for 'timestamp')
+brown_rng_seed_mode = 'fixed';   % 'timestamp' | 'fixed'   ('default' = alias for 'timestamp')
 
 % --- Used only when brown_rng_seed_mode == 'fixed'
-rng_seed_base = 202604091;
+rng_seed_base = 202607011;
 
 % --- Parallel execution (Lucien, 2026-05-06) ---
 %     use_parallel        : true  -> parfor branch (auto-sized pool, default)
@@ -84,8 +84,8 @@ rng_seed_base = 202604091;
 %                           otherwise oversubscribe the CPU.  Raise to 2 only if
 %                           you have far more cores than concurrent workers.
 use_parallel        = true;
-mem_per_worker_gb   = 2.0;
-max_resource_frac   = 0.75;
+mem_per_worker_gb   = 2.5;
+max_resource_frac   = 0.90;
 worker_blas_threads = 1;
 
 % --- Configuration source (choose one):
