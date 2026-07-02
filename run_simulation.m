@@ -22,7 +22,7 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Log banner version: 7.9.3 (2026-07-02) - keep in sync with README / CHANGELOG
+%  Log banner version: 7.9.4 (2026-07-02) - keep in sync with README / CHANGELOG
 %
 %  Path: defensive addpath(project root) so run_simulation(cfg) works when
 %  invoked without main_coupled_simulation.m. Unified policy = this line plus
@@ -51,6 +51,17 @@ geometry_mode          = get_cfg_field(cfg, 'geometry_mode', 'parametric');
 % Silent mode: when true, logf writes to the log file only (no console echo).
 % Used by batch parallel runs to prevent N_workers stdout interleaving.
 silent                 = logical(get_cfg_field(cfg, 'silent', false));
+
+% Layered silence (v7.9.4): in addition to the dual_log console-echo gate above,
+% suppress (a) direct fprintf calls in this function, (b) odetpbar/render_progress_bar
+% progress bars, and (c) warnings emitted by src/ sub-functions (~24 distinct IDs
+% across 16 files).  Enumerating every warning ID is fragile, so we toggle 'all'
+% and restore via onCleanup so the caller's warning settings are always preserved
+% (normal return, error, or Ctrl-C).  Errors are NOT suppressed.
+if silent
+    warn_state_orig = warning('off', 'all');
+    cleanup_warn = onCleanup(@() warning(warn_state_orig));   %#ok<NASGU>
+end
 
 % Body geometry (parametric mode)
 if strcmp(geometry_mode, 'parametric')
@@ -191,7 +202,9 @@ if exist(output_dir, 'dir')
             output_dir = [output_dir '-' run_timestamp];
             run_id     = [run_id '-' run_timestamp];
             mkdir(output_dir);
-            fprintf('[OUTPUT] Auto-renamed to avoid overwrite: %s\n', output_dir);
+            if ~silent
+                fprintf('[OUTPUT] Auto-renamed to avoid overwrite: %s\n', output_dir);
+            end
         else
             overwrite_choice = questdlg( ...
                 sprintf(['Output directory already contains simulation data:\n' ...
@@ -205,15 +218,21 @@ if exist(output_dir, 'dir')
                     for ef = 1:numel(existing_files)
                         delete(fullfile(output_dir, existing_files(ef).name));
                     end
-                    fprintf('[OUTPUT] Cleared %d existing file(s) and proceeding.\n', ...
-                        numel(existing_files));
+                    if ~silent
+                        fprintf('[OUTPUT] Cleared %d existing file(s) and proceeding.\n', ...
+                            numel(existing_files));
+                    end
                 case 'Rename (append timestamp)'
                     output_dir = [output_dir '-' run_timestamp];
                     run_id     = [run_id '-' run_timestamp];
                     mkdir(output_dir);
-                    fprintf('[OUTPUT] Renamed to: %s\n', output_dir);
+                    if ~silent
+                        fprintf('[OUTPUT] Renamed to: %s\n', output_dir);
+                    end
                 otherwise
-                    fprintf('Simulation aborted: output directory conflict.\n');
+                    if ~silent
+                        fprintf('Simulation aborted: output directory conflict.\n');
+                    end
                     return;
             end
         end
@@ -236,7 +255,7 @@ logf_file = @(varargin) log_file_only(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Bacteria Elastohydrodynamic Simulation\n');
-logf('  Version 7.9.3\n');
+logf('  Version 7.9.4\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -650,7 +669,9 @@ if preview_initial
         logf('[PREVIEW] User aborted simulation.\n');
         close(fig_preview);
         fclose(log_fid);
-        fprintf('Simulation aborted by user at initial pose preview.\n');
+        if ~silent
+            fprintf('Simulation aborted by user at initial pose preview.\n');
+        end
         return;
     end
 
@@ -754,7 +775,11 @@ while T_achieved < T_obs_dimless
     % Setup ODE solver
     tstart_ode   = tic;
     eventFunc    = @(t_ev, Z_ev) singularity_event(t_ev, Z_ev, params, tstart_ode, tlim);
-    progressFunc = @(t_p, y_p, fl_p, varargin) odetpbar(t_p, y_p, fl_p);
+    if silent
+        progressFunc = '';   % no OutputFcn — suppresses odetpbar \b progress bar
+    else
+        progressFunc = @(t_p, y_p, fl_p, varargin) odetpbar(t_p, y_p, fl_p);
+    end
 
     ode_ops = odeset('OutputFcn',  progressFunc, ...
                      'Events',     eventFunc, ...
@@ -1688,8 +1713,10 @@ if generate_animation
         end
         writeVideo(vid, frame);
 
-        % In-place progress bar (console only)
-        render_progress_bar('[ANIM]   ', fi, n_frames, t_anim_start);
+        % In-place progress bar (console only) — suppressed in silent mode
+        if ~silent
+            render_progress_bar('[ANIM]   ', fi, n_frames, t_anim_start);
+        end
 
         % Log animation progress to file every 10% (file-only, no console echo)
         if mod(fi, max(1, floor(n_frames / 10))) == 0 || fi == n_frames
@@ -1798,7 +1825,9 @@ logf('================================================================\n\n');
 
 % Close log file
 fclose(log_fid);
-fprintf('Log saved: %s\n', log_file);
+if ~silent
+    fprintf('Log saved: %s\n', log_file);
+end
 
 end  % run_simulation
 

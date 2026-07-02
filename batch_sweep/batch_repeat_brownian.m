@@ -271,15 +271,19 @@ if use_parallel
         parallel_info.fallback_reason = "parpool creation failed";
     else
         parallel_info.n_pool = pool_handle.NumWorkers;
-        % Force figures invisible on every worker (run_simulation creates
-        % a 'Visible','on' summary figure that would otherwise pop up).
-        f_vis = parfevalOnAll(pool_handle, @() set(0,'DefaultFigureVisible','off'), 0);
-        % Cap per-worker BLAS threads to prevent N_workers x N_blas_threads
-        % oversubscription on the host CPU.
-        f_thr = parfevalOnAll(pool_handle, @apply_max_num_comp_threads, 0, worker_blas_threads);
-        wait(f_vis);
-        wait(f_thr);
     end
+end
+% Unconditionally (re)apply worker-side defaults whenever we have a pool.
+% This covers the case where ensure_parpool REUSED an existing pool created
+% by another script — without this, that pool's workers might still have
+% default BLAS thread counts (= physical cores), causing an N_workers x
+% N_cores thread storm.  parfevalOnAll is idempotent for both settings,
+% so reapplying on a freshly-created pool is harmless.
+if use_parallel && ~isempty(pool_handle)
+    f_vis = parfevalOnAll(pool_handle, @() set(0,'DefaultFigureVisible','off'), 0);
+    f_thr = parfevalOnAll(pool_handle, @apply_max_num_comp_threads, 0, worker_blas_threads);
+    wait(f_vis);
+    wait(f_thr);
 end
 % Worker defaults (figure visibility, BLAS threads) persist for the lifetime of this
 % parpool — intentional for batch use.  To restore MATLAB defaults, run delete(gcp('nocreate')).

@@ -3,12 +3,12 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 7.9.3
+> **版本:** 7.9.4
 > **更新日期:** 2026-07-02
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-版本提示：v7.9.3 为批处理日志健壮性与并行 stdout 整洁性版：(1) `batch_sweep/batch_repeat_brownian.m` 现在在每次 run 完成后立即将 per-run 摘要记录（`status`、`wall`、`seed`，以及失败时的 `Identifier` / `Message` / `Location`）增量写入 `batch_repeat_summary_*.txt` 并强制 `fclose` 刷盘，因此批次中途崩溃不再丢失全部 per-run 状态与计时数据——仅尾部丢失；(2) `run_simulation.m` 新增可选 `cfg.silent` 字段（默认 `false`），为 `true` 时 `dual_log` 抑制控制台回显但仍完整写入该 run 的 `simulation.log`，`batch_repeat_brownian.m` 并行分支设置 `cfg_k.silent = true`，使 N 个 worker 不再将约 15000 行交错的 `[ODE] Segment N completed` 刷到共享 stdout（100 run × 10 worker 批次），而保持有用的 `[k/100] OK` 进度行清晰可见；(3) 删除重复的 `[POOL] Resource probe` 控制台块（主批次头部已显示核心数 / 内存 / cap / binding；`core_probe` 来源标签仍记录在摘要文件中）。**仿真输出无变化；批次正常完成时摘要文件格式与 v7.9.2 逐字节一致。** v7.9.2 为数值健壮性与文档准确性版；v7.9.1 为审查后 Bug 修复（MSD `D_trans` 下界保护、批处理错误栈追踪捕获）；v7.9.0 将所有起飞前参数检查统一收口到 `validate_simulation_params.m`（直接接受完整 `cfg` 结构，P1–P9）；v7.8.0 将内禀（参考）曲率 `kb0` 改用与运行时曲率相同的 SVD 投影节点 director 算子进行离散，使 `frozen` 曲率纤毛在参考构型下成为精确的零力矩平衡态，并将常值电机力矩改用 `EI/L_pili` 无量纲化（与主动力矩约定一致）。
+版本提示：v7.9.4 为分层静默完整性版：v7.9.3 的 `cfg.silent` 字段仅门控了 `dual_log`（约 100 处 `logf` 调用），仍遗漏了 `run_simulation.m` 中 5 处直接 `fprintf`（notably 每个 run 末尾的 `Log saved:` 与 `[OUTPUT]` 重命名提示）、16 个 `src/` 子函数中约 24 处 `warning` 调用，以及两个用 `\b` 退格符的就地进度条（`odetpbar`、`render_progress_bar`）。v7.9.4 通过分层设计封堵全部四个控制台输出通道：(1) 直接 `fprintf` 调用包裹 `if ~silent`；(2) `silent` 时不再挂载 `odetpbar` 作为 ODE `OutputFcn`；(3) `silent` 时不再调用 `render_progress_bar`；(4) 子函数 `warning` 调用通过 `warning('off','all')` 抑制，并用 `onCleanup` 守卫在任何退出路径恢复调用方的 warning 设置。**仿真输出无变化；`src/` 子函数未被修改；调用方的 warning 设置始终恢复。** v7.9.3 为批处理日志健壮性与并行 stdout 整洁性版；v7.9.2 为数值健壮性与文档准确性版；v7.9.1 为审查后 Bug 修复（MSD `D_trans` 下界保护、批处理错误栈追踪捕获）；v7.9.0 将所有起飞前参数检查统一收口到 `validate_simulation_params.m`（直接接受完整 `cfg` 结构，P1–P9）；v7.8.0 将内禀（参考）曲率 `kb0` 改用与运行时曲率相同的 SVD 投影节点 director 算子进行离散，使 `frozen` 曲率纤毛在参考构型下成为精确的零力矩平衡态，并将常值电机力矩改用 `EI/L_pili` 无量纲化（与主动力矩约定一致）。
 
 ## 1. 运行前准备
 

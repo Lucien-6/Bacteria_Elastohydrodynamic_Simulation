@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.9.3 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.9.4 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.9.3 &middot; 2026-07-02</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.9.4 &middot; 2026-07-02</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 7.9.3 &bull; 2026-07-02
+      Version 7.9.4 &bull; 2026-07-02
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -537,12 +537,12 @@ tailwind.config = {
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en"><strong>v7.9.3</strong> is a batch-logging robustness and parallel stdout-hygiene release: (1) <code>batch_repeat_brownian.m</code> now writes each per-run summary record (<code>status</code>, <code>wall</code>, <code>seed</code>, and on failure <code>Identifier</code> / <code>Message</code> / <code>Location</code>) to <code>batch_repeat_summary_*.txt</code> incrementally with a forced <code>fclose</code> flush, so a mid-batch crash no longer loses all per-run status and timing data — only the footer is lost; (2) a new optional <code>cfg.silent</code> field (default <code>false</code>) in <code>run_simulation.m</code> suppresses the per-run console echo of <code>dual_log</code> while still writing every line to the run's <code>simulation.log</code>, and the parallel branch of <code>batch_repeat_brownian.m</code> sets <code>cfg_k.silent = true</code> so N workers no longer interleave ~15000 lines of <code>[ODE] Segment N completed</code> stdout for a 100-run × 10-worker batch; (3) the duplicate <code>[POOL] Resource probe</code> console block is removed (the main batch header already shows cores / memory / caps / binding; the <code>core_probe</code> source label is still recorded in the summary file). <strong>No simulation outputs change; the summary-file format is byte-identical to v7.9.2 when the batch completes normally.</strong> See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
-      <span class="zh"><strong>v7.9.3</strong> 为批处理日志健壮性与并行 stdout 整洁性版：(1) <code>batch_repeat_brownian.m</code> 现在在每次 run 完成后立即将 per-run 摘要记录（<code>status</code>、<code>wall</code>、<code>seed</code>，以及失败时的 <code>Identifier</code> / <code>Message</code> / <code>Location</code>）增量写入 <code>batch_repeat_summary_*.txt</code> 并强制 <code>fclose</code> 刷盘，因此批次中途崩溃不再丢失全部 per-run 状态与计时数据——仅尾部丢失；(2) <code>run_simulation.m</code> 新增可选 <code>cfg.silent</code> 字段（默认 <code>false</code>），为 <code>true</code> 时 <code>dual_log</code> 抑制控制台回显但仍完整写入该 run 的 <code>simulation.log</code>，<code>batch_repeat_brownian.m</code> 并行分支设置 <code>cfg_k.silent = true</code>，使 N 个 worker 不再将约 15000 行交错的 <code>[ODE] Segment N completed</code> 刷到共享 stdout（100 run × 10 worker 批次）；(3) 删除重复的 <code>[POOL] Resource probe</code> 控制台块（主批次头部已显示核心数 / 内存 / cap / binding；<code>core_probe</code> 来源标签仍记录在摘要文件中）。<strong>仿真输出无变化；批次正常完成时摘要文件格式与 v7.9.2 逐字节一致。</strong>详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
+      <span class="en"><strong>v7.9.4</strong> is a layered-silence completeness release: v7.9.3's <code>cfg.silent</code> field gated only <code>dual_log</code> (~100 <code>logf</code> sites), leaving five direct <code>fprintf</code> calls in <code>run_simulation.m</code> (notably <code>Log saved:</code> on every run and <code>[OUTPUT]</code> rename messages), ~24 <code>warning</code> calls across 16 <code>src/</code> sub-functions, and two <code>\b</code>-backspace progress bars (<code>odetpbar</code>, <code>render_progress_bar</code>) un-gated. v7.9.4 closes all four console-output channels: (1) direct <code>fprintf</code> calls wrapped in <code>if ~silent</code>; (2) <code>odetpbar</code> no longer mounted as the ODE <code>OutputFcn</code> under <code>silent</code>; (3) <code>render_progress_bar</code> no longer called under <code>silent</code>; (4) sub-function <code>warning</code> calls suppressed via <code>warning('off','all')</code> with an <code>onCleanup</code> guard that restores caller settings on any exit path. <strong>No simulation outputs change; <code>src/</code> sub-functions are untouched; caller <code>warning</code> settings are always restored.</strong> See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
+      <span class="zh"><strong>v7.9.4</strong> 为分层静默完整性版：v7.9.3 的 <code>cfg.silent</code> 字段仅门控了 <code>dual_log</code>（约 100 处 <code>logf</code> 调用），仍遗漏了 <code>run_simulation.m</code> 中 5 处直接 <code>fprintf</code>（notably 每个 run 末尾的 <code>Log saved:</code> 与 <code>[OUTPUT]</code> 重命名提示）、16 个 <code>src/</code> 子函数中约 24 处 <code>warning</code> 调用，以及两个用 <code>\b</code> 退格符的就地进度条（<code>odetpbar</code>、<code>render_progress_bar</code>）。v7.9.4 通过分层设计封堵全部四个控制台输出通道：(1) 直接 <code>fprintf</code> 调用包裹 <code>if ~silent</code>；(2) <code>silent</code> 时不再挂载 <code>odetpbar</code> 作为 ODE <code>OutputFcn</code>；(3) <code>silent</code> 时不再调用 <code>render_progress_bar</code>；(4) 子函数 <code>warning</code> 调用通过 <code>warning('off','all')</code> 抑制，并用 <code>onCleanup</code> 守卫在任何退出路径恢复调用方的 warning 设置。<strong>仿真输出无变化；<code>src/</code> 子函数未被修改；调用方的 warning 设置始终恢复。</strong>详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
-        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.9.3 &mdash; 2026-07-02</p>
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.9.4 &mdash; 2026-07-02</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
           <span class="en">Numerical robustness &amp; documentation accuracy</span><span class="zh">数值健壮性与文档准确性</span>
         </h3>
@@ -1903,7 +1903,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v7.9.3 &middot; 2026-07-02</li>
+        <li>v7.9.4 &middot; 2026-07-02</li>
       </ul>
     </div>
   </div>

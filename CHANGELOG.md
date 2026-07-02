@@ -10,6 +10,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [7.9.4] — 2026-07-02
+
+Layered-silence completeness release. v7.9.3 introduced `cfg.silent` but the silence gate covered only `dual_log` (~100 `logf` call sites), leaving five direct `fprintf` calls in `run_simulation.m` (notably `Log saved:` on every run and the `[OUTPUT]` rename/clear messages) plus **all** `src/` sub-function `warning` calls (~24 distinct IDs across 16 files) and two in-place `\b`-backspace progress bars (`odetpbar`, `render_progress_bar`) un-gated. In parallel mode these still produced thousands of interleaved console lines and backspace-character garbage. This release closes all four console-output channels via a layered design that keeps `src/` sub-functions untouched and restores caller `warning` settings via `onCleanup`. **No simulation outputs change**; the only behavioural difference is console verbosity in `silent` mode.
+
+### Fixed
+
+- **`run_simulation.m` — direct `fprintf` calls now gated by `silent`**: the six `fprintf` calls bypassing `dual_log` (four `[OUTPUT]` directory-conflict messages in the auto-confirm/rename/overwrite/abort branches, the preview-abort message, and the final `Log saved:` line) are each wrapped in `if ~silent`. The `[OUTPUT]` and preview messages fire before `log_fid` is open (or after it is closed), so they cannot be rerouted through `logf`; `if ~silent` is the correct gate. `Log saved:` is the most impactful fix — it was emitted on every run and dominated parallel stdout when N=10 workers.
+- **`run_simulation.m` — `odetpbar` progress bar no longer mounted under `silent`**: `progressFunc` is set to `''` when `silent=true`, so `odeset('OutputFcn', '')` disables the ODE progress bar entirely. This eliminates the `\b`-backspace in-place overwrite that produced unreadable interleaved garbage across N workers.
+- **`run_simulation.m` — `render_progress_bar` no longer called under `silent`**: the animation rendering progress bar is wrapped in `if ~silent`. Same rationale as `odetpbar`.
+- **`run_simulation.m` — sub-function `warning` calls suppressed via `warning('off','all')` + `onCleanup`**: when `silent=true`, all `warning` display is toggled off at function entry and restored via an `onCleanup` object that fires on any exit path (normal return, error, or Ctrl-C). Enumerating the ~24 warning IDs across 16 `src/` files would be fragile and require touching every sub-function; `warning('off','all')` is the MATLAB-recommended temporary-suppress idiom and the `onCleanup` guard guarantees the caller's settings are never lost. Errors are NOT suppressed (only `warning`-level messages).
+
+### Compatibility
+
+- **Bitwise-identical to v7.9.3 for all simulation outputs.** `cfg.silent` defaults to `false`, so all non-batch (interactive) callers see identical console + warning behaviour as before. The `onCleanup` restoration ensures no caller-side `warning` setting is permanently altered even if `run_simulation` errors out under `silent=true`.
+- Custom-geometry batch runs (`geometry_mode='custom'`) still emit `custom_body_building` / `custom_pili_building` `fprintf` calls to the console under `silent=true` (these sub-functions are not yet `silent`-aware); parametric batch runs are fully silent. A future release may thread `silent` into the custom-geometry builders if needed.
+
+### Documentation
+
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**, **`docs/presentation.html`**: version **7.9.4**, date **2026-07-02**.
+
+---
+
 ## [7.9.3] — 2026-07-02
 
 Batch-logging robustness and parallel stdout-hygiene release. Two issues identified during a focused review of `batch_sweep/batch_repeat_brownian.m` are addressed: (1) the per-run summary records were written in a single batch at the end of the loop, so a mid-batch crash lost **all** per-run status/timing/error information (only the header survived on disk); (2) in parallel mode each worker echoed its full `run_simulation` log (~100–250 lines per run, dominated by `[ODE] Segment N completed` lines) to the shared stdout, producing ~15000 interleaved and unreadable lines for a 100-run × 10-worker batch and burying the useful `[k/100] OK` progress lines. **No simulation outputs change**; this release only strengthens batch logging and console readability.

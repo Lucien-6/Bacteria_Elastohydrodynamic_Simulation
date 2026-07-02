@@ -1,7 +1,17 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 7.9.3 (2026-07-02)
+# Release: 7.9.4 (2026-07-02)
 #
+# v7.9.4: layered-silence completeness release — v7.9.3's cfg.silent gated only
+#   dual_log (~100 logf sites); this release closes all four console-output
+#   channels: (1) 5 direct fprintf in run_simulation.m wrapped in if ~silent
+#   (notably "Log saved:" per run and [OUTPUT] rename messages);
+#   (2) odetpbar no longer mounted as ODE OutputFcn under silent (kills \b
+#   backspace garbage in parallel); (3) render_progress_bar no longer called
+#   under silent; (4) ~24 warning calls across 16 src/ sub-functions suppressed
+#   via warning('off','all') with onCleanup guard restoring caller settings on
+#   any exit path. src/ sub-functions untouched. No simulation outputs change.
+#   See CHANGELOG.md.
 # v7.9.3: batch-logging robustness and parallel stdout-hygiene release.
 #   (1) batch_sweep/batch_repeat_brownian.m writes each per-run summary record
 #       (status, wall, seed, and on failure Identifier/Message/Location) to
