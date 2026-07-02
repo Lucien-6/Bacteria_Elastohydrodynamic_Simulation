@@ -22,7 +22,7 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Log banner version: 7.9.2 (2026-06-30) - keep in sync with README / CHANGELOG
+%  Log banner version: 7.9.3 (2026-07-02) - keep in sync with README / CHANGELOG
 %
 %  Path: defensive addpath(project root) so run_simulation(cfg) works when
 %  invoked without main_coupled_simulation.m. Unified policy = this line plus
@@ -47,6 +47,10 @@ output_dir = '';
 %% ---- Unpack cfg to local variables ----
 case_name              = cfg.case_name;
 geometry_mode          = get_cfg_field(cfg, 'geometry_mode', 'parametric');
+
+% Silent mode: when true, logf writes to the log file only (no console echo).
+% Used by batch parallel runs to prevent N_workers stdout interleaving.
+silent                 = logical(get_cfg_field(cfg, 'silent', false));
 
 % Body geometry (parametric mode)
 if strcmp(geometry_mode, 'parametric')
@@ -224,7 +228,7 @@ log_fid  = fopen(log_file, 'w');
 if log_fid == -1
     error('Cannot create log file: %s', log_file);
 end
-logf = @(varargin) dual_log(log_fid, varargin{:});  % closure capturing log_fid
+logf = @(varargin) dual_log(log_fid, varargin{:}, silent);  % closure capturing log_fid + silent
 
 % Log-file-only variant (no console echo) for high-frequency diagnostics
 logf_file = @(varargin) log_file_only(log_fid, varargin{:});
@@ -232,7 +236,7 @@ logf_file = @(varargin) log_file_only(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Bacteria Elastohydrodynamic Simulation\n');
-logf('  Version 7.9.2\n');
+logf('  Version 7.9.3\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -1811,10 +1815,27 @@ function v = get_cfg_field(cfg, fname, default)
 end
 
 function dual_log(fid, varargin)
-%DUAL_LOG  Write formatted message to both console and log file (with timestamp)
+%DUAL_LOG  Write formatted message to console and log file (with timestamp).
+%
+%  When the trailing logical flag echo_console is false (silent mode, used
+%  by batch parallel runs), the console write is suppressed so that N
+%  workers do not interleave their stdout.  The log file always receives
+%  the message.
+%
+%  Trailing-arg convention: varargin = {msg_fmt, arg1, ..., echo_console}
+%  where echo_console defaults to true when absent (preserves legacy calls).
+
+    if nargin >= 2 && islogical(varargin{end})
+        echo_console = varargin{end};
+        varargin(end) = [];
+    else
+        echo_console = true;
+    end
     msg = sprintf(varargin{:});
     ts  = char(datetime('now', 'Format', 'HH:mm:ss'));
-    fprintf('%s', msg);                    % Console (no timestamp -cleaner)
+    if echo_console
+        fprintf('%s', msg);                % Console (no timestamp - cleaner)
+    end
     fprintf(fid, '[%s] %s', ts, msg);     % File (with timestamp)
 end
 

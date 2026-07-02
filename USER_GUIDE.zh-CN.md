@@ -3,12 +3,12 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 7.9.2
-> **更新日期:** 2026-06-30
+> **版本:** 7.9.3
+> **更新日期:** 2026-07-02
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-版本提示：v7.9.2 为数值健壮性与文档准确性版：(1) 在 `reconstruct_geometry.m` 与 `quat_to_rotmat.m` 中加入防御性单位四元数归一化，防止 `ode15s` 内部试探步产生 `|q| != 1` 时通过非正交旋转矩阵悄悄使胞体变形；(2) 更正 Euler 角约定标注——实际为 Walker (2020) 的 `R = Rz(phi)·Ry(-theta)·Rz(psi)`（标准 ZYZ 主动旋转的转置），而非此前文档所写的 ZXZ，仅注释/文档变更，数值输出逐位一致；(3) 在 `theory.zh-CN.md §10` 中显式声明布朗路径的确定性/随机算子分裂近似（确定性求解用原始 `M_weighted`，布朗协方差用对称化 `M_eff`），并增加 `rel_asym > 1e-2` 量化诊断与用户指引；(4) 移除 `M_eff_dim` 的冗余对称化（代数精确——对称矩阵逐元素除以对称外积 `S * S'` 保持对称性）。对于正常运行的仿真，四元数守卫为空操作、对称化移除为代数恒等，故输出与 v7.9.1 完全一致。v7.9.1 为审查后 Bug 修复（MSD `D_trans` 下界保护、批处理错误栈追踪捕获）。v7.9.0 将所有起飞前参数检查统一收口到 `validate_simulation_params.m`（直接接受完整 `cfg` 结构，P1–P9）。v7.8.0 将内禀（参考）曲率 `kb0` 改用与运行时曲率相同的 SVD 投影节点 director 算子进行离散，使 `frozen` 曲率纤毛在参考构型下成为精确的零力矩平衡态，并将常值电机力矩改用 `EI/L_pili` 无量纲化（与主动力矩约定一致）。
+版本提示：v7.9.3 为批处理日志健壮性与并行 stdout 整洁性版：(1) `batch_sweep/batch_repeat_brownian.m` 现在在每次 run 完成后立即将 per-run 摘要记录（`status`、`wall`、`seed`，以及失败时的 `Identifier` / `Message` / `Location`）增量写入 `batch_repeat_summary_*.txt` 并强制 `fclose` 刷盘，因此批次中途崩溃不再丢失全部 per-run 状态与计时数据——仅尾部丢失；(2) `run_simulation.m` 新增可选 `cfg.silent` 字段（默认 `false`），为 `true` 时 `dual_log` 抑制控制台回显但仍完整写入该 run 的 `simulation.log`，`batch_repeat_brownian.m` 并行分支设置 `cfg_k.silent = true`，使 N 个 worker 不再将约 15000 行交错的 `[ODE] Segment N completed` 刷到共享 stdout（100 run × 10 worker 批次），而保持有用的 `[k/100] OK` 进度行清晰可见；(3) 删除重复的 `[POOL] Resource probe` 控制台块（主批次头部已显示核心数 / 内存 / cap / binding；`core_probe` 来源标签仍记录在摘要文件中）。**仿真输出无变化；批次正常完成时摘要文件格式与 v7.9.2 逐字节一致。** v7.9.2 为数值健壮性与文档准确性版；v7.9.1 为审查后 Bug 修复（MSD `D_trans` 下界保护、批处理错误栈追踪捕获）；v7.9.0 将所有起飞前参数检查统一收口到 `validate_simulation_params.m`（直接接受完整 `cfg` 结构，P1–P9）；v7.8.0 将内禀（参考）曲率 `kb0` 改用与运行时曲率相同的 SVD 投影节点 director 算子进行离散，使 `frozen` 曲率纤毛在参考构型下成为精确的零力矩平衡态，并将常值电机力矩改用 `EI/L_pili` 无量纲化（与主动力矩约定一致）。
 
 ## 1. 运行前准备
 
@@ -129,8 +129,9 @@ cfg.auto_confirm = true;
 - **并行（默认）：** `use_parallel = true` 在已许可 **Parallel Computing Toolbox** 且能创建 `parpool` 时使用 `parfor`。worker 数量由探测到的物理核心数与可用内存共同约束，默认最多使用约 `max_resource_frac`（默认 `0.75`）的“资源预算”，并配合 `mem_per_worker_gb` 估算内存上限。若无工具箱或建池失败，脚本会**告警并回退**到与旧版等价的串行 `for` 循环。
 - **串行：** 设置 `use_parallel = false` 可强制单线程循环，便于与 v7.4 之前的行为逐字节对照。
 - **随机种子：** 并行模式下，`brown_rng_seed_mode = 'fixed'` 对每个重复索引 `k` 设置 `cfg.brown_rng_seed = rng_seed_base + k`；`'timestamp'` 则使用时间基底 + `k`，避免多 worker 撞同一种子。**串行** `'timestamp'` 仍像单次交互运行一样不在每轮传入 `cfg.brown_rng_seed`。
+- **worker 控制台静默（仅并行）：** parfor 分支设置 `cfg_k.silent = true`，因此每个 worker 的 `run_simulation` 只把完整日志写入 `output/<case>/<NNN>/simulation.log`，**不**回显到共享 stdout。这样可避免约 15000 行交错的 `[ODE] Segment N completed` 淹没有用的 `[k/100] OK` 进度行。串行分支不变（保持 verbose），便于交互式调试。
 
-工况基目录下会写出带时间戳的 `batch_repeat_summary_*.txt`，记录每轮状态、耗时以及并行诊断字段（`n_pool`、`core_probe`、CPU/内存受限原因等）。
+工况基目录下会写出带时间戳的 `batch_repeat_summary_*.txt`，记录每轮状态、耗时以及并行诊断字段（`n_pool`、`core_probe`、CPU/内存受限原因等）。per-run 记录**增量写入**（每次 `fopen(...,'a')` / `fclose` 强制刷盘），因此批次中途崩溃时摘要文件中仍保留头部与全部已完成 run 的记录，仅尾部（`elapsed_total_s`、`success_count`、加速比）丢失。并行模式下 per-run 行按 worker 完成顺序排列（行首 `NNN` 编号即 `k`，便于事后排序）；串行模式按 `k` 顺序写入。
 
 ### 5.2 JSON 文件夹批跑（`batch_run_from_json.m`）
 

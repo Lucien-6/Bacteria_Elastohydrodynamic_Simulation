@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.9.2 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.9.3 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.9.2 &middot; 2026-06-30</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.9.3 &middot; 2026-07-02</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 7.9.2 &bull; 2026-06-30
+      Version 7.9.3 &bull; 2026-07-02
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -537,12 +537,12 @@ tailwind.config = {
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en"><strong>v7.9.2</strong> is a numerical-robustness and documentation-accuracy release: (1) a defensive unit-quaternion normalisation guard is added in <code>reconstruct_geometry.m</code> and <code>quat_to_rotmat.m</code> to protect against <code>ode15s</code> internal trial-step drift (<code>|q| != 1</code> would otherwise silently deform the body via a non-orthonormal rotation matrix); (2) the Euler-angle convention label is corrected from "ZXZ" to Walker (2020)'s actual <code>R = Rz(phi)·Ry(-theta)·Rz(psi)</code> (transpose of standard ZYZ active rotation) — comment-only, bitwise identical; (3) the Brownian path's deterministic/stochastic operator-splitting approximation is now explicitly documented in <code>theory.md §10</code> with a quantitative <code>rel_asym</code> diagnostic and user guidance for <code>rel_asym &gt; 1e-2</code>; (4) a redundant symmetrisation of the dimensional mobility <code>M_eff_dim</code> is removed (algebraically exact). For well-behaved runs the quaternion guard is a no-op and the symmetrisation removal is exact, so outputs are identical to v7.9.1. See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
-      <span class="zh"><strong>v7.9.2</strong> 为数值健壮性与文档准确性版：(1) 在 <code>reconstruct_geometry.m</code> 与 <code>quat_to_rotmat.m</code> 中加入防御性单位四元数归一化，防止 <code>ode15s</code> 内部试探步产生 <code>|q| != 1</code> 时通过非正交旋转矩阵悄悄使胞体变形；(2) 更正 Euler 角约定标注——实际为 Walker (2020) 的 <code>R = Rz(phi)·Ry(-theta)·Rz(psi)</code>（标准 ZYZ 主动旋转的转置），而非此前文档所写的 ZXZ，仅注释/文档变更，数值输出逐位一致；(3) 在 <code>theory.md §10</code> 中显式声明布朗路径的确定性/随机算子分裂近似，并增加 <code>rel_asym &gt; 1e-2</code> 量化诊断与用户指引；(4) 移除 <code>M_eff_dim</code> 的冗余对称化（代数精确）。对于正常运行的仿真，四元数守卫为空操作、对称化移除为代数恒等，故输出与 v7.9.1 完全一致。详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
+      <span class="en"><strong>v7.9.3</strong> is a batch-logging robustness and parallel stdout-hygiene release: (1) <code>batch_repeat_brownian.m</code> now writes each per-run summary record (<code>status</code>, <code>wall</code>, <code>seed</code>, and on failure <code>Identifier</code> / <code>Message</code> / <code>Location</code>) to <code>batch_repeat_summary_*.txt</code> incrementally with a forced <code>fclose</code> flush, so a mid-batch crash no longer loses all per-run status and timing data — only the footer is lost; (2) a new optional <code>cfg.silent</code> field (default <code>false</code>) in <code>run_simulation.m</code> suppresses the per-run console echo of <code>dual_log</code> while still writing every line to the run's <code>simulation.log</code>, and the parallel branch of <code>batch_repeat_brownian.m</code> sets <code>cfg_k.silent = true</code> so N workers no longer interleave ~15000 lines of <code>[ODE] Segment N completed</code> stdout for a 100-run × 10-worker batch; (3) the duplicate <code>[POOL] Resource probe</code> console block is removed (the main batch header already shows cores / memory / caps / binding; the <code>core_probe</code> source label is still recorded in the summary file). <strong>No simulation outputs change; the summary-file format is byte-identical to v7.9.2 when the batch completes normally.</strong> See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
+      <span class="zh"><strong>v7.9.3</strong> 为批处理日志健壮性与并行 stdout 整洁性版：(1) <code>batch_repeat_brownian.m</code> 现在在每次 run 完成后立即将 per-run 摘要记录（<code>status</code>、<code>wall</code>、<code>seed</code>，以及失败时的 <code>Identifier</code> / <code>Message</code> / <code>Location</code>）增量写入 <code>batch_repeat_summary_*.txt</code> 并强制 <code>fclose</code> 刷盘，因此批次中途崩溃不再丢失全部 per-run 状态与计时数据——仅尾部丢失；(2) <code>run_simulation.m</code> 新增可选 <code>cfg.silent</code> 字段（默认 <code>false</code>），为 <code>true</code> 时 <code>dual_log</code> 抑制控制台回显但仍完整写入该 run 的 <code>simulation.log</code>，<code>batch_repeat_brownian.m</code> 并行分支设置 <code>cfg_k.silent = true</code>，使 N 个 worker 不再将约 15000 行交错的 <code>[ODE] Segment N completed</code> 刷到共享 stdout（100 run × 10 worker 批次）；(3) 删除重复的 <code>[POOL] Resource probe</code> 控制台块（主批次头部已显示核心数 / 内存 / cap / binding；<code>core_probe</code> 来源标签仍记录在摘要文件中）。<strong>仿真输出无变化；批次正常完成时摘要文件格式与 v7.9.2 逐字节一致。</strong>详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
-        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.9.2 &mdash; 2026-06-30</p>
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.9.3 &mdash; 2026-07-02</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
           <span class="en">Numerical robustness &amp; documentation accuracy</span><span class="zh">数值健壮性与文档准确性</span>
         </h3>
@@ -1903,7 +1903,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v7.9.2 &middot; 2026-06-30</li>
+        <li>v7.9.3 &middot; 2026-07-02</li>
       </ul>
     </div>
   </div>

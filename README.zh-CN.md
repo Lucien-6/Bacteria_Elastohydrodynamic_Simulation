@@ -4,8 +4,8 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-06-30
-> **版本:** 7.9.2
+> **更新日期:** 2026-07-02
+> **版本:** 7.9.3
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -108,7 +108,7 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **7.9.2 (2026-06-30)**。本版是在 v7.9.1 基础上的数值健壮性与文档准确性更新：(1) 在 `reconstruct_geometry.m` 与 `quat_to_rotmat.m` 中加入防御性单位四元数归一化，防止 `ode15s` 内部试探步产生 `|q| != 1` 时通过非正交旋转矩阵悄悄使胞体变形；(2) 更正 Euler 角约定标注——实际为 Walker (2020) 的 `R = Rz(phi)·Ry(-theta)·Rz(psi)`（标准 ZYZ 主动旋转的转置），而非此前文档所写的 ZXZ，仅注释/文档变更，数值输出逐位一致；(3) 在 `theory.md §10` 中显式声明布朗路径的确定性/随机算子分裂近似（确定性求解用原始 `M_weighted`，布朗协方差用对称化 `M_eff`），并增加 `rel_asym > 1e-2` 量化诊断与用户指引；(4) 移除 `M_eff_dim` 的冗余对称化（代数精确——对称矩阵逐元素除以对称外积 `S * S'` 保持对称性）。**对于正常运行的仿真，四元数守卫为空操作、对称化移除为代数恒等，故输出与 v7.9.1 完全一致。** v7.9.1 为审查后 Bug 修复；v7.9.0 为参数验证深度重构；v7.8.0 修正了参考曲率 `kb0` 离散化与常值电机力矩无量纲化。完整历史详见 [`CHANGELOG.md`](CHANGELOG.md)。
+当前版本为 **7.9.3 (2026-07-02)**。本版是在 v7.9.2 基础上的批处理日志健壮性与并行 stdout 整洁性更新：(1) `batch_sweep/batch_repeat_brownian.m` 现在在每次 run 完成后立即将 per-run 摘要记录（`status`、`wall`、`seed`，以及失败时的 `Identifier` / `Message` / `Location`）增量写入 `batch_repeat_summary_*.txt` 并强制 `fclose` 刷盘，因此批次中途崩溃不再丢失全部 per-run 状态与计时数据——仅尾部丢失；(2) `run_simulation.m` 新增可选 `cfg.silent` 字段（默认 `false`），为 `true` 时 `dual_log` 抑制控制台回显但仍完整写入该 run 的 `simulation.log`，`batch_repeat_brownian.m` 并行分支设置 `cfg_k.silent = true`，使 N 个 worker 不再将约 15000 行交错的 `[ODE] Segment N completed` 刷到共享 stdout（100 run × 10 worker 批次），而保持有用的 `[k/100] OK` 进度行清晰可见；(3) 删除重复的 `[POOL] Resource probe` 控制台块（主批次头部已显示核心数 / 内存 / cap / binding；`core_probe` 来源标签仍记录在摘要文件中）。**仿真输出无变化；批次正常完成时摘要文件格式与 v7.9.2 逐字节一致。** v7.9.2 为数值健壮性与文档准确性版；v7.9.1 为审查后 Bug 修复；v7.9.0 为参数验证深度重构；v7.8.0 修正了参考曲率 `kb0` 离散化与常值电机力矩无量纲化。完整历史详见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## 许可证
 

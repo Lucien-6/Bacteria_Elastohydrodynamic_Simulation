@@ -10,6 +10,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [7.9.3] — 2026-07-02
+
+Batch-logging robustness and parallel stdout-hygiene release. Two issues identified during a focused review of `batch_sweep/batch_repeat_brownian.m` are addressed: (1) the per-run summary records were written in a single batch at the end of the loop, so a mid-batch crash lost **all** per-run status/timing/error information (only the header survived on disk); (2) in parallel mode each worker echoed its full `run_simulation` log (~100–250 lines per run, dominated by `[ODE] Segment N completed` lines) to the shared stdout, producing ~15000 interleaved and unreadable lines for a 100-run × 10-worker batch and burying the useful `[k/100] OK` progress lines. **No simulation outputs change**; this release only strengthens batch logging and console readability.
+
+### Added
+
+- **`run_simulation.m` — `cfg.silent` field (default `false`)**: when `true`, the `dual_log` helper suppresses the console `fprintf` echo while still writing every line to the run's `simulation.log` file. The `logf` closure now forwards `silent` as a trailing flag to `dual_log`, which strips it (detected via `islogical`) and gates the console write. Backward-compatible: absent or `false` preserves the legacy dual-channel (console + file) behaviour; `logf_file` (file-only variant) is unchanged.
+- **`batch_sweep/batch_repeat_brownian.m` — incremental per-run summary writes**: each run's record (`NNN seed=... status=OK/FAILED wall=...` plus, on failure, `Identifier` / `Message` / `Location`, or `out:` on success) is now appended to `batch_repeat_summary_*.txt` immediately after the run completes and the file is `fclose`-d (forced flush). Serial branch: `append_run_summary` is called at the end of each loop iteration. Parallel branch: the `afterEach` DataQueue callback (`on_run_complete`) calls `append_run_summary` on the main thread (no concurrent-write race). The previous end-of-batch aggregate write loop is removed; the footer (`elapsed_total_s`, `success_count`, parallel speedup) is now written in append mode. **Result**: a mid-batch crash now leaves the summary file with the header plus all completed-run records on disk; only the footer is lost.
+- **`batch_sweep/batch_repeat_brownian.m` — `cfg_k.silent = true` in the parfor branch**: workers no longer echo their per-run logs to the shared stdout. Each run's full detail remains in `output/<case>/<NNN>/simulation.log` for post-hoc inspection. Serial branch is unchanged (verbose) so interactive single-run debugging is unaffected.
+- **`batch_sweep/batch_repeat_brownian.m` — `append_run_summary` and `on_run_complete` helper functions**: the former opens the summary in append mode, writes one record, and `fclose`s (no-op when `sum_path` is empty, `warning` on open failure); the latter is the DataQueue callback wrapping `print_progress` + `append_run_summary` and defensively extracts `seed` / `outdir` / `stack_name` / `stack_line` via `isfield`.
+
+### Changed
+
+- **`batch_sweep/batch_repeat_brownian.m` — summary file open-failure now warns**: previously `fid_sum == -1` silently set `sum_path = ''`; a `warning('batch_repeat_brownian:SummaryOpenFailed', ...)` is now emitted so the user knows per-run records are not being persisted.
+- **`batch_sweep/batch_repeat_brownian.m` — removed duplicate `[POOL] Resource probe` console block**: `decide_pool_size` previously printed an 8-line `[POOL] Resource probe:` block (physical cores, memory, caps, binding, BLAS threads) that duplicated information already shown in the main batch header. The block is removed; `info.core_probe` (the probe-source label, e.g. `wmic` / `CIM`) is still recorded in the summary file's `core_probe:` field, so no diagnostic metadata is lost. The `blas_threads` parameter of `decide_pool_size` is retained for API stability (annotated `%#ok<NASGU>`; not currently read inside the function).
+
+### Compatibility
+
+- **Bitwise-identical to v7.9.2 for all simulation outputs.** The `cfg.silent` field is optional with default `false`; `dual_log` defaults to `echo_console = true` when the trailing flag is absent (preserves any non-`logf` callers). The summary-file format (header, per-run records, footer) is byte-for-byte identical to v7.9.2 when the batch completes normally; only the write timing changes (incremental vs end-of-batch). Parallel-mode per-run records are written in completion order (the leading `NNN` index preserves `k` for sorting), while serial-mode records remain in `k` order.
+
+### Documentation
+
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**, **`docs/presentation.html`**: version **7.9.3**, date **2026-07-02**.
+
+---
+
 ## [7.9.2] — 2026-06-30
 
 Numerical-robustness and documentation-accuracy release. A front-to-back critical re-review of the underlying mathematical physics surfaced four actionable items: (1) a defensive quaternion normalisation guard against `ode15s` internal trial-step drift, (2) a corrected Euler-angle convention label (the directors follow Walker (2020)'s `R = Rz(phi)·Ry(-theta)·Rz(psi)`, NOT textbook ZXZ as previously documented), (3) a documented declaration of the deterministic/stochastic operator-splitting approximation in the Brownian path, with a quantitative `rel_asym` diagnostic, and (4) removal of a redundant symmetrisation in the Brownian mobility dimensionalisation. **No simulation outputs change** for configurations with a unit quaternion and reciprocal hydrodynamic discretisation; the quaternion guard only activates on numerical drift, and the symmetrisation removal is algebraically exact (Hadamard division by a symmetric outer product preserves symmetry).

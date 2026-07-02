@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-06-30
-> **Version:** 7.9.2
+> **Updated:** 2026-07-02
+> **Version:** 7.9.3
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -114,7 +114,7 @@ Results are written under `output/<case_name>/` or an automatically timestamped 
 
 ## Version Notes
 
-The current release is **7.9.2 (2026-06-30)**. It is a numerical-robustness and documentation-accuracy release on top of v7.9.1: (1) a defensive unit-quaternion normalisation guard is added in `reconstruct_geometry.m` and `quat_to_rotmat.m` to protect against `ode15s` internal trial-step drift (`|q| != 1` would otherwise silently deform the body via a non-orthonormal rotation matrix); (2) the Euler-angle convention label is corrected from "ZXZ" to Walker (2020)'s actual `R = Rz(phi)·Ry(-theta)·Rz(psi)` (transpose of standard ZYZ active rotation) — comment-only, bitwise identical; (3) the Brownian path's deterministic/stochastic operator-splitting approximation (raw `M_weighted` for the deterministic solve vs symmetrised `M_eff` for the FDT covariance) is now explicitly documented in `theory.md §10` with a quantitative `rel_asym` diagnostic and user guidance for `rel_asym > 1e-2`; (4) a redundant symmetrisation of the dimensional mobility `M_eff_dim` is removed (algebraically exact — Hadamard division by the symmetric outer product `S * S'` preserves symmetry). **For well-behaved runs the quaternion guard is a no-op and the symmetrisation removal is exact, so outputs are identical to v7.9.1.** v7.9.1 was a post-review bug-fix release; v7.9.0 was a parameter-validation deep refactor; v7.8.0 corrected the reference-curvature `kb0` discretisation and the constant motor-torque nondimensionalisation. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
+The current release is **7.9.3 (2026-07-02)**. It is a batch-logging robustness and parallel stdout-hygiene release on top of v7.9.2: (1) `batch_sweep/batch_repeat_brownian.m` now writes each per-run summary record (`status`, `wall`, `seed`, and on failure `Identifier` / `Message` / `Location`) to `batch_repeat_summary_*.txt` incrementally with a forced `fclose` flush, so a mid-batch crash no longer loses all per-run status and timing data — only the footer is lost; (2) a new optional `cfg.silent` field (default `false`) in `run_simulation.m` suppresses the per-run console echo of `dual_log` while still writing every line to the run's `simulation.log`, and the parallel branch of `batch_repeat_brownian.m` sets `cfg_k.silent = true` so that N workers no longer interleave ~15000 lines of `[ODE] Segment N completed` stdout for a 100-run × 10-worker batch — the useful `[k/100] OK` progress lines remain visible; (3) the duplicate `[POOL] Resource probe` console block is removed (the main batch header already shows cores / memory / caps / binding; the `core_probe` source label is still recorded in the summary file). **No simulation outputs change; the summary-file format is byte-identical to v7.9.2 when the batch completes normally.** v7.9.2 was a numerical-robustness and documentation-accuracy release; v7.9.1 was a post-review bug-fix release; v7.9.0 was a parameter-validation deep refactor; v7.8.0 corrected the reference-curvature `kb0` discretisation and the constant motor-torque nondimensionalisation. For the full history, see [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 

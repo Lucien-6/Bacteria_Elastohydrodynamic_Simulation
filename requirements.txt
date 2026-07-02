@@ -1,7 +1,23 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 7.9.2 (2026-06-30)
+# Release: 7.9.3 (2026-07-02)
 #
+# v7.9.3: batch-logging robustness and parallel stdout-hygiene release.
+#   (1) batch_sweep/batch_repeat_brownian.m writes each per-run summary record
+#       (status, wall, seed, and on failure Identifier/Message/Location) to
+#       batch_repeat_summary_*.txt incrementally with a forced fclose flush,
+#       so a mid-batch crash no longer loses all per-run status/timing data;
+#       only the footer is lost.
+#   (2) run_simulation.m adds optional cfg.silent field (default false): when
+#       true, dual_log suppresses the console echo but still writes every line
+#       to the run's simulation.log. The parallel branch of batch_repeat_brownian.m
+#       sets cfg_k.silent = true so N workers no longer interleave ~15000 lines
+#       of [ODE] Segment N completed stdout for a 100-run x 10-worker batch.
+#   (3) Removed the duplicate [POOL] Resource probe console block from
+#       decide_pool_size (the main batch header already shows cores/memory/caps/
+#       binding; core_probe source label still recorded in the summary file).
+#   No simulation outputs change; summary-file format is byte-identical to v7.9.2
+#   when the batch completes normally. See CHANGELOG.md.
 # v7.9.2: numerical-robustness and documentation-accuracy release.
 #   (1) Defensive unit-quaternion normalisation in reconstruct_geometry.m and
 #       quat_to_rotmat.m (guards against ode15s trial-step |q|!=1 drift that

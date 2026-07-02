@@ -56,7 +56,7 @@ addpath(genpath(fullfile(projectRoot, 'src')));
 
 % --- Root folder name under output/ (required).  Repeats go to:
 %     output/<case_name_base>/001, 002, ...
-case_name_base = 'OnePili-S1-L3-Brown';
+case_name_base = 'TwoPili-S29-L3-Brown';
 
 % --- Number of independent repeats (>= 1)
 n_repeats = 100;
@@ -69,7 +69,7 @@ n_repeats = 100;
 brown_rng_seed_mode = 'fixed';   % 'timestamp' | 'fixed'   ('default' = alias for 'timestamp')
 
 % --- Used only when brown_rng_seed_mode == 'fixed'
-rng_seed_base = 202607011;
+rng_seed_base = 202607021;
 
 % --- Parallel execution (Lucien, 2026-05-06) ---
 %     use_parallel        : true  -> parfor branch (auto-sized pool, default)
@@ -108,7 +108,10 @@ cfg_base.alpha_0      = 0;
 
 pili_cfg(1).type        = 'linear';
 pili_cfg(1).length_um   = 3;
-pili_cfg(1).site        = 1;
+pili_cfg(1).site        = 2;
+pili_cfg(2).type        = 'linear';
+pili_cfg(2).length_um   = 3;
+pili_cfg(2).site        = 9;
 [cfg_base.Pili_Matrix, cfg_base.pili_ext] = parse_pili_config(pili_cfg);
 
 cfg_base.seg_per_um = 10;
@@ -294,6 +297,8 @@ log_ts   = char(datetime('now', 'Format', 'uuuuMMdd''_''HHmmss'));
 sum_path = fullfile(out_root, sprintf('batch_repeat_summary_%s.txt', log_ts));
 fid_sum  = fopen(sum_path, 'w', 'n', 'UTF-8');
 if fid_sum == -1
+    warning('batch_repeat_brownian:SummaryOpenFailed', ...
+        'Could not open summary file for writing:\n  %s\n  Per-run records will not be persisted.', sum_path);
     sum_path = '';
 end
 
@@ -357,6 +362,8 @@ if fid_sum ~= -1
         fprintf(fid_sum, 'parallel_fallback_reason: %s\n', char(parallel_info.fallback_reason));
     end
     fprintf(fid_sum, 'started: %s\n\n', log_ts);
+    fclose(fid_sum);   % flush header to disk; per-run records appended incrementally
+    fid_sum = -1;      % marker: header is closed; use append_run_summary for per-run writes
 end
 
 %% ========================================================================
@@ -380,7 +387,7 @@ if use_parallel
     %% ---- PARALLEL BRANCH (parfor + DataQueue progress) ----
     progress_q = parallel.pool.DataQueue;
     print_progress(struct('reset', true), n_repeats);   % reset persistent counter
-    afterEach(progress_q, @(msg) print_progress(msg, n_repeats));
+    afterEach(progress_q, @(msg) on_run_complete(msg, n_repeats, sum_path, brown_rng_seed_mode));
 
     fprintf('Launching parfor with %d workers...\n\n', parallel_info.n_pool);
 
@@ -390,6 +397,7 @@ if use_parallel
         cfg_k.brown_rng_seed  = seeds(k);
         cfg_k.preview_initial = false;
         cfg_k.auto_confirm    = true;
+        cfg_k.silent          = true;   % suppress per-run stdout on workers (see run_simulation.dual_log)
         run_seed(k) = seeds(k);
 
         t_run = tic;
@@ -406,6 +414,7 @@ if use_parallel
                 run_outdir(k) = string(dir_k);
                 send(progress_q, struct('k', k, 'status', "FAILED", ...
                     'msg', 'empty results', 'wall', wall_k, ...
+                    'seed', seeds(k), 'outdir', char(string(dir_k)), ...
                     'identifier', char(run_errid(k)), ...
                     'stack_name', '', 'stack_line', NaN));
             else
@@ -413,6 +422,7 @@ if use_parallel
                 run_outdir(k) = string(dir_k);
                 send(progress_q, struct('k', k, 'status', "OK", ...
                     'msg', '', 'wall', wall_k, ...
+                    'seed', seeds(k), 'outdir', char(string(dir_k)), ...
                     'identifier', '', 'stack_name', '', 'stack_line', NaN));
             end
         catch ME
@@ -433,13 +443,14 @@ if use_parallel
             end
             send(progress_q, struct('k', k, 'status', "FAILED", ...
                 'msg', ME.message, 'wall', wall_k, ...
+                'seed', seeds(k), 'outdir', '', ...
                 'identifier', ME.identifier, ...
                 'stack_name', stack_name_k, 'stack_line', stack_line_k));
         end
     end
 
 else
-    %% ---- SERIAL BRANCH (legacy for-loop; summary lines written after the loop) ----
+    %% ---- SERIAL BRANCH (legacy for-loop; summary lines written incrementally) ----
     for k = 1:n_repeats
         sub = sprintf('%03d', k);
         fprintf('%s\n  Repeat %d/%d  ->  output/%s/%s\n%s\n', ...
@@ -498,47 +509,23 @@ else
                     ME.stack(1).name, ME.stack(1).line);
             end
         end
+
+        % --- Incremental summary write (per-run, flushed immediately) ---
+        append_run_summary(sum_path, k, run_seed(k), run_status(k), ...
+            run_wall(k), run_errid(k), run_errmsg(k), run_errloc(k), ...
+            run_outdir(k), brown_rng_seed_mode);
     end
 end
 
 elapsed = toc(t_batch);
 
 %% ========================================================================
-%  AGGREGATE SUMMARY WRITES (main thread, in k-order)
-%  ========================================================================
-%  Both branches converge here so the summary file format stays identical
-%  regardless of execution mode.  In serial mode the per-iteration
-%  fprintf to fid_sum has been moved here for symmetry; the printed
-%  console output (legacy [OK]/[ERR] lines) is preserved inside the loop.
-
-if fid_sum ~= -1
-    for k = 1:n_repeats
-        if run_seed(k) > 0
-            seed_tag = sprintf('seed=%d', run_seed(k));
-            if ~strcmp(brown_rng_seed_mode, 'fixed')
-                seed_tag = [seed_tag, ' (timestamp)']; %#ok<AGROW>
-            end
-        else
-            seed_tag = 'seed=n/a';
-        end
-        fprintf(fid_sum, '%03d  %s  status=%s  wall=%.2f s\n', ...
-            k, seed_tag, run_status(k), run_wall(k));
-
-        if run_status(k) == "FAILED" && strlength(run_errmsg(k)) > 0
-            fprintf(fid_sum, '         Identifier : %s\n', run_errid(k));
-            fprintf(fid_sum, '         Message    : %s\n', run_errmsg(k));
-            if strlength(run_errloc(k)) > 0
-                fprintf(fid_sum, '         Location   : %s\n', run_errloc(k));
-            end
-        elseif strlength(run_outdir(k)) > 0
-            fprintf(fid_sum, '  out: %s\n', run_outdir(k));
-        end
-    end
-end
-
-%% ========================================================================
 %  FINAL REPORT
 %  ========================================================================
+%  Per-run summary records are written incrementally inside the loops
+%  (serial) or via the on_run_complete DataQueue callback (parallel) —
+%  see append_run_summary.  Only the footer (aggregate stats) is written
+%  here, in append mode.
 
 n_ok = sum(run_status == "OK");
 
@@ -559,16 +546,19 @@ if use_parallel
 end
 fprintf('%s\n', sep);
 
-if fid_sum ~= -1
-    fprintf(fid_sum, '\nelapsed_total_s: %.2f\n', elapsed);
-    fprintf(fid_sum, 'success_count: %d / %d\n', n_ok, n_repeats);
-    if use_parallel
-        sum_wall = sum(run_wall(~isnan(run_wall)));
-        fprintf(fid_sum, 'sum_per_case_wall_s: %.2f\n',       sum_wall);
-        fprintf(fid_sum, 'parallel_speedup_estimate: %.2f\n', sum_wall / max(elapsed, eps));
+if ~isempty(sum_path)
+    fid_foot = fopen(sum_path, 'a', 'n', 'UTF-8');
+    if fid_foot ~= -1
+        fprintf(fid_foot, '\nelapsed_total_s: %.2f\n', elapsed);
+        fprintf(fid_foot, 'success_count: %d / %d\n', n_ok, n_repeats);
+        if use_parallel
+            sum_wall = sum(run_wall(~isnan(run_wall)));
+            fprintf(fid_foot, 'sum_per_case_wall_s: %.2f\n',       sum_wall);
+            fprintf(fid_foot, 'parallel_speedup_estimate: %.2f\n', sum_wall / max(elapsed, eps));
+        end
+        fclose(fid_foot);
+        fprintf('\n  Summary written: %s\n', sum_path);
     end
-    fclose(fid_sum);
-    fprintf('\n  Summary written: %s\n', sum_path);
 end
 
 %% ========================================================================
@@ -584,9 +574,10 @@ end
 function [n_pool, info] = decide_pool_size(n_repeats, mem_per_worker_gb, max_frac, info, blas_threads)
 %DECIDE_POOL_SIZE  Probe machine resources and compute capped worker count.
 %
-%  blas_threads is recorded in the console probe (plan: pass worker BLAS policy
-%  into the sizing routine).  Optional 6th-arg logf was omitted — fprintf here
-%  matches every other batch script in this project.
+%  blas_threads is accepted for API stability and future diagnostic use but
+%  is not currently read inside this function (the console probe block was
+%  removed; the main batch header prints BLAS threads directly).  Kept as a
+%  parameter so callers do not need to change if diagnostics are restored.
 %
 %  Returns the smaller of:
 %    - floor(n_physical_cores * max_frac)
@@ -595,7 +586,7 @@ function [n_pool, info] = decide_pool_size(n_repeats, mem_per_worker_gb, max_fra
 %  and labels which constraint binds (used for the diagnostic header).
 
     if nargin < 5 || isempty(blas_threads)
-        blas_threads = 1;
+        blas_threads = 1;   %#ok<NASGU>  retained for API stability; not read below
     end
 
     %% --- Physical core count (avoid hyper-threading inflation) ---
@@ -696,14 +687,9 @@ function [n_pool, info] = decide_pool_size(n_repeats, mem_per_worker_gb, max_fra
         info.binding = "mem";
     end
 
-    fprintf('\n  [POOL] Resource probe:\n');
-    fprintf('         physical cores : %d  (%s)  (cap %.0f%% -> %d workers)\n', ...
-        n_phys, char(probe_note), max_frac*100, n_cpu);
-    fprintf('         available mem  : %.2f GB  (per-worker %g GB, cap %.0f%% -> %d workers)\n', ...
-        avail_gb, mem_per_worker_gb, max_frac*100, n_mem);
-    fprintf('         n_repeats      : %d\n', n_repeats);
-    fprintf('         BLAS threads   : %d / worker (after parfevalOnAll init)\n', blas_threads);
-    fprintf('         => n_pool = %d  (binding: %s)\n\n', n_pool, char(info.binding));
+    % Console probe output removed: the main batch header (printed after this
+    % function returns) already shows physical cores, memory, caps and binding.
+    % The probe_note source is recorded in the summary file (core_probe field).
 end
 
 
@@ -734,6 +720,91 @@ function pool = ensure_parpool(n_target)
         fprintf('  [WARN] parpool creation failed: %s\n', ME.message);
         pool = [];
     end
+end
+
+
+function append_run_summary(sum_path, k, seed, status, wall, errid, errmsg, errloc, outdir, seed_mode)
+%APPEND_RUN_SUMMARY  Append one per-run record to summary file with forced flush.
+%
+%  Opens the summary file in append mode, writes a single per-run record
+%  (seed, status, wall time, and on failure the identifier/message/location
+%  or on success the output directory), then immediately closes the file.
+%  The close-then-reopen pattern guarantees the record reaches disk before
+%  the next run starts, so a mid-batch crash never loses already-completed
+%  records.  No-op when sum_path is empty (summary disabled).
+%
+%  Inputs:
+%    sum_path  - path to summary file (string/char); '' disables writing
+%    k         - 1-based run index
+%    seed      - Brownian RNG seed used (>0); 0 means unknown/unset
+%    status    - "OK" | "FAILED" | "PENDING" (string)
+%    wall      - wall time in seconds (NaN if not run)
+%    errid     - ME.identifier on failure (string); "" on success
+%    errmsg    - ME.message on failure (string); "" on success
+%    errloc    - 'name (line N)' on failure (string); "" on success
+%    outdir    - output directory of the run (string); "" on failure
+%    seed_mode - 'fixed' | 'timestamp' (controls the '(timestamp)' tag)
+
+    if isempty(sum_path)
+        return;
+    end
+    fid = fopen(sum_path, 'a', 'n', 'UTF-8');
+    if fid == -1
+        warning('batch_repeat_brownian:SummaryAppendFailed', ...
+            'Could not open summary file for append:\n  %s', sum_path);
+        return;
+    end
+
+    if seed > 0
+        seed_tag = sprintf('seed=%d', seed);
+        if ~strcmp(seed_mode, 'fixed')
+            seed_tag = [seed_tag, ' (timestamp)']; %#ok<AGROW>
+        end
+    else
+        seed_tag = 'seed=n/a';
+    end
+
+    fprintf(fid, '%03d  %s  status=%s  wall=%.2f s\n', k, seed_tag, status, wall);
+    if status == "FAILED" && strlength(errmsg) > 0
+        fprintf(fid, '         Identifier : %s\n', errid);
+        fprintf(fid, '         Message    : %s\n', errmsg);
+        if strlength(errloc) > 0
+            fprintf(fid, '         Location   : %s\n', errloc);
+        end
+    elseif strlength(outdir) > 0
+        fprintf(fid, '  out: %s\n', outdir);
+    end
+
+    fclose(fid);   % forced flush — record is on disk before next run starts
+end
+
+
+function on_run_complete(msg, n_total, sum_path, seed_mode)
+%ON_RUN_COMPLETE  DataQueue callback: print console progress + append summary.
+%
+%  Called by afterEach on the main thread whenever a parfor worker sends a
+%  completion notice.  Delegates the console line (with ETA) to print_progress
+%  and the persistent summary append to append_run_summary.  Runs on the main
+%  thread, so there is no concurrent-file-write race.
+
+    print_progress(msg, n_total);
+
+    errloc = '';
+    if isfield(msg, 'stack_name') && ~isempty(msg.stack_name) ...
+            && isfield(msg, 'stack_line') && isfinite(msg.stack_line)
+        errloc = sprintf('%s (line %d)', msg.stack_name, msg.stack_line);
+    end
+    outdir = '';
+    if isfield(msg, 'outdir')
+        outdir = char(msg.outdir);
+    end
+    seed = 0;
+    if isfield(msg, 'seed')
+        seed = msg.seed;
+    end
+
+    append_run_summary(sum_path, msg.k, seed, msg.status, msg.wall, ...
+        msg.identifier, msg.msg, errloc, outdir, seed_mode);
 end
 
 
