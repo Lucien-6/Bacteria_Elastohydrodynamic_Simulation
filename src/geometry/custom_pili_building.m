@@ -123,6 +123,8 @@ for j = 1:NPili
     %   non-zero entry so accidental copy-paste from parametric configs
     %   surfaces visibly.
     if abs(deflection_z) > 1e-12 || abs(deflection_x) > 1e-12
+        logf_h(['  [Custom Pili %d] WARNING: non-zero deflection_z/x detected; ', ...
+                'axis bindings are SWAPPED vs. parametric mode (see warning below for detail).\n'], j);
         warning('custom_pili_building:DeflectionAxisSwap', ...
             ['Pilus %d: non-zero deflection_z=%.4f rad, deflection_x=%.4f rad ', ...
              'detected in CUSTOM mode.  Note that the axis bindings are SWAPPED ', ...
@@ -146,7 +148,7 @@ for j = 1:NPili
     raw_pts = read_geometry_csv_mat(cfg_j.points_file);   % [N_raw x 3] [m]
 
     % --- Remove consecutive duplicates (M5) ---
-    raw_pts = remove_consecutive_duplicates(raw_pts, cfg_j.points_file, j);
+    raw_pts = remove_consecutive_duplicates(raw_pts, cfg_j.points_file, j, logf_h);
 
     % --- Enforce uniform segment length (new requirement) ---
     seg_vecs = diff(raw_pts, 1, 1);
@@ -310,12 +312,16 @@ end
 
 %% ==================== Local Helper Functions ====================
 
-function pts = remove_consecutive_duplicates(pts, fname, idx)
+function pts = remove_consecutive_duplicates(pts, fname, idx, logf_h)
 %REMOVE_CONSECUTIVE_DUPLICATES  Drop rows equal to their immediate predecessor.
 %
 %  Tolerance is scaled by the bounding-box extent (same strategy as
 %  custom_body_building).  Throws an error if fewer than 2 distinct
 %  points remain.
+
+    if nargin < 4 || isempty(logf_h)
+        logf_h = @(varargin) fprintf(varargin{:});
+    end
 
     if size(pts, 1) < 2
         error('custom_pili_building:TooFewPoints', ...
@@ -333,6 +339,8 @@ function pts = remove_consecutive_duplicates(pts, fname, idx)
     n_after  = size(pts, 1);
 
     if n_after < n_before
+        logf_h('  [Custom Pili %d] WARNING: %d duplicate centerline point(s) removed (tol = %.3e m).\n', ...
+            idx, n_before - n_after, tol);
         warning('custom_pili_building:DuplicateCenterlinePoints', ...
             ['Pilus %d (%s): %d consecutive duplicate centerline point(s) ', ...
              'removed (tol = %.3e m).'], ...

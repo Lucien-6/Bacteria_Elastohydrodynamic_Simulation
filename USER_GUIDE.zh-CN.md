@@ -3,12 +3,12 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 7.9.5
+> **版本:** 7.9.6
 > **更新日期:** 2026-07-03
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-版本提示：v7.9.5 将静默模式扩展到**自定义几何**（`custom_body_building` / `custom_pili_building` 经注入的 `logf` 受 `cfg.silent` 约束；summary 图在 silent 下 `Visible='off'`），并加强 **`batch_repeat_brownian`** 审计字段（每批 `batch_config_snapshot_<batch_id>.json`、`brown_rng_policy`、`parallel_requested`、尾部 `failed_*` / `pending_*`、FAILED 时的 `outdir` / `log_hint`）。**`cfg.silent`** 为**仅运行时**批处理开关（不写入 JSON）：为 true 时抑制 `logf` 控制台回显、直接 `fprintf`、ODE/动画进度条与 warning；完整文本仍写入 `simulation.log`；error 从不抑制。**仿真输出无变化。** v7.9.4 为分层静默完整性版；v7.9.3 为批处理日志健壮性与并行 stdout 整洁性版；v7.9.2 为数值健壮性与文档准确性版；v7.9.1 为审查后 Bug 修复；v7.9.0 将起飞前参数检查统一收口到 `validate_simulation_params.m`（P1–P9）；v7.8.0 修正参考曲率 `kb0` 离散化与常值电机力矩无量纲化。
+版本提示：v7.9.6 为控制台输出与异常健壮性修正版。修复了一处严重的 `dual_log` 极性反转 bug——自 v7.9.3 起，所有正常（非批处理）运行的 `logf` 控制台输出（约100处调用）全部消失，而批处理/并行 worker 反而全部回显，与 `cfg.silent` 文档约定完全相反（`simulation.log` 文件本身未受影响）；同时修复了 `trisurf` 坐标轴指定方式导致的崩溃——此前每一次自定义几何（`geometry_mode='custom'`）运行都会在无法跳过的 `[PLOT] Generating summary figure` 步骤必然崩溃。本版还给整个运行体新增了 `try/catch`，确保 `simulation.log` 始终记录完整 `[FATAL]` 分节而非静默截断；补齐了 `compute_plot_flowfield` 流场进度条上最后一处未受 `cfg.silent` 约束的缺口；把9处此前仅走原生 `warning()` 的告警恢复为标准的 `logf_h` + `warning` 双通道模式；并对布朗运动逐段日志做了节流。**仿真物理/数值输出无任何变化。** v7.9.5 将静默模式扩展到**自定义几何**（`custom_body_building` / `custom_pili_building` 经注入的 `logf` 受 `cfg.silent` 约束；summary 图在 silent 下 `Visible='off'`），并加强 **`batch_repeat_brownian`** 审计字段（每批 `batch_config_snapshot_<batch_id>.json`、`brown_rng_policy`、`parallel_requested`、尾部 `failed_*` / `pending_*`、FAILED 时的 `outdir` / `log_hint`）。**`cfg.silent`** 为**仅运行时**批处理开关（不写入 JSON）：为 true 时抑制 `logf` 控制台回显、直接 `fprintf`、ODE/动画进度条与 warning；完整文本仍写入 `simulation.log`；error 从不抑制。 v7.9.4 为分层静默完整性版；v7.9.3 为批处理日志健壮性与并行 stdout 整洁性版；v7.9.2 为数值健壮性与文档准确性版；v7.9.1 为审查后 Bug 修复；v7.9.0 将起飞前参数检查统一收口到 `validate_simulation_params.m`（P1–P9）；v7.8.0 修正参考曲率 `kb0` 离散化与常值电机力矩无量纲化。
 
 ## 1. 运行前准备
 
@@ -242,6 +242,7 @@ postprocess_cases()
 | JSON 文件夹批跑未并行执行 | 同上，针对 `batch_run_from_json.m`，或设置 `use_parallel = false`。 |
 | JSON 批跑因重复 `case_name` 被跳过 | 非空 `case_name` 仅字母序首个 JSON 会运行；请使用唯一 `case_name` 或留空以自动时间戳目录。 |
 | `IllConditioned` 布朗迁移率告警（`M_eff_dimless rcond`） | v7.4.1+ 在无量纲迁移率上做诊断；若仍出现告警，多半是真实的病态几何/欧拉根问题，核对 §8、`simulation.log` 及 \(\theta\approx\pi\) 配置。 |
+| `run_simulation:SilentPreviewDeadlock` 报错（v7.9.6+） | `cfg.silent = true` 且 `preview_initial = true` 时必须同时 `auto_confirm = true`（无头/并行 worker 无法应答交互式 `questdlg`）。设置 `auto_confirm = true` 或 `preview_initial = false`。 |
 
 ## 12. 文档导航
 

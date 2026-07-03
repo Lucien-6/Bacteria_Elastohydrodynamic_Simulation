@@ -434,6 +434,11 @@ if ~isempty(errs)
         msg_parts{i} = sprintf('  - %s', errs{i});
     end
     msg = strjoin(msg_parts, newline);
+    % Log before throwing: run_simulation.m wraps this call in try/catch
+    % and will also record the exception, but logging here guarantees the
+    % failure reason reaches simulation.log even for direct callers that
+    % invoke validate_simulation_params without that wrapper.
+    logf_h('[VALIDATE] ERROR: parameter validation failed with %d error(s):\n%s\n', numel(errs), msg);
     error('validate_params:InvalidParams', ...
         'Parameter validation failed with %d error(s):\n%s', numel(errs), msg);
 end

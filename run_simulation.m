@@ -17,11 +17,21 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %                  Optional runtime field (not saved to JSON):
 %                    cfg.silent - logical (default false).  When true,
 %                      suppresses console echo of logf, direct fprintf,
-%                      ODE/animation progress bars, and warnings for the
-%                      duration of this run; all logf output still goes to
-%                      simulation.log.  Used by parallel batch drivers
-%                      (e.g. batch_repeat_brownian sets cfg.silent = true
-%                      on workers).  Errors are never suppressed.
+%                      ODE/animation/flowfield progress bars, and warnings
+%                      for the duration of this run; all logf output still
+%                      goes to simulation.log.  Used by parallel batch
+%                      drivers (e.g. batch_repeat_brownian sets
+%                      cfg.silent = true on workers).  Errors are never
+%                      suppressed.  cfg.silent = true with
+%                      preview_initial = true additionally requires
+%                      auto_confirm = true, otherwise this function raises
+%                      run_simulation:SilentPreviewDeadlock immediately
+%                      instead of blocking on an unanswerable questdlg.
+%
+%  Errors raised while running are captured by a top-level try/catch and
+%  logged to simulation.log as a [FATAL] block (identifier, message, full
+%  stack trace) before being rethrown, so simulation.log always records
+%  why a run failed instead of truncating silently.
 %
 %  Outputs:
 %    results    - Simulation results struct (physical units); [] if aborted
@@ -30,7 +40,7 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Log banner version: 7.9.5 (2026-07-03) - keep in sync with README / CHANGELOG
+%  Log banner version: 7.9.6 (2026-07-03) - keep in sync with README / CHANGELOG
 %
 %  Path: defensive addpath(project root) so run_simulation(cfg) works when
 %  invoked without main_coupled_simulation.m. Unified policy = this line plus
@@ -252,19 +262,45 @@ end
 
 % --- Initialise dual-channel logger (console + file) ---
 log_file = fullfile(output_dir, 'simulation.log');
-log_fid  = fopen(log_file, 'w');
+log_fid  = fopen(log_file, 'w', 'n', 'UTF-8');
 if log_fid == -1
     error('Cannot create log file: %s', log_file);
 end
-logf = @(varargin) dual_log(log_fid, varargin{:}, silent);  % closure capturing log_fid + silent
+
+% Guarantee the log file handle is always released -- even on error or
+% Ctrl-C interruption -- regardless of where execution stops below.
+% onCleanup fires on every exit path (normal return, error, Ctrl-C),
+% unlike try/catch which cannot intercept Ctrl-C.  safe_fclose() is a
+% no-op if the fid has already been closed by the normal-path fclose()
+% near the end of this function, so registering it here is harmless.
+cleanup_log_fid = onCleanup(@() safe_fclose(log_fid));  %#ok<NASGU>
+
+% Bugfix: the trailing flag forwarded to dual_log must be the
+% "echo to console" flag, i.e. ~silent (echo unless silent), not silent
+% itself.  The previous `..., silent)` passed the flag un-negated, which
+% meant normal (non-silent, silent=false) runs echoed NOTHING through
+% logf to the console -- only simulation.log received the ~100 [INIT]/
+% [PARAMS]/[ODE]/... messages -- while cfg.silent=true (batch/parallel)
+% runs echoed everything, the exact opposite of the documented contract.
+logf = @(varargin) dual_log(log_fid, varargin{:}, ~silent);  % echo unless silent
 
 % Log-file-only variant (no console echo) for high-frequency diagnostics
 logf_file = @(varargin) log_file_only(log_fid, varargin{:});
 
+% Wrap the remainder of the run in try/catch so any runtime error
+% (numerical divergence, out-of-memory, invalid geometry, etc.) is
+% recorded in simulation.log with a full stack trace before propagating
+% to the caller, instead of silently truncating the log file.  Ctrl-C is
+% not caught here (MATLAB does not route it through try/catch) but is
+% still handled by cleanup_log_fid above.  Early `return`s further below
+% (output-directory conflict, user-aborted preview) are unaffected: a
+% `return` simply exits this try block normally without touching catch.
+try
+
 logf('\n');
 logf('================================================================\n');
 logf('  Bacteria Elastohydrodynamic Simulation\n');
-logf('  Version 7.9.5\n');
+logf(['  Version ', project_version(), '\n']);
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -279,7 +315,7 @@ logf('[CONFIG] Configuration saved: %s\n', config_json_path);
 
 if enable_brown
     seed_txt = fullfile(output_dir, 'brownian_rng_seed.txt');
-    fid_seed = fopen(seed_txt, 'w');
+    fid_seed = fopen(seed_txt, 'w', 'n', 'UTF-8');
     if fid_seed ~= -1
         fprintf(fid_seed, '%d\n', brown_rng_seed_used);
         fprintf(fid_seed, ...
@@ -531,6 +567,18 @@ logf('[INIT] Initialisation completed in %.2f s\n\n', t_init_elapsed);
 %  =====================================================================
 
 if preview_initial
+    % Guard against a headless deadlock: under cfg.silent=true (batch /
+    % parallel workers), a modal questdlg cannot be answered by anyone,
+    % so a worker would hang forever with no console/log indication of
+    % why.  Fail fast with a clear error instead.
+    if silent && ~auto_confirm
+        error('run_simulation:SilentPreviewDeadlock', ...
+            ['cfg.silent = true with preview_initial = true requires ', ...
+             'auto_confirm = true (an interactive questdlg cannot be ', ...
+             'answered on a headless/parallel worker). Set auto_confirm ', ...
+             '= true or preview_initial = false.']);
+    end
+
     logf('[PREVIEW] Generating initial pose scatter plot...\n');
 
     % Reconstruct initial geometry and convert to um
@@ -569,11 +617,17 @@ if preview_initial
     pv_span = pv_max - pv_min;
     pv_margin = max(0.10 * pv_span, 0.15);   % [1x3] per-axis margin
 
-    % Create figure with 3 views
+    % Create figure with 3 views.  Visibility follows `silent` (belt-and-
+    % braces alongside the deadlock guard above) so a batch/parallel
+    % worker never pops a real window even if auto_confirm was set.
+    fig_preview_vis = 'on';
+    if silent
+        fig_preview_vis = 'off';
+    end
     fig_preview = figure('Name', 'Initial Pose Preview', ...
                          'NumberTitle', 'off', ...
                          'Position', [80, 80, 1500, 500], ...
-                         'Color', 'w', 'Visible', 'on');
+                         'Color', 'w', 'Visible', fig_preview_vis);
     set(fig_preview, 'DefaultAxesFontName',  'Arial', ...
                      'DefaultAxesFontSize',  11, ...
                      'DefaultAxesLineWidth', 0.8);
@@ -748,6 +802,20 @@ segment_count    = 0;
 seg_walltimes    = [];          % Wall time per segment [s]
 seg_dtstar       = [];          % Dimensionless time advanced per segment
 
+% Segment-level [ODE] announcements are throttled to avoid flooding
+% simulation.log / console when Brownian dynamics splits the run into
+% many short segments (one per dt_B node -- e.g. T_obs/dt_B ~= 4000 for
+% a typical long Brownian run).  Per-segment timing/ETA statistics
+% (seg_walltimes, seg_dtstar) are still recorded on EVERY segment
+% regardless of this throttle; only the "Segment N: ..." announcement
+% text is skipped.  Non-Brownian runs have few segments (basis-rotation
+% restarts only), so every segment is logged (interval = 1).
+if enable_brown
+    seg_log_interval = 50;
+else
+    seg_log_interval = 1;
+end
+
 % ---- Brownian dynamics node tracking ----
 if params.brown_enabled
     dt_B_dimless   = dt_B / params.scales.T_0;
@@ -765,6 +833,7 @@ end
 while T_achieved < T_obs_dimless
     Z = last_Z;
     segment_count = segment_count + 1;
+    log_this_segment = (segment_count <= 3) || (mod(segment_count, seg_log_interval) == 0);
 
     % Adaptive basis check for all pili
     [Z, params, rotated_flags] = adaptive_basis_check(Z, params);
@@ -799,13 +868,17 @@ while T_achieved < T_obs_dimless
 
     dZ_func = @(t_ode, Z_ode) ode_coupled_rhs(t_ode, Z_ode, params);
 
-    logf('[ODE] Segment %d: integrating t* = [%.4e, %.4e]\n', ...
-        segment_count, T_achieved, T_seg_target);
+    if log_this_segment
+        logf('[ODE] Segment %d: integrating t* = [%.4e, %.4e]\n', ...
+            segment_count, T_achieved, T_seg_target);
+    end
 
     sol      = ode15s(dZ_func, [T_achieved, T_seg_target], Z, ode_ops);
     seg_wall = toc(tstart_ode);
-    logf('[ODE] Segment %d completed (%.1f s, %d steps)\n', ...
-        segment_count, seg_wall, length(sol.x));
+    if log_this_segment
+        logf('[ODE] Segment %d completed (%.1f s, %d steps)\n', ...
+            segment_count, seg_wall, length(sol.x));
+    end
 
     % Check if event was triggered
     if ~isempty(sol.xe)
@@ -1320,13 +1393,21 @@ for si = 1:n_snapshots
                      'EdgeColor', 'none');
             end
         else
-            % Custom body: use trisurf with auto-generated triangulation
+            % Custom body: use trisurf with auto-generated triangulation.
+            % NOTE: unlike surf(ax, ...), MATLAB's trisurf(tri, varargin)
+            % binds its FIRST positional argument to the face matrix and
+            % never checks it for an axes handle (axescheck only scans
+            % varargin{2:end}), so trisurf(ax, F, x, y, z, ...) silently
+            % misinterprets F as x/y/z data and crashes with
+            % MATLAB:catenate:dimensionMismatch.  Target the axes via the
+            % 'Parent' name-value pair instead, which trisurf handles
+            % correctly (verified against R2026a).
             rotated_verts = (R_snap * custom_verts_um' + cm_um)';  % [V x 3]
             for ai = 1:numel(snap_axes)
-                trisurf(snap_axes(ai), params.body_faces, ...
+                trisurf(params.body_faces, ...
                     rotated_verts(:,1), rotated_verts(:,2), rotated_verts(:,3), ...
                     'FaceColor', body_cmap(si,:), 'FaceAlpha', snap_alpha, ...
-                    'EdgeColor', 'none');
+                    'EdgeColor', 'none', 'Parent', snap_axes(ai));
             end
         end
 
@@ -1633,10 +1714,12 @@ if generate_animation
                      'EdgeColor', 'none', 'FaceLighting', 'gouraud');
             else
                 rotated_verts = (R_fi * custom_verts_um' + cm_um)';  % [V x 3]
-                trisurf(ax, params.body_faces, ...
+                % See the STATIC VISUALISATION section above for why
+                % 'Parent' is used instead of trisurf(ax, ...).
+                trisurf(params.body_faces, ...
                     rotated_verts(:,1), rotated_verts(:,2), rotated_verts(:,3), ...
                     'FaceColor', body_color, 'FaceAlpha', body_alpha, ...
-                    'EdgeColor', 'none', 'FaceLighting', 'gouraud');
+                    'EdgeColor', 'none', 'FaceLighting', 'gouraud', 'Parent', ax);
             end
 
             for k = 1:M_pili
@@ -1757,7 +1840,7 @@ if compute_flowfield
     flow_opts.grid_range_um   = flowfield_grid_range;
     flow_opts.quiver_skip     = flowfield_quiver_skip;
     flow_opts.chunk_size      = flowfield_chunk_size;
-    compute_plot_flowfield(last_Z, params, output_dir, run_id, logf, flow_opts, T_achieved);
+    compute_plot_flowfield(last_Z, params, output_dir, run_id, logf, flow_opts, T_achieved, silent);
     t_flow_elapsed = toc(t_flow_start);
     logf('[FLOW] Flow field visualisation completed in %s\n\n', format_duration(t_flow_elapsed));
 else
@@ -1842,10 +1925,67 @@ if ~silent
     fprintf('Log saved: %s\n', log_file);
 end
 
+catch ME_run
+    % Any unhandled error above lands here: record full diagnostics in
+    % simulation.log (which would otherwise just truncate silently),
+    % release any figure/video handles opened before the error, then
+    % rethrow so the caller (interactive script or batch driver) still
+    % sees the original exception unchanged.
+    err_report = getReport(ME_run, 'extended', 'hyperlinks', 'off');
+    fatal_msg = sprintf(['\n================================================================\n' ...
+        '[FATAL] Run terminated by an unhandled error\n' ...
+        '================================================================\n' ...
+        '[FATAL] Identifier: %s\n' ...
+        '[FATAL] Message   : %s\n' ...
+        '[FATAL] %s\n' ...
+        '================================================================\n'], ...
+        ME_run.identifier, ME_run.message, err_report);
+
+    if ~isempty(fopen(log_fid))
+        fprintf(log_fid, '%s', fatal_msg);
+    end
+    if ~silent
+        fprintf('%s', fatal_msg);
+    end
+
+    % Best-effort release of figure/video handles opened before the
+    % error; wrapped in its own try/catch so a cleanup failure never
+    % masks the original error being rethrown below.
+    try
+        if exist('fig_preview', 'var') && isgraphics(fig_preview), close(fig_preview); end
+        if exist('fig_summary', 'var') && isgraphics(fig_summary), close(fig_summary); end
+        if exist('fig_anim',    'var') && isgraphics(fig_anim),    close(fig_anim);    end
+        if exist('vid', 'var') && isa(vid, 'VideoWriter')
+            close(vid);
+        end
+    catch
+        % Ignore cleanup failures; the original error is what matters.
+    end
+
+    % log_fid is also closed by cleanup_log_fid's onCleanup as a backstop,
+    % but close it here too so it is released immediately (not just at
+    % function-exit) in case downstream code inspects the file right away.
+    if ~isempty(fopen(log_fid))
+        fclose(log_fid);
+    end
+
+    rethrow(ME_run);
+end
+
 end  % run_simulation
 
 
 %% ==================== Local Functions ====================
+
+function safe_fclose(fid)
+%SAFE_FCLOSE  Close a file identifier if it is still open; no-op/no-error
+%  otherwise.  Used as an onCleanup target to guarantee simulation.log is
+%  always released (normal return, error, or Ctrl-C), even though the
+%  normal and catch paths above already close it explicitly.
+    if isnumeric(fid) && isscalar(fid) && fid > 0 && ~isempty(fopen(fid))
+        fclose(fid);
+    end
+end
 
 function v = get_cfg_field(cfg, fname, default)
 %GET_CFG_FIELD  Return cfg.(fname) if present and non-empty, else default
@@ -1874,7 +2014,7 @@ function dual_log(fid, varargin)
         echo_console = true;
     end
     msg = sprintf(varargin{:});
-    ts  = char(datetime('now', 'Format', 'HH:mm:ss'));
+    ts  = char(datetime('now', 'Format', 'uuuu-MM-dd HH:mm:ss'));
     if echo_console
         fprintf('%s', msg);                % Console (no timestamp - cleaner)
     end
@@ -1884,7 +2024,7 @@ end
 function log_file_only(fid, varargin)
 %LOG_FILE_ONLY  Write formatted message to log file only (with timestamp)
     msg = sprintf(varargin{:});
-    ts  = char(datetime('now', 'Format', 'HH:mm:ss'));
+    ts  = char(datetime('now', 'Format', 'uuuu-MM-dd HH:mm:ss'));
     fprintf(fid, '[%s] %s', ts, msg);
 end
 

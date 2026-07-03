@@ -1,7 +1,41 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 7.9.5 (2026-07-03)
+# Release: 7.9.6 (2026-07-03)
 #
+# v7.9.6: console-output and error-resilience correctness release.
+#   (1) Fixed a critical dual_log console-echo polarity bug: since v7.9.3 the
+#       logf closure forwarded `silent` un-negated, so cfg.silent=false (the
+#       default, all interactive runs) echoed NOTHING through logf (~100
+#       [INIT]/[PARAMS]/[ODE]/... call sites) while cfg.silent=true (batch/
+#       parallel) echoed everything -- the opposite of the documented
+#       contract. simulation.log itself was unaffected. Fixed by forwarding
+#       ~silent instead.
+#   (2) Fixed a trisurf axes-targeting crash (MATLAB:catenate:
+#       dimensionMismatch) that made every geometry_mode='custom' run fail
+#       deterministically at the non-optional [PLOT] Generating summary
+#       figure step; trisurf(tri, varargin) does not support an axes handle
+#       as its first argument the way surf/plot3 do. Fixed via the 'Parent'
+#       name-value pair.
+#   (3) Added a run-wide try/catch in run_simulation.m: unhandled errors are
+#       now recorded in simulation.log as a [FATAL] block (identifier,
+#       message, full stack trace) before being rethrown, plus a
+#       cleanup_log_fid onCleanup guard so the log handle is always released
+#       (including on Ctrl-C).
+#   (4) Added a cfg.silent + preview_initial + ~auto_confirm deadlock guard
+#       (run_simulation:SilentPreviewDeadlock) instead of hanging forever on
+#       an unanswerable questdlg on a headless/parallel worker.
+#   (5) compute_plot_flowfield.m gained an optional `silent` argument so its
+#       chunked XZ/YZ progress bars are suppressed under cfg.silent (the last
+#       ungated progress bar).
+#   (6) Restored 9 previously warning()-only diagnostics in
+#       init_coupled_params.m / custom_body_building.m / custom_pili_building.m
+#       to the project's standard logf_h + warning dual-channel pattern, so
+#       they always reach simulation.log even under cfg.silent=true.
+#   (7) simulation.log / brownian_rng_seed.txt now open with explicit UTF-8
+#       encoding; log timestamps now include the date; Brownian per-segment
+#       [ODE] Segment announcements are throttled (first 3 + every 50th) to
+#       prevent simulation.log flooding on long Brownian runs.
+#   No physical/numerical simulation outputs change. See CHANGELOG.md.
 # v7.9.5: silent-mode completeness for custom geometry and batch-summary
 #   reproducibility — custom_body_building/custom_pili_building accept logf_h
 #   (respect cfg.silent); summary figure Visible='off' under silent;

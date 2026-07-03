@@ -1,4 +1,4 @@
-function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_opts, t_final)
+function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_opts, t_final, silent)
 %COMPUTE_PLOT_FLOWFIELD  Compute and plot flow field panels at final state
 %
 %  Description:
@@ -34,6 +34,11 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 %                   .chunk_size       Eval-point chunk size   (default: 2000)
 %    t_final    - (Optional) Dimensionless time associated with Z_final.
 %                 Required for time-dependent active moments.
+%    silent     - (Optional) logical, default false.  When true, the
+%                 chunked XZ/YZ evaluation progress bars (render_progress_bar)
+%                 are suppressed, matching the ODE / animation progress-bar
+%                 behaviour under run_simulation's cfg.silent so batch /
+%                 parallel workers do not interleave console output.
 %
 %  References:
 %    [1] Cortez et al. (2005), Phys. Fluids 17, 031504.
@@ -45,6 +50,7 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 %% ---- Configuration ----
 if nargin < 6 || isempty(flow_opts), flow_opts = struct(); end
 if nargin < 7 || isempty(t_final), t_final = 0; end
+if nargin < 8 || isempty(silent),  silent  = false; end
 grid_spacing_um = get_flow_opt(flow_opts, 'grid_spacing_um', 0.05);
 grid_range_um   = get_flow_opt(flow_opts, 'grid_range_um',   10.0);
 quiver_skip     = get_flow_opt(flow_opts, 'quiver_skip',     5);
@@ -274,9 +280,13 @@ Nz_xz = length(z_vec_xz);
 
 grid_xz_dl = [XG_xz(:)*um_to_L, YG_xz(:)*um_to_L, ZG_xz(:)*um_to_L];
 
+xz_progress_tag = '[FLOW-XZ] ';
+if silent
+    xz_progress_tag = '';   % suppress chunked progress bar under cfg.silent
+end
 [Ux_xz, ~, Uz_xz, Umag_xz, mask_xz, dist_xz] = evaluate_plane_velocity( ...
     grid_xz_dl, [Nz_xz, Nx_xz], X_cm, R_body, body_vis, ...
-    body_data, seg_data, um_s_factor, chunk_size, '[FLOW-XZ] ');
+    body_data, seg_data, um_s_factor, chunk_size, xz_progress_tag);
 
 logf('[FLOW] XZ velocity range: [%.4e, %.4e] um/s\n', ...
     min(Umag_xz(:), [], 'omitnan'), max(Umag_xz(:), [], 'omitnan'));
@@ -296,9 +306,13 @@ Nz_yz = length(z_vec_yz);
 
 grid_yz_dl = [XG_yz(:)*um_to_L, YG_yz(:)*um_to_L, ZG_yz(:)*um_to_L];
 
+yz_progress_tag = '[FLOW-YZ] ';
+if silent
+    yz_progress_tag = '';   % suppress chunked progress bar under cfg.silent
+end
 [~, Uy_yz, Uz_yz, Umag_yz, mask_yz, dist_yz] = evaluate_plane_velocity( ...
     grid_yz_dl, [Nz_yz, Ny_yz], X_cm, R_body, body_vis, ...
-    body_data, seg_data, um_s_factor, chunk_size, '[FLOW-YZ] ');
+    body_data, seg_data, um_s_factor, chunk_size, yz_progress_tag);
 
 t_flow_elapsed = toc(t_flow_start);
 logf('[FLOW] YZ velocity range: [%.4e, %.4e] um/s  (total compute: %.1f s)\n', ...

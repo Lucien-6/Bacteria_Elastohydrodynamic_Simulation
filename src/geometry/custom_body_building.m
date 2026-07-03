@@ -85,6 +85,8 @@ end
 pts = uniquetol(pts_raw, dup_tol, 'ByRows', true, 'DataScale', 1);
 n_dup_removed = N_raw - size(pts, 1);
 if n_dup_removed > 0
+    logf_h('  [Custom Body] WARNING: %d duplicate / near-duplicate point(s) removed (tol = %.3e m).\n', ...
+        n_dup_removed, dup_tol);
     warning('custom_body_building:DuplicatePoints', ...
         ['%d duplicate / near-duplicate point(s) removed (tol = %.3e m). ', ...
          'Verify the source point cloud.'], n_dup_removed, dup_tol);
@@ -128,7 +130,7 @@ logf_h('  [Custom Body] Triangulation (%s): %d vertices, %d faces\n', ...
 logf_h('  [Custom Body] Enclosed volume: %.4e m^3\n', volume);
 
 % Euler characteristic / closed-surface diagnostic
-check_closed_surface(faces, size(vertices, 1));
+check_closed_surface(faces, size(vertices, 1), logf_h);
 
 %% Process attachment sites (handle struct / cell / struct-array)
 sites = [];
@@ -199,6 +201,8 @@ else
     switch suggest_mode
         case 'volume'
             if isnan(L_0_volume)
+                logf_h(['  [Custom Body] WARNING: L_0_suggest_mode = ''volume'' requested but ', ...
+                        'volume is invalid; falling back to ''extent''.\n']);
                 warning('custom_body_building:VolumeLengthFallback', ...
                     'L_0_suggest_mode = ''volume'' requested but volume is invalid; falling back to ''extent''.');
                 L_0_suggested = L_0_extent;
@@ -260,6 +264,8 @@ function [faces, vertices, volume, method, shp] = auto_triangulate_surface(pts, 
             faces    = convhulln(pts);
             vertices = pts;
         catch ME
+            logf_h(['  [Custom Body] WARNING: Surface triangulation failed: %s. ', ...
+                    'Visualisation will use scatter plot; volume = NaN.\n'], ME.message);
             warning('custom_body_building:TriangulationFailed', ...
                 ['Surface triangulation failed: %s. Visualisation will ', ...
                  'use scatter plot; volume = NaN.'], ME.message);
@@ -365,13 +371,17 @@ function vol = compute_triangulation_volume(vertices, faces)
 end
 
 
-function check_closed_surface(faces, n_verts)
+function check_closed_surface(faces, n_verts, logf_h)
 %CHECK_CLOSED_SURFACE  Diagnostic: Euler characteristic and face/vertex ratio.
 %
 %  For a genus-0 closed surface (sphere topology): V - E + F == 2, and
 %  F == 2*(V - 2) from Euler's formula combined with 2E == 3F for a
 %  triangulation.  Deviations indicate holes, self-intersections, or
 %  non-manifold geometry that will corrupt volume calculation.
+
+    if nargin < 3 || isempty(logf_h)
+        logf_h = @(varargin) fprintf(varargin{:});
+    end
 
     if isempty(faces) || size(faces, 2) ~= 3
         return;
@@ -385,6 +395,8 @@ function check_closed_surface(faces, n_verts)
 
     chi = V - E + F;    % Euler characteristic
     if chi ~= 2
+        logf_h(['  [Custom Body] WARNING: Euler characteristic chi = %d (expected 2). ', ...
+                'V=%d, E=%d, F=%d. Mesh may have holes or be non-manifold.\n'], chi, V, E, F);
         warning('custom_body_building:NonClosedSurface', ...
             ['Triangulation has Euler characteristic chi = %d (expected 2 ', ...
              'for a genus-0 closed surface). V=%d, E=%d, F=%d. The body ', ...
@@ -395,6 +407,8 @@ function check_closed_surface(faces, n_verts)
     % Face-count sanity: for closed sphere topology F ~= 2*(V - 2)
     F_expected = 2 * (V - 2);
     if F_expected > 0 && abs(F - F_expected) > 0.25 * F_expected
+        logf_h('  [Custom Body] WARNING: Face count F=%d deviates from expected 2*(V-2)=%d.\n', ...
+            F, F_expected);
         warning('custom_body_building:UnexpectedFaceCount', ...
             ['Face count F = %d deviates substantially from the closed-', ...
              'surface expectation 2*(V-2) = %d. The triangulation may ', ...

@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.9.5 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.9.6 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.9.5 &middot; 2026-07-03</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.9.6 &middot; 2026-07-03</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 7.9.5 &bull; 2026-07-03
+      Version 7.9.6 &bull; 2026-07-03
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -537,12 +537,24 @@ tailwind.config = {
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en"><strong>v7.9.5</strong> extends silent-mode coverage to custom geometry (<code>custom_body_building</code> / <code>custom_pili_building</code> respect <code>cfg.silent</code> via injected <code>logf</code>; summary figure <code>Visible='off'</code> under silent) and strengthens <code>batch_repeat_brownian</code> audit trails (per-batch <code>batch_config_snapshot_&lt;batch_id&gt;.json</code>, <code>brown_rng_policy</code>, footer <code>failed_*</code> / <code>pending_*</code>, FAILED <code>outdir</code> / <code>log_hint</code>). <strong>No simulation outputs change.</strong> See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
-      <span class="zh"><strong>v7.9.5</strong> 将静默模式扩展到自定义几何（<code>custom_body_building</code> / <code>custom_pili_building</code> 经注入 <code>logf</code> 受 <code>cfg.silent</code> 约束；summary 图在 silent 下 <code>Visible='off'</code>），并加强 <code>batch_repeat_brownian</code> 审计字段（每批 <code>batch_config_snapshot_&lt;batch_id&gt;.json</code>、<code>brown_rng_policy</code>、尾部 <code>failed_*</code> / <code>pending_*</code>、FAILED 时 <code>outdir</code> / <code>log_hint</code>）。<strong>仿真输出无变化。</strong>详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
+      <span class="en"><strong>v7.9.6</strong> is a console-output and error-resilience correctness release. It fixes a critical <code>dual_log</code> polarity bug that silenced all <code>logf</code> console output on every normal (non-batch) run since v7.9.3, and a <code>trisurf</code> axes-targeting crash that made every custom-geometry run fail at the summary-plot step. It also adds a run-wide <code>try</code>/<code>catch</code> so <code>simulation.log</code> always records a <code>[FATAL]</code> block on error, closes the last <code>cfg.silent</code> gap in the flow-field progress bars, restores 9 diagnostics to the standard dual-channel logging pattern, and throttles Brownian per-segment log announcements. <strong>No physical/numerical simulation outputs change.</strong> See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
+      <span class="zh"><strong>v7.9.6</strong> 为控制台输出与异常健壮性修正版。修复了自 v7.9.3 起导致所有正常（非批处理）运行的 <code>logf</code> 控制台输出全部消失的严重 <code>dual_log</code> 极性反转 bug，以及导致每次自定义几何运行都在 summary 图步骤崩溃的 <code>trisurf</code> 坐标轴指定问题。同时新增贯穿整个运行体的 <code>try</code>/<code>catch</code>，确保 <code>simulation.log</code> 始终记录 <code>[FATAL]</code> 分节；补齐了流场进度条上最后一处 <code>cfg.silent</code> 缺口；把9处告警恢复为标准双通道日志模式；并对布朗运动逐段日志做了节流。<strong>仿真物理/数值输出无任何变化。</strong>详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
-        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.9.5 &mdash; 2026-07-03</p>
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.9.6 &mdash; 2026-07-03</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Console-output and error-resilience correctness</span><span class="zh">控制台输出与异常健壮性修正</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en"><strong>Critical fix — <code>dual_log</code> polarity:</strong> the <code>logf</code> closure forwarded <code>silent</code> un-negated, so <code>cfg.silent=false</code> (all normal runs) echoed nothing to the console while <code>cfg.silent=true</code> echoed everything. Fixed by forwarding <code>~silent</code>; <code>simulation.log</code> itself was never affected.</span><span class="zh"><strong>严重修复 &mdash; <code>dual_log</code> 极性：</strong><code>logf</code> 闭包把 <code>silent</code> 未取反地传递，导致 <code>cfg.silent=false</code>（所有正常运行）控制台无回显，而 <code>cfg.silent=true</code> 反而全部回显。已改为传递 <code>~silent</code>；<code>simulation.log</code> 文件本身未受影响。</span></li>
+          <li><span class="en"><strong>Critical fix — custom-geometry <code>trisurf</code> crash:</strong> <code>trisurf(ax, F, x, y, z, ...)</code> does not support an axes handle as its first argument (unlike <code>surf</code>/<code>plot3</code>), so every <code>geometry_mode='custom'</code> run crashed at the non-optional summary-plot step. Fixed via the <code>'Parent'</code> name-value pair.</span><span class="zh"><strong>严重修复 &mdash; 自定义几何 <code>trisurf</code> 崩溃：</strong><code>trisurf(ax, F, x, y, z, ...)</code> 不像 <code>surf</code>/<code>plot3</code> 那样支持坐标轴句柄作为首个参数，导致每次自定义几何运行都在无法跳过的 summary 图步骤崩溃。已改用 <code>'Parent'</code> 键值对指定。</span></li>
+          <li><span class="en"><strong>Run-wide <code>try</code>/<code>catch</code>:</strong> unhandled errors are now recorded in <code>simulation.log</code> as a <code>[FATAL]</code> block (identifier, message, full stack trace) before <code>rethrow</code>; a new <code>cleanup_log_fid</code> <code>onCleanup</code> guard releases the log handle on every exit path, including Ctrl-C.</span><span class="zh"><strong>全运行体 <code>try</code>/<code>catch</code>：</strong>未捕获异常现记录为 <code>simulation.log</code> 中的 <code>[FATAL]</code> 分节（标识符、消息、完整堆栈）后再 <code>rethrow</code>；新增 <code>cleanup_log_fid</code> <code>onCleanup</code> 守卫在包括 Ctrl-C 在内的所有退出路径释放日志句柄。</span></li>
+          <li><span class="en"><strong>Dual-channel completeness:</strong> 9 previously <code>warning</code>-only diagnostics in <code>init_coupled_params.m</code>, <code>custom_body_building.m</code>, and <code>custom_pili_building.m</code> now also write to <code>logf_h</code>, so they always reach <code>simulation.log</code> under <code>cfg.silent</code>.</span><span class="zh"><strong>双通道完整性：</strong><code>init_coupled_params.m</code>、<code>custom_body_building.m</code>、<code>custom_pili_building.m</code> 中9处此前仅走 <code>warning</code> 的告警现也写入 <code>logf_h</code>，在 <code>cfg.silent</code> 下也能始终到达 <code>simulation.log</code>。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-800 p-6">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">v7.9.5 &mdash; 2026-07-03</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
           <span class="en">Custom-geometry silence &amp; batch audit completeness</span><span class="zh">自定义几何静默与批处理审计完整性</span>
         </h3>
@@ -1912,7 +1924,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v7.9.5 &middot; 2026-07-03</li>
+        <li>v7.9.6 &middot; 2026-07-03</li>
       </ul>
     </div>
   </div>

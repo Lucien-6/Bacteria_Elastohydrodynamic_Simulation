@@ -10,6 +10,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [7.9.6] — 2026-07-03
+
+Console-output and error-resilience correctness release. A focused review of `run_simulation.m`'s logging/display pipeline uncovered a severe polarity bug that silenced ~100 `logf` console lines on every normal (non-batch) interactive run since v7.9.3, plus a `trisurf` axes-targeting crash that made `geometry_mode='custom'` runs fail deterministically at the summary-plot step. This release fixes both, adds a run-wide `try/catch` safety net so `simulation.log` always records the failure reason instead of truncating silently, and closes several smaller gaps (dual-channel warning omissions, `cfg.silent` coverage gaps, log encoding/timestamp consistency, Brownian log-flood throttling).
+
+### Fixed
+
+- **`run_simulation.m` — `dual_log` console-echo polarity inverted (critical)**: the `logf` closure forwarded `silent` un-negated to `dual_log`'s trailing `echo_console` flag. Since v7.9.3 this meant `cfg.silent=false` (the default, all interactive/non-batch runs) echoed **nothing** to the console through `logf` (~100 call sites: every `[INIT]`/`[PARAMS]`/`[ODE]`/`[POST]`/`[SAVE]`/`[PLOT]`/`[ANIM]`/`[FLOW]` line), while `cfg.silent=true` (batch/parallel workers) echoed everything — the exact opposite of the documented contract. `simulation.log` itself was never affected (the file-write branch is unconditional). Fixed by forwarding `~silent`. Verified with a live console-output smoke test.
+- **`run_simulation.m` — custom-geometry `trisurf` axes-targeting crash**: both custom-body `trisurf(ax, F, x, y, z, ...)` calls (static summary-plot snapshot loop and per-frame animation loop) crashed with `MATLAB:catenate:dimensionMismatch` on any `geometry_mode='custom'` run, because MATLAB's `trisurf(tri, varargin)` binds its first positional argument unconditionally to the face matrix and never checks it for an axes handle (unlike `surf`/`plot3`, whose `axescheck`-based dispatch does support this). This made the `[PLOT] Generating summary figure` step — which cannot be disabled — fail deterministically for every custom-geometry run. Fixed by targeting the axes via the `'Parent'` name-value pair instead. Root-caused with an isolated MATLAB `trisurf` reproduction and verified end-to-end with a custom sphere body + pilus, including `generate_animation = true`.
+
+### Added
+
+- **`run_simulation.m` — run-wide `try/catch` with `[FATAL]` diagnostics**: the full run body (from logger setup to the closing `fclose`) is now wrapped in `try/catch`. Any unhandled error is recorded in `simulation.log` as a boxed `[FATAL]` block (identifier, message, full `getReport` stack trace) before being `rethrow`n, so a crash no longer leaves `simulation.log` truncated with no indication of the failure. The `catch` block also makes a best-effort attempt to close any `fig_preview` / `fig_summary` / `fig_anim` / `VideoWriter` handles left open by the failure.
+- **`run_simulation.m` — `cleanup_log_fid` `onCleanup` guard**: guarantees `simulation.log`'s file handle is released on every exit path, including Ctrl-C interruption (which `try/catch` cannot intercept). Idempotent alongside the explicit `fclose` calls on the normal and `catch` paths.
+- **`run_simulation.m` — `silent` + `preview_initial` deadlock guard**: `cfg.silent = true` with `preview_initial = true` and `auto_confirm = false` now raises `run_simulation:SilentPreviewDeadlock` immediately instead of blocking forever on an unanswerable `questdlg` on a headless/parallel worker. `fig_preview` visibility also now follows `silent` as a second line of defence.
+- **`src/utils/project_version.m`**: new single-source-of-truth function for the runtime version string, referenced by `run_simulation.m`'s log banner.
+
+### Changed
+
+- **`src/visualization/compute_plot_flowfield.m` — new optional `silent` argument**: the chunked XZ/YZ flow-field evaluation progress bars (`render_progress_bar`) are now suppressed under `cfg.silent`, matching the ODE and animation progress bars. Previously these were the only progress bars not gated by `silent`, so batch/parallel workers with `compute_flowfield = true` still produced interleaved console output.
+- **Dual-channel (`logf_h` + `warning`) consistency for 9 previously `warning`-only diagnostics**: `init_coupled_params.m` (`ConflictingOrientation`, `CustomAlpha0Assumption`, `DuplicateAttachSite`), `custom_body_building.m` (`DuplicatePoints`, `VolumeLengthFallback`, `TriangulationFailed`, `NonClosedSurface`, `UnexpectedFaceCount` — the latter two required adding a `logf_h` parameter to the local `check_closed_surface` helper), and `custom_pili_building.m` (`DeflectionAxisSwap`, `DuplicateCenterlinePoints` — required adding a `logf_h` parameter to the local `remove_consecutive_duplicates` helper). Previously these warnings were silenced with zero trace under `cfg.silent = true` (via `warning('off','all')`) since they never wrote to `logf_h`; they now always reach `simulation.log` regardless of `silent`.
+- **`run_simulation.m` — `simulation.log` / `brownian_rng_seed.txt` opened with explicit `'n','UTF-8'` encoding**: matches the encoding already used by `save_sim_config.m` and the batch summary logs; removes a latent locale-dependent mojibake risk on non-English-locale Windows.
+- **`run_simulation.m` — log timestamps now include the date** (`uuuu-MM-dd HH:mm:ss`, previously `HH:mm:ss`): avoids ambiguous/backwards-looking timestamps for multi-hour or overnight runs.
+- **`run_simulation.m` — Brownian segment-log throttling**: `[ODE] Segment N: integrating...` / `[ODE] Segment N completed...` announcements are now only logged for the first 3 segments and every 50th segment thereafter when `enable_brown = true` (unthrottled for non-Brownian runs, which have few segments). A typical long Brownian run splits into thousands of short segments (one per `dt_B` node); without throttling this flooded `simulation.log` with tens of thousands of near-duplicate lines. Per-segment timing statistics (`seg_walltimes`, `seg_dtstar`) are unaffected — only the announcement text is throttled.
+- **`src/config/validate_simulation_params.m` — aggregated validation errors now logged before throwing**: `logf_h('[VALIDATE] ERROR: ...')` is called immediately before the `error(...)` that reports aggregated parameter-validation failures, so the failure reason reaches `simulation.log` even for direct callers that do not wrap the call in `try/catch`.
+
+### Compatibility
+
+- **No change to any physical/numerical simulation output.** Every fix in this release is confined to console/log display, error handling, and a graphics-API workaround for custom-geometry rendering; the underlying physics, discretisation, and numerical results are bit-for-bit unaffected. `simulation.log` content for successful runs is unchanged except for the added date field in timestamps and (for Brownian runs) fewer `[ODE] Segment` announcement lines.
+- `compute_plot_flowfield.m`'s new `silent` parameter is optional (defaults to `false`) and backward-compatible with any existing direct callers.
+- Custom-geometry runs (`geometry_mode = 'custom'`) that previously crashed at `[PLOT] Generating summary figure` will now complete normally; this is a bug fix, not a behavioural change for previously-working configurations.
+
+### Documentation
+
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**, **`docs/presentation.html`**: version **7.9.6**, date **2026-07-03**.
+
+---
+
 ## [7.9.5] — 2026-07-03
 
 Silent-mode completeness for custom geometry and batch-summary reproducibility release. v7.9.4 closed the four main console-output channels under `cfg.silent` but custom-geometry builders still used bare `fprintf`, and the summary figure remained `Visible='on'`. Separately, a focused review of `batch_sweep/batch_repeat_brownian.m` identified gaps in summary metadata (no config snapshot, no pending/failed roll-up, inconsistent parallel empty-result messages, and lost partial output paths on mid-run crashes). **No simulation outputs change**; only console verbosity under `silent` and batch audit-trail completeness improve.
