@@ -13,7 +13,15 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %
 %  Inputs:
 %    cfg_or_path - Configuration struct (from load_sim_config or inline),
-%                  OR a char/string path to a JSON config file
+%                  OR a char/string path to a JSON config file.
+%                  Optional runtime field (not saved to JSON):
+%                    cfg.silent - logical (default false).  When true,
+%                      suppresses console echo of logf, direct fprintf,
+%                      ODE/animation progress bars, and warnings for the
+%                      duration of this run; all logf output still goes to
+%                      simulation.log.  Used by parallel batch drivers
+%                      (e.g. batch_repeat_brownian sets cfg.silent = true
+%                      on workers).  Errors are never suppressed.
 %
 %  Outputs:
 %    results    - Simulation results struct (physical units); [] if aborted
@@ -22,7 +30,7 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Log banner version: 7.9.4 (2026-07-02) - keep in sync with README / CHANGELOG
+%  Log banner version: 7.9.5 (2026-07-03) - keep in sync with README / CHANGELOG
 %
 %  Path: defensive addpath(project root) so run_simulation(cfg) works when
 %  invoked without main_coupled_simulation.m. Unified policy = this line plus
@@ -50,6 +58,7 @@ geometry_mode          = get_cfg_field(cfg, 'geometry_mode', 'parametric');
 
 % Silent mode: when true, logf writes to the log file only (no console echo).
 % Used by batch parallel runs to prevent N_workers stdout interleaving.
+% Not a physical parameter — omit from JSON; inject at runtime only.
 silent                 = logical(get_cfg_field(cfg, 'silent', false));
 
 % Layered silence (v7.9.4): in addition to the dual_log console-echo gate above,
@@ -255,7 +264,7 @@ logf_file = @(varargin) log_file_only(log_fid, varargin{:});
 logf('\n');
 logf('================================================================\n');
 logf('  Bacteria Elastohydrodynamic Simulation\n');
-logf('  Version 7.9.4\n');
+logf('  Version 7.9.5\n');
 logf('================================================================\n');
 logf('  Run ID    : %s\n', run_id);
 logf('  Timestamp : %s\n', run_timestamp);
@@ -1164,8 +1173,12 @@ pili_colors = pili_palette(mod((1:M_pili)-1, size(pili_palette,1)) + 1, :);
 
 logf('[PLOT] Generating summary figure...\n');
 
+fig_summary_vis = 'on';
+if silent
+    fig_summary_vis = 'off';
+end
 fig_summary = figure('Position', [100, 100, 1600, 1000], 'Color', 'w', ...
-                     'Visible', 'on');
+                     'Visible', fig_summary_vis);
 set(fig_summary, 'DefaultAxesFontName',  'Arial', ...
                  'DefaultAxesFontSize',  11, ...
                  'DefaultAxesLineWidth', 0.8, ...

@@ -3,12 +3,12 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 7.9.4
-> **更新日期:** 2026-07-02
+> **版本:** 7.9.5
+> **更新日期:** 2026-07-03
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-版本提示：v7.9.4 为分层静默完整性版：v7.9.3 的 `cfg.silent` 字段仅门控了 `dual_log`（约 100 处 `logf` 调用），仍遗漏了 `run_simulation.m` 中 5 处直接 `fprintf`（notably 每个 run 末尾的 `Log saved:` 与 `[OUTPUT]` 重命名提示）、16 个 `src/` 子函数中约 24 处 `warning` 调用，以及两个用 `\b` 退格符的就地进度条（`odetpbar`、`render_progress_bar`）。v7.9.4 通过分层设计封堵全部四个控制台输出通道：(1) 直接 `fprintf` 调用包裹 `if ~silent`；(2) `silent` 时不再挂载 `odetpbar` 作为 ODE `OutputFcn`；(3) `silent` 时不再调用 `render_progress_bar`；(4) 子函数 `warning` 调用通过 `warning('off','all')` 抑制，并用 `onCleanup` 守卫在任何退出路径恢复调用方的 warning 设置。**仿真输出无变化；`src/` 子函数未被修改；调用方的 warning 设置始终恢复。** v7.9.3 为批处理日志健壮性与并行 stdout 整洁性版；v7.9.2 为数值健壮性与文档准确性版；v7.9.1 为审查后 Bug 修复（MSD `D_trans` 下界保护、批处理错误栈追踪捕获）；v7.9.0 将所有起飞前参数检查统一收口到 `validate_simulation_params.m`（直接接受完整 `cfg` 结构，P1–P9）；v7.8.0 将内禀（参考）曲率 `kb0` 改用与运行时曲率相同的 SVD 投影节点 director 算子进行离散，使 `frozen` 曲率纤毛在参考构型下成为精确的零力矩平衡态，并将常值电机力矩改用 `EI/L_pili` 无量纲化（与主动力矩约定一致）。
+版本提示：v7.9.5 将静默模式扩展到**自定义几何**（`custom_body_building` / `custom_pili_building` 经注入的 `logf` 受 `cfg.silent` 约束；summary 图在 silent 下 `Visible='off'`），并加强 **`batch_repeat_brownian`** 审计字段（每批 `batch_config_snapshot_<batch_id>.json`、`brown_rng_policy`、`parallel_requested`、尾部 `failed_*` / `pending_*`、FAILED 时的 `outdir` / `log_hint`）。**`cfg.silent`** 为**仅运行时**批处理开关（不写入 JSON）：为 true 时抑制 `logf` 控制台回显、直接 `fprintf`、ODE/动画进度条与 warning；完整文本仍写入 `simulation.log`；error 从不抑制。**仿真输出无变化。** v7.9.4 为分层静默完整性版；v7.9.3 为批处理日志健壮性与并行 stdout 整洁性版；v7.9.2 为数值健壮性与文档准确性版；v7.9.1 为审查后 Bug 修复；v7.9.0 将起飞前参数检查统一收口到 `validate_simulation_params.m`（P1–P9）；v7.8.0 修正参考曲率 `kb0` 离散化与常值电机力矩无量纲化。
 
 ## 1. 运行前准备
 
@@ -129,9 +129,9 @@ cfg.auto_confirm = true;
 - **并行（默认）：** `use_parallel = true` 在已许可 **Parallel Computing Toolbox** 且能创建 `parpool` 时使用 `parfor`。worker 数量由探测到的物理核心数与可用内存共同约束，默认最多使用约 `max_resource_frac`（默认 `0.75`）的“资源预算”，并配合 `mem_per_worker_gb` 估算内存上限。若无工具箱或建池失败，脚本会**告警并回退**到与旧版等价的串行 `for` 循环。
 - **串行：** 设置 `use_parallel = false` 可强制单线程循环，便于与 v7.4 之前的行为逐字节对照。
 - **随机种子：** 并行模式下，`brown_rng_seed_mode = 'fixed'` 对每个重复索引 `k` 设置 `cfg.brown_rng_seed = rng_seed_base + k`；`'timestamp'` 则使用时间基底 + `k`，避免多 worker 撞同一种子。**串行** `'timestamp'` 仍像单次交互运行一样不在每轮传入 `cfg.brown_rng_seed`。
-- **worker 控制台静默（仅并行）：** parfor 分支设置 `cfg_k.silent = true`，因此每个 worker 的 `run_simulation` 只把完整日志写入 `output/<case>/<NNN>/simulation.log`，**不**回显到共享 stdout。这样可避免约 15000 行交错的 `[ODE] Segment N completed` 淹没有用的 `[k/100] OK` 进度行。串行分支不变（保持 verbose），便于交互式调试。
+- **worker 控制台静默（仅并行）：** parfor 分支设置 `cfg_k.silent = true`，因此每个 worker 的 `run_simulation` 只把完整日志写入 `output/<case>/<NNN>/simulation.log`，**不**回显到共享 stdout。这样可避免约 15000 行交错的 `[ODE] Segment N completed` 淹没有用的 `[k/100] OK` 进度行。自 v7.9.5 起，自定义几何 run 在 worker 上亦完全静默。串行分支不变（保持 verbose），便于交互式调试。
 
-工况基目录下会写出带时间戳的 `batch_repeat_summary_*.txt`，记录每轮状态、耗时以及并行诊断字段（`n_pool`、`core_probe`、CPU/内存受限原因等）。per-run 记录**增量写入**（每次 `fopen(...,'a')` / `fclose` 强制刷盘），因此批次中途崩溃时摘要文件中仍保留头部与全部已完成 run 的记录，仅尾部（`elapsed_total_s`、`success_count`、加速比）丢失。并行模式下 per-run 行按 worker 完成顺序排列（行首 `NNN` 编号即 `k`，便于事后排序）；串行模式按 `k` 顺序写入。
+工况基目录下会写出带时间戳的 `batch_repeat_summary_<batch_id>.txt`，记录批次元数据、每轮状态、耗时与并行诊断。**头部（v7.9.5+）：** `batch_id`、人读格式 `started`、`config_source_type` / `config_json` 或 `config_source_note`、指向 `batch_config_snapshot_<batch_id>.json` 的路径（完整 inline `cfg` 副本，便于复现）、`project_root`、`script_path`、`brown_rng_policy`、`parallel_requested`、`execution_mode`、`summary_record_order`、可选 `[POOL] Resource probe` 字段（串行回退时亦写入）、以及串行执行但已预计算并行种子时的 `seeds_precomputed_unused`。**per-run 记录** **增量写入**（每轮 `fopen(...,'a')` / `fclose`）：OK 行含 `out:`（相对路径）；FAILED 行含 `Identifier` / `Message` / `Location`，并在可用时给出 `outdir` / `log_hint` 指向部分输出。**尾部：** `finished`、`elapsed_total_s`、`success_count`、并行加速比字段（如适用）、`failed_count` / `failed_indices` / `failed_runs`，以及异常退出后仍为 `PENDING` 的 `pending_count` / `pending_indices`。批次中途崩溃时摘要仍保留头部与全部已完成 run；仅尾部可能缺失。并行模式下 per-run 行按 worker 完成顺序排列（行首 `NNN` 即 `k`）；串行模式按 `k` 顺序写入。
 
 ### 5.2 JSON 文件夹批跑（`batch_run_from_json.m`）
 

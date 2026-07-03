@@ -34,6 +34,10 @@
 %  Updated: 2026-05-06 — Lucien — optional parfor batch path, pool sizing,
 %                        PCT fallback; cfg.geometry_mode='parametric' and
 %                        pili_ext capture for save_sim_config compatibility.
+%  Updated: 2026-07-03 — Lucien — summary reproducibility (config source,
+%                        batch_id snapshot, brown_rng_policy, fallback probe);
+%                        FAILED outdir/log_hint; footer finished/failed/pending;
+%                        unified empty-results msg; catch partial outdir.
 clear; clc;
 
 % Ensure working directory is project root (contains run_simulation.m)
@@ -189,6 +193,20 @@ end
 cfg.preview_initial = false;
 cfg.auto_confirm    = true;
 
+% --- Config source metadata (written to batch summary header) ---
+config_source = struct( ...
+    'type', 'inline', ...
+    'json_path', '', ...
+    'note', 'inline cfg_base block in batch_repeat_brownian.m');
+if ~isempty(strtrim(config_json))
+    config_source.type = 'json';
+    if isfile(config_json)
+        config_source.json_path = config_json;
+    else
+        config_source.json_path = fullfile(pwd, config_json);
+    end
+end
+
 %% ========================================================================
 %  PARALLEL SCHEDULING DECISION
 %  ========================================================================
@@ -209,6 +227,8 @@ parallel_info = struct( ...
     'binding',             "n/a", ...
     'n_pool',              1, ...
     'fallback_reason',     "");
+
+parallel_requested = use_parallel;
 
 if use_parallel
     if ~license('test', 'Distrib_Computing_Toolbox')
@@ -297,7 +317,21 @@ if ~isfolder(out_root)
     mkdir(out_root);
 end
 
-log_ts   = char(datetime('now', 'Format', 'uuuuMMdd''_''HHmmss'));
+batch_start_dt   = datetime('now');
+log_ts           = char(batch_start_dt, 'Format', 'uuuuMMdd''_''HHmmss');
+started_human    = char(batch_start_dt, 'Format', 'uuuu-MM-dd HH:mm:ss');
+batch_snapshot_path = fullfile(out_root, sprintf('batch_config_snapshot_%s.json', log_ts));
+batch_snapshot_log  = '';
+cfg_snapshot = cfg;
+cfg_snapshot.case_name = case_name_base;
+try
+    save_sim_config(cfg_snapshot, batch_snapshot_path);
+    batch_snapshot_log = path_for_log(batch_snapshot_path);
+catch ME_snap
+    warning('batch_repeat_brownian:ConfigSnapshotFailed', ...
+        'Could not save batch config snapshot: %s', ME_snap.message);
+end
+
 sum_path = fullfile(out_root, sprintf('batch_repeat_summary_%s.txt', log_ts));
 fid_sum  = fopen(sum_path, 'w', 'n', 'UTF-8');
 if fid_sum == -1
@@ -311,6 +345,9 @@ sep = repmat('=', 1, 60);
 fprintf('\n%s\n', sep);
 fprintf('  Batch repeat (Brownian): %d independent runs\n', n_repeats);
 fprintf('  Output root: %s\n', out_root);
+if ~isempty(batch_snapshot_log)
+    fprintf('  Config snapshot: %s\n', batch_snapshot_log);
+end
 if use_parallel
     fprintf('  Mode: PARALLEL  (n_pool = %d, %s-bound)\n', ...
         parallel_info.n_pool, char(parallel_info.binding));
@@ -341,31 +378,51 @@ fprintf('%s\n\n', sep);
 %% ---- Header (summary file) ----
 if fid_sum ~= -1
     fprintf(fid_sum, 'batch_repeat_brownian\n');
+    fprintf(fid_sum, 'batch_id: %s\n', log_ts);
+    fprintf(fid_sum, 'started: %s\n', started_human);
     fprintf(fid_sum, 'case_name_base: %s\n', case_name_base);
     fprintf(fid_sum, 'n_repeats: %d\n', n_repeats);
+    fprintf(fid_sum, 'config_source_type: %s\n', config_source.type);
+    if strcmp(config_source.type, 'json')
+        fprintf(fid_sum, 'config_json: %s\n', path_for_log(config_source.json_path));
+    else
+        fprintf(fid_sum, 'config_source_note: %s\n', config_source.note);
+    end
+    if ~isempty(batch_snapshot_log)
+        fprintf(fid_sum, 'batch_config_snapshot: %s\n', batch_snapshot_log);
+    end
+    fprintf(fid_sum, 'project_root: %s\n', path_for_log(projectRoot));
+    fprintf(fid_sum, 'script_path: %s\n', path_for_log(mfilename('fullpath')));
     fprintf(fid_sum, 'brown_rng_seed_mode: %s\n', brown_rng_seed_mode);
     if strcmpi(brown_rng_seed_mode, 'fixed')
         fprintf(fid_sum, 'rng_seed_base: %d\n', rng_seed_base);
     end
+    fprintf(fid_sum, 'parallel_requested: %s\n', char(string(parallel_requested)));
     fprintf(fid_sum, 'execution_mode: %s\n', char(string(use_parallel)));
+    fprintf(fid_sum, 'brown_rng_policy: %s\n', ...
+        brown_rng_policy_line(brown_rng_seed_mode, use_parallel, rng_seed_base, n_repeats, seeds));
     if use_parallel
-        fprintf(fid_sum, 'n_pool: %d\n',               parallel_info.n_pool);
-        fprintf(fid_sum, 'n_physical_cores: %d\n',     parallel_info.n_physical_cores);
-        if isfield(parallel_info, 'core_probe')
-            fprintf(fid_sum, 'core_probe: %s\n',       char(parallel_info.core_probe));
-        end
-        fprintf(fid_sum, 'available_mem_gb: %.2f\n',   parallel_info.available_mem_gb);
-        fprintf(fid_sum, 'mem_per_worker_gb: %g\n',    mem_per_worker_gb);
-        fprintf(fid_sum, 'max_resource_frac: %g\n',    max_resource_frac);
-        fprintf(fid_sum, 'cpu_cap: %d\n',              parallel_info.cpu_cap);
-        fprintf(fid_sum, 'mem_cap: %d\n',              parallel_info.mem_cap);
-        fprintf(fid_sum, 'binding: %s\n',              char(parallel_info.binding));
-        fprintf(fid_sum, 'worker_blas_threads: %d\n',  worker_blas_threads);
-        fprintf(fid_sum, 'seed_origin: %s\n',          seed_origin_label);
-    elseif strlength(parallel_info.fallback_reason) > 0
+        fprintf(fid_sum, 'summary_record_order: completion\n');
+    else
+        fprintf(fid_sum, 'summary_record_order: sequential\n');
+    end
+    resource_probed = isfinite(parallel_info.n_physical_cores);
+    seeds_precomputed_unused = ~isempty(seeds) && ~use_parallel;
+    if resource_probed
+        write_resource_probe_summary(fid_sum, parallel_info, mem_per_worker_gb, ...
+            max_resource_frac, worker_blas_threads);
+    end
+    if use_parallel
+        fprintf(fid_sum, 'n_pool: %d\n', parallel_info.n_pool);
+        fprintf(fid_sum, 'seed_origin: %s\n', seed_origin_label);
+    end
+    if strlength(parallel_info.fallback_reason) > 0
         fprintf(fid_sum, 'parallel_fallback_reason: %s\n', char(parallel_info.fallback_reason));
     end
-    fprintf(fid_sum, 'started: %s\n\n', log_ts);
+    if seeds_precomputed_unused
+        fprintf(fid_sum, 'seeds_precomputed_unused: true\n');
+    end
+    fprintf(fid_sum, '\n');
     fclose(fid_sum);   % flush header to disk; per-run records appended incrementally
     fid_sum = -1;      % marker: header is closed; use append_run_summary for per-run writes
 end
@@ -404,6 +461,7 @@ if use_parallel
         cfg_k.silent          = true;   % suppress per-run stdout on workers (see run_simulation.dual_log)
         run_seed(k) = seeds(k);
 
+        dir_k = '';
         t_run = tic;
         try
             [res_k, ~, dir_k] = run_simulation(cfg_k);
@@ -417,7 +475,7 @@ if use_parallel
                 run_errloc(k) = "";
                 run_outdir(k) = string(dir_k);
                 send(progress_q, struct('k', k, 'status', "FAILED", ...
-                    'msg', 'empty results', 'wall', wall_k, ...
+                    'msg', char(run_errmsg(k)), 'wall', wall_k, ...
                     'seed', seeds(k), 'outdir', char(string(dir_k)), ...
                     'identifier', char(run_errid(k)), ...
                     'stack_name', '', 'stack_line', NaN));
@@ -434,8 +492,9 @@ if use_parallel
             run_wall(k)   = wall_k;
             run_status(k) = "FAILED";
             run_errmsg(k) = string(ME.message);
-            run_outdir(k) = "";
             run_errid(k)  = string(ME.identifier);
+            dir_k_capture = capture_partial_outdir(dir_k);
+            run_outdir(k) = string(dir_k_capture);
             if ~isempty(ME.stack)
                 run_errloc(k) = sprintf('%s (line %d)', ME.stack(1).name, ME.stack(1).line);
                 stack_name_k  = ME.stack(1).name;
@@ -447,7 +506,7 @@ if use_parallel
             end
             send(progress_q, struct('k', k, 'status', "FAILED", ...
                 'msg', ME.message, 'wall', wall_k, ...
-                'seed', seeds(k), 'outdir', '', ...
+                'seed', seeds(k), 'outdir', dir_k_capture, ...
                 'identifier', ME.identifier, ...
                 'stack_name', stack_name_k, 'stack_line', stack_line_k));
         end
@@ -473,7 +532,8 @@ else
             end
         end
 
-        res_k = [];
+        res_k   = [];
+        dir_k   = '';
         t_run = tic;
         try
             [res_k, ~, dir_k] = run_simulation(cfg_k);
@@ -500,7 +560,7 @@ else
             run_wall(k)   = toc(t_run);
             run_status(k) = "FAILED";
             run_errmsg(k) = string(ME.message);
-            run_outdir(k) = "";
+            run_outdir(k) = string(capture_partial_outdir(dir_k));
             run_errid(k)  = string(ME.identifier);
             if ~isempty(ME.stack)
                 run_errloc(k) = sprintf('%s (line %d)', ME.stack(1).name, ME.stack(1).line);
@@ -531,11 +591,19 @@ elapsed = toc(t_batch);
 %  see append_run_summary.  Only the footer (aggregate stats) is written
 %  here, in append mode.
 
-n_ok = sum(run_status == "OK");
+n_ok      = sum(run_status == "OK");
+n_failed  = sum(run_status == "FAILED");
+n_pending = sum(run_status == "PENDING");
 
 fprintf('\n%s\n', sep);
 fprintf('  Batch complete: %.1f s total\n', elapsed);
 fprintf('  Success: %d / %d\n', n_ok, n_repeats);
+if n_failed > 0
+    fprintf('  Failed:  %d\n', n_failed);
+end
+if n_pending > 0
+    fprintf('  Pending: %d (not completed)\n', n_pending);
+end
 if use_parallel
     sum_wall = sum(run_wall(~isnan(run_wall)));
     speedup  = sum_wall / max(elapsed, eps);
@@ -553,12 +621,50 @@ fprintf('%s\n', sep);
 if ~isempty(sum_path)
     fid_foot = fopen(sum_path, 'a', 'n', 'UTF-8');
     if fid_foot ~= -1
-        fprintf(fid_foot, '\nelapsed_total_s: %.2f\n', elapsed);
+        finished_human = char(datetime('now', 'Format', 'uuuu-MM-dd HH:mm:ss'));
+        fprintf(fid_foot, '\nfinished: %s\n', finished_human);
+        fprintf(fid_foot, 'elapsed_total_s: %.2f\n', elapsed);
         fprintf(fid_foot, 'success_count: %d / %d\n', n_ok, n_repeats);
         if use_parallel
             sum_wall = sum(run_wall(~isnan(run_wall)));
             fprintf(fid_foot, 'sum_per_case_wall_s: %.2f\n',       sum_wall);
             fprintf(fid_foot, 'parallel_speedup_estimate: %.2f\n', sum_wall / max(elapsed, eps));
+        end
+        fprintf(fid_foot, 'failed_count: %d\n', n_failed);
+        if n_failed > 0
+            failed_idx = find(run_status == "FAILED");
+            idx_labels = arrayfun(@(k) sprintf('%03d', k), failed_idx, 'UniformOutput', false);
+            fprintf(fid_foot, 'failed_indices: %s\n', strjoin(idx_labels, ', '));
+            fprintf(fid_foot, 'failed_runs:\n');
+            for ii = 1:n_failed
+                k = failed_idx(ii);
+                if run_seed(k) > 0
+                    seed_str = sprintf('%d', run_seed(k));
+                else
+                    seed_str = 'n/a';
+                end
+                errid_str = char(run_errid(k));
+                if strlength(errid_str) == 0
+                    errid_str = 'n/a';
+                end
+                msg_str = regexprep(char(run_errmsg(k)), '[\r\n]+', ' ');
+                if numel(msg_str) > 120
+                    msg_str = [msg_str(1:117), '...'];
+                end
+                if strlength(run_outdir(k)) > 0
+                    outdir_str = path_for_log(char(run_outdir(k)));
+                else
+                    outdir_str = 'n/a';
+                end
+                fprintf(fid_foot, '  k=%03d  seed=%s  id=%s  msg=%s  outdir=%s\n', ...
+                    k, seed_str, errid_str, msg_str, outdir_str);
+            end
+        end
+        fprintf(fid_foot, 'pending_count: %d\n', n_pending);
+        if n_pending > 0
+            pending_idx = find(run_status == "PENDING");
+            idx_labels = arrayfun(@(k) sprintf('%03d', k), pending_idx, 'UniformOutput', false);
+            fprintf(fid_foot, 'pending_indices: %s\n', strjoin(idx_labels, ', '));
         end
         fclose(fid_foot);
         fprintf('\n  Summary written: %s\n', sum_path);
@@ -731,8 +837,9 @@ function append_run_summary(sum_path, k, seed, status, wall, errid, errmsg, errl
 %APPEND_RUN_SUMMARY  Append one per-run record to summary file with forced flush.
 %
 %  Opens the summary file in append mode, writes a single per-run record
-%  (seed, status, wall time, and on failure the identifier/message/location
-%  or on success the output directory), then immediately closes the file.
+%  (seed, status, wall time, and on failure the identifier/message/location,
+%  outdir, and log_hint when present, or on success the output directory),
+%  then immediately closes the file.
 %  The close-then-reopen pattern guarantees the record reaches disk before
 %  the next run starts, so a mid-batch crash never loses already-completed
 %  records.  No-op when sum_path is empty (summary disabled).
@@ -768,6 +875,8 @@ function append_run_summary(sum_path, k, seed, status, wall, errid, errmsg, errl
         seed_tag = 'seed=n/a';
     end
 
+    outdir_char = char(string(outdir));
+
     fprintf(fid, '%03d  %s  status=%s  wall=%.2f s\n', k, seed_tag, status, wall);
     if status == "FAILED" && strlength(errmsg) > 0
         fprintf(fid, '         Identifier : %s\n', errid);
@@ -775,11 +884,77 @@ function append_run_summary(sum_path, k, seed, status, wall, errid, errmsg, errl
         if strlength(errloc) > 0
             fprintf(fid, '         Location   : %s\n', errloc);
         end
-    elseif strlength(outdir) > 0
-        fprintf(fid, '  out: %s\n', outdir);
+    elseif status == "OK" && strlength(outdir_char) > 0
+        fprintf(fid, '  out: %s\n', path_for_log(outdir_char));
+    end
+    if status == "FAILED" && strlength(outdir_char) > 0
+        fprintf(fid, '         outdir     : %s\n', path_for_log(outdir_char));
+        log_hint = fullfile(outdir_char, 'simulation.log');
+        if isfile(log_hint)
+            fprintf(fid, '         log_hint   : %s\n', path_for_log(log_hint));
+        end
     end
 
     fclose(fid);   % forced flush — record is on disk before next run starts
+end
+
+
+function s = path_for_log(p)
+%PATH_FOR_LOG  Prefer project-relative paths in summary files for portability.
+    s = char(string(p));
+    pw = char(pwd);
+    sep_ch = filesep;
+    if ~isempty(pw) && pw(end) ~= sep_ch
+        pw = [pw, sep_ch]; %#ok<AGROW>
+    end
+    if strlength(s) >= strlength(pw) && strcmpi(s(1:strlength(pw)), pw)
+        s = s(strlength(pw)+1:end);
+    end
+end
+
+
+function s = brown_rng_policy_line(seed_mode, use_par, rng_base, n_rep, seeds_vec)
+%BROWN_RNG_POLICY_LINE  One-line summary of the Brownian seed rule in effect.
+    if strcmp(seed_mode, 'fixed')
+        s = sprintf('seed(k) = rng_seed_base + k, rng_seed_base=%d, k=1..%d', ...
+            rng_base, n_rep);
+    elseif use_par && ~isempty(seeds_vec)
+        clock_base = seeds_vec(1) - 1;
+        s = sprintf('parallel: seed(k) = clock_base + k, clock_base=%d, k=1..%d', ...
+            clock_base, n_rep);
+    else
+        s = ['serial: MMddHHmmss per run via brown_rng_seed_from_clock() ', ...
+             'at run_simulation start'];
+    end
+end
+
+
+function write_resource_probe_summary(fid, info, mem_per_worker_gb, max_frac, blas_threads)
+%WRITE_RESOURCE_PROBE_SUMMARY  Resource cap fields for summary header/footer.
+    fprintf(fid, 'n_physical_cores: %d\n',     info.n_physical_cores);
+    if isfield(info, 'core_probe')
+        fprintf(fid, 'core_probe: %s\n',       char(info.core_probe));
+    end
+    fprintf(fid, 'available_mem_gb: %.2f\n',   info.available_mem_gb);
+    fprintf(fid, 'mem_per_worker_gb: %g\n',    mem_per_worker_gb);
+    fprintf(fid, 'max_resource_frac: %g\n',    max_frac);
+    fprintf(fid, 'cpu_cap: %d\n',              info.cpu_cap);
+    fprintf(fid, 'mem_cap: %d\n',              info.mem_cap);
+    fprintf(fid, 'binding: %s\n',              char(info.binding));
+    fprintf(fid, 'worker_blas_threads: %d\n',  blas_threads);
+end
+
+
+function outdir_char = capture_partial_outdir(dir_k)
+%CAPTURE_PARTIAL_OUTDIR  Return output dir from run_simulation if assigned before error.
+    outdir_char = '';
+    if nargin < 1 || isempty(dir_k)
+        return;
+    end
+    dir_str = char(string(dir_k));
+    if strlength(strtrim(dir_str)) > 0
+        outdir_char = dir_str;
+    end
 end
 
 

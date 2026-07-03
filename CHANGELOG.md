@@ -10,6 +10,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [7.9.5] — 2026-07-03
+
+Silent-mode completeness for custom geometry and batch-summary reproducibility release. v7.9.4 closed the four main console-output channels under `cfg.silent` but custom-geometry builders still used bare `fprintf`, and the summary figure remained `Visible='on'`. Separately, a focused review of `batch_sweep/batch_repeat_brownian.m` identified gaps in summary metadata (no config snapshot, no pending/failed roll-up, inconsistent parallel empty-result messages, and lost partial output paths on mid-run crashes). **No simulation outputs change**; only console verbosity under `silent` and batch audit-trail completeness improve.
+
+### Added
+
+- **`src/geometry/custom_body_building.m`, `custom_pili_building.m` — optional `logf_h` argument**: when provided (via `init_coupled_params.m`), `[Custom Body]` / `[Custom Pili]` diagnostics route through the same `logf` closure as the rest of `run_simulation`, so they respect `cfg.silent` (file-only under silent; console echo when not silent).
+- **`batch_sweep/batch_repeat_brownian.m` — reproducibility header fields**: `batch_id`, human-readable `started`, `config_source_type` / `config_json` or `config_source_note`, per-batch `batch_config_snapshot_<batch_id>.json` (replaces a single overwrite-prone filename), `project_root`, `script_path`, `brown_rng_policy`, `parallel_requested`, `summary_record_order`, and `seeds_precomputed_unused` when parallel seeds were pre-computed but serial execution ran instead.
+- **`batch_sweep/batch_repeat_brownian.m` — footer roll-up fields**: `finished`, `failed_count`, sorted `failed_indices`, per-failure `failed_runs` block (`k`, `seed`, `id`, `msg`, `outdir`), `pending_count`, and `pending_indices` for runs still marked `PENDING` after an abnormal exit.
+- **`batch_sweep/batch_repeat_brownian.m` — per-run FAILED audit lines**: on failure, `outdir` and `log_hint` (path to `simulation.log` when present) are written even when the run did not complete cleanly; OK lines use `path_for_log` for stable relative paths.
+
+### Changed
+
+- **`run_simulation.m` — summary figure hidden under `silent`**: `fig_summary` is created with `Visible='off'` when `cfg.silent=true`, matching the animation figure behaviour and preventing spurious figure windows during parallel batch workers.
+- **`run_simulation.m` — header comment documents `cfg.silent`**: clarifies that it is a runtime-only batch flag (not stored in JSON), lists the four suppressed console channels, and notes that `simulation.log` is always written and errors are never suppressed.
+- **`batch_sweep/batch_repeat_brownian.m` — serial fallback still writes resource probe**: when parallel is requested but falls back to serial, the summary header still records `[POOL] Resource probe` fields, `brown_rng_policy`, `parallel_requested`, and `seeds_precomputed_unused` so the log reflects what actually ran.
+- **`batch_sweep/batch_repeat_brownian.m` — parallel empty-results message unified**: the post-`parfor` guard now uses the same `run_errmsg` text as the serial branch instead of a divergent placeholder string.
+- **`batch_sweep/batch_repeat_brownian.m` — partial output path capture on error**: the `catch` block calls `capture_partial_outdir` so a FAILED record can still cite the run folder when `run_simulation` created one before aborting.
+
+### Fixed
+
+- **Custom-geometry console leak under `silent` (v7.9.4 compatibility gap)**: parametric and custom batch runs are now equally silent on workers; the v7.9.4 note that custom geometry still `fprintf`s to the console is resolved.
+
+### Compatibility
+
+- **Bitwise-identical to v7.9.4 for all simulation outputs.** `cfg.silent` defaults to `false`; JSON configs are unchanged. Summary-file per-run record format is backward-compatible (new header/footer keys are additive). The snapshot filename now includes `<batch_id>` — update any external scripts that assumed a fixed `batch_config_snapshot.json` name.
+
+### Documentation
+
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**, **`docs/presentation.html`**: version **7.9.5**, date **2026-07-03**.
+
+---
+
 ## [7.9.4] — 2026-07-02
 
 Layered-silence completeness release. v7.9.3 introduced `cfg.silent` but the silence gate covered only `dual_log` (~100 `logf` call sites), leaving five direct `fprintf` calls in `run_simulation.m` (notably `Log saved:` on every run and the `[OUTPUT]` rename/clear messages) plus **all** `src/` sub-function `warning` calls (~24 distinct IDs across 16 files) and two in-place `\b`-backspace progress bars (`odetpbar`, `render_progress_bar`) un-gated. In parallel mode these still produced thousands of interleaved console lines and backspace-character garbage. This release closes all four console-output channels via a layered design that keeps `src/` sub-functions untouched and restores caller `warning` settings via `onCleanup`. **No simulation outputs change**; the only behavioural difference is console verbosity in `silent` mode.

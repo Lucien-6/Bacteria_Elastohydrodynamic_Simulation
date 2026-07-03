@@ -155,7 +155,7 @@ switch geometry_mode
 
     case 'custom'
         % --- Custom body from point cloud ---
-        [Body_str, body_meta] = custom_body_building(custom_cfg);
+        [Body_str, body_meta] = custom_body_building(custom_cfg, logf_h);
 
         N_body_actual = body_meta.N_body;
         params.N_body = N_body_actual;
@@ -580,7 +580,7 @@ else
         % Generate initial custom pili geometry
         Pili_struct = custom_pili_building(custom_pili_cfg, attachment_sites, ...
             p.Results.seg_per_um, L_0, dis, ...
-            p.Results.E, p.Results.r_pili);
+            p.Results.E, p.Results.r_pili, logf_h);
 
         % Compute N_segments from actual pili lengths
         N_segments = zeros(M_pili, 1);

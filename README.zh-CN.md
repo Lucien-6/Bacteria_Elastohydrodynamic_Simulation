@@ -4,8 +4,8 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-07-02
-> **版本:** 7.9.4
+> **更新日期:** 2026-07-03
+> **版本:** 7.9.5
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -108,7 +108,9 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **7.9.4 (2026-07-02)**。本版是在 v7.9.3 基础上的分层静默完整性更新：v7.9.3 的 `cfg.silent` 字段仅门控了 `dual_log`（约 100 处 `logf` 调用），仍遗漏了 `run_simulation.m` 中 5 处直接 `fprintf`（ notably 每个 run 末尾的 `Log saved:` 与 `[OUTPUT]` 重命名提示）、16 个 `src/` 子函数中约 24 处 `warning` 调用，以及两个用 `\b` 退格符的就地进度条（`odetpbar`、`render_progress_bar`）——并行模式下这些仍会产生数千行交错的控制台输出与退格乱码。v7.9.4 通过分层设计封堵全部四个控制台输出通道：(1) 直接 `fprintf` 调用包裹 `if ~silent`；(2) `silent` 时不再挂载 `odetpbar` 作为 ODE `OutputFcn`；(3) `silent` 时不再调用 `render_progress_bar`；(4) 子函数 `warning` 调用通过 `warning('off','all')` 抑制，并用 `onCleanup` 守卫在任何退出路径（正常返回、error、Ctrl-C）恢复调用方的 warning 设置。**仿真输出无变化；`src/` 子函数未被修改；调用方的 warning 设置始终恢复。** v7.9.3 为批处理日志健壮性与并行 stdout 整洁性版；v7.9.2 为数值健壮性与文档准确性版；v7.9.1 为审查后 Bug 修复；v7.9.0 为参数验证深度重构；v7.8.0 修正了参考曲率 `kb0` 离散化与常值电机力矩无量纲化。完整历史详见 [`CHANGELOG.md`](CHANGELOG.md)。
+当前版本为 **7.9.5 (2026-07-03)**。本版将静默模式扩展到**自定义几何**：`custom_body_building` 与 `custom_pili_building` 现接受注入的 `logf` 句柄（`[Custom Body]` / `[Custom Pili]` 诊断信息亦受 `cfg.silent` 约束），且 summary 图在 silent 下使用 `Visible='off'`（与动画图一致）。**`cfg.silent`** 为**仅运行时**批处理开关（不写入 JSON）：为 true 时抑制本 run 内 `logf` 控制台回显、直接 `fprintf`、ODE/动画进度条与 warning；完整文本仍写入 `simulation.log`；error 从不抑制。并行批处理驱动（如 `batch_repeat_brownian`）在 worker 上设 `cfg.silent = true`。
+
+**7.9.4 (2026-07-02)** 是在 v7.9.3 基础上的分层静默完整性更新：v7.9.3 的 `cfg.silent` 字段仅门控了 `dual_log`（约 100 处 `logf` 调用），仍遗漏了 `run_simulation.m` 中 5 处直接 `fprintf`（ notably 每个 run 末尾的 `Log saved:` 与 `[OUTPUT]` 重命名提示）、16 个 `src/` 子函数中约 24 处 `warning` 调用，以及两个用 `\b` 退格符的就地进度条（`odetpbar`、`render_progress_bar`）——并行模式下这些仍会产生数千行交错的控制台输出与退格乱码。v7.9.4 通过分层设计封堵全部四个控制台输出通道：(1) 直接 `fprintf` 调用包裹 `if ~silent`；(2) `silent` 时不再挂载 `odetpbar` 作为 ODE `OutputFcn`；(3) `silent` 时不再调用 `render_progress_bar`；(4) 子函数 `warning` 调用通过 `warning('off','all')` 抑制，并用 `onCleanup` 守卫在任何退出路径（正常返回、error、Ctrl-C）恢复调用方的 warning 设置。**仿真输出无变化；调用方的 warning 设置始终恢复。** v7.9.3 为批处理日志健壮性与并行 stdout 整洁性版；v7.9.2 为数值健壮性与文档准确性版；v7.9.1 为审查后 Bug 修复；v7.9.0 为参数验证深度重构；v7.8.0 修正了参考曲率 `kb0` 离散化与常值电机力矩无量纲化。完整历史详见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## 许可证
 

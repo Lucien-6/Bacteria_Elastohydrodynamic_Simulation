@@ -1,5 +1,5 @@
 function Pili = custom_pili_building(custom_pili_cfg, attachment_sites, ...
-        seg_per_um, L_0, dis, E, r_pili) %#ok<INUSD>
+        seg_per_um, L_0, dis, E, r_pili, logf_h) %#ok<INUSD>
 %CUSTOM_PILI_BUILDING  Initialize custom pili from user-provided centerline files
 %
 %  Description:
@@ -21,6 +21,7 @@ function Pili = custom_pili_building(custom_pili_cfg, attachment_sites, ...
 %  Syntax:
 %    Pili = custom_pili_building(custom_pili_cfg, attachment_sites, ...
 %             seg_per_um, L_0, dis, E, r_pili)
+%    Pili = custom_pili_building(..., logf_h)
 %
 %  Inputs:
 %    custom_pili_cfg   - [M x 1] struct array (or cell array), one per pilus:
@@ -41,6 +42,8 @@ function Pili = custom_pili_building(custom_pili_cfg, attachment_sites, ...
 %    dis               - Gap between body surface and pili root [m]
 %    E                 - Young's modulus [Pa]
 %    r_pili            - Pili radius [m]
+%    logf_h            - (Optional) Logger function handle.  When omitted,
+%                        falls back to fprintf.
 %
 %  Outputs:
 %    Pili - [1 x M] Structure array (same fields as pili_building output):
@@ -61,11 +64,15 @@ function Pili = custom_pili_building(custom_pili_cfg, attachment_sites, ...
 %  Updated: 2026-05-04 — Local-basis deflection, correct root_dir, uniform
 %                         segment-length check, centerline deduplication,
 %                         alignment-angle logging.
+%  Updated: 2026-07-03 — Optional logf_h for run_simulation silent mode.
 
 %% Input validation
 if nargin < 7
     error('custom_pili_building:InsufficientInputs', ...
-          'custom_pili_building requires 7 input arguments.');
+          'custom_pili_building requires at least 7 input arguments.');
+end
+if nargin < 8 || isempty(logf_h)
+    logf_h = @(varargin) fprintf(varargin{:});
 end
 
 %% Default bending stiffness
@@ -283,7 +290,7 @@ for j = 1:NPili
     Pili(j).is_clamped = true;
 
     % --- Diagnostic logging ---
-    fprintf(['  [Custom Pili %d] L = %.3f um, N = %d, site = %d (''%s''), ', ...
+    logf_h(['  [Custom Pili %d] L = %.3f um, N = %d, site = %d (''%s''), ', ...
              'defl = [%.3f, %.3f] rad, align_angle = %.2f deg\n'], ...
         j, L_um, N, site_idx, site.label, deflection_z, deflection_x, ...
         theta_align_deg);

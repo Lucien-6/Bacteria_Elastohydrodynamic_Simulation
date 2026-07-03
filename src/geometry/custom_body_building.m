@@ -1,4 +1,4 @@
-function [Body_str, body_meta] = custom_body_building(custom_cfg)
+function [Body_str, body_meta] = custom_body_building(custom_cfg, logf_h)
 %CUSTOM_BODY_BUILDING  Construct custom bacterial body from user point cloud
 %
 %  Description:
@@ -17,8 +17,9 @@ function [Body_str, body_meta] = custom_body_building(custom_cfg)
 %
 %  Syntax:
 %    [Body_str, body_meta] = custom_body_building(custom_cfg)
+%    [Body_str, body_meta] = custom_body_building(custom_cfg, logf_h)
 %
-%  Input:
+%  Inputs:
 %    custom_cfg - Struct with fields:
 %      .body_points_file   - Path to CSV/MAT file with N x 3 point cloud [m]
 %      .attachment_sites   - Struct array / cell array (optional)
@@ -31,6 +32,8 @@ function [Body_str, body_meta] = custom_body_building(custom_cfg)
 %                             extent : half of the maximum bounding-box extent
 %      .duplicate_tol      - Scalar relative tolerance for point deduplication
 %                             (default: 1e-6 of max extent)
+%    logf_h     - (Optional) Logger function handle (e.g. params.logf from
+%                 run_simulation).  When omitted, falls back to fprintf.
 %
 %  Outputs:
 %    Body_str   - Structure with surface point coordinates:
@@ -59,12 +62,17 @@ function [Body_str, body_meta] = custom_body_building(custom_cfg)
 %  Updated: 2026-05-04 — Duplicate-point removal, volume-based L_0
 %                        default, Euler characteristic check, expanded
 %                        alpha scan, cell/struct-array compatible sites.
+%  Updated: 2026-07-03 — Optional logf_h for run_simulation silent mode.
+
+if nargin < 2 || isempty(logf_h)
+    logf_h = @(varargin) fprintf(varargin{:});
+end
 
 %% Read point cloud data
 pts_raw = read_geometry_csv_mat(custom_cfg.body_points_file);
 N_raw   = size(pts_raw, 1);
 
-fprintf('  [Custom Body] Read %d points from: %s\n', ...
+logf_h('  [Custom Body] Read %d points from: %s\n', ...
     N_raw, custom_cfg.body_points_file);
 
 %% Deduplicate (near-)identical points (M4)
@@ -109,15 +117,15 @@ if ~(h_min > 0 && isfinite(h_min))
          'below the deduplication tolerance (%.3e m).'], h_min, dup_tol);
 end
 
-fprintf('  [Custom Body] Spacing: h_min = %.4e m, h_mean = %.4e m\n', ...
+logf_h('  [Custom Body] Spacing: h_min = %.4e m, h_mean = %.4e m\n', ...
     h_min, h_mean);
 
 %% Automatically triangulate surface (for visualisation + volume)
-[faces, vertices, volume, tri_method, shp] = auto_triangulate_surface(pts);
+[faces, vertices, volume, tri_method, shp] = auto_triangulate_surface(pts, logf_h);
 
-fprintf('  [Custom Body] Triangulation (%s): %d vertices, %d faces\n', ...
+logf_h('  [Custom Body] Triangulation (%s): %d vertices, %d faces\n', ...
     tri_method, size(vertices, 1), size(faces, 1));
-fprintf('  [Custom Body] Enclosed volume: %.4e m^3\n', volume);
+logf_h('  [Custom Body] Enclosed volume: %.4e m^3\n', volume);
 
 % Euler characteristic / closed-surface diagnostic
 check_closed_surface(faces, size(vertices, 1));
@@ -158,16 +166,16 @@ if isfield(custom_cfg, 'attachment_sites') && ~isempty(custom_cfg.attachment_sit
         end
     end
 
-    fprintf('  [Custom Body] Attachment sites: %d defined\n', n_sites);
+    logf_h('  [Custom Body] Attachment sites: %d defined\n', n_sites);
     for s = 1:n_sites
-        fprintf(['    Site %d (''%s''): pos = [%.3e, %.3e, %.3e] m, ', ...
+        logf_h(['    Site %d (''%s''): pos = [%.3e, %.3e, %.3e] m, ', ...
                  'dir = [%.3f, %.3f, %.3f]\n'], ...
             s, sites(s).label, ...
             sites(s).position(1), sites(s).position(2), sites(s).position(3), ...
             sites(s).direction(1), sites(s).direction(2), sites(s).direction(3));
     end
 else
-    fprintf('  [Custom Body] No attachment sites defined.\n');
+    logf_h('  [Custom Body] No attachment sites defined.\n');
 end
 
 %% Compute suggested characteristic length (m9: prefer volume-based)
@@ -227,7 +235,7 @@ end
 
 %% ==================== Local Helper Functions ====================
 
-function [faces, vertices, volume, method, shp] = auto_triangulate_surface(pts)
+function [faces, vertices, volume, method, shp] = auto_triangulate_surface(pts, logf_h)
 %AUTO_TRIANGULATE_SURFACE  Reconstruct triangulated surface from scattered points
 %
 %  Uses alphaShape with a wide logarithmic alpha search.  Falls back to
@@ -236,6 +244,9 @@ function [faces, vertices, volume, method, shp] = auto_triangulate_surface(pts)
 
     shp    = [];
     method = 'convhulln';
+    if nargin < 2 || isempty(logf_h)
+        logf_h = @(varargin) fprintf(varargin{:});
+    end
 
     % --- Try alphaShape with expanded logarithmic alpha scan (m12) ---
     [faces, vertices, alpha_ok, shp_try] = try_alpha_shape(pts);
@@ -243,7 +254,7 @@ function [faces, vertices, volume, method, shp] = auto_triangulate_surface(pts)
         method = 'alphaShape';
         shp    = shp_try;
     else
-        fprintf(['  [Custom Body] alphaShape failed or non-manifold; ', ...
+        logf_h(['  [Custom Body] alphaShape failed or non-manifold; ', ...
                  'falling back to convhulln.\n']);
         try
             faces    = convhulln(pts);

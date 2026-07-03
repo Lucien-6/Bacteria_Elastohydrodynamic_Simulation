@@ -1,7 +1,14 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 7.9.4 (2026-07-02)
+# Release: 7.9.5 (2026-07-03)
 #
+# v7.9.5: silent-mode completeness for custom geometry and batch-summary
+#   reproducibility — custom_body_building/custom_pili_building accept logf_h
+#   (respect cfg.silent); summary figure Visible='off' under silent;
+#   batch_repeat_brownian header/footer metadata (batch_config_snapshot_<id>.json,
+#   brown_rng_policy, failed/pending roll-up, FAILED outdir/log_hint); parallel
+#   empty-results message unified; partial outdir capture on catch. No simulation
+#   outputs change. See CHANGELOG.md.
 # v7.9.4: layered-silence completeness release — v7.9.3's cfg.silent gated only
 #   dual_log (~100 logf sites); this release closes all four console-output
 #   channels: (1) 5 direct fprintf in run_simulation.m wrapped in if ~silent

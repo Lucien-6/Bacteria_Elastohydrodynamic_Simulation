@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.9.4 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.9.5 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.9.4 &middot; 2026-07-02</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.9.5 &middot; 2026-07-03</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 7.9.4 &bull; 2026-07-02
+      Version 7.9.5 &bull; 2026-07-03
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -537,21 +537,30 @@ tailwind.config = {
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en"><strong>v7.9.4</strong> is a layered-silence completeness release: v7.9.3's <code>cfg.silent</code> field gated only <code>dual_log</code> (~100 <code>logf</code> sites), leaving five direct <code>fprintf</code> calls in <code>run_simulation.m</code> (notably <code>Log saved:</code> on every run and <code>[OUTPUT]</code> rename messages), ~24 <code>warning</code> calls across 16 <code>src/</code> sub-functions, and two <code>\b</code>-backspace progress bars (<code>odetpbar</code>, <code>render_progress_bar</code>) un-gated. v7.9.4 closes all four console-output channels: (1) direct <code>fprintf</code> calls wrapped in <code>if ~silent</code>; (2) <code>odetpbar</code> no longer mounted as the ODE <code>OutputFcn</code> under <code>silent</code>; (3) <code>render_progress_bar</code> no longer called under <code>silent</code>; (4) sub-function <code>warning</code> calls suppressed via <code>warning('off','all')</code> with an <code>onCleanup</code> guard that restores caller settings on any exit path. <strong>No simulation outputs change; <code>src/</code> sub-functions are untouched; caller <code>warning</code> settings are always restored.</strong> See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
-      <span class="zh"><strong>v7.9.4</strong> 为分层静默完整性版：v7.9.3 的 <code>cfg.silent</code> 字段仅门控了 <code>dual_log</code>（约 100 处 <code>logf</code> 调用），仍遗漏了 <code>run_simulation.m</code> 中 5 处直接 <code>fprintf</code>（notably 每个 run 末尾的 <code>Log saved:</code> 与 <code>[OUTPUT]</code> 重命名提示）、16 个 <code>src/</code> 子函数中约 24 处 <code>warning</code> 调用，以及两个用 <code>\b</code> 退格符的就地进度条（<code>odetpbar</code>、<code>render_progress_bar</code>）。v7.9.4 通过分层设计封堵全部四个控制台输出通道：(1) 直接 <code>fprintf</code> 调用包裹 <code>if ~silent</code>；(2) <code>silent</code> 时不再挂载 <code>odetpbar</code> 作为 ODE <code>OutputFcn</code>；(3) <code>silent</code> 时不再调用 <code>render_progress_bar</code>；(4) 子函数 <code>warning</code> 调用通过 <code>warning('off','all')</code> 抑制，并用 <code>onCleanup</code> 守卫在任何退出路径恢复调用方的 warning 设置。<strong>仿真输出无变化；<code>src/</code> 子函数未被修改；调用方的 warning 设置始终恢复。</strong>详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
+      <span class="en"><strong>v7.9.5</strong> extends silent-mode coverage to custom geometry (<code>custom_body_building</code> / <code>custom_pili_building</code> respect <code>cfg.silent</code> via injected <code>logf</code>; summary figure <code>Visible='off'</code> under silent) and strengthens <code>batch_repeat_brownian</code> audit trails (per-batch <code>batch_config_snapshot_&lt;batch_id&gt;.json</code>, <code>brown_rng_policy</code>, footer <code>failed_*</code> / <code>pending_*</code>, FAILED <code>outdir</code> / <code>log_hint</code>). <strong>No simulation outputs change.</strong> See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
+      <span class="zh"><strong>v7.9.5</strong> 将静默模式扩展到自定义几何（<code>custom_body_building</code> / <code>custom_pili_building</code> 经注入 <code>logf</code> 受 <code>cfg.silent</code> 约束；summary 图在 silent 下 <code>Visible='off'</code>），并加强 <code>batch_repeat_brownian</code> 审计字段（每批 <code>batch_config_snapshot_&lt;batch_id&gt;.json</code>、<code>brown_rng_policy</code>、尾部 <code>failed_*</code> / <code>pending_*</code>、FAILED 时 <code>outdir</code> / <code>log_hint</code>）。<strong>仿真输出无变化。</strong>详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
-        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.9.4 &mdash; 2026-07-02</p>
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.9.5 &mdash; 2026-07-03</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
-          <span class="en">Numerical robustness &amp; documentation accuracy</span><span class="zh">数值健壮性与文档准确性</span>
+          <span class="en">Custom-geometry silence &amp; batch audit completeness</span><span class="zh">自定义几何静默与批处理审计完整性</span>
         </h3>
         <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
-          <li><span class="en"><strong>Quaternion guard:</strong> <code>reconstruct_geometry.m</code> and <code>quat_to_rotmat.m</code> now defensively normalise the body quaternion before computing the rotation matrix, protecting against <code>ode15s</code> trial-step <code>|q| != 1</code> drift that would silently deform the body. Zero-norm fallback to identity with diagnostic warning.</span><span class="zh"><strong>四元数守卫：</strong><code>reconstruct_geometry.m</code> 与 <code>quat_to_rotmat.m</code> 在计算旋转矩阵前防御性归一化体四元数，防止 <code>ode15s</code> 试探步 <code>|q| != 1</code> 漂移悄悄使胞体变形。零范数时回退到单位姿态并发出诊断警告。</span></li>
-          <li><span class="en"><strong>Euler convention correction:</strong> the director convention is relabelled from "ZXZ" to Walker (2020)'s actual <code>R = Rz(phi)·Ry(-theta)·Rz(psi)</code> (transpose of standard ZYZ active rotation). The <code>J_euler_basis</code> clamped-BC Jacobian is derived consistently from this convention. Comment-only; bitwise identical outputs.</span><span class="zh"><strong>Euler 约定更正：</strong>director 约定从"ZXZ"更正为 Walker (2020) 实际的 <code>R = Rz(phi)·Ry(-theta)·Rz(psi)</code>（标准 ZYZ 主动旋转的转置）。clamped 边界条件的 <code>J_euler_basis</code> 雅可比据此约定一致推导。仅注释变更；数值输出逐位一致。</span></li>
-          <li><span class="en"><strong>Brownian operator-splitting documentation:</strong> <code>theory.md §10</code> now declares that the deterministic solve uses the raw (structurally non-symmetric when <code>eps_body != eps_pili</code>) mobility <code>M_weighted</code>, while the Brownian covariance uses the symmetrised <code>M_eff = 0.5*(M + M')</code>. A new <code>rel_asym &gt; 1e-2</code> log line reports current <code>eps_body</code>/<code>eps_pili</code> and points to §5.1 (RSM leak tolerance).</span><span class="zh"><strong>布朗算子分裂文档化：</strong><code>theory.md §10</code> 显式声明确定性求解用原始（<code>eps_body != eps_pili</code> 时结构非对称）迁移率 <code>M_weighted</code>，布朗协方差用对称化 <code>M_eff = 0.5*(M + M')</code>。新增 <code>rel_asym &gt; 1e-2</code> 日志行报告当前 <code>eps_body</code>/<code>eps_pili</code> 并指向 §5.1（RSM 泄漏容差）。</span></li>
-          <li><span class="en"><strong>Redundant symmetrisation removed:</strong> the explicit <code>0.5*(M + M')</code> on the dimensional <code>M_eff_dim</code> is removed — it is already symmetric because <code>M_eff_dimless</code> was symmetrised earlier and Hadamard division by the symmetric outer product <code>S * S'</code> preserves symmetry. Algebraically exact; no numerical change.</span><span class="zh"><strong>移除冗余对称化：</strong>有量纲 <code>M_eff_dim</code> 上的显式 <code>0.5*(M + M')</code> 被移除——它已对称，因为 <code>M_eff_dimless</code> 此前已对称化，且逐元素除以对称外积 <code>S * S'</code> 保持对称性。代数精确；无数值变化。</span></li>
-          <li><span class="en">For well-behaved runs the quaternion guard is a no-op and the symmetrisation removal is exact, so outputs are identical to v7.9.1.</span><span class="zh">对于正常运行的仿真，四元数守卫为空操作、对称化移除为代数恒等，故输出与 v7.9.1 完全一致。</span></li>
+          <li><span class="en"><strong>Custom geometry silent:</strong> <code>custom_body_building</code> and <code>custom_pili_building</code> accept optional <code>logf_h</code> so <code>[Custom Body]</code> / <code>[Custom Pili]</code> diagnostics respect <code>cfg.silent</code>.</span><span class="zh"><strong>自定义几何静默：</strong><code>custom_body_building</code> 与 <code>custom_pili_building</code> 接受可选 <code>logf_h</code>，使 <code>[Custom Body]</code> / <code>[Custom Pili]</code> 诊断受 <code>cfg.silent</code> 约束。</span></li>
+          <li><span class="en"><strong>Summary figure:</strong> <code>fig_summary</code> uses <code>Visible='off'</code> under <code>silent</code>, matching the animation figure.</span><span class="zh"><strong>Summary 图：</strong><code>silent</code> 下 <code>fig_summary</code> 使用 <code>Visible='off'</code>，与动画图一致。</span></li>
+          <li><span class="en"><strong>Batch snapshot:</strong> <code>batch_config_snapshot_&lt;batch_id&gt;.json</code> per run batch; summary header records <code>brown_rng_policy</code>, <code>parallel_requested</code>, and serial-fallback resource probe.</span><span class="zh"><strong>批次快照：</strong>每批写入 <code>batch_config_snapshot_&lt;batch_id&gt;.json</code>；摘要头部记录 <code>brown_rng_policy</code>、<code>parallel_requested</code> 及串行回退时的资源探测。</span></li>
+          <li><span class="en"><strong>Footer roll-up:</strong> <code>finished</code>, <code>failed_indices</code>, <code>failed_runs</code>, <code>pending_count</code> / <code>pending_indices</code>; FAILED per-run lines include <code>outdir</code> and <code>log_hint</code>.</span><span class="zh"><strong>尾部汇总：</strong><code>finished</code>、<code>failed_indices</code>、<code>failed_runs</code>、<code>pending_count</code> / <code>pending_indices</code>；FAILED 行含 <code>outdir</code> 与 <code>log_hint</code>。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-800 p-6">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">v7.9.4 &mdash; 2026-07-02</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Layered-silence completeness</span><span class="zh">分层静默完整性</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">Closes all four console-output channels under <code>cfg.silent</code>: direct <code>fprintf</code>, <code>odetpbar</code>, <code>render_progress_bar</code>, and sub-function <code>warning</code> calls (via <code>warning('off','all')</code> + <code>onCleanup</code>).</span><span class="zh">在 <code>cfg.silent</code> 下封堵四个控制台输出通道：直接 <code>fprintf</code>、<code>odetpbar</code>、<code>render_progress_bar</code> 及子函数 <code>warning</code>（经 <code>warning('off','all')</code> + <code>onCleanup</code>）。</span></li>
+          <li><span class="en">No simulation outputs change; caller <code>warning</code> settings always restored.</span><span class="zh">仿真输出无变化；调用方 <code>warning</code> 设置始终恢复。</span></li>
         </ul>
       </div>
       <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-800 p-6">
@@ -1903,7 +1912,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v7.9.4 &middot; 2026-07-02</li>
+        <li>v7.9.5 &middot; 2026-07-03</li>
       </ul>
     </div>
   </div>
