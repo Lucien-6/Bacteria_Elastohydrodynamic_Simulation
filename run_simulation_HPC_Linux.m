@@ -16,7 +16,7 @@ function [results, params, output_dir] = run_simulation_HPC_Linux(cfg_or_path)
 %    3. Optional live-progress heartbeat: accepts cfg.progress_queue /
 %       cfg.progress_tag (both absent by default -- no-op, fully backward
 %       compatible) and, when set by a batch driver, sends a throttled
-%       (>= 15 s apart) 'heartbeat' message through the queue once per ODE
+%       (>= 30 s apart) 'heartbeat' message through the queue once per ODE
 %       segment, reusing the progress_pct/elapsed_ode already computed for
 %       the [ODE] Progress/ETA log line.  See batch_repeat_brownian_HPC_Linux.m
 %       for the console-side consumer (dispatch_progress_msg/print_heartbeat).
@@ -1064,11 +1064,11 @@ while T_achieved < T_obs_dimless
 
     % Optional live-progress heartbeat: reuses the progress_pct/elapsed_ode
     % just computed above, so this adds no extra computation cost.
-    % Throttled to at most once per 15 s per run so a several-thousand-
+    % Throttled to at most once per 30 s per run so a several-thousand-
     % segment Brownian integration does not flood the DataQueue with
     % thousands of messages.  No-op (near-zero overhead) when the caller
     % did not provide a progress_queue (e.g. standalone/interactive use).
-    if ~isempty(progress_queue) && toc(t_last_heartbeat) >= 15
+    if ~isempty(progress_queue) && toc(t_last_heartbeat) >= 30
         send(progress_queue, struct('type', 'heartbeat', 'tag', progress_tag, ...
             'pct', progress_pct, 'elapsed', elapsed_ode));
         t_last_heartbeat = tic;

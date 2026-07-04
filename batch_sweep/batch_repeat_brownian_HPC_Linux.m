@@ -42,7 +42,7 @@
 %       revisit if OOM/hangs recur after this fix).
 %    6. Live sub-case progress: run_simulation_HPC_Linux accepts optional
 %       cfg.progress_queue / cfg.progress_tag and, when set, sends a
-%       throttled (>= 15 s apart per repeat) 'heartbeat' progress message
+%       throttled (>= 30 s apart per repeat) 'heartbeat' progress message
 %       through the same DataQueue used for completion messages -- this
 %       is the only way to see a still-running repeat's progress while
 %       cfg.silent = true suppresses all of its normal console echo.
@@ -591,7 +591,7 @@ if use_parallel
         cfg_k.compute_flowfield    = is_sample_k;
         % Live sub-case progress (HPC_Linux addition): reuse the same
         % DataQueue used for completion messages -- run_simulation_HPC_Linux
-        % sends throttled 'heartbeat' messages through it (15 s interval),
+        % sends throttled 'heartbeat' messages through it (30 s interval),
         % which dispatch_progress_msg below routes separately from the
         % 'done' completion messages.
         cfg_k.progress_queue       = progress_q;                             %#ok<PFBNS>
@@ -1289,7 +1289,7 @@ function dispatch_progress_msg(msg, n_total, sum_path, seed_mode)
 %DISPATCH_PROGRESS_MSG  DataQueue callback: routes 'heartbeat' vs 'done' messages.
 %
 %  run_simulation_HPC_Linux sends 'heartbeat' messages (intra-run progress,
-%  at most once per 15 s per repeat) through the same DataQueue used for
+%  at most once per 30 s per repeat) through the same DataQueue used for
 %  the existing per-repeat 'done' completion messages.  Both share one
 %  queue/one afterEach callback (simplest way to guarantee they interleave
 %  correctly and never race on the client thread), so this dispatcher is
