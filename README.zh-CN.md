@@ -5,7 +5,7 @@
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
 > **更新日期:** 2026-07-03
-> **版本:** 7.9.6
+> **版本:** 7.10.0
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -22,6 +22,7 @@
 - 支持 MATLAB 内联配置、JSON 配置和程序化批处理运行。
 - 支持面向论文图像的导出：MAT、CSV、日志、PNG、矢量 PDF、可选交互式 HTML 和 MP4 动画。
 - 可选**并行**批量驱动（[`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m)、[`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m)）：在已安装 **Parallel Computing Toolbox** 时使用 `parfor` 与自动池规模估计；无工具箱或池创建失败时自动回退为串行循环。
+- **Linux 超算集群运行支持**（7.10.0 新增）：[`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) / [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m) 是专为无图形界面、独占整节点的 Linux 集群加固的维护分支：平台自适应视频导出、Linux 原生 CPU/内存探测、并行池任务存储目录迁移到节点本地、抽样降低单 worker 内存占用、实时子任务进度上报。原有 Windows/交互式脚本不受影响。
 
 - 推荐 MATLAB R2020b 或更新版本。
 - PNG 与 PDF 图像导出依赖 `exportgraphics`，MATLAB R2020a 起可用。
@@ -108,11 +109,13 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **7.9.6 (2026-07-03)**。本版为控制台输出与异常健壮性修正版：对 `run_simulation.m` 日志显示链路的一次专项审查发现，`dual_log` 的控制台回显开关自 v7.9.3 起被写反——导致所有正常（非批处理）运行的 `logf` 控制台输出**全部消失**，而批处理/并行 worker 反而全部回显，与 `cfg.silent` 文档约定完全相反；`simulation.log` 文件本身未受影响。审查还发现自定义几何（`geometry_mode='custom'`）运行会在无法跳过的 `[PLOT] Generating summary figure` 步骤必然崩溃，原因是 `trisurf(ax, F, x, y, z, ...)` 不像 `surf`/`plot3` 那样支持把坐标轴句柄作为首个参数。以上两处均已修复。本版还新增了贯穿整个运行体的 `try/catch`，确保 `simulation.log` 始终记录完整堆栈的 `[FATAL]` 分节而不是静默截断；补齐了 `compute_plot_flowfield` 流场进度条上最后一处未受 `cfg.silent` 约束的缺口；把 `init_coupled_params.m`、`custom_body_building.m`、`custom_pili_building.m` 中9处此前仅走原生 `warning()` 的告警恢复为项目标准的 `logf_h` + `warning` 双通道模式；并对布朗运动逐段日志做了节流，避免长时程运行把 `simulation.log` 刷爆。**仿真物理/数值输出无任何变化。**
+当前版本为 **7.10.0 (2026-07-03)**。本版新增 Linux 超算集群运行能力，并修复了同一轮审查中发现的两处跨平台批处理 bug。针对将 `batch_repeat_brownian.m` 部署到独占整节点、采用分布式/网络存储、MATLAB R2023a 的 Linux 超算分区所做的专项审查发现：多处 Windows 专属 API（`memory()`、`wmic`）在 Linux 上要么直接报错、要么静默把并行池规模算错；`VideoWriter` 的默认编码 profile 仅 Windows/Mac 支持；`parpool` 的 `JobStorageLocation` 默认路径在家目录为网络存储的集群上是已知会导致池启动竞态的隐患；而且完全看不到正在运行中的子任务进度。本版新增维护分支 **[`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m)** / **[`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m)**，针对 Linux 逐一解决了以上问题（平台自适应视频导出、`lscpu`/`/proc/meminfo` 资源探测、CPU/内存余量独立设置、抽样降低单 worker 内存占用、并行池任务存储目录迁移到节点本地、带节流的实时进度心跳），同时**完全不改动**原有面向 Windows 的脚本。此外，同一轮审查还发现 `capture_partial_outdir`（v7.9.5 引入的失败运行 `outdir`/`log_hint` 字段）在两个平台上其实都从未真正生效过——因为 MATLAB 函数抛出异常时不会把返回值传回调用者——现已在 `batch_repeat_brownian.m` 与 `batch_run_from_json.m` 中改为根据确定性的 `case_name` 反推预期路径来修复。**仿真物理/数值输出无任何变化。**
+
+**7.9.6 (2026-07-03)** 为控制台输出与异常健壮性修正版：修复了自 v7.9.3 起导致所有正常（非批处理）运行的 `logf` 控制台输出全部消失的 `dual_log` 极性反转 bug，以及导致每次自定义几何运行都在 `[PLOT] Generating summary figure` 步骤必然崩溃的 `trisurf` 坐标轴指定问题，并新增了贯穿整个运行体的 `try/catch`，确保 `simulation.log` 始终记录完整的 `[FATAL]` 分节而不是静默截断。
 
 **7.9.5 (2026-07-03)** 将静默模式扩展到**自定义几何**：`custom_body_building` 与 `custom_pili_building` 接受注入的 `logf` 句柄（`[Custom Body]` / `[Custom Pili]` 诊断信息亦受 `cfg.silent` 约束），且 summary 图在 silent 下使用 `Visible='off'`（与动画图一致）。**`cfg.silent`** 为**仅运行时**批处理开关（不写入 JSON）：为 true 时抑制本 run 内 `logf` 控制台回显、直接 `fprintf`、ODE/动画进度条与 warning；完整文本仍写入 `simulation.log`；error 从不抑制。并行批处理驱动（如 `batch_repeat_brownian`）在 worker 上设 `cfg.silent = true`。
 
-**7.9.4 (2026-07-02)** 是在 v7.9.3 基础上的分层静默完整性更新：v7.9.3 的 `cfg.silent` 字段仅门控了 `dual_log`（约 100 处 `logf` 调用），仍遗漏了 `run_simulation.m` 中 5 处直接 `fprintf`（ notably 每个 run 末尾的 `Log saved:` 与 `[OUTPUT]` 重命名提示）、16 个 `src/` 子函数中约 24 处 `warning` 调用，以及两个用 `\b` 退格符的就地进度条（`odetpbar`、`render_progress_bar`）——并行模式下这些仍会产生数千行交错的控制台输出与退格乱码。v7.9.4 通过分层设计封堵全部四个控制台输出通道：(1) 直接 `fprintf` 调用包裹 `if ~silent`；(2) `silent` 时不再挂载 `odetpbar` 作为 ODE `OutputFcn`；(3) `silent` 时不再调用 `render_progress_bar`；(4) 子函数 `warning` 调用通过 `warning('off','all')` 抑制，并用 `onCleanup` 守卫在任何退出路径（正常返回、error、Ctrl-C）恢复调用方的 warning 设置。**仿真输出无变化；调用方的 warning 设置始终恢复。** v7.9.3 为批处理日志健壮性与并行 stdout 整洁性版；v7.9.2 为数值健壮性与文档准确性版；v7.9.1 为审查后 Bug 修复；v7.9.0 为参数验证深度重构；v7.8.0 修正了参考曲率 `kb0` 离散化与常值电机力矩无量纲化。完整历史详见 [`CHANGELOG.md`](CHANGELOG.md)。
+**7.9.4 (2026-07-02)** 封堵了剩余的 `cfg.silent` 控制台输出缺口（直接 `fprintf`、`odetpbar`/`render_progress_bar` 进度条、16 个 `src/` 文件中约 24 处 `warning`）。7.9.3 引入了 `cfg.silent` 本身及增量式批次汇总写入；7.9.2 为数值健壮性版；7.9.1 为审查后 Bug 修复；7.9.0 为参数验证深度重构；7.8.0 修正了参考曲率 `kb0` 离散化与常值电机力矩无量纲化。完整历史详见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## 许可证
 

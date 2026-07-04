@@ -79,8 +79,10 @@ rng_seed_base = 202607021;
 %     use_parallel        : true  -> parfor branch (auto-sized pool, default)
 %                           false -> legacy serial for-loop branch (same physics as pre-parallel)
 %     mem_per_worker_gb   : conservative per-worker memory budget [GB].
-%                           Default 1.5 covers N_body in 200..300 with M_pili <= 2.
-%                           Lower this for tighter packing on small-RAM machines.
+%                           ~1.5 covers N_body in 200..300 with M_pili <= 2;
+%                           the value actually in effect is set just below
+%                           (currently 2.5 GB).  Lower this for tighter
+%                           packing on small-RAM machines.
 %     max_resource_frac   : cap on BOTH physical-core count and available memory.
 %                           0.75 means we never request > 75% of either resource.
 %     worker_blas_threads : per-worker maxNumCompThreads.  1 prevents the
@@ -443,6 +445,20 @@ t_batch = tic;
 %% ========================================================================
 %  EXECUTION
 %  ========================================================================
+%  Wrapped in an outer try/catch so that a fatal, uncaught escape (e.g. a
+%  worker process crash, or an error thrown outside the per-iteration
+%  try/catch below) still falls through to the FINAL REPORT section
+%  instead of aborting the script silently before any report is printed
+%  or the summary footer is written.  Per-iteration failures are already
+%  handled locally and never reach here; this only catches whole-batch
+%  aborts.  Sliced result arrays (run_status, run_outdir, ...) retain
+%  whatever partial data had already been committed for iterations that
+%  completed before the abort -- MATLAB's parfor commits sliced-output
+%  writes incrementally as each iteration returns, it does not defer all
+%  of them to loop completion (verified empirically).
+
+batch_fatal_error = [];
+try
 
 if use_parallel
     %% ---- PARALLEL BRANCH (parfor + DataQueue progress) ----
@@ -493,7 +509,8 @@ if use_parallel
             run_status(k) = "FAILED";
             run_errmsg(k) = string(ME.message);
             run_errid(k)  = string(ME.identifier);
-            dir_k_capture = capture_partial_outdir(dir_k);
+            expected_dir_k = fullfile(out_root, sprintf('%03d', k));
+            dir_k_capture = capture_partial_outdir(dir_k, expected_dir_k);
             run_outdir(k) = string(dir_k_capture);
             if ~isempty(ME.stack)
                 run_errloc(k) = sprintf('%s (line %d)', ME.stack(1).name, ME.stack(1).line);
@@ -560,7 +577,8 @@ else
             run_wall(k)   = toc(t_run);
             run_status(k) = "FAILED";
             run_errmsg(k) = string(ME.message);
-            run_outdir(k) = string(capture_partial_outdir(dir_k));
+            expected_dir_k = fullfile(out_root, sub);
+            run_outdir(k) = string(capture_partial_outdir(dir_k, expected_dir_k));
             run_errid(k)  = string(ME.identifier);
             if ~isempty(ME.stack)
                 run_errloc(k) = sprintf('%s (line %d)', ME.stack(1).name, ME.stack(1).line);
@@ -581,6 +599,23 @@ else
     end
 end
 
+catch ME_batch
+    % Whole-batch abort (not caught by any per-iteration try/catch above).
+    % Report it clearly, then continue to FINAL REPORT with whatever
+    % partial run_status/run_wall/... data already made it back to the
+    % client, instead of letting the script die with a bare stack trace
+    % and no summary.
+    batch_fatal_error = ME_batch;
+    fprintf('\n%s\n', sep);
+    fprintf('  [FATAL] Batch execution aborted: %s\n', ME_batch.message);
+    if ~isempty(ME_batch.stack)
+        fprintf('          Location: %s (line %d)\n', ...
+            ME_batch.stack(1).name, ME_batch.stack(1).line);
+    end
+    fprintf('  Continuing to final report with partial results...\n');
+    fprintf('%s\n', sep);
+end
+
 elapsed = toc(t_batch);
 
 %% ========================================================================
@@ -596,7 +631,12 @@ n_failed  = sum(run_status == "FAILED");
 n_pending = sum(run_status == "PENDING");
 
 fprintf('\n%s\n', sep);
-fprintf('  Batch complete: %.1f s total\n', elapsed);
+if isempty(batch_fatal_error)
+    fprintf('  Batch complete: %.1f s total\n', elapsed);
+else
+    fprintf('  Batch ABORTED after %.1f s (see [FATAL] above): %s\n', ...
+        elapsed, batch_fatal_error.message);
+end
 fprintf('  Success: %d / %d\n', n_ok, n_repeats);
 if n_failed > 0
     fprintf('  Failed:  %d\n', n_failed);
@@ -624,6 +664,14 @@ if ~isempty(sum_path)
         finished_human = char(datetime('now', 'Format', 'uuuu-MM-dd HH:mm:ss'));
         fprintf(fid_foot, '\nfinished: %s\n', finished_human);
         fprintf(fid_foot, 'elapsed_total_s: %.2f\n', elapsed);
+        if isempty(batch_fatal_error)
+            fprintf(fid_foot, 'batch_aborted: false\n');
+        else
+            fprintf(fid_foot, 'batch_aborted: true\n');
+            fprintf(fid_foot, 'batch_abort_identifier: %s\n', batch_fatal_error.identifier);
+            fprintf(fid_foot, 'batch_abort_message: %s\n', ...
+                regexprep(batch_fatal_error.message, '[\r\n]+', ' '));
+        end
         fprintf(fid_foot, 'success_count: %d / %d\n', n_ok, n_repeats);
         if use_parallel
             sum_wall = sum(run_wall(~isnan(run_wall)));
@@ -945,15 +993,36 @@ function write_resource_probe_summary(fid, info, mem_per_worker_gb, max_frac, bl
 end
 
 
-function outdir_char = capture_partial_outdir(dir_k)
-%CAPTURE_PARTIAL_OUTDIR  Return output dir from run_simulation if assigned before error.
+function outdir_char = capture_partial_outdir(dir_k, expected_dir)
+%CAPTURE_PARTIAL_OUTDIR  Best-effort recovery of a failed run's output folder.
+%
+%  MATLAB does not propagate a function's output arguments back to the
+%  caller when that function throws an uncaught error -- even though
+%  run_simulation computes output_dir (and creates the folder, and may
+%  have written a partial simulation.log with a [FATAL] block) well
+%  before the point where the error is raised, [res_k, ~, dir_k] =
+%  run_simulation(cfg_k) leaves dir_k at whatever value it held before
+%  the call (verified empirically: a function erroring after assigning
+%  an output argument still returns nothing to the caller).  So dir_k
+%  here is always '' on failure and cannot recover the real path.
+%
+%  Instead, since cfg_k.case_name is deterministic per repeat
+%  (case_name_base/NNN) and run_simulation only appends a timestamp
+%  suffix when the target folder already contains prior run data (which
+%  a fresh repeat folder normally does not), the caller passes the
+%  expected path as expected_dir; we confirm it actually exists on disk
+%  before reporting it, so a batch_repeat_brownian bug or a genuinely
+%  never-created folder still correctly yields ''.
     outdir_char = '';
-    if nargin < 1 || isempty(dir_k)
-        return;
+    if nargin >= 1 && ~isempty(dir_k)
+        dir_str = strtrim(char(string(dir_k)));
+        if ~isempty(dir_str)
+            outdir_char = dir_str;
+            return;
+        end
     end
-    dir_str = char(string(dir_k));
-    if strlength(strtrim(dir_str)) > 0
-        outdir_char = dir_str;
+    if nargin >= 2 && ~isempty(expected_dir) && isfolder(expected_dir)
+        outdir_char = expected_dir;
     end
 end
 

@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.9.6 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.10.0 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config, Linux HPC cluster execution.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.9.6 &middot; 2026-07-03</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.10.0 &middot; 2026-07-03</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 7.9.6 &bull; 2026-07-03
+      Version 7.10.0 &bull; 2026-07-03
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -537,12 +537,23 @@ tailwind.config = {
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en"><strong>v7.9.6</strong> is a console-output and error-resilience correctness release. It fixes a critical <code>dual_log</code> polarity bug that silenced all <code>logf</code> console output on every normal (non-batch) run since v7.9.3, and a <code>trisurf</code> axes-targeting crash that made every custom-geometry run fail at the summary-plot step. It also adds a run-wide <code>try</code>/<code>catch</code> so <code>simulation.log</code> always records a <code>[FATAL]</code> block on error, closes the last <code>cfg.silent</code> gap in the flow-field progress bars, restores 9 diagnostics to the standard dual-channel logging pattern, and throttles Brownian per-segment log announcements. <strong>No physical/numerical simulation outputs change.</strong> See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
-      <span class="zh"><strong>v7.9.6</strong> 为控制台输出与异常健壮性修正版。修复了自 v7.9.3 起导致所有正常（非批处理）运行的 <code>logf</code> 控制台输出全部消失的严重 <code>dual_log</code> 极性反转 bug，以及导致每次自定义几何运行都在 summary 图步骤崩溃的 <code>trisurf</code> 坐标轴指定问题。同时新增贯穿整个运行体的 <code>try</code>/<code>catch</code>，确保 <code>simulation.log</code> 始终记录 <code>[FATAL]</code> 分节；补齐了流场进度条上最后一处 <code>cfg.silent</code> 缺口；把9处告警恢复为标准双通道日志模式；并对布朗运动逐段日志做了节流。<strong>仿真物理/数值输出无任何变化。</strong>详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
+      <span class="en"><strong>v7.10.0</strong> adds a new Linux HPC cluster execution capability. A dedicated review of <code>batch_repeat_brownian.m</code> for deployment on a single-node-exclusive Linux partition found several Windows-only API calls that hard-error or silently mis-size the worker pool on Linux, a <code>VideoWriter</code> profile that is Windows/Mac-only, and a <code>parpool</code> <code>JobStorageLocation</code> default that is a documented source of pool-startup races on clusters with network home directories. This release adds a maintained fork — <code>run_simulation_HPC_Linux.m</code> / <code>batch_repeat_brownian_HPC_Linux.m</code> — that resolves all of these for Linux while leaving the original Windows-oriented scripts completely unmodified, and separately fixes two cross-platform reproducibility bugs found during the same review. <strong>No physical/numerical simulation outputs change.</strong> See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
+      <span class="zh"><strong>v7.10.0</strong> 新增了 Linux 超算集群运行能力。针对将 <code>batch_repeat_brownian.m</code> 部署到独占整节点 Linux 分区所做的专项审查发现，多处 Windows 专属 API 在 Linux 上要么直接报错、要么静默把并行池规模算错；<code>VideoWriter</code> 的默认编码 profile 仅 Windows/Mac 支持；<code>parpool</code> 的 <code>JobStorageLocation</code> 默认路径在集群上是已知会导致池启动竞态的隐患。本版新增维护分支 <code>run_simulation_HPC_Linux.m</code> / <code>batch_repeat_brownian_HPC_Linux.m</code>，针对 Linux 逐一解决了以上问题，同时完全不改动原有面向 Windows 的脚本，并修复了同一轮审查中发现的两处跨平台可复现性 bug。<strong>仿真物理/数值输出无任何变化。</strong>详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
-        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.9.6 &mdash; 2026-07-03</p>
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.10.0 &mdash; 2026-07-03</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Linux HPC cluster execution capability</span><span class="zh">Linux 超算集群运行能力</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en"><strong>New fork — <code>run_simulation_HPC_Linux.m</code> / <code>batch_repeat_brownian_HPC_Linux.m</code>:</strong> platform-aware <code>VideoWriter</code> profile, Linux-native <code>lscpu</code>/<code>/proc/meminfo</code> resource probing, independent CPU/memory headroom caps, heavy-output sampling to bound per-worker memory, node-local <code>parpool</code> job storage, and a throttled live-progress heartbeat. The originals are unmodified.</span><span class="zh"><strong>新增分叉版本 — <code>run_simulation_HPC_Linux.m</code> / <code>batch_repeat_brownian_HPC_Linux.m</code>：</strong>平台自适应 <code>VideoWriter</code> profile、Linux 原生 <code>lscpu</code>/<code>/proc/meminfo</code> 资源探测、CPU/内存余量独立设置、抽样降低单 worker 内存占用、并行池任务存储目录迁移到节点本地、带节流的实时进度心跳。原版脚本未做任何改动。</span></li>
+          <li><span class="en"><strong>Critical fix — Linux <code>VideoWriter</code> crash:</strong> <code>'MPEG-4'</code> is documented as Windows/Mac-only and threw on every Linux run with <code>generate_animation=true</code>, after the physics integration had already completed. Fixed with a platform-aware <code>'Motion JPEG AVI'</code> fallback on Linux.</span><span class="zh"><strong>严重修复 &mdash; Linux 上的 <code>VideoWriter</code> 崩溃：</strong><code>'MPEG-4'</code> 官方文档明确仅支持 Windows/Mac，此前每次 Linux 上开启 <code>generate_animation=true</code> 的运行都会在物理积分算完之后于此处报错。已改为在 Linux 上自动切换到 <code>'Motion JPEG AVI'</code>。</span></li>
+          <li><span class="en"><strong>Fixed — <code>capture_partial_outdir</code> FAILED-run fields never populated:</strong> MATLAB does not propagate a function's output arguments to the caller when it throws, so the v7.9.5 <code>outdir</code>/<code>log_hint</code> fields were always empty. Fixed in both <code>batch_repeat_brownian.m</code> and <code>batch_run_from_json.m</code> by reconstructing the expected path from the deterministic <code>case_name</code>.</span><span class="zh"><strong>修复 &mdash; <code>capture_partial_outdir</code> 的失败记录字段从未真正生效：</strong>MATLAB 函数抛出异常时不会把返回值传回调用者，导致 v7.9.5 引入的 <code>outdir</code>/<code>log_hint</code> 字段始终为空。已在 <code>batch_repeat_brownian.m</code> 与 <code>batch_run_from_json.m</code> 中改为根据确定性的 <code>case_name</code> 反推路径来修复。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-800 p-6">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">v7.9.6 &mdash; 2026-07-03</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
           <span class="en">Console-output and error-resilience correctness</span><span class="zh">控制台输出与异常健壮性修正</span>
         </h3>
@@ -1924,7 +1935,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v7.9.6 &middot; 2026-07-03</li>
+        <li>v7.10.0 &middot; 2026-07-03</li>
       </ul>
     </div>
   </div>

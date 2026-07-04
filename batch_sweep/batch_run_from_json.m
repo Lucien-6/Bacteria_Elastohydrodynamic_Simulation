@@ -358,7 +358,7 @@ if n_run > 0
                 pq_walltime(k) = wall_k;
                 pq_status(k)   = "FAILED";
                 pq_errmsg(k)   = string(ME.message);
-                pq_outdir(k)   = "";
+                pq_outdir(k)   = string(capture_partial_outdir('', cfg_k.case_name));
 
                 identifier_k = ME.identifier;
                 if ~isempty(ME.stack)
@@ -369,7 +369,7 @@ if n_run > 0
                 send(progress_q, struct( ...
                     'ii', run_ii(k), 'k', k, 'fname', fname, 'status', "FAILED", ...
                     'V_steady', NaN, 'wall', wall_k, 'errmsg', ME.message, ...
-                    'outdir', '', 'identifier', identifier_k, ...
+                    'outdir', char(pq_outdir(k)), 'identifier', identifier_k, ...
                     'stack_name', stack_name_k, 'stack_line', stack_line_k));
             end
         end
@@ -437,6 +437,9 @@ if n_run > 0
                 run_walltime(ii) = toc(t_run_start);
                 run_status(ii)   = "FAILED";
                 run_errmsg(ii)   = string(ME.message);
+                if exist('cfg', 'var') && isstruct(cfg) && isfield(cfg, 'case_name')
+                    run_outdir(ii) = string(capture_partial_outdir('', cfg.case_name));
+                end
 
                 fprintf('  [FAIL] Run %d FAILED after %.1f s\n', ii, run_walltime(ii));
                 fprintf('         Error: %s\n', ME.message);
@@ -446,6 +449,16 @@ if n_run > 0
                 if ~isempty(ME.stack)
                     blog('         Location   : %s (line %d)\n', ...
                         ME.stack(1).name, ME.stack(1).line);
+                end
+                if strlength(run_outdir(ii)) > 0
+                    outdir_hint = char(run_outdir(ii));
+                    fprintf('         Outdir: %s\n', outdir_hint);
+                    blog('         Outdir     : %s\n', outdir_hint);
+                    log_hint = fullfile(outdir_hint, 'simulation.log');
+                    if isfile(log_hint)
+                        fprintf('         Log hint: %s\n', log_hint);
+                        blog('         Log hint   : %s\n', log_hint);
+                    end
                 end
             end
 
@@ -524,6 +537,16 @@ for ii = 1:n_total
             ii, fname_short, 'FAILED', '---', run_walltime(ii));
         fprintf('         Error: %s\n', run_errmsg(ii));
         blog('         Error: %s\n', run_errmsg(ii));
+        if strlength(run_outdir(ii)) > 0
+            outdir_hint = char(run_outdir(ii));
+            fprintf('         Outdir: %s\n', outdir_hint);
+            blog('         Outdir: %s\n', outdir_hint);
+            log_hint = fullfile(outdir_hint, 'simulation.log');
+            if isfile(log_hint)
+                fprintf('         Log hint: %s\n', log_hint);
+                blog('         Log hint: %s\n', log_hint);
+            end
+        end
     elseif run_status(ii) == "SKIPPED"
         fprintf('  %-4d  %-32s  %-8s  %14s  %10s\n', ...
             ii, fname_short, 'SKIPPED', '---', '---');
@@ -591,6 +614,14 @@ function on_progress_impl(msg, n_run, n_total, blog_fn, blog_fid)
             blog_fn('         Location   : %s (line %d)\n', ...
                 msg.stack_name, msg.stack_line);
         end
+        if isfield(msg, 'outdir') && strlength(string(msg.outdir)) > 0
+            outdir_hint = char(msg.outdir);
+            blog_fn('         Outdir     : %s\n', outdir_hint);
+            log_hint = fullfile(outdir_hint, 'simulation.log');
+            if isfile(log_hint)
+                blog_fn('         Log hint   : %s\n', log_hint);
+            end
+        end
     end
 
     batch_log_flush(blog_fid);
@@ -607,6 +638,45 @@ end
 function apply_max_num_comp_threads(n)
 %APPLY_MAX_NUM_COMP_THREADS  Worker-side wrapper for parfevalOnAll BLAS cap.
     maxNumCompThreads(n);
+end
+
+
+function outdir_char = capture_partial_outdir(dir_i, case_name)
+%CAPTURE_PARTIAL_OUTDIR  Best-effort recovery of a failed run's output folder.
+%
+%  MATLAB does not propagate a function's output arguments back to the
+%  caller when that function throws an uncaught error -- even though
+%  run_simulation computes output_dir (and creates the folder, and may
+%  have written a partial simulation.log with a [FATAL] block) well
+%  before the point where the error is raised, [res_i, ~, dir_i] =
+%  run_simulation(cfg) leaves dir_i at whatever value it held before the
+%  call.  So dir_i is always '' on failure and cannot recover the real
+%  path directly.
+%
+%  When case_name is non-empty, run_simulation derives output_dir
+%  deterministically as output/<case_name> (only appending a timestamp
+%  suffix if that folder already held prior run data), so we reconstruct
+%  the expected path and confirm it exists on disk.  Empty case_name is
+%  not recoverable this way, because run_simulation then generates a
+%  wall-clock-based run-<timestamp> folder name that cannot be predicted
+%  in advance.
+    outdir_char = '';
+    if nargin >= 1 && ~isempty(dir_i)
+        dir_str = strtrim(char(string(dir_i)));
+        if ~isempty(dir_str)
+            outdir_char = dir_str;
+            return;
+        end
+    end
+    if nargin >= 2 && ~isempty(case_name)
+        cn = strtrim(char(string(case_name)));
+        if ~isempty(cn)
+            expected_dir = fullfile(pwd, 'output', cn);
+            if isfolder(expected_dir)
+                outdir_char = expected_dir;
+            end
+        end
+    end
 end
 
 

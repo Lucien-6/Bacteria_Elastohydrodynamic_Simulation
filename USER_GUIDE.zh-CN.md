@@ -3,12 +3,12 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 7.9.6
+> **版本:** 7.10.0
 > **更新日期:** 2026-07-03
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-版本提示：v7.9.6 为控制台输出与异常健壮性修正版。修复了一处严重的 `dual_log` 极性反转 bug——自 v7.9.3 起，所有正常（非批处理）运行的 `logf` 控制台输出（约100处调用）全部消失，而批处理/并行 worker 反而全部回显，与 `cfg.silent` 文档约定完全相反（`simulation.log` 文件本身未受影响）；同时修复了 `trisurf` 坐标轴指定方式导致的崩溃——此前每一次自定义几何（`geometry_mode='custom'`）运行都会在无法跳过的 `[PLOT] Generating summary figure` 步骤必然崩溃。本版还给整个运行体新增了 `try/catch`，确保 `simulation.log` 始终记录完整 `[FATAL]` 分节而非静默截断；补齐了 `compute_plot_flowfield` 流场进度条上最后一处未受 `cfg.silent` 约束的缺口；把9处此前仅走原生 `warning()` 的告警恢复为标准的 `logf_h` + `warning` 双通道模式；并对布朗运动逐段日志做了节流。**仿真物理/数值输出无任何变化。** v7.9.5 将静默模式扩展到**自定义几何**（`custom_body_building` / `custom_pili_building` 经注入的 `logf` 受 `cfg.silent` 约束；summary 图在 silent 下 `Visible='off'`），并加强 **`batch_repeat_brownian`** 审计字段（每批 `batch_config_snapshot_<batch_id>.json`、`brown_rng_policy`、`parallel_requested`、尾部 `failed_*` / `pending_*`、FAILED 时的 `outdir` / `log_hint`）。**`cfg.silent`** 为**仅运行时**批处理开关（不写入 JSON）：为 true 时抑制 `logf` 控制台回显、直接 `fprintf`、ODE/动画进度条与 warning；完整文本仍写入 `simulation.log`；error 从不抑制。 v7.9.4 为分层静默完整性版；v7.9.3 为批处理日志健壮性与并行 stdout 整洁性版；v7.9.2 为数值健壮性与文档准确性版；v7.9.1 为审查后 Bug 修复；v7.9.0 将起飞前参数检查统一收口到 `validate_simulation_params.m`（P1–P9）；v7.8.0 修正参考曲率 `kb0` 离散化与常值电机力矩无量纲化。
+版本提示：v7.10.0 新增了 Linux 超算集群运行能力——**[`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m)** / **[`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m)**，一个专为无图形界面、独占整节点的 Linux 集群加固的维护分支（详见 §5.3），并修复了同一轮审查中发现的两处跨平台批处理 bug：`capture_partial_outdir`（v7.9.5 引入的失败运行 `outdir`/`log_hint` 字段）在两个平台上其实都从未真正生效过——因为 MATLAB 函数抛出异常时不会把返回值传回调用者；以及 `batch_repeat_brownian_HPC_Linux.m` 中一处非法的 `char(datetimeObj, 'Format', fmt)` 调用（在 R2023a 和 R2026a 上都能复现，证实这是一个与版本无关的潜在 bug，而非兼容性问题）。原有面向 Windows 的 `run_simulation.m` / `batch_repeat_brownian.m` 除上述两处跨平台修复外未做其他改动。**仿真物理/数值输出无任何变化。** v7.9.6 为控制台输出与异常健壮性修正版（修复了自 v7.9.3 起导致所有正常运行的 `logf` 控制台输出全部消失的 `dual_log` 极性反转 bug，以及影响每次自定义几何运行的 `trisurf` 坐标轴指定崩溃；新增贯穿整个运行体的 `try/catch`，确保 `simulation.log` 始终记录完整 `[FATAL]` 分节而非静默截断）。v7.9.5 将静默模式扩展到**自定义几何**（`custom_body_building` / `custom_pili_building` 经注入的 `logf` 受 `cfg.silent` 约束；summary 图在 silent 下 `Visible='off'`），并加强 **`batch_repeat_brownian`** 审计字段（每批 `batch_config_snapshot_<batch_id>.json`、`brown_rng_policy`、`parallel_requested`、尾部 `failed_*` / `pending_*`、FAILED 时的 `outdir` / `log_hint`）。**`cfg.silent`** 为**仅运行时**批处理开关（不写入 JSON）：为 true 时抑制 `logf` 控制台回显、直接 `fprintf`、ODE/动画进度条与 warning；完整文本仍写入 `simulation.log`；error 从不抑制。 v7.9.4 为分层静默完整性版；v7.9.3 为批处理日志健壮性与并行 stdout 整洁性版；v7.9.2 为数值健壮性与文档准确性版；v7.9.1 为审查后 Bug 修复；v7.9.0 将起飞前参数检查统一收口到 `validate_simulation_params.m`（P1–P9）；v7.8.0 修正参考曲率 `kb0` 离散化与常值电机力矩无量纲化。
 
 ## 1. 运行前准备
 
@@ -19,6 +19,7 @@
 - 胶囊胞体表面布点需要 Anton Semechko 的 **S2 Sampling Toolbox**，可通过 MATLAB Add-On Explorer / File Exchange 安装。
 - 运行仿真不需要 Python、Conda 或 pip 环境；[`requirements.txt`](requirements.txt) 已明确说明。
 - **Parallel Computing Toolbox** 为可选：在使用 [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) 与 [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m) 默认并行分支时需要（`use_parallel = true`）。
+- **在 Linux 超算集群上运行（7.10.0 起）：** 请使用 [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) / [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m) 而非原版脚本——详见 §5.3。
 
 ### 推荐工作目录
 
@@ -146,6 +147,21 @@ cfg.auto_confirm = true;
 run('batch_sweep/batch_run_from_json.m');
 ```
 
+### 5.3 Linux 超算集群批跑（`batch_repeat_brownian_HPC_Linux.m`，7.10.0 起）
+
+如需在无图形界面、独占整节点的 Linux 超算集群上运行，请使用 [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) / [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m) 而非原版脚本。这是一个维护中的分叉版本，**不会**自动跟随 `run_simulation.m` / `batch_repeat_brownian.m` 同步——原版今后若有物理/算法层面的修复，需要手动搬运过来。用法与 §5.1 完全一致（同样的 `case_name_base` / `n_repeats` / `brown_rng_seed_mode` / 内联或 JSON 配置方式）。
+
+与 `batch_repeat_brownian.m` 的差异：
+
+- **平台自适应视频导出：** `VideoWriter` 在 Windows/Mac 上仍用 `'MPEG-4'`（`.mp4`），但在 Linux 上改用 `'Motion JPEG AVI'`（`.avi`）——MathWorks 官方文档明确 `'MPEG-4'` 仅支持 Windows/Mac，在任何 Linux 系统上都会报错，与 MATLAB 版本、是否有图形界面无关。
+- **Linux 原生资源探测：** 当 Windows 专属的 `wmic`/`memory()` 探测不可用时，物理核心数会退回 `lscpu -p=Core,Socket`，可用内存会退回解析 `/proc/meminfo` 的 `MemAvailable` 字段，取代了此前"假设只有 4GB 可用"这个会在真实 Linux 节点上把并行池规模严重算小的兜底逻辑。
+- **CPU/内存余量独立设置：** `cpu_resource_frac`（默认 `0.90`）与 `mem_resource_frac`（默认 `0.65`，更保守）取代了原来单一的 `max_resource_frac`。
+- **重度输出抽样：** 无论内联配置还是 JSON 怎么设置，`generate_animation` / `compute_flowfield` 默认只在 `heavy_output_sample_idx`（默认第一个、中间一个、最后一个）指定的重复里打开，其余全部强制关闭，以控制单个 worker 的峰值内存。确认内存余量足够安全后，可将 `heavy_output_sample_idx` 设为 `1:n_repeats` 以恢复每次重复都输出完整内容。
+- **并行池任务存储目录迁移到节点本地：** 在 Linux 下，本地并行池的 `JobStorageLocation` 会被迁移到 `tempdir()`（自动识别作业调度系统设置的 `$TMPDIR`，通常是节点本地临时存储）下一个按 `SLURM_JOB_ID` / `PBS_JOBID` 命名的专属子目录，避免 MATLAB 默认路径（用户家目录下）在家目录为分布式/网络存储的集群上已知会出现的并行池启动竞态问题。若迁移本身失败会自动退回原有方式，Windows 完全不受影响。
+- **实时子任务进度心跳：** 尽管 `cfg.silent = true` 会抑制某次重复运行的全部正常控制台回显，仍会按每次重复至少间隔 15 秒的节流频率打印一行 `[HB] k=NNN running  PP.P%  elapsed=...`，让长时间运行的重复也能看到进度，无需等它跑完。该心跳只打印到控制台，不写入 summary 文件。
+
+**在真正信任集群上自动估算出的并行池规模之前**，`mem_per_worker_gb`（默认 `2.5` GB）**并未针对任何具体配置做过实测标定**。建议先单独跑一次，用 `/usr/bin/time -v matlab -batch ...` 或 Linux 下的 `top`/`ps` 测出真实的内存峰值，再把 `mem_per_worker_gb` 设为该测量值再加 30%~50% 余量。这个值预算过低，是导致 worker 被 Linux OOM Killer 中途杀死的最可能根因——由于 `parfor` 没有内置的超时或掉线 worker 恢复机制，这可能会让整批任务无限期卡死而不是报错退出。上面的重度输出抽样能降低触发概率，但不能完全杜绝。
+
 ## 6. 自定义几何模式
 
 当胞体和纤毛都来自用户点云文件时，使用自定义几何模式。
@@ -243,6 +259,9 @@ postprocess_cases()
 | JSON 批跑因重复 `case_name` 被跳过 | 非空 `case_name` 仅字母序首个 JSON 会运行；请使用唯一 `case_name` 或留空以自动时间戳目录。 |
 | `IllConditioned` 布朗迁移率告警（`M_eff_dimless rcond`） | v7.4.1+ 在无量纲迁移率上做诊断；若仍出现告警，多半是真实的病态几何/欧拉根问题，核对 §8、`simulation.log` 及 \(\theta\approx\pi\) 配置。 |
 | `run_simulation:SilentPreviewDeadlock` 报错（v7.9.6+） | `cfg.silent = true` 且 `preview_initial = true` 时必须同时 `auto_confirm = true`（无头/并行 worker 无法应答交互式 `questdlg`）。设置 `auto_confirm = true` 或 `preview_initial = false`。 |
+| Linux 上 `VideoWriter` 报错 `"The specified profile is not valid."` | 改用 [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m)（§5.3）而非 `run_simulation.m`——`'MPEG-4'` 仅支持 Windows/Mac，HPC_Linux 分支会在 Linux 上自动切换为 `'Motion JPEG AVI'`。 |
+| 批跑过程中 `top` 里 worker 进程数量突然变少、整批卡死不动（Linux） | 大概率是 Linux OOM Killer；`parfor` 没有内置超时或掉线 worker 恢复机制。在 `batch_repeat_brownian_HPC_Linux.m`（§5.3）上，用实测得到的真实内存峰值重新标定 `mem_per_worker_gb`（不要用默认值），和/或缩小 `heavy_output_sample_idx` 覆盖范围。可用 `dmesg \| grep -i "killed process"` 或 `journalctl -k \| grep -i "out of memory"` 确认。 |
+| 家目录为分布式存储的集群上 `parpool` 启动很慢或直接失败 | `batch_repeat_brownian_HPC_Linux.m`（§5.3）的 `ensure_parpool` 已经会在 Linux 下把 `JobStorageLocation` 迁移到节点本地的 `tempdir()`；确认控制台是否打印了 `[INFO] parpool JobStorageLocation (node-local): ...`。如果打印的是迁移失败的警告，说明回退到了 MATLAB 默认路径，而这在家目录为分布式/网络存储的集群上是已知的启动慢/竞态风险点。 |
 
 ## 12. 文档导航
 

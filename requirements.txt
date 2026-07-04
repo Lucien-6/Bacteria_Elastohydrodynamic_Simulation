@@ -1,7 +1,59 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 7.9.6 (2026-07-03)
+# Release: 7.10.0 (2026-07-03)
 #
+# v7.10.0: new HPC/Linux cluster execution capability, plus batch-driver bug
+#   fixes surfaced during the corresponding review.
+#   (1) New files run_simulation_HPC_Linux.m / batch_sweep/
+#       batch_repeat_brownian_HPC_Linux.m: a maintained fork hardened for
+#       headless, single-node-exclusive Linux HPC cluster execution. The
+#       original run_simulation.m / batch_repeat_brownian.m are unmodified
+#       (except the two cross-platform bug fixes below) and remain the
+#       Windows/interactive-oriented reference implementation.
+#   (2) VideoWriter now uses a platform-aware profile ('MPEG-4' on
+#       Windows/Mac, 'Motion JPEG AVI' on Linux) -- 'MPEG-4' is
+#       Windows/Mac-only and previously hard-crashed every animated repeat
+#       on Linux after the physics integration had already completed.
+#   (3) decide_pool_size gained Linux-native resource probes (lscpu for
+#       physical cores, /proc/meminfo MemAvailable for memory) and fixed a
+#       feature('numCores')/2 bug that halved an already-physical core
+#       count; the previous Linux fallback silently assumed 4 GB available
+#       regardless of real system RAM, capping the parallel pool at 1
+#       worker on large nodes. cpu_resource_frac/mem_resource_frac replace
+#       the single max_resource_frac (memory kept more conservative by
+#       default).
+#   (4) heavy_output_sample_idx forces generate_animation/compute_flowfield
+#       off for all but a small sample of repeats (first/middle/last by
+#       default), reducing per-worker peak memory -- implicated in an
+#       observed Linux OOM-killer incident where killed workers left a
+#       parfor batch hanging indefinitely (parfor has no built-in timeout /
+#       dead-worker recovery).
+#   (5) ensure_parpool relocates the local pool's JobStorageLocation to
+#       node-local scratch (tempdir()/$TMPDIR, job-unique via
+#       SLURM_JOB_ID/PBS_JOBID) on Linux, avoiding a documented pool-startup
+#       race when the default (under the user's home directory) sits on
+#       distributed/network cluster storage; falls back to the original
+#       behaviour if relocation itself fails. Windows unaffected.
+#   (6) Optional live sub-case progress heartbeat: run_simulation_HPC_Linux
+#       can send throttled (>=15 s) intra-run progress through the same
+#       DataQueue used for completion messages, the only way to see a
+#       still-running repeat's progress under cfg.silent=true.
+#   (7) Fixed capture_partial_outdir in batch_repeat_brownian.m (and added
+#       the same fix to batch_run_from_json.m): FAILED-run outdir/log_hint
+#       fields (added in v7.9.5) never actually populated, because MATLAB
+#       does not propagate a function's output arguments to the caller when
+#       it throws -- fixed by reconstructing the expected path from the
+#       deterministic case_name and confirming it exists on disk.
+#   (8) Fixed an invalid char(datetimeObj, 'Format', fmt) call in
+#       batch_repeat_brownian_HPC_Linux.m (char() only accepts a positional
+#       format string); reproduced on both R2023a and R2026a, confirming it
+#       was a latent, version-independent bug.
+#   (9) batch_repeat_brownian.m / batch_repeat_brownian_HPC_Linux.m: an
+#       outer try/catch around the whole execution section now lets a
+#       fatal, uncaught parfor/serial abort still reach the final report
+#       with whatever partial results were already committed, instead of
+#       aborting with no summary at all.
+#   No physical/numerical simulation outputs change. See CHANGELOG.md.
 # v7.9.6: console-output and error-resilience correctness release.
 #   (1) Fixed a critical dual_log console-echo polarity bug: since v7.9.3 the
 #       logf closure forwarded `silent` un-negated, so cfg.silent=false (the
@@ -119,6 +171,12 @@
 #     branches of batch_sweep/batch_repeat_brownian.m and batch_sweep/batch_run_from_json.m
 #     (parfor). Each script falls back to a serial for-loop if the toolbox is
 #     unavailable or parpool fails.
+#   - Linux HPC cluster execution (v7.10.0+): use run_simulation_HPC_Linux.m /
+#     batch_sweep/batch_repeat_brownian_HPC_Linux.m instead of the originals.
+#     Tested against MATLAB R2023a on a single-node-exclusive Linux partition
+#     with distributed/network storage. No additional toolboxes beyond Parallel
+#     Computing Toolbox; lscpu (util-linux) and /proc/meminfo are used for
+#     resource probing and are present on essentially every Linux distribution.
 #
 # MATLAB Add-On (required for capsule body-surface points in v5.5.0+)
 #   - "Suite of functions to perform uniform sampling of a sphere" (S2 Sampling Toolbox)
