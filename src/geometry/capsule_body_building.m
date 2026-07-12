@@ -4,8 +4,10 @@
 %  Description:
 %    Constructs a capsule-shaped bacterial body model consisting of two
 %    hemispherical caps connected by a cylindrical middle section. Points
-%    use Anton Semechko S2 Sampling Toolbox on the sphere caps (see
-%    capsule_sphere_cap_points) and a regular grid for the cylinder.
+%    use one full-sphere sample from the Anton Semechko S2 Sampling Toolbox,
+%    split between the two combined caps (see capsule_sphere_cap_points), and
+%    a regular grid for the cylinder.  SPN denotes that full-sphere sample
+%    count, not a per-cap count.
 %    Cylinder circumferential resolution TN is snapped to a multiple of 4
 %    via TN = max(round(TN/4)*4, 4) after the area-based TN estimate.
 %    Sphere points with x==0 (equator, strict) are duplicated so each
@@ -39,11 +41,12 @@
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2024-10-24
 %  Updated: 2026-04-20 — cylinder TN snapped to multiple of 4 (round(TN/4)*4)
+%  Updated: 2026-07-12
 
 %% Compute surface point allocation between sphere caps and cylinder
 SA  = 4 * pi * minor_axis^2;                       % Total sphere surface area
 CA  = 4 * pi * minor_axis * (major_axis - minor_axis);  % Cylinder lateral area
-SPN_alloc = round(NBody * SA / (SA + CA));          % Area-based cap allocation
+SPN_alloc = round(NBody * SA / (SA + CA));          % Combined-cap full-sphere allocation
 SPN = snap_sphere_cap_count(SPN_alloc);             % Snap to Ico/Quad native N if |diff|<=5
 CPN = NBody - SPN;                                  % Remainder on cylinder
 

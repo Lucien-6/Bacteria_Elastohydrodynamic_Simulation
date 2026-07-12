@@ -8,6 +8,14 @@
 %    i.e. from h_mean/10 to h_mean/2 in steps of h_mean/10 (5 runs).
 %    Brownian motion is disabled.
 %
+%    Output locations:
+%      - Per-run products: <project_root>/output/<case_name>/
+%      - Aggregate CSV/MAT: <project_root>/batch sweep/
+%        (the space in this product-folder name is intentional)
+%      - Timestamped sweep log: beside this driver under batch_sweep/
+%      - cfg_base.compute_flowfield = false explicitly skips per-run flow
+%        fields during RSM calibration.
+%
 %    Requires project root on the MATLAB path (this script adds it below).
 %    Path policy: main entry + run_simulation() use addpath(project root);
 %    batch/postprocess keep local addpath for standalone runs (see
@@ -19,6 +27,7 @@
 %                        save_sim_config since v6/v7 custom-geometry feature)
 %                        and explicit compute_flowfield = false to skip flow-
 %                        field calculation during RSM calibration.
+%  Updated: 2026-07-12
 
 close all force;
 clear; clc;

@@ -1,32 +1,57 @@
 ﻿function [Z_new, params_new, rotated_flags] = adaptive_basis_check(Z, params)
-%ADAPTIVE_BASIS_CHECK  Check and update Euler angle bases for all pili
+%ADAPTIVE_BASIS_CHECK  Move Euler singularities away from pili tangents
 %
 %  Description:
-%    For each pilus, checks whether any theta is near the singularity at
-%    0 or pi.  If so, selects a new optimal basis that moves the
-%    singularity away from the current configuration and transforms the
-%    Euler angles accordingly.
+%    Checks each pilus independently and triggers a basis change when
+%    min(theta) < params.delta or min(pi - theta) < params.delta.  Angles
+%    are in radians.  The state layout is
+%      Z = [x_body(3); q_body(4); theta_1; phi_1; psi_1; ...],
+%    with N_segments(k) entries in each angle block for pilus k.
 %
-%    Implements per-pili independent adaptive basis rotation from
-%    Walker (2020), main_physical.m lines 153-174.
+%    The replacement basis is chosen from a 100-by-100 (theta, phi)
+%    spherical search.  The objective maximises the minimum squared
+%    distance from every current tangent and its antipode.  The selected
+%    direction is averaged with the basis z-axis, normalised, and used as
+%    the axis of a proper pi rotation.  The resulting matrix
+%      rot_local = 2*v_opt*v_opt' - I
+%    preserves handedness; it is not a reflection.
+%
+%    params.rot{k} maps lab-frame vectors into pilus-k basis coordinates.
+%    The basis update is rot_new = rot_local*rot_old.  Directors and Euler
+%    angles are transformed consistently, and both the corresponding
+%    theta/phi/psi blocks in Z_new and params_new.rot{k} are updated
+%    together.  Callers must therefore capture and retain both Z_new and
+%    params_new; using either output with its pre-update counterpart makes
+%    the Euler angles and basis inconsistent.  An SVD polar projection,
+%    U*V', re-orthogonalises rot_new.
+%
+%    Numerical safeguards use 1e-12 for a degenerate averaged rotation
+%    axis and warn when the post-rotation angular margin is below
+%    params.delta/2; the next event may then trigger another repair.
 %
 %  Syntax:
 %    [Z_new, params_new, rotated_flags] = adaptive_basis_check(Z, params)
 %
 %  Inputs:
-%    Z      - [n x 1] Current state vector
-%    params - Parameter structure
+%    Z      - [n x 1] Current state vector in the layout above
+%    params - Parameter structure containing delta, M_pili, N_segments,
+%             rot, and kb0
 %
 %  Outputs:
-%    Z_new         - [n x 1] Updated state vector
-%    params_new    - Updated params (new rot{k} for rotated pili)
-%    rotated_flags - [M x 1] Logical, true if pilus k's basis was rotated
+%    Z_new         - [n x 1] State with repaired Euler-angle blocks
+%    params_new    - Parameters synchronised with Z_new, including rot{k}
+%    rotated_flags - [M_pili x 1] True where a basis repair was applied
+%
+%  Warnings:
+%    Emits adaptive_basis_check:InsufficientRotation when a repaired pilus
+%    remains within params.delta/2 of an Euler-angle singularity.
 %
 %  References:
 %    [1] Walker et al. (2020), Physical Review E.
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
+%  Updated: 2026-07-12
 
 %% Initialise
 delta  = params.delta;

@@ -15,7 +15,7 @@ function Vtool = sphere_particle_sample_cached(SPN)
 %  tool_to_body_frame) either from disk cache or by running the
 %  Riesz s-energy optimisation and saving the result for future use.
 %
-%  Cache location : <project_root>/cache/sphere_particle/
+%  Cache location : <project_root>/src/geometry/cache/sphere_particle/
 %  Cache filename : spherical_points_NXXXX.mat
 %
 %  Each cache file stores:
@@ -40,6 +40,7 @@ function Vtool = sphere_particle_sample_cached(SPN)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Date:    2026-04-18
+%  Updated: 2026-07-12
 
 % --- Cache key constants — bump FORMAT_VERSION on any change ---------------
 CACHE_ETOL      = 1e-5;          % ParticleSampleSphere toolbox default

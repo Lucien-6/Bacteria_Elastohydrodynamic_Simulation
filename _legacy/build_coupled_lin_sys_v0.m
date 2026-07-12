@@ -1,6 +1,20 @@
 function [lin_sys, geom, hydro] = build_coupled_lin_sys_v0(Z, params)
 %BUILD_COUPLED_LIN_SYS_V0  Frozen reference copy (pre-v5.5.4 vectorisation) — historical archive only
 %
+%  Status: Historical archive only.
+%  Former consumer/harness removed: test_optimization_invariance.m and
+%    benchmark_direction1.m were removed after validation on 2026-04-21.
+%  Live counterpart: src/core/build_coupled_lin_sys.m
+%  Frozen snapshot: Pre-v5.5.4 local-RFT, clamped-root assembly.
+%  NOT live API: Do not call from simulations, tools, or new code.
+%
+%  Current v7.x divergence:
+%    The live function supports clamped and free_torsion roots and assembles
+%    the non-local twist Schur complement used by the motor-capable live RHS.
+%    Its hydro struct carries M_twist/D_twist, reciprocal coupling, Schur,
+%    and reusable decomposition fields; this snapshot exposes the older
+%    A_twist_total-based schema and always applies fully clamped root BCs.
+%
 %  Description:
 %    Builds the full coupled linear system for the body-pili
 %    elastohydrodynamic problem:
@@ -16,8 +30,8 @@ function [lin_sys, geom, hydro] = build_coupled_lin_sys_v0(Z, params)
 %    NOT included here — those remain in ode_coupled_rhs.m.
 %
 %  Syntax:
-%    [lin_sys, geom] = build_coupled_lin_sys(Z, params)
-%    [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params)
+%    [lin_sys, geom] = build_coupled_lin_sys_v0(Z, params)
+%    [lin_sys, geom, hydro] = build_coupled_lin_sys_v0(Z, params)
 %
 %  Inputs:
 %    Z      - [n x 1] Global state vector
@@ -40,6 +54,7 @@ function [lin_sys, geom, hydro] = build_coupled_lin_sys_v0(Z, params)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-31
+%  Updated: 2026-07-12
 
 N_body = params.N_body;
 M      = params.M_pili;

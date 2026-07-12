@@ -2,19 +2,39 @@
 %SAVE_SIM_CONFIG  Save current simulation configuration to a JSON file
 %
 %  Description:
-%    Writes the full set of simulation parameters to a human-readable JSON
-%    file for reproducibility.  The file can later be loaded with
-%    load_sim_config to reproduce the exact same run.
+%    Serialises the supported user-facing configuration fields to a
+%    human-readable UTF-8 JSON file.  The resulting file is compatible with
+%    load_sim_config, but it is not an exact snapshot of every cfg field or
+%    all runtime state.
+%
+%    Round-trip limitations:
+%      - Derived fields such as N_segments and NT are recomputed on load.
+%      - delta is saved as the integer round(pi/delta) and reloads as
+%        pi/delta_frac, so arbitrary delta values are quantised.
+%      - Runtime function handles in active_moment and motor_torque entries
+%        are removed because JSON cannot represent function handles.
+%      - A Brownian RNG seed is omitted when Brownian motion is disabled or
+%        the seed is absent/nonpositive, and therefore reloads as NaN.
+%      - Floating-point values follow MATLAB jsonencode/jsondecode semantics.
+%      - Runtime-only fields, including silent, progress_queue, progress_tag,
+%        logger handles, and any other fields outside the schema written
+%        below, are not preserved.
 %
 %  Syntax:
 %    save_sim_config(cfg, json_path)
 %
 %  Inputs:
 %    cfg       - Flat configuration struct (as used in main_coupled_simulation)
-%    json_path - Destination file path (e.g. 'output/MyCase/config.json')
+%    json_path - Destination UTF-8 JSON path; an existing file is replaced
+%
+%  Side Effects and Warnings:
+%    Creates or truncates json_path.  If the destination cannot be opened,
+%    emits save_sim_config:WriteError and returns without throwing.  JSON
+%    encoding errors propagate; fwrite and fclose completion is not checked.
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
+%  Updated: 2026-07-12
 
 %% Build nested structure matching config_example.json layout
 j.case_name    = cfg.case_name;

@@ -1,49 +1,48 @@
 ﻿function Z = enforce_clamped_geometry(Z, params, force_full_projection)
-%ENFORCE_CLAMPED_GEOMETRY  Project first-segment Euler angles to match body
+%ENFORCE_CLAMPED_GEOMETRY  Project root directors onto the body frame
 %
 %  Description:
-%    Corrects constraint drift at the pili-body junction by enforcing:
+%    Corrects geometric drift at each pilus-body junction.  The state is
+%    laid out as
+%      Z = [x_body(3); q_body(4); theta_1; phi_1; psi_1; ...],
+%    where each pilus contributes consecutive theta, phi, and psi blocks,
+%    each of length N_segments(k).  All Euler angles are in radians.
 %
-%        D_lab^{(1)} = R_body * D_local{k}
+%    The required first-segment frame is formed in the lab frame as
+%      D_lab = R_body*params.D_local{k}.
+%    params.rot{k} maps lab-frame vectors into pilus-k basis coordinates,
+%    so D_basis = params.rot{k}*D_lab is converted to Euler angles before
+%    the first element of each relevant angle block is overwritten.
 %
-%    For clamped pili, all three first-segment Euler angles (theta_1,
-%    phi_1, psi_1) are projected.  For free_torsion pili, only theta_1
-%    and phi_1 are projected by default; psi_1 is left free to evolve
-%    under the torsional dynamics (elastic moment + motor torque).
+%    theta_1 and phi_1 are always projected.  psi_1 is also overwritten
+%    for a clamped root, or whenever force_full_projection is true.  For
+%    a free_torsion root under the default call, psi_1 is left unchanged
+%    so that torsional dynamics remain free.  The full projection option
+%    is intended for consistent initialisation.
 %
-%    The optional `force_full_projection` flag lets callers override the
-%    free_torsion behaviour and project all three angles (including
-%    psi_1) regardless of root coupling type.  This is typically used at
-%    initialisation (`init_coupled_state`) so that the starting state
-%    already satisfies the full clamped geometry — the first ODE step
-%    can then evolve psi_1 freely from a physically self-consistent
-%    initial condition.
-%
-%    Call after each ODE integration interval and after quaternion
-%    renormalisation, with `force_full_projection` left at its default
-%    value (false) so that free_torsion ψ_1 is preserved during the run.
+%    Call after quaternion renormalisation and after each ODE integration
+%    interval.  Only first-segment angles are modified.
 %
 %  Syntax:
 %    Z = enforce_clamped_geometry(Z, params)
 %    Z = enforce_clamped_geometry(Z, params, force_full_projection)
 %
 %  Inputs:
-%    Z                       - [n x 1] Global state vector
-%    params                  - Parameter structure (from init_coupled_params)
-%    force_full_projection   - (Optional, default false) If true, project
-%                              all three first-segment Euler angles
-%                              (theta_1, phi_1, psi_1) regardless of
-%                              root_coupling.  Intended for initialisation.
+%    Z                     - [n x 1] Global state vector in the layout above
+%    params                - Parameter structure containing body-to-root
+%                            frames, basis rotations, and segment counts
+%    force_full_projection - Optional logical scalar; default false
 %
 %  Outputs:
-%    Z - [n x 1] State vector with corrected first-segment angles
+%    Z - [n x 1] State with required first-segment angles overwritten
 %
 %  References:
 %    [1] Walker et al. (2020), Physical Review E.
-%         (Clamped-end boundary condition; geometric projection step)
+%        (Clamped-end boundary condition; geometric projection step)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-07
+%  Updated: 2026-07-12
 
 if nargin < 3 || isempty(force_full_projection)
     force_full_projection = false;

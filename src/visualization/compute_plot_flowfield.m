@@ -12,6 +12,11 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 %      Bottom-left  : 2D XZ flow field (imagesc + quiver)
 %      Bottom-right : 2D YZ flow field (imagesc + quiver)
 %
+%    This procedure has no return value.  It creates a visible figure,
+%    writes flowfield_panels.png, flowfield_panels.pdf, and, when
+%    supported, flowfield_panels.html in output_dir, then closes the
+%    figure.  It also reports progress and results through logf.
+%
 %    Evaluation uses the same hydrodynamic kernels as the simulation:
 %      Body : RSM regularised Stokeslet (Cortez 2005)
 %      Pili : RSS regularised Stokeslet segments + Rotlet (Cortez 2018)
@@ -20,9 +25,11 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 %    compute_plot_flowfield(Z_final, params, output_dir, run_id, logf)
 %    compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_opts)
 %    compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_opts, t_final)
+%    compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_opts, t_final, silent)
 %
 %  Inputs:
-%    Z_final    - Final state vector from ODE integration
+%    Z_final    - [(7 + 3*sum(N_segments)) x 1] Final state vector from
+%                 ODE integration
 %    params     - Parameter structure (from init_coupled_params)
 %    output_dir - Output directory path
 %    run_id     - Run identifier string
@@ -34,11 +41,13 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 %                   .chunk_size       Eval-point chunk size   (default: 2000)
 %    t_final    - (Optional) Dimensionless time associated with Z_final.
 %                 Required for time-dependent active moments.
-%    silent     - (Optional) logical, default false.  When true, the
-%                 chunked XZ/YZ evaluation progress bars (render_progress_bar)
-%                 are suppressed, matching the ODE / animation progress-bar
-%                 behaviour under run_simulation's cfg.silent so batch /
-%                 parallel workers do not interleave console output.
+%    silent     - (Optional) logical, default false.  When true, suppresses
+%                 only the chunked XZ/YZ render_progress_bar displays.
+%                 It does not suppress logf messages, warnings, figure
+%                 creation, file export, or any other side effect.
+%
+%  Outputs:
+%    None.  Results are written to files as described above.
 %
 %  References:
 %    [1] Cortez et al. (2005), Phys. Fluids 17, 031504.
@@ -46,6 +55,7 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-06
+%  Updated: 2026-07-12
 
 %% ---- Configuration ----
 if nargin < 6 || isempty(flow_opts), flow_opts = struct(); end

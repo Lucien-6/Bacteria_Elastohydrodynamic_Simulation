@@ -3,8 +3,9 @@ function Pili = pili_building(Pili_Matrix, seg_per_um, major_axis, minor_axis, d
 %
 %  Description:
 %    Constructs pili structures based on the pili geometry generator,
-%    adding bending stiffness and computing intrinsic curvature binormal
-%    vectors for the undeformed configuration.
+%    adding bending stiffness and empty curvature-binormal placeholders.
+%    init_coupled_params recomputes the operational curvature data from the
+%    initial pilus geometry.
 %
 %  Syntax:
 %    Pili = pili_building(Pili_Matrix, seg_per_um, major_axis, minor_axis, dis, E, r_pili)
@@ -47,10 +48,11 @@ function Pili = pili_building(Pili_Matrix, seg_per_um, major_axis, minor_axis, d
 %  References:
 %    [1] Bergou, M. et al. (2008). Discrete Elastic Rods. ACM TOG 27(3):63.
 %
-%  See also: pili_type_building, compute_curvature_binormal
+%  See also: pili_type_building, init_coupled_params
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-01-23
+%  Updated: 2026-07-12
 
 %% Input validation
 if nargin < 7

@@ -13,12 +13,19 @@
 %      - generate_animation = true; animation_skip = 5
 %      - Each run produces its own output directory with full logs and data
 %
+%    Output locations:
+%      - Per-run products: <project_root>/output/<case_name>/
+%      - Timestamped sweep log: beside this driver under batch_sweep/
+%      - cfg_base.compute_flowfield is omitted, so run_simulation() uses its
+%        backward-compatible default true and generates per-run flow fields.
+%
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-18
 %  Updated: 2026-05-06 — Lucien — added geometry_mode='parametric' (required by
 %                        save_sim_config since v6/v7 custom-geometry feature),
 %                        project-root cd-block, and pili_ext capture from
 %                        parse_pili_config for forward compatibility.
+%  Updated: 2026-07-12
 
 close all force;
 clear; clc;

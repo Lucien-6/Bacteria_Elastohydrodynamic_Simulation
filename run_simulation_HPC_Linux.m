@@ -1,35 +1,17 @@
 function [results, params, output_dir] = run_simulation_HPC_Linux(cfg_or_path)
-%RUN_SIMULATION_HPC_LINUX  HPC/Linux variant of run_simulation (see notes below).
-%
-%  This file is a maintained copy of run_simulation.m, forked for headless
-%  Linux HPC cluster use.  It is NOT auto-synced with the original -- any
-%  physics/algorithm fix made in run_simulation.m must be manually ported
-%  here as well.  The only intentional differences from run_simulation.m:
-%    1. VideoWriter uses a platform-aware profile: 'MPEG-4' (.mp4) on
-%       Windows/Mac as before, but 'Motion JPEG AVI' (.avi) on Linux,
-%       because the MPEG-4 profile is officially Windows/Mac-only and
-%       throws "The specified profile is not valid." on any Linux system
-%       (confirmed against MATLAB's own VideoWriter documentation).
-%    2. The output-directory "has prior data" file-extension check also
-%       recognises '.avi' so re-run/overwrite detection works correctly
-%       for Linux-generated animations.
-%    3. Optional live-progress heartbeat: accepts cfg.progress_queue /
-%       cfg.progress_tag (both absent by default -- no-op, fully backward
-%       compatible) and, when set by a batch driver, sends a throttled
-%       (>= 30 s apart) 'heartbeat' message through the queue once per ODE
-%       segment, reusing the progress_pct/elapsed_ode already computed for
-%       the [ODE] Progress/ETA log line.  See batch_repeat_brownian_HPC_Linux.m
-%       for the console-side consumer (dispatch_progress_msg/print_heartbeat).
-%  Everything else (physics, ODE integration, logging, flowfield, etc.)
-%  is unchanged from run_simulation.m.
-%
-%RUN_SIMULATION  Execute coupled body-pili simulation with given configuration
+%RUN_SIMULATION_HPC_LINUX  Execute the HPC/Linux coupled body-pili simulation.
 %
 %  Description:
-%    Runs the full coupled body-pili elastohydrodynamic simulation:
-%    initialisation, ODE integration, post-processing, visualisation,
-%    and data export.  Encapsulates the logic formerly in the main script
-%    so it can be called programmatically (e.g. for parameter sweeps).
+%    Maintained, headless-cluster-oriented fork of run_simulation.m.  This
+%    file is NOT auto-synchronised: physics, algorithm, and logging fixes in
+%    run_simulation.m must be ported here manually.  Intentional differences:
+%      1. VideoWriter uses MPEG-4 (.mp4) on Windows/macOS and Motion JPEG AVI
+%         (.avi) on Linux, where MATLAB does not support the MPEG-4 profile.
+%      2. Existing-output detection recognises .avi products.
+%      3. Optional progress_queue/progress_tag fields provide throttled
+%         (at least 30 s apart) ODE heartbeat messages for silent batch jobs.
+%    Other simulation, post-processing, logging, and flow-field behaviour is
+%    intended to match run_simulation.m.
 %
 %  Syntax:
 %    [results, params, output_dir] = run_simulation_HPC_Linux(cfg)
@@ -38,19 +20,20 @@ function [results, params, output_dir] = run_simulation_HPC_Linux(cfg_or_path)
 %  Inputs:
 %    cfg_or_path - Configuration struct (from load_sim_config or inline),
 %                  OR a char/string path to a JSON config file.
-%                  Optional runtime field (not saved to JSON):
-%                    cfg.silent - logical (default false).  When true,
-%                      suppresses console echo of logf, direct fprintf,
-%                      ODE/animation/flowfield progress bars, and warnings
-%                      for the duration of this run; all logf output still
-%                      goes to simulation.log.  Used by parallel batch
-%                      drivers (e.g. batch_repeat_brownian sets
-%                      cfg.silent = true on workers).  Errors are never
-%                      suppressed.  cfg.silent = true with
-%                      preview_initial = true additionally requires
-%                      auto_confirm = true, otherwise this function raises
-%                      run_simulation_HPC_Linux:SilentPreviewDeadlock immediately
-%                      instead of blocking on an unanswerable questdlg.
+%                  Important optional fields:
+%                    cfg.compute_flowfield - logical; default true if omitted.
+%                    cfg.brown_rng_seed - positive numeric scalar; rounded and
+%                      used with the global twister stream for Brownian runs.
+%                      If omitted, an MMddHHmmss seed is generated and saved.
+%                    cfg.silent - runtime-only logical (default false);
+%                      suppresses console/progress/warnings but not file logs
+%                      or errors.  silent + preview_initial requires
+%                      auto_confirm = true; otherwise the function throws
+%                      run_simulation_HPC_Linux:SilentPreviewDeadlock.
+%                    cfg.progress_queue - optional parallel.pool.DataQueue
+%                      receiving heartbeat structs; empty means no heartbeat.
+%                    cfg.progress_tag - caller-defined value copied into each
+%                      heartbeat as its tag field; empty by default.
 %
 %  Errors raised while running are captured by a top-level try/catch and
 %  logged to simulation.log as a [FATAL] block (identifier, message, full
@@ -58,18 +41,32 @@ function [results, params, output_dir] = run_simulation_HPC_Linux(cfg_or_path)
 %  why a run failed instead of truncating silently.
 %
 %  Outputs:
-%    results    - Simulation results struct (physical units); [] if aborted
-%    params     - Parameter struct (including scales); [] if aborted
-%    output_dir - Path to output directory; '' if aborted
+%    results    - Results struct; [] if aborted.  Principal fields include
+%                 t [1 x NT, s], X_cm_um [3 x NT, um],
+%                 X_pili_um {M}[N_k+1 x 3 x NT, um],
+%                 V_sink [signed dZ/dt, um/s], V_cm_um [3 x NT, um/s],
+%                 tilt_angle [rad], F_sink_pN [pN], units, and the
+%                 corresponding dimensionless state histories.
+%    params     - Model parameters and dimensional scale factors; [] if aborted.
+%    output_dir - Created run directory; '' if aborted before allocation.
+%
+%  Side effects and files:
+%    Adds the project root and project-root/src recursively to the MATLAB path.
+%    Writes the same MAT/CSV/JSON/log/plot products as run_simulation.m.
+%    Animation output is bacteria_3d_motion.mp4 on Windows/macOS and
+%    bacteria_3d_motion.avi on Linux.  Brownian runs modify the global RNG
+%    state and save the seed used.  A configured progress_queue receives
+%    structs with fields type='heartbeat', tag, pct, and elapsed.
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Log banner version: 7.10.0 (2026-07-03) - keep in sync with README / CHANGELOG
+%  Updated: 2026-07-12
+%  Log banner version: 7.10.1 (2026-07-12) - keep in sync with README / CHANGELOG
 %
-%  Path: defensive addpath(project root) so run_simulation(cfg) works when
-%  invoked without main_coupled_simulation.m. Unified policy = this line plus
-%  addpath in main_coupled_simulation; post_processing/ and batch sweep/
-%  retain separate addpath for standalone use.
+%  Path policy: defensive addpath calls here allow
+%  run_simulation_HPC_Linux(cfg) without main_coupled_simulation.m.
+%  Standalone drivers in batch_sweep/ and post_processing/ resolve and add
+%  the project path independently.
 
 proj_root = fileparts(mfilename('fullpath'));
 addpath(proj_root);
@@ -2039,7 +2036,7 @@ catch ME_run
     rethrow(ME_run);
 end
 
-end  % run_simulation
+end  % run_simulation_HPC_Linux
 
 
 %% ==================== Local Functions ====================

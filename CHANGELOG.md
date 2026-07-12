@@ -10,6 +10,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [7.10.1] — 2026-07-12
+
+Documentation-accuracy and API-contract consistency patch following a complete review of all first-party MATLAB scripts, functions, entry points, and frozen legacy snapshots. This release does not change the hydrodynamic, elastic, Brownian, motor, or geometry numerical algorithms.
+
+### Fixed
+
+- **`src/utils/odetpbar.m` return contract:** initialise `status = 0` at function entry so the documented success value is returned for initialization, normal-update, and completion callbacks.
+- **`src/utils/verify_migration.m` inventory:** recognise `run_simulation_HPC_Linux.m` and `src/utils/project_version.m`; document the repository-root working-directory requirement and destructive `close all force; clear; clc` side effects.
+- **Stable capsule-mesh error identifiers:** use `capsule_sphere_cap_points:InvalidSPN` and `capsule_sphere_mesh_cache:UnsupportedMeshOutput` with separate messages.
+
+### Documentation
+
+- Corrected and expanded MATLAB help headers across 49 first-party files: function signatures, state and matrix dimensions, SI/dimensionless units, lab/body/basis frames, root boundary conditions, Brownian-only symmetrisation and diagnostics, motor solve ordering, configuration round-trip limitations, file outputs, randomness, side effects, warnings, errors, cache paths, and legacy/live-API boundaries.
+- Corrected current-demo metadata, JSON fallback wording, combined-cap full-sphere `SPN` semantics, sphere-cache paths, custom-geometry coordinate contracts, and Linux HPC `.avi`/heartbeat documentation.
+- Updated `README.md`, `README.zh-CN.md`, `USER_GUIDE.md`, `USER_GUIDE.zh-CN.md`, `requirements.txt`, theory documents, website, presentation, runtime banners, and `project_version.m` to version 7.10.1 dated 2026-07-12.
+
+### Validation
+
+- Parsed every first-party MATLAB file and verified non-empty MATLAB help text.
+- Passed configuration loading/validation for all three shipped JSON examples, JSON save/load round trip, quaternion/director/coordinate identities, body geometry, coupled-system assembly, finite RHS, Brownian SPD covariance, background flow, stable error identifiers, and PNG/PDF export.
+- Passed five end-to-end smoke cases: standard active-pilus, free-torsion motor, custom geometry, seeded Brownian body-only, and `run_simulation_HPC_Linux`.
+- `verify_migration` passed all eight directory checks; `git diff --check` reported no whitespace errors.
+
+### Compatibility
+
+- **No physical or numerical simulation algorithm changes.** Existing numerical results are unaffected except that previously failing utility/error paths now return their documented status or stable identifiers.
+- No new MATLAB, toolbox, Python, Conda, or pip dependency.
+
+---
+
 ## [7.10.0] — 2026-07-03
 
 New HPC/Linux cluster execution capability, plus batch-driver bug fixes surfaced during the corresponding review. A dedicated review of `batch_repeat_brownian.m` for deployment on a Linux HPC partition (single-node-exclusive, distributed/network storage, MATLAB R2023a) found several Windows-only API calls that either hard-error or silently mis-size the worker pool on Linux, an `ensure_parpool` `JobStorageLocation` default that is a documented source of pool-startup races on clusters with network home directories, and no visibility into a still-running repeat's progress. This release adds a maintained fork — `run_simulation_HPC_Linux.m` / `batch_sweep/batch_repeat_brownian_HPC_Linux.m` — that resolves all of these for Linux while leaving the original Windows-oriented scripts completely untouched, and separately fixes two reproducibility/robustness bugs found in `batch_repeat_brownian.m` and `batch_run_from_json.m` during the same review that affect both platforms.

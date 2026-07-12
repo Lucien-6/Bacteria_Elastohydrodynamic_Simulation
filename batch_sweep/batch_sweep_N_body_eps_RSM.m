@@ -15,14 +15,17 @@
 %    approximately constant optimal ratio k = eps_body / h_mean exists across
 %    mesh refinements.
 %
-%    Outputs:
+%    Aggregate outputs (under <project_root>/batch sweep/; the space in this
+%    product-folder name is intentional):
 %      - batch_sweep_N_body_eps_RSM_grid.csv   — full (N_body, k) table
 %      - batch_sweep_N_body_eps_RSM_summary.csv — one row per N_body: h_mean, k_star, error
 %      - batch_sweep_N_body_eps_RSM_results.mat — matrices + cell results
+%    Per-run products are written under <project_root>/output/<case_name>/.
+%    The timestamped sweep log is written beside this driver in batch_sweep/.
 %
 %    Notes:
-%      - Set cfg_base.compute_flowfield = false and generate_animation = false
-%        to keep run time manageable (edit if needed).
+%      - cfg_base.compute_flowfield = false and generate_animation = false
+%        explicitly suppress those heavy per-run products for calibration.
 %      - Reduce cfg_base.T_obs for a quick pilot; restore for production.
 %
 %  Requires project root on the MATLAB path (this script adds it below).
@@ -34,6 +37,7 @@
 %  Created: 2026-04-13
 %  Updated: 2026-05-06 — Lucien — added geometry_mode='parametric' (required by
 %                        save_sim_config since v6/v7 custom-geometry feature).
+%  Updated: 2026-07-12
 
 close all force;
 clear; clc;

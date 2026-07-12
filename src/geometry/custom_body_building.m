@@ -14,6 +14,9 @@ function [Body_str, body_meta] = custom_body_building(custom_cfg, logf_h)
 %    coordinates is needed.  The triangulated surface mesh is used for
 %    visualisation (trisurf) and enclosed-volume computation (divergence
 %    theorem); it is NOT used in the hydrodynamic kernel evaluation.
+%    Input body and attachment coordinates must share the body-local frame,
+%    with the origin at the intended body centre of mass (COM).  This
+%    function does not recenter the supplied geometry.
 %
 %  Syntax:
 %    [Body_str, body_meta] = custom_body_building(custom_cfg)
@@ -21,9 +24,11 @@ function [Body_str, body_meta] = custom_body_building(custom_cfg, logf_h)
 %
 %  Inputs:
 %    custom_cfg - Struct with fields:
-%      .body_points_file   - Path to CSV/MAT file with N x 3 point cloud [m]
+%      .body_points_file   - Path to CSV/MAT file with an N x 3 body-local
+%                             point cloud centred at the body COM [m]
 %      .attachment_sites   - Struct array / cell array (optional)
-%          .position       - [3 x 1] Attachment position in body-local frame [m]
+%          .position       - [3 x 1] Attachment position in the same
+%                             body-local COM-centred frame [m]
 %          .direction      - [3 x 1] Unit outward direction at attachment
 %          .label          - String label (e.g. 'left_pole') (optional)
 %      .L_0_override       - Scalar characteristic length [m] (optional)
@@ -63,6 +68,7 @@ function [Body_str, body_meta] = custom_body_building(custom_cfg, logf_h)
 %                        default, Euler characteristic check, expanded
 %                        alpha scan, cell/struct-array compatible sites.
 %  Updated: 2026-07-03 — Optional logf_h for run_simulation silent mode.
+%  Updated: 2026-07-12
 
 if nargin < 2 || isempty(logf_h)
     logf_h = @(varargin) fprintf(varargin{:});

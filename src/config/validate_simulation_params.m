@@ -28,9 +28,21 @@ function validate_simulation_params(cfg, logf_h)
 %    logf_h - (Optional) Logger function handle for dual-channel output.
 %             If omitted or empty, falls back to warning-only.
 %
+%  Output:
+%    (none)
+%
+%  Throws:
+%    Throws validate_params:InvalidParams after aggregating all detected
+%    critical violations into one message.
+%
+%  Side Effects:
+%    Calls logf_h and emits validate_params:SuboptimalValue once for each
+%    nonfatal warning.  When validation fails, the aggregate error is sent
+%    to logf_h before the exception is thrown.
+%
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Updated: 2026-06-17 — v7.9.0 parameter-validation deep refactor:
+%  History: 2026-06-17 — v7.9.0 parameter-validation deep refactor:
 %                         A1/A2 — alpha_0/delta checks moved here from
 %                         init_coupled_params; full-cfg acceptance (isfield-guarded);
 %                         P1 — pili_ext count consistency; P2 — delta range;
@@ -39,6 +51,7 @@ function validate_simulation_params(cfg, logf_h)
 %                         intrinsic_curvature/active_moment/motor_torque;
 %                         P9 — AbsTol/RelTol wording; Bugbot-fixed alpha_0
 %                         custom-mode regression (empty initial_orientation).
+%  Updated: 2026-07-12
 
 if nargin < 2 || isempty(logf_h)
     logf_h = @(varargin) [];   % no-op fallback

@@ -4,8 +4,8 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-07-03
-> **版本:** 7.10.0
+> **更新日期:** 2026-07-12
+> **版本:** 7.10.1
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -109,7 +109,9 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **7.10.0 (2026-07-03)**。本版新增 Linux 超算集群运行能力，并修复了同一轮审查中发现的两处跨平台批处理 bug。针对将 `batch_repeat_brownian.m` 部署到独占整节点、采用分布式/网络存储、MATLAB R2023a 的 Linux 超算分区所做的专项审查发现：多处 Windows 专属 API（`memory()`、`wmic`）在 Linux 上要么直接报错、要么静默把并行池规模算错；`VideoWriter` 的默认编码 profile 仅 Windows/Mac 支持；`parpool` 的 `JobStorageLocation` 默认路径在家目录为网络存储的集群上是已知会导致池启动竞态的隐患；而且完全看不到正在运行中的子任务进度。本版新增维护分支 **[`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m)** / **[`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m)**，针对 Linux 逐一解决了以上问题（平台自适应视频导出、`lscpu`/`/proc/meminfo` 资源探测、CPU/内存余量独立设置、抽样降低单 worker 内存占用、并行池任务存储目录迁移到节点本地、带节流的实时进度心跳），同时**完全不改动**原有面向 Windows 的脚本。此外，同一轮审查还发现 `capture_partial_outdir`（v7.9.5 引入的失败运行 `outdir`/`log_hint` 字段）在两个平台上其实都从未真正生效过——因为 MATLAB 函数抛出异常时不会把返回值传回调用者——现已在 `batch_repeat_brownian.m` 与 `batch_run_from_json.m` 中改为根据确定性的 `case_name` 反推预期路径来修复。**仿真物理/数值输出无任何变化。**
+当前版本为 **7.10.1 (2026-07-12)**，属于文档准确性与契约一致性补丁。对全部一方 MATLAB 入口、脚本、函数及冻结 legacy 快照的完整复核，修正了 help 头部中的函数签名、状态维数、单位、坐标系、数值分支、副作用、warning/error、缓存路径以及 legacy/live API 边界。必要的最小实现修复包括：确保 `odetpbar` 所有路径返回初始化状态、让 `verify_migration` 识别 HPC 入口与 `project_version.m`，以及为两个胶囊网格错误路径提供稳定 identifier。发布验收覆盖全部一方 MATLAB 文件，以及标准、马达驱动、自定义几何、Brownian 和 HPC 五类端到端工况。**水动力、弹性、Brownian、马达与几何数值算法均未改变。**
+
+**7.10.0 (2026-07-03)** 新增 Linux 超算集群运行能力，并修复两处跨平台批处理问题；该版本引入维护分支 **[`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m)** / **[`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m)**。
 
 **7.9.6 (2026-07-03)** 为控制台输出与异常健壮性修正版：修复了自 v7.9.3 起导致所有正常（非批处理）运行的 `logf` 控制台输出全部消失的 `dual_log` 极性反转 bug，以及导致每次自定义几何运行都在 `[PLOT] Generating summary figure` 步骤必然崩溃的 `trisurf` 坐标轴指定问题，并新增了贯穿整个运行体的 `try/catch`，确保 `simulation.log` 始终记录完整的 `[FATAL]` 分节而不是静默截断。
 

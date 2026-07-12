@@ -2,52 +2,62 @@ function params = init_coupled_params(varargin)
 %INIT_COUPLED_PARAMS  Initialise parameter structure for coupled simulation
 %
 %  Description:
-%    Sets up the parameter structure containing all physical and numerical
-%    parameters for the coupled body-pili simulation.  Uses the unified
-%    nondimensionalisation scheme from the integration plan.
+%    Builds body and pili geometry, computes dimensional and dimensionless
+%    scales, resolves the initial orientation, and assembles the parameter
+%    structure used by the coupled solver.
 %
 %  Syntax:
 %    params = init_coupled_params()
 %    params = init_coupled_params('Name', Value, ...)
 %
 %  Name-Value Pairs:
-%    'geometry_mode' Geometry mode: 'parametric' (default) or 'custom'
-%    'custom_geometry' Struct with custom geometry config (required if 'custom')
-%    'N_body'      Number of body surface points      (default: 300)
-%                  [parametric mode only]
-%    'minor_axis'  Semi-minor axis [m]                 (default: 0.4e-6)
-%                  [parametric mode only]
-%    'major_axis'  Semi-major axis [m]                 (default: 1.25e-6)
-%                  [parametric mode only; L_0 source]
-%    'mu'          Dynamic viscosity [Pa*s]            (default: 1e-3)
-%    'E'           Young's modulus [Pa]                (default: 3.279e8)
-%    'r_pili'      Pili radius [m]                     (default: 3e-9)
-%    'sigma'       Poisson's ratio                     (default: 0.2)
-%    'rho_bac'     Bacteria density [kg/m^3]           (default: 1180)
-%    'rho_fluid'   Fluid density [kg/m^3]              (default: 998.232)
-%    'N_segments'  Segment counts [M x 1]              (default: 300)
-%                  [parametric mode only]
-%    'Pili_Matrix' Pili parameter matrix [8 x M]       (default: single pole)
-%                  [parametric mode only]
-%    'seg_per_um'  Segments per micron                 (default: 10)
-%    'delta'       Euler-angle singularity threshold   (default: pi/20)
-%    'alpha_0'     Initial body tilt angle [rad]       (default: pi/2)
-%                  Angle of body long axis (body X) from +X in XZ plane
-%                  pi/2 = vertical (+Z), 0 = horizontal (+X),
-%                  NOTE: the inline demo in main_coupled_simulation.m sets
-%                  alpha_0 = 0 (horizontal), which is intentionally non-default
-%                  to isolate motor-driven rotation; the README sinking
-%                  workflow uses the default pi/2 (vertical).
-%                  -pi/2 = inverted (-Z).  Range: [-pi/2, pi/2]
-%    'Temper'      Absolute temperature [K]            (default: 293.15)
-%    'enable_brown' Enable body Brownian motion        (default: false)
-%    'eps_body'      Optional RSM regularisation length [L0], dimensionless.
-%                    If empty (default), uses eps_body = h_mean/2.6667 from the
-%                    surface mesh.  If set to a positive scalar, overrides
-%                    that default (for parameter studies).
+%    'geometry_mode'      'parametric' or 'custom' (default: 'parametric')
+%    'custom_geometry'    Custom geometry schema struct (default: struct())
+%    'N_body'             Requested body point count (default: 300)
+%    'minor_axis'         Parametric semi-minor axis [m] (default: 0.4e-6)
+%    'major_axis'         Parametric semi-major axis [m] (default: 1.25e-6)
+%    'mu'                 Dynamic viscosity [Pa*s] (default: 1e-3)
+%    'E'                  Young's modulus [Pa] (default: 3.279e8)
+%    'r_pili'             Pilus radius [m] (default: 3e-9)
+%    'sigma'              Poisson ratio (default: 0.2)
+%    'rho_bac'            Bacterium density [kg/m^3] (default: 1180)
+%    'rho_fluid'          Fluid density [kg/m^3] (default: 998.232)
+%    'N_segments'         Scalar or per-pilus segment counts (default: 300)
+%    'Pili_Matrix'        Parametric pili matrix [8-9 x M]; optional row 9
+%                         stores custom bending stiffness [N*m^2]
+%                         (default: [1;3;0;0;NaN;NaN;NaN;1])
+%    'seg_per_um'         Segments per micron (default: 10)
+%    'delta'              Euler-angle singularity margin [rad] (default: pi/20)
+%    'alpha_0'            Initial body-X tilt in the XZ plane [rad]
+%                         (default: pi/2; used when initial_orientation is empty)
+%    'initial_orientation' Explicit custom-body orientation struct
+%                         (default: []; overrides alpha_0 in custom mode;
+%                         nonempty values are rejected in parametric mode)
+%    'Temper'             Absolute temperature [K] (default: 293.15)
+%    'enable_brown'       Enable body Brownian motion (default: false)
+%    'intrinsic_curvature' Per-pilus cell array (default: {})
+%    'active_moment'      Per-pilus cell array (default: {})
+%    'root_coupling'      Per-pilus cell array (default: {})
+%    'motor_torque'       Per-pilus cell array (default: {})
+%    'background_flow'    Background-flow schema struct
+%                         (default: struct('type','off'))
+%    'eps_body'           Positive RSM regularisation length [L_0], or []
+%                         to use h_mean/2.6667 (default: [])
+%    'logf'               Console logger function handle (default: fprintf)
+%    'logf_file'          File logger function handle (default: no-op)
 %
-%  Outputs:
-%    params - Structure with all simulation parameters
+%  Output:
+%    params - Solver parameter struct.  Major field families include:
+%      .dim                 dimensional inputs, volume, and root gap
+%      .scales              L_0, T_0, U_0, F_0, and EI
+%      .N_body, .body_*     body geometry and visualisation metadata
+%      .M_pili, .N_segments pilus counts
+%      .r_local, .d_local, .D_local, .ell, .rot, .pili_x0
+%      .kb0, .am_cfg, .root_coupling, .motor_cfg
+%      .q_0_init, .orientation_source, .alpha_0
+%      .Eg, .epsilon, .sigma, .g_hat, .delta, .eps_body
+%      .quad_weights, .bg_flow, .brown_enabled
+%      .logf, .logf_file     caller-facing logging handles
 %
 %  Note:
 %    'dis' (gap between body and pili root) is computed automatically
@@ -59,8 +69,9 @@ function params = init_coupled_params(varargin)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-06-17 — v7.9.0: P8 motor_torque string acceptance (both modes);
-%           removed dead if/else at former L314 (Pili_Matrix = zeros(8,0)).
+%  History: 2026-06-17 — v7.9.0 P8 motor_torque string acceptance and
+%           removal of the redundant no-pili assignment branch.
+%  Updated: 2026-07-12
 
 %% Parse inputs
 p = inputParser;

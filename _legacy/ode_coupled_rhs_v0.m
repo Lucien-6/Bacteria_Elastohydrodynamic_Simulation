@@ -1,6 +1,20 @@
 function dZ = ode_coupled_rhs_v0(t, Z, params)
 %ODE_COUPLED_RHS_V0  Frozen reference copy (pre-Direction-1) — historical archive only
 %
+%  Status: Historical archive only.
+%  Former consumer/harness removed: test_optimization_invariance.m and
+%    benchmark_direction1.m were removed after validation on 2026-04-21.
+%  Live counterpart: src/core/ode_coupled_rhs.m
+%  Frozen snapshot: RHS immediately before v5.5.5 Direction-1 LU reuse.
+%  NOT live API: Do not call from simulations, tools, or new code.
+%
+%  Current v7.x divergence:
+%    The live RHS supports per-pilus clamped/free_torsion roots and exact
+%    self-consistent motor torque/speed coupling, and consumes the non-local
+%    twist and reusable-factorisation hydro schema. This snapshot assumes
+%    clamped roots, has no motor path, and consumes A_twist_total plus the
+%    raw M_weighted solve from the legacy local-RFT hydro schema.
+%
 %  Description:
 %    Bit-for-bit copy of ode_coupled_rhs.m at HEAD before the Direction 1
 %    (LU decomposition-reuse) optimisation.  This version calls
@@ -13,8 +27,12 @@ function dZ = ode_coupled_rhs_v0(t, Z, params)
 %
 %    Never invoke this function from the live simulator.
 %
+%  Syntax:
+%    dZ = ode_coupled_rhs_v0(t, Z, params)
+%
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-21
+%  Updated: 2026-07-12
 
 %% Extract frequently used parameters
 N_segs = params.N_segments;

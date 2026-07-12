@@ -6,28 +6,42 @@ function geom = reconstruct_geometry(Z, params)
 %    lab-frame positions of all body surface points and pili nodes, as
 %    well as the pili director vectors.  Called at the start of each
 %    ODE RHS evaluation.
+%    All positions are nondimensional coordinates x/L_0; no conversion
+%    back to SI units is performed here.  Multiply any positional field by
+%    params.L_0 to recover metres, for example
+%      X_body_SI = geom.X_body * params.L_0.
 %
 %  Syntax:
 %    geom = reconstruct_geometry(Z, params)
 %
 %  Inputs:
-%    Z      - [n x 1] Global state vector
-%    params - Parameter structure (from init_coupled_params)
+%    Z      - [7 + 3*sum(params.N_segments) x 1] Global state vector;
+%             Z(1:3) is the dimensionless lab-frame body COM position,
+%             followed by the quaternion and per-segment Euler angles
+%    params - Parameter structure from init_coupled_params; body_local,
+%             r_local, and ell are nondimensionalised by L_0
 %
 %  Outputs:
 %    geom - Structure with fields:
-%      .X_cm       [3 x 1]     Body centre of mass
+%      .X_cm       [3 x 1]     Body COM position in lab frame, x/L_0
 %      .q          [4 x 1]     Body quaternion
-%      .R_body     [3 x 3]     Body rotation matrix
-%      .X_body     [N_body x 3] Body surface positions (lab)
-%      .X_pili     {M x 1}     Pili node positions (lab)
-%      .d1,.d2,.d3 {M x 1}     Directors in lab frame
-%      .d1_basis,.d2_basis,.d3_basis {M x 1} Directors in rot_k basis
-%      .X_all      [N_total x 3] All points concatenated
-%      .pili_angles {M x 1}    Angle structs
+%      .R_body     [3 x 3]     Rotation from body-local to lab frame
+%      .X_body     [N_body x 3] Dimensionless body positions in lab frame
+%      .X_pili     {M x 1}     Cell k: [(N_k+1) x 3] dimensionless pili
+%                              node positions in lab frame
+%      .d1,.d2,.d3 {M x 1}     Cell k: [N_k x 3] directors in lab frame
+%      .d1_basis,.d2_basis,.d3_basis
+%                    {M x 1}   Cell k: [N_k x 3] directors in rot_k basis
+%      .X_all      [N_body+sum(N_k+1) x 3] Concatenated lab-frame positions
+%      .pili_angles {M x 1}    Cell k: struct of [N_k x 1] angle arrays
+%
+%  Warnings:
+%    Emits reconstruct_geometry:ZeroQuaternion and substitutes the identity
+%    quaternion when the supplied body quaternion has zero norm.
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
+%  Updated: 2026-07-12
 
 %% Unpack state
 [X_cm, q, pili_angles] = unpack_state(Z, params.N_segments);

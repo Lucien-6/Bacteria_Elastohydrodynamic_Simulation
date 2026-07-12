@@ -36,7 +36,9 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
+%  Updated: 2026-07-12
 
+status = 0;
 persistent tf tstart prev_len last_upd;
 
 BAR_W    = 30;       % Progress bar width (characters)

@@ -1,22 +1,31 @@
 function R = rotation_between_vectors(u, v)
-%ROTATION_BETWEEN_VECTORS  Compute rotation matrix aligning vector u to v
+%ROTATION_BETWEEN_VECTORS  Rotate one direction onto another
 %
 %  Description:
-%    Computes the minimal (shortest-arc) rotation matrix R that maps
-%    unit vector u to unit vector v using the Rodrigues formula.
-%    Both inputs are normalised internally.  Handles parallel and
-%    anti-parallel vectors as special cases.
+%    Computes the shortest-arc proper rotation R satisfying
+%      R*u_hat = v_hat
+%    for finite, nonzero three-vectors u and v.  Inputs are reshaped to
+%    columns and divided by max(norm(vector), 1e-30).  The 1e-30 floor
+%    prevents division by zero but does not define a meaningful direction:
+%    callers must not use zero or numerically vanishing vectors.
+%
+%    For the general case, the routine applies Rodrigues' formula about
+%    cross(u_hat,v_hat).  Dot products above 1 - 1e-12 are treated as
+%    parallel and return the identity.  Dot products below -1 + 1e-12 are
+%    treated as anti-parallel and return a pi rotation about a deterministic
+%    perpendicular axis.  The anti-parallel rotation is necessarily
+%    non-unique.  These 1e-12 angular tests avoid normalising a vanishing
+%    cross product near either limiting case.
 %
 %  Syntax:
 %    R = rotation_between_vectors(u, v)
 %
 %  Inputs:
-%    u - [3 x 1] Source direction vector (will be normalised)
-%    v - [3 x 1] Target direction vector (will be normalised)
+%    u - Three-element finite, nonzero source direction
+%    v - Three-element finite, nonzero target direction
 %
-%  Output:
-%    R - [3 x 3] Rotation matrix such that R * u_hat = v_hat
-%        (up to numerical precision)
+%  Outputs:
+%    R - [3 x 3] Proper rotation mapping u_hat to v_hat, within round-off
 %
 %  References:
 %    [1] Rodrigues' rotation formula.
@@ -24,6 +33,7 @@ function R = rotation_between_vectors(u, v)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-28
+%  Updated: 2026-07-12
 
 %% Normalise input vectors
 u = u(:) / max(norm(u), 1e-30);

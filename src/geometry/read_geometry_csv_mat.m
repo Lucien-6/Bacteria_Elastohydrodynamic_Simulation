@@ -4,6 +4,9 @@ function pts = read_geometry_csv_mat(file_path, varargin)
 %  Description:
 %    Reads point cloud data from a user-supplied geometry file in either
 %    CSV or MAT format and returns an N-by-3 matrix of 3D coordinates.
+%    Coordinate values are returned unchanged: this function performs no
+%    unit conversion.  Project geometry files are therefore expected to use
+%    the project SI convention of metres.
 %
 %    CSV format (.csv / .txt):
 %      - Three columns: X, Y, Z (header row optional).
@@ -29,19 +32,20 @@ function pts = read_geometry_csv_mat(file_path, varargin)
 %    pts = read_geometry_csv_mat(file_path, 'Name', Value, ...)
 %
 %  Inputs:
-%    file_path - Path to a CSV or MAT file containing point cloud data
+%    file_path - Path to a CSV or MAT file containing point coordinates [m]
 %
 %  Name-Value Pairs:
 %    'AllowPlanar2D' - Logical (default false): accept N-by-2 input and
 %                      auto-append Z=0 column (with a warning).
 %
 %  Output:
-%    pts - [N x 3] matrix of 3D point coordinates
+%    pts - [N x 3] matrix of unchanged 3D point coordinates [m]
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-28
 %  Updated: 2026-05-04 — Stricter shape validation, robust CSV reader via
 %                        readmatrix, preferred MAT variable names.
+%  Updated: 2026-07-12
 
 %% Parse options
 p = inputParser;

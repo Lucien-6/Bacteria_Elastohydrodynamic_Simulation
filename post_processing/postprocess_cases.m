@@ -20,6 +20,18 @@ function postprocess_cases()
 %    4. All results are exported to a formatted Excel workbook plus a batch
 %       summary figure (.png, .pdf, and .html on R2026a+, same base name).
 %
+%  Metric conventions:
+%    timeseries.csv stores Vsink_um_s = dZ/dt in the simulation frame
+%    (+Z upward).  Reported mean and steady V_sink values are positive sinking
+%    speed magnitudes, computed as -mean(Vsink_um_s); the standard deviation
+%    is unchanged by this sign conversion.
+%
+%    Translational diffusion uses the 3-D time-averaged MSD over lags from
+%    one mean sample interval through floor(NT/4):
+%      MSD(tau) = 6*D_trans*tau + V_msd^2*tau^2.
+%    The no-intercept coefficients are obtained by unconstrained least squares;
+%    reported D_trans and V_msd are clamped to non-negative physical values.
+%
 %  Data source per case folder  (non-recursive — subfolders are ignored):
 %    timeseries.csv  ->  t_s, X_um, Y_um, Z_um,
 %                        Vx_um_s, Vy_um_s, Vz_um_s,
@@ -35,15 +47,22 @@ function postprocess_cases()
 %  Outputs:
 %    Excel workbook at user-chosen path; batch summary figure with the same
 %    base name as .png (600 dpi), .pdf (vector), and .html (interactive web
-%    canvas on MATLAB R2026a+); paths printed to console.
+%    canvas on MATLAB R2026a+); paths printed to console.  Struct/column field
+%    names use ASCII unit suffixes such as _um and _um_s, while workbook and
+%    figure labels use display symbols such as um/µm and µm/s.
 %
-%  Requirements:
-%    MATLAB R2018b+, Microsoft Excel installed (for COM formatting).
+%  Platform and requirements:
+%    Core metric computation and raw workbook export are cross-platform.
+%    Windows with Microsoft Excel is required only for COM visual formatting;
+%    if COM is unavailable or formatting fails, the raw .xlsx data remains
+%    saved and processing continues with a warning.
+%    MATLAB R2018b+ is required by the documented workflow.
 %    Summary figure export uses exportgraphics (MATLAB R2020a or later).
 %    Interactive HTML figure export requires MATLAB R2026a or later.
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-07
+%  Updated: 2026-07-12
 
 %% ---- Banner ------------------------------------------------------------
 sep = repmat('=', 1, 64);

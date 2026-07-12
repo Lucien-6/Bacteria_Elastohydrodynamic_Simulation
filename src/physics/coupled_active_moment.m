@@ -3,15 +3,20 @@ function M_active = coupled_active_moment(t, k, N_k, d1, d2, d3, d1N, d2N, d3N, 
 %
 %  Description:
 %    Computes the integrated active internal moments for pilus k at
-%    dimensionless time t.  The result is expressed in the local
-%    director basis (d1N, d2N, d3N) at each node, matching the layout
-%    of elastic curvature entries in R_global.
+%    dimensionless time t.  The result contains one moment triplet per
+%    segment and is expressed in the local nodal director basis
+%    (d1N, d2N, d3N) at balance nodes i = 1,...,N_k, matching the
+%    elastic-curvature layout in R_global.  The geometric tip node
+%    i = N_k+1 supplies director data but has no separate output column.
 %
 %    The algorithm follows 3D-Flexible-Filaments/integrated_internal_moments.m:
 %      1. Specify moment density as antiderivatives f(s) on s in [0,1].
-%      2. Evaluate segment integrals: f(s_{j+1}) - f(s_j).
-%      3. Reverse cumulative sum to get integral from s_i to 1.
-%      4. Project onto local director basis at each node.
+%      2. Evaluate one integral on each segment j = 1,...,N_k:
+%         f(s_{j+1}) - f(s_j).
+%      3. Reverse cumulative sum to get the integral from node
+%         s_i to the tip for i = 1,...,N_k.
+%      4. Project those N_k values onto the local director basis at
+%         nodes i = 1,...,N_k.
 %
 %    Supported modes:
 %      'off'             - Zero active moments (default)
@@ -49,7 +54,9 @@ function M_active = coupled_active_moment(t, k, N_k, d1, d2, d3, d1N, d2N, d3N, 
 %                      Root boundary condition type for this pilus.
 %
 %  Outputs:
-%    M_active - [3 x N_k] Integrated active moments in local director basis.
+%    M_active - [3 x N_k] Integrated active moments, one column per
+%               segment-associated balance node i = 1,...,N_k, in the
+%               local nodal director basis.
 %               Row 1: d1 component, Row 2: d2 component, Row 3: d3 component.
 %               For clamped coupling, first segment is zeroed (overwritten by BC).
 %               For free_torsion, only bending components (rows 1-2) of the
@@ -61,6 +68,7 @@ function M_active = coupled_active_moment(t, k, N_k, d1, d2, d3, d1N, d2N, d3N, 
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-03
+%  Updated: 2026-07-12
 
 if nargin < 11 || isempty(root_coupling_k)
     root_coupling_k = 'clamped';

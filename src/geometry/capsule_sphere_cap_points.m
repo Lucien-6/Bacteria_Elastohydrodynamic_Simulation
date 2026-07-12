@@ -5,15 +5,18 @@ function V = capsule_sphere_cap_points(SPN)
 %    V = capsule_sphere_cap_points(SPN)
 %
 %  Input:
-%    SPN - Target number of cap points (must already be snapped via
-%          snap_sphere_cap_count for optimal Ico/Quad allocation)
+%    SPN - Target full-sphere sample count shared by the two capsule caps
+%          (must already be snapped via snap_sphere_cap_count for optimal
+%          Ico/Quad allocation)
 %
 %  Output:
-%    V - [SPN x 3] Unit-sphere point coordinates in body frame
+%    V - [SPN x 3] Full unit-sphere sample in the body frame; the two
+%        hemispheres are subsequently used as the combined capsule caps
 %        (toolbox z-axis pole -> body x-axis pole)
 %
-%  SPN must already equal the intended cap count (call snap_sphere_cap_count
-%  in capsule_body_building when adjusting allocation to Ico/Quad native N).
+%  SPN must already equal the intended combined-cap full-sphere count (call
+%  snap_sphere_cap_count in capsule_body_building when adjusting allocation
+%  to an Ico/Quad native N).
 %
 %  Decision order:
 %    1) If SPN exactly matches Ico or Quad native vertex count for some k in
@@ -34,10 +37,14 @@ function V = capsule_sphere_cap_points(SPN)
 %
 %  --- Particle result cache ---
 %  When 100 < SPN < 1000 the result is read from / written to disk via
-%  sphere_particle_sample_cached (cache/sphere_particle/spherical_points_NXXXX.mat).
+%  sphere_particle_sample_cached
+%  (src/geometry/cache/sphere_particle/spherical_points_NXXXX.mat).
 %  For 14 <= SPN <= 100 ParticleSampleSphere is called directly (no cache).
 %
 %  Toolbox z-axis pole -> body x-axis pole (capsule).
+%
+%  Errors:
+%    Throws capsule_sphere_cap_points:InvalidSPN when SPN < 1.
 %
 %  Requires: Anton Semechko S2 Sampling Toolbox on the MATLAB path.
 %
@@ -46,9 +53,11 @@ function V = capsule_sphere_cap_points(SPN)
 %  Updated: 2026-04-18 — ParticleSampleSphere: toolbox Etol/Dtol/Nitr defaults;
 %                        deterministic Vo via SpiralSampleSphere(SPN,false);
 %                        disk cache for 100 < SPN < 1000 via sphere_particle_sample_cached
+%  Updated: 2026-07-12
 
 if SPN < 1
-    error('capsule_sphere_cap_points: SPN must be at least 1.');
+    error('capsule_sphere_cap_points:InvalidSPN', ...
+        'SPN must be at least 1.');
 end
 
 cache = capsule_sphere_mesh_cache();

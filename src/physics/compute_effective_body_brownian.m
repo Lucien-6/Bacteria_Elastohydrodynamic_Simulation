@@ -13,20 +13,41 @@ function [L_eff, D_eff, M_eff_dim] = compute_effective_body_brownian(Z, params)
 %
 %    This is obtained without explicit block inversion by solving
 %    the full lin_sys with 6 unit probe vectors and extracting the
-%    body rows of the solution.
+%    body rows of the solution.  This routine is deterministic: it
+%    constructs the Brownian covariance and factor but does not draw
+%    random numbers or advance any random-number generator.
 %
 %  Algorithm:
 %    1. Assemble the coupled linear system via build_coupled_lin_sys.
 %    2. Probe with 6 unit force/torque vectors on the body DOFs.
-%    3. Extract dimensionless 6x6 effective mobility.
-%    4. Dimensionalise using characteristic scales.
-%    5. Compute diffusion tensor D = kB*T * M and Cholesky factor L.
+%    3. Extract the dimensionless 6x6 effective mobility, measure its
+%       relative asymmetry before modification, and emit diagnostics
+%       when the mixed-discretisation asymmetry envelope is exceeded.
+%    4. Symmetrise only the mobility used for the Brownian
+%       fluctuation-dissipation path:
+%       M_eff <- (M_eff + M_eff')/2.
+%       The deterministic ode_coupled_rhs solve continues to use the
+%       original, unsymmetrised hydrodynamic operator.
+%    5. Dimensionalise using the translational/rotational scales.
+%    6. Form D_eff = kB*T*M_eff_dim, defensively symmetrise it, and
+%       project its eigenspectrum to strictly positive values if needed.
+%    7. Return the lower Cholesky factor of 2*D_eff.  No stochastic
+%       increment is sampled here.
+%
+%  Diagnostics and Warnings:
+%    Emits compute_effective_body_brownian:AsymmetryHigh when relative
+%    asymmetry exceeds 1e-3; a further log note is written above 1e-2.
+%    Emits compute_effective_body_brownian:IllConditioned when the
+%    dimensionless effective mobility is nonfinite or has rcond < 1e-10.
+%    Emits compute_effective_body_brownian:NotPosDef when D_eff requires
+%    eigenvalue projection to obtain a strictly positive covariance.
 %
 %  Syntax:
 %    [L_eff, D_eff, M_eff_dim] = compute_effective_body_brownian(Z, params)
 %
 %  Inputs:
-%    Z      - [n x 1] Global state vector (dimensionless)
+%    Z      - [(7 + 3*sum(N_segments)) x 1] Global state vector
+%             (dimensionless)
 %    params - Parameter structure (from init_coupled_params)
 %
 %  Outputs:
@@ -44,7 +65,9 @@ function [L_eff, D_eff, M_eff_dim] = compute_effective_body_brownian(Z, params)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-31
-%  Updated: 2026-05-06 — Lucien — rcond diagnostic on M_eff_dimless (project v7.4.1; see CHANGELOG)
+%  History: 2026-05-06 — rcond diagnostic moved to M_eff_dimless
+%           (project v7.4.1; see CHANGELOG.md).
+%  Updated: 2026-07-12
 
 %% Step 1: Assemble coupled linear system
 [lin_sys, ~] = build_coupled_lin_sys(Z, params);

@@ -3,6 +3,12 @@ function dZ = ode_coupled_rhs(t, Z, params)
 %
 %  Description:
 %    Computes dZ/dt for the coupled bacterial body + elastic pili system.
+%    The ODE state has length 7 + 3*sum(N_segments):
+%      Z = [X_cm(3); q(4); theta; phi; psi].
+%    The internal generalized-rate vector has length 6 + 3*sum(N_segments):
+%      z_dot = [V(3); Omega(3); dtheta; dphi; dpsi],
+%    which is also the row and column dimension of lin_sys.
+%
 %    Evaluation steps:
 %      1-4, 6-7. Build the coupled linear system (delegated to
 %           build_coupled_lin_sys.m, which handles Step 1: geometry
@@ -13,8 +19,16 @@ function dZ = ode_coupled_rhs(t, Z, params)
 %           computed here as Step 8, not part of the LHS linear system)
 %      8.     Compute elastic restoring moments for each pilus
 %      8b.    Subtract per-pili active internal moments (if enabled)
-%      8c.    Subtract background flow contribution (if enabled)
-%      9.     Solve  lin_sys * z_dot = R_global
+%      8d.    Record free-torsion motor rows and torque-law data
+%      8c.    Subtract the background-flow contribution (if enabled);
+%           Step 8d intentionally precedes Step 8c in the implementation
+%      BC RHS. Set theta_1/phi_1 rows to zero for every pilus and also
+%           psi_1 for clamped roots; preserve the free-torsion psi_1
+%           moment-balance RHS
+%      9.     Solve lin_sys * z_dot = R_global.  Motor speed limiting is
+%           resolved exactly and self-consistently within this RHS call
+%           from the motor-free solution and unit-torque sensitivities;
+%           no lagged motor state is used
 %     10.     Pack state rates into dZ
 %
 %  Syntax:
@@ -22,17 +36,18 @@ function dZ = ode_coupled_rhs(t, Z, params)
 %
 %  Inputs:
 %    t      - Current dimensionless time
-%    Z      - [n x 1] Global state vector
+%    Z      - [(7 + 3*sum(N_segments)) x 1] Global state vector
 %    params - Parameter structure (from init_coupled_params)
 %
 %  Outputs:
-%    dZ - [n x 1] Time derivative of state vector
+%    dZ - [(7 + 3*sum(N_segments)) x 1] Time derivative of state vector
 %
 %  References:
 %    [1] Walker et al. (2020), Physical Review E.
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
+%  Updated: 2026-07-12
 
 %% Extract frequently used parameters
 N_segs = params.N_segments;

@@ -3,12 +3,10 @@
 %
 %  Description:
 %    Translates a user-friendly struct array (with named fields) into the
-%    [8 x M] numeric Pili_Matrix expected by downstream functions such as
-%    pili_building and init_coupled_params.
-%
-%    Optionally returns a second output with per-pili extended fields
-%    (intrinsic_curvature, active_moment) that are not encoded in the
-%    numeric Pili_Matrix.
+%    fixed eight-row numeric Pili_Matrix expected by pili_building and
+%    init_coupled_params.  Extended settings that are not representable in
+%    those eight rows are returned separately in pili_ext, including
+%    intrinsic_curvature, active_moment, root_coupling, and motor_torque.
 %
 %  Syntax:
 %    Pili_Matrix = parse_pili_config(pili_cfg)
@@ -31,16 +29,26 @@
 %                                   'max_omega_Hz',val)
 %
 %  Output:
-%    Pili_Matrix - [8 x M] numeric matrix (optionally [8-9 x M] with row 9 for
-%      custom bending stiffness, handled directly in pili_building.m):
+%    Pili_Matrix - [8 x M] numeric matrix:
 %      Row 1: type, Row 2: length [um], Row 3: deflection Z [rad],
 %      Row 4: deflection X [rad], Rows 5-7: shape params, Row 8: site
 %    pili_ext    - [1 x M] struct array with .intrinsic_curvature,
 %                  .active_moment, .root_coupling, and .motor_torque
 %                  per pili (defaults: 'frozen' / 'off' / 'clamped' / off)
 %
+%  Note:
+%    This parser never creates a ninth matrix row.  Downstream
+%    pili_building also accepts a manually supplied [9 x M] raw numeric
+%    matrix whose row 9 stores custom bending stiffness [N*m^2]; such a
+%    matrix can bypass this parser through load_sim_config.
+%
+%  Errors:
+%    Throws for a missing or invalid type, nonpositive length, more than
+%    three shape parameters, or an attachment site outside integer 1-14.
+%
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
+%  Updated: 2026-07-12
 
 if isempty(pili_cfg)
     Pili_Matrix = zeros(8, 0);

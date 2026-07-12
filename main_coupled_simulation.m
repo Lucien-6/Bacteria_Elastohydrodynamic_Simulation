@@ -8,19 +8,22 @@
 %
 %    To run with inline parameters:  edit the defaults below, then Run.
 %    To run from a JSON config file: set config_file to the path.
-%    To automate parameter sweeps:   see batch sweep/ folder (batch_sweep_alpha.m etc.).
+%    To automate parameter sweeps: see batch_sweep/ for driver scripts.
+%    Parameter-sweep CSV/MAT summary products are written to batch sweep/
+%    at the repository root (the space in that output-folder name is intentional).
 %
 %    CURRENT INLINE DEMO (intentional, non-default physics):
-%      case_name = 'OnePili-Rotate-Active-Test'.  A single free-torsion
+%      case_name = 'OnePili-Rotate-Active-Fast-Test'.  A single free-torsion
 %      flagellum driven by a constant motor torque.  Buoyancy is OFF on
 %      purpose: rho_bac = rho_fluid = 998.232 kg/m^3 isolates motor-driven
 %      rotation and propulsion from gravitational sinking.  This is NOT
 %      the documented project default - the standard sinking workflow uses
-%      rho_bac = 1180 kg/m^3.  Likewise T_obs = 20 s and dt = 0.01 s are
+%      rho_bac = 1180 kg/m^3.  Likewise T_obs = 5 s and dt = 0.01 s are
 %      tuned for the high-frequency motor diagnostic (the JSON loader
 %      fallback defaults in load_sim_config.m are T_obs = 30 s, dt = 0.1 s).
-%      Edit the rho_bac / dt / T_obs / cfg
-%      lines below to reproduce the standard sinking-bacterium scenario.
+%      compute_flowfield is omitted below, so run_simulation() uses its
+%      backward-compatible default true.  Edit rho_bac, dt, T_obs, case_name,
+%      and other cfg fields below to reproduce a standard sinking study.
 %
 %  Output unit convention:
 %    Time [s] | Length [um] | Velocity [um/s] | Force [pN] | Angle [rad] | Angular velocity [rad/s]
@@ -32,7 +35,8 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Documentation release: 7.10.0 (2026-07-03) - see README.md / CHANGELOG.md
+%  Updated: 2026-07-12
+%  Documentation release: 7.10.1 (2026-07-12) - see README.md / CHANGELOG.md
 
 close all force;
 clear; clc;

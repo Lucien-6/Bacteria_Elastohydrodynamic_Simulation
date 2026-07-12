@@ -7,7 +7,18 @@ function [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params)
 %      lin_sys * z_dot = R
 %    where lin_sys encodes the hydrodynamic resistance (mobility
 %    inversion + force/moment balance) and root boundary conditions
-%    (clamped or free-torsion per pili).
+%    (clamped or free-torsion independently for each pilus).
+%
+%    The input ODE state Z has length 7 + 3*sum(N_segments), whereas
+%    z_dot, R, and both dimensions of lin_sys are
+%    6 + 3*sum(N_segments).  The difference is the four-component
+%    quaternion state versus the three-component angular velocity.
+%    With N_total = size(geom.X_all, 1), the principal assembly dimensions are
+%      n_state = 6 + 3*sum(N_segments),
+%      n_vel   = 3*N_total + sum(N_segments), and
+%      n_force = 3*N_total + 3*sum(N_segments).
+%    Accordingly Q_global is [n_vel x n_state], while the hydrodynamic
+%    force map uses n_force rows before reduction to lin_sys.
 %
 %    This function extracts Steps 1-7 of ode_coupled_rhs.m into a
 %    reusable subroutine, shared by ode_coupled_rhs (deterministic
@@ -21,13 +32,17 @@ function [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params)
 %    [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params)
 %
 %  Inputs:
-%    Z      - [n x 1] Global state vector
+%    Z      - [(7 + 3*sum(N_segments)) x 1] Global state vector
 %    params - Parameter structure (from init_coupled_params)
 %
 %  Outputs:
-%    lin_sys - [n_state x n_state] Coupled linear system matrix
-%              (with clamped BC applied).  Represents -Xi_gen in
-%              dimensionless units.
+%    lin_sys - [(6 + 3*sum(N_segments)) x
+%               (6 + 3*sum(N_segments))] Coupled linear system matrix
+%              with each pilus's configured root BC applied.  A clamped
+%              root replaces the theta_1, phi_1, and psi_1 rows; a
+%              free-torsion root replaces only theta_1 and phi_1 and
+%              retains the psi_1 natural moment-balance row.  Represents
+%              -Xi_gen in dimensionless units.
 %    geom    - Geometry struct from reconstruct_geometry (needed by
 %              caller for elastic moments, director frames, etc.)
 %    hydro   - (Optional, 3rd output) Hydrodynamic intermediate struct
@@ -47,6 +62,7 @@ function [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-31
+%  Updated: 2026-07-12
 
 N_body = params.N_body;
 M      = params.M_pili;

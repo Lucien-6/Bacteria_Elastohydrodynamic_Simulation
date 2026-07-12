@@ -20,11 +20,16 @@ function cache = capsule_sphere_mesh_cache()
 %      .ico    - {1 x 5} Cell array of [N x 3] Ico vertex matrices
 %      .quad   - {1 x 5} Cell array of [N x 3] Quad vertex matrices
 %
+%  Errors:
+%    Throws capsule_sphere_mesh_cache:UnsupportedMeshOutput if the installed
+%    S2 toolbox returns neither a triangulation nor a supported mesh struct.
+%
 %  See also: capsule_sphere_cap_points, snap_sphere_cap_count,
 %            sphere_particle_sample_cached
 %
 %  Author: Lucien (lucien-6@qq.com)
 %  Created: 2026-04-17
+%  Updated: 2026-07-12
 
 persistent icoPool quadPool Nico Nquad ready
 if isempty(ready)
@@ -61,6 +66,7 @@ function P = mesh_vertices(TR)
     elseif isstruct(TR) && isfield(TR, 'Points')
         P = TR.Points;
     else
-        error('capsule_sphere_mesh_cache:unsupportedMeshOutput %s', class(TR));
+        error('capsule_sphere_mesh_cache:UnsupportedMeshOutput', ...
+            'Unsupported spherical mesh output type: %s.', class(TR));
     end
 end

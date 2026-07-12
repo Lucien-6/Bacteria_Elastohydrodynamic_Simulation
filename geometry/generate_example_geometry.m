@@ -6,8 +6,9 @@
 %  Description:
 %    Produces a small, representative set of body point clouds and pili
 %    centerlines so that config_custom_example.json can run out of the
-%    box.  The generated geometries are intentionally compact (~300 body
-%    points, ~40 pilus centerline points) to keep demo runtime short.
+%    box.  The generated geometries are intentionally compact: 200 points
+%    for the sphere, 288 points for the capsule, and 41 points per pilus
+%    centerline, keeping the custom-geometry demo runtime short.
 %
 %    The pili centerlines are generated with a UNIFORM arc-length
 %    discretisation, as required by custom_pili_building.m.
@@ -16,14 +17,16 @@
 %    >> cd geometry
 %    >> generate_example_geometry
 %
-%  Outputs (written to the current folder):
+%  Outputs (written beside this script; pwd is used only if MATLAB cannot
+%  resolve mfilename('fullpath')):
 %    example_body_sphere.csv        - 200-point sphere, R = 1 um
-%    example_body_capsule.csv       - 300-point capsule (R=0.4um, L_cyl=1.7um)
+%    example_body_capsule.csv       - 288-point capsule (R=0.4um, L_cyl=1.7um)
 %    example_pilus_linear.csv       - 41-point straight pilus, 4 um long
 %    example_pilus_helix.csv        - 41-point helical pilus, 4 um long
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-05-04
+%  Updated: 2026-07-12
 
 close all; clear; clc;
 

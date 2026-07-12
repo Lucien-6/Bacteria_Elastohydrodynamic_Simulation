@@ -12,8 +12,19 @@
 %  Usage:
 %    verify_migration
 %
+%  Working Directory:
+%    Run this script with the project root as the current working directory.
+%    All checked paths are resolved relative to pwd; the script does not
+%    change the current working directory.
+%
+%  Side Effects:
+%    Executes close all force, clear, and clc before verification.  This
+%    closes all figures, clears the base workspace, and clears the Command
+%    Window.  It then prints the verification report to standard output.
+%
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-05-15
+%  Updated: 2026-07-12
 
 close all force;
 clear; clc;
@@ -30,6 +41,7 @@ expected_structure = struct();
 expected_structure.root = {
     'main_coupled_simulation.m'
     'run_simulation.m'
+    'run_simulation_HPC_Linux.m'
     };
 
 % Core simulation engine
@@ -103,6 +115,7 @@ expected_structure.utils = {
     'brown_rng_seed_from_clock.m'
     'odetpbar.m'
     'pack_state_rates.m'
+    'project_version.m'
     'unpack_state.m'
     'verify_migration.m'
     };

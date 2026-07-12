@@ -14,19 +14,20 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %  Inputs:
 %    cfg_or_path - Configuration struct (from load_sim_config or inline),
 %                  OR a char/string path to a JSON config file.
-%                  Optional runtime field (not saved to JSON):
-%                    cfg.silent - logical (default false).  When true,
-%                      suppresses console echo of logf, direct fprintf,
-%                      ODE/animation/flowfield progress bars, and warnings
-%                      for the duration of this run; all logf output still
-%                      goes to simulation.log.  Used by parallel batch
-%                      drivers (e.g. batch_repeat_brownian sets
-%                      cfg.silent = true on workers).  Errors are never
-%                      suppressed.  cfg.silent = true with
-%                      preview_initial = true additionally requires
-%                      auto_confirm = true, otherwise this function raises
-%                      run_simulation:SilentPreviewDeadlock immediately
-%                      instead of blocking on an unanswerable questdlg.
+%                  Important optional fields:
+%                    cfg.compute_flowfield - logical; defaults to true when
+%                      omitted for backward compatibility.
+%                    cfg.brown_rng_seed - positive numeric scalar.  With
+%                      Brownian motion enabled, the rounded value seeds the
+%                      global twister stream; if omitted, an MMddHHmmss seed
+%                      is generated at run start and saved for reproduction.
+%                    cfg.silent - runtime-only logical (default false).  When
+%                      true, suppresses console echo, direct fprintf output,
+%                      progress bars, and warnings for this run; logf output
+%                      still goes to simulation.log and errors remain visible.
+%                      With preview_initial = true, silent mode also requires
+%                      auto_confirm = true or the function raises
+%                      run_simulation:SilentPreviewDeadlock.
 %
 %  Errors raised while running are captured by a top-level try/catch and
 %  logged to simulation.log as a [FATAL] block (identifier, message, full
@@ -34,18 +35,38 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %  why a run failed instead of truncating silently.
 %
 %  Outputs:
-%    results    - Simulation results struct (physical units); [] if aborted
-%    params     - Parameter struct (including scales); [] if aborted
-%    output_dir - Path to output directory; '' if aborted
+%    results    - Results struct; [] if aborted.  Principal fields are:
+%                 t_dimless [1 x NT], X_cm [3 x NT, scaled by L_0],
+%                 q [4 x NT], and X_pili {M}[N_k+1 x 3 x NT, scaled by L_0];
+%                 t [s], X_cm_um [3 x NT, um],
+%                 X_pili_um {M}[N_k+1 x 3 x NT, um],
+%                 V_sink [1 x NT, signed dZ/dt in um/s],
+%                 V_cm_um [3 x NT, um/s], tilt_angle [1 x NT, rad],
+%                 F_sink_pN [scalar, pN], and units.  brown_rng_seed is
+%                 included when Brownian motion is enabled.
+%    params     - Model, discretisation, dimensional data, and scale factors;
+%                 logger handles are removed before return/save; [] if aborted.
+%    output_dir - Created run directory; '' if aborted before allocation.
+%
+%  Side effects and files:
+%    Adds the project root and project-root/src recursively to the MATLAB path.
+%    Creates <current-folder>/output/<case_name>/ (or a timestamped variant)
+%    and writes config.json, simulation.log, simulation_results.mat, and
+%    timeseries.csv.  Optional products include brownian_rng_seed.txt,
+%    initial_pose.{png,pdf,html}, bacteria_3d_motion.mp4,
+%    flowfield_panels.{png,pdf,html}, and summary_plot.{png,pdf,html};
+%    HTML export depends on MATLAB release support.  Existing-output and
+%    preview dialogs may be shown unless cfg.auto_confirm suppresses them.
+%    Brownian runs modify MATLAB's global RNG state as described above.
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Log banner version: 7.10.0 (2026-07-03) - keep in sync with README / CHANGELOG
+%  Updated: 2026-07-12
+%  Log banner version: 7.10.1 (2026-07-12) - keep in sync with README / CHANGELOG
 %
-%  Path: defensive addpath(project root) so run_simulation(cfg) works when
-%  invoked without main_coupled_simulation.m. Unified policy = this line plus
-%  addpath in main_coupled_simulation; post_processing/ and batch sweep/
-%  retain separate addpath for standalone use.
+%  Path policy: defensive addpath calls here allow run_simulation(cfg) without
+%  main_coupled_simulation.m.  Standalone drivers in batch_sweep/ and
+%  post_processing/ resolve and add the project path independently.
 
 proj_root = fileparts(mfilename('fullpath'));
 addpath(proj_root);

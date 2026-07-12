@@ -7,7 +7,8 @@ function [errs_out, warns_out] = validate_custom_geometry(custom_cfg, errs, warn
 %      - Body point cloud file existence and integrity
 %      - Attachment sites (labels, positions, directions; near-surface and
 %        outward-pointing checks)
-%      - Pili centerline files and their UNIFORM SEGMENT LENGTH constraint
+%      - Pili centerline files and their uniform-segment relative-spread
+%        constraint, (max-min)/mean <= 1e-3
 %      - Site indices, deflection angles, bending stiffness
 %      - L_0 override, L_0_suggest_mode
 %      - initial_orientation spec (quaternion/axis_angle/euler_zyx)
@@ -15,6 +16,11 @@ function [errs_out, warns_out] = validate_custom_geometry(custom_cfg, errs, warn
 %    Errors and warnings are appended to the provided cell arrays and
 %    returned so they can be aggregated with other validation checks by
 %    the caller (validate_simulation_params).
+%    Body points and attachment positions are expected in the same
+%    body-local, COM-centred frame.  Pili files are read in their source
+%    Cartesian input frame; validation does not transform coordinates.
+%    All positional coordinates and lengths follow the project input
+%    convention of SI metres; this validator performs no unit conversion.
 %
 %  Syntax:
 %    [errs, warns] = validate_custom_geometry(custom_cfg, errs, warns)
@@ -36,6 +42,7 @@ function [errs_out, warns_out] = validate_custom_geometry(custom_cfg, errs, warn
 %  Created: 2026-04-28
 %  Updated: 2026-05-04 — Uniform-segment check, site-on-surface diagnostics,
 %                         cell/struct compat, initial_orientation.
+%  Updated: 2026-07-12
 
 UNIFORM_SEG_TOL = 1e-3;   % relative spread tolerance (must match custom_pili_building)
 

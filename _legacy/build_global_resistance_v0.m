@@ -1,6 +1,19 @@
 ﻿function [M_weighted, A_twist_cells, M_rotlet] = build_global_resistance_v0(X_all, params, geom)
 %BUILD_GLOBAL_RESISTANCE_V0  Frozen reference copy (pre-v5.5.4 vectorisation) — historical archive only
 %
+%  Status: Historical archive only.
+%  Former consumer/harness removed: test_optimization_invariance.m and
+%    benchmark_direction1.m were removed after validation on 2026-04-21.
+%  Live counterpart: src/core/build_global_resistance.m
+%  Frozen snapshot: Pre-v5.5.4 local-RFT twist implementation.
+%  NOT live API: Do not call from simulations, tools, or new code.
+%
+%  Current v7.x divergence:
+%    The live function returns M_twist and D_twist for full non-local axial
+%    twist mobility and reciprocal translation-twist coupling. This snapshot
+%    returns per-pilus A_twist_cells from diagonal local RFT and predates the
+%    free_torsion/motor path and the current hydrodynamic schema.
+%
 %  Description:
 %    Builds the translational mobility matrix for ALL points (body + pili)
 %    and the torsional RFT resistance for pili segments.
@@ -38,7 +51,7 @@
 %      (RSS integrals already incorporate the segment-length weight)
 %
 %  Syntax:
-%    [M_weighted, A_twist_cells, M_rotlet] = build_global_resistance(X_all, params, geom)
+%    [M_weighted, A_twist_cells, M_rotlet] = build_global_resistance_v0(X_all, params, geom)
 %
 %  Inputs:
 %    X_all  - [N_total x 3] All point positions in lab frame
@@ -57,6 +70,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
+%  Updated: 2026-07-12
 
 N_total = size(X_all, 1);
 N_body  = params.N_body;

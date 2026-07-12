@@ -1,7 +1,14 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 7.10.0 (2026-07-03)
+# Release: 7.10.1 (2026-07-12)
 #
+# v7.10.1: documentation-accuracy and API-contract consistency patch.
+#   MATLAB help headers now match actual signatures, dimensions, units, frames,
+#   numerical branches, side effects, warnings/errors, cache paths, and
+#   legacy/live-API boundaries. Minimal implementation fixes initialise
+#   odetpbar status, update verify_migration's expected files, and stabilise
+#   two capsule-mesh error identifiers. No Python dependencies and no physical
+#   or numerical algorithm changes.
 # v7.10.0: new HPC/Linux cluster execution capability, plus batch-driver bug
 #   fixes surfaced during the corresponding review.
 #   (1) New files run_simulation_HPC_Linux.m / batch_sweep/

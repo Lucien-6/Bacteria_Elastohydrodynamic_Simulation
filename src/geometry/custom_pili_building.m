@@ -17,6 +17,9 @@ function Pili = custom_pili_building(custom_pili_cfg, attachment_sites, ...
 %      5. Apply optional local-basis deflection rotations around the
 %         tangent (deflection_z) and bending-plane normal (deflection_x).
 %      6. Translate to (site.position + dis * site.direction).
+%    The file coordinates are interpreted in their source Cartesian input
+%    frame; the alignment and translation place the result in the body-local,
+%    COM-centred frame used by attachment_sites.
 %
 %  Syntax:
 %    Pili = custom_pili_building(custom_pili_cfg, attachment_sites, ...
@@ -25,7 +28,8 @@ function Pili = custom_pili_building(custom_pili_cfg, attachment_sites, ...
 %
 %  Inputs:
 %    custom_pili_cfg   - [M x 1] struct array (or cell array), one per pilus:
-%        .points_file      - Path to CSV/MAT file with centerline [m]
+%        .points_file      - Path to CSV/MAT file with centerline coordinates
+%                             in the source Cartesian input frame [m]
 %        .site_index       - Index into attachment_sites struct array
 %        .deflection_z     - Rotation about the aligned tangent [rad]
 %                             (default: 0). Applied in the pilus local basis.
@@ -33,7 +37,8 @@ function Pili = custom_pili_building(custom_pili_cfg, attachment_sites, ...
 %                             (default: 0). Applied in the pilus local basis.
 %        .bending_stiffness - Custom A [N*m^2] (optional, default: E*I)
 %    attachment_sites  - Struct array from custom_body_building:
-%        .position         - [3 x 1] Root position [m]
+%        .position         - [3 x 1] Position in the body-local,
+%                             COM-centred frame [m]
 %        .direction        - [3 x 1] Unit outward direction
 %        .label            - String label
 %    seg_per_um        - Segments per micron for discretisation [seg/um]
@@ -49,6 +54,8 @@ function Pili = custom_pili_building(custom_pili_cfg, attachment_sites, ...
 %    Pili - [1 x M] Structure array (same fields as pili_building output):
 %        .N, .L, .ell, .x, .v, .kb, .kb0, .A, .r, .f_bend,
 %        .attach_idx, .root_local, .root_dir, .type, .is_clamped
+%        Position fields .x and .root_local are in the body-local,
+%        COM-centred frame [m].
 %
 %    Semantic corrections (v7.1):
 %      - .root_dir now stores the ACTUAL first-segment tangent after all
@@ -65,6 +72,7 @@ function Pili = custom_pili_building(custom_pili_cfg, attachment_sites, ...
 %                         segment-length check, centerline deduplication,
 %                         alignment-angle logging.
 %  Updated: 2026-07-03 — Optional logf_h for run_simulation silent mode.
+%  Updated: 2026-07-12
 
 %% Input validation
 if nargin < 7

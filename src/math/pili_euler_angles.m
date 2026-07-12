@@ -1,48 +1,45 @@
 function [theta, phi, psi] = pili_euler_angles(d1, d2, d3)
-%PILI_EULER_ANGLES  Recover Euler angles from director vectors
+%PILI_EULER_ANGLES  Recover Walker Euler angles from material directors
 %
 %  Description:
-%    Inverse of pili_directors: recovers (theta, phi, psi) from the
-%    material frame directors (d1, d2, d3).  Adapted from Walker (2020).
+%    Inverts pili_directors for a right-handed orthonormal director frame.
+%    All three input arrays must be expressed in the same coordinate basis;
+%    in normal use this is the pilus rotated basis.  Returned angles are in
+%    radians.
 %
-%  Euler angle convention (Walker 2020, second-z rotation convention):
-%    The tangent director is the spherical-coordinate parameterisation
-%      d3 = (sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta))
-%    so theta is the polar angle from the z-axis and phi is the azimuth.
-%    The material frame (d1, d2) is obtained from d3 by a rotation of
-%    angle psi about d3:
-%      d1 = (-sin(phi)*cos(psi) - cos(theta)*cos(phi)*sin(psi),
-%             cos(phi)*cos(psi) - cos(theta)*sin(phi)*sin(psi),
-%             sin(theta)*sin(psi))
-%      d2 = ( sin(phi)*sin(psi) - cos(theta)*cos(phi)*cos(psi),
-%            -cos(phi)*sin(psi) - cos(theta)*sin(phi)*cos(psi),
-%             sin(theta)*cos(psi))
-%    This is the convention used by Walker (2020) directors.m.  The
-%    rotation sequence is R = Rz(phi) * Ry(-theta) * Rz(psi) (equivalently
-%    the transpose of the standard ZYZ active rotation), so it is NOT the
-%    textbook ZXZ convention despite the similar (theta, phi, psi) naming.
-%    The clamped-BC Jacobian J_euler_basis in build_coupled_lin_sys.m is
-%    derived consistently from this convention.
+%    The Walker (2020) convention is
+%      d3 = [sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta)]
+%    with frame rotation R = Rz(phi)*Ry(-theta)*Rz(psi).  Thus theta is
+%    the polar angle, phi is the tangent azimuth, and psi is material twist
+%    about d3.  This is not the textbook ZXZ convention.
+%
+%    d3(:,3) is clamped to [-1, 1] before acos to suppress round-off-domain
+%    errors.  The routine otherwise assumes valid directors and does not
+%    orthonormalise them.  At theta = 0 or pi, phi and psi are not
+%    individually unique because of gimbal lock; atan2 returns one numerical
+%    representative.  Callers requiring nonsingular coordinates should use
+%    adaptive_basis_check before approaching either pole.
 %
 %  Syntax:
 %    [theta, phi, psi] = pili_euler_angles(d1, d2, d3)
 %
 %  Inputs:
-%    d1 - [N x 3] First director
-%    d2 - [N x 3] Second director
-%    d3 - [N x 3] Third director (tangent)
+%    d1 - [N x 3] First material director
+%    d2 - [N x 3] Second material director
+%    d3 - [N x 3] Tangent director
 %
 %  Outputs:
-%    theta - [N x 1] Polar angles   (0 to pi)
-%    phi   - [N x 1] Azimuthal angles (-pi to pi)
-%    psi   - [N x 1] Twist angles    (-pi to pi)
+%    theta - [N x 1] Polar angles in [0, pi], in radians
+%    phi   - [N x 1] Azimuthal angles in [-pi, pi], in radians
+%    psi   - [N x 1] Twist angles in [-pi, pi], in radians
 %
 %  References:
 %    [1] Walker et al. (2020), Physical Review E.
-%         (Euler angle parametrisation; directors.m inverse)
+%        (Euler angle parametrisation; directors.m inverse)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
+%  Updated: 2026-07-12
 
 cos_theta = max(-1, min(1, d3(:, 3)));
 theta = acos(cos_theta);

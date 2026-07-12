@@ -2,31 +2,79 @@
 %LOAD_SIM_CONFIG  Load simulation configuration from a JSON file
 %
 %  Description:
-%    Reads a JSON configuration file and returns a flat struct with all
-%    user-configurable parameters.  Missing fields are filled with default
-%    values identical to the inline defaults in main_coupled_simulation.m.
-%    Pili defined as a struct array in the JSON are automatically converted
-%    to a [8 x M] Pili_Matrix via parse_pili_config.
+%    Reads a UTF-8 JSON configuration file and maps its nested schema to the
+%    flat configuration struct consumed by run_simulation.  Missing JSON
+%    fields use the standard sinking-workflow fallbacks defined in this
+%    function.  configs/config_example.json is an illustrative configuration
+%    and intentionally overrides some fallbacks (for example case_name and
+%    T_obs); it is not a canonical default-value table.  The fallbacks are
+%    also distinct from the intentional motor-diagnostic inline demo in
+%    main_coupled_simulation.m.  Named parametric pili are converted to a
+%    fixed [8 x M] Pili_Matrix and a parallel pili_ext struct array by
+%    parse_pili_config.
 %
 %  Syntax:
 %    cfg = load_sim_config(json_path)
 %
 %  Input:
-%    json_path - Path to a JSON configuration file
+%    json_path - Path to a UTF-8 JSON configuration file
 %
 %  Output:
-%    cfg - Flat struct with fields matching workspace variables in main:
-%      case_name, minor_axis, major_axis, N_body, alpha_0, eps_body,
-%      Pili_Matrix, pili_ext, seg_per_um, E, r_pili, sigma_p,
-%      mu, rho_bac, rho_fluid, T_obs, AbsTol, RelTol,
-%      delta, tlim, dt, enable_brown, Temper, dt_B, brown_rng_seed,
-%      preview_initial, generate_animation, animation_fps, animation_skip,
-%      auto_confirm, compute_flowfield,
-%      flowfield_grid_spacing, flowfield_grid_range,
-%      flowfield_quiver_skip, flowfield_chunk_size
+%    cfg - Flat struct containing:
+%      Identity and geometry:
+%        case_name, geometry_mode, minor_axis [m], major_axis [m], N_body,
+%        alpha_0 [rad], eps_body [L_0], initial_orientation, Pili_Matrix,
+%        pili_ext, plus custom_geometry in custom mode.  Pili_Matrix row 2
+%        is length [um], rows 3-4 are angles [rad], and other rows are
+%        dimensionless indices or shape parameters.
+%      Material and fluid:
+%        E [Pa], r_pili [m], sigma_p, mu [Pa*s], rho_bac [kg/m^3],
+%        rho_fluid [kg/m^3]
+%      Time integration and Brownian motion:
+%        T_obs [s], AbsTol, RelTol, delta [rad], tlim [s], dt [s],
+%        seg_per_um [1/um], enable_brown, Temper [K], dt_B [s],
+%        brown_rng_seed
+%      Output and flow-field controls:
+%        preview_initial, generate_animation, animation_fps,
+%        animation_skip, auto_confirm, compute_flowfield,
+%        flowfield_grid_spacing [um], flowfield_grid_range [um],
+%        flowfield_quiver_skip, flowfield_chunk_size
+%      Background flow:
+%        background_flow.type, .U_max [m/s], .direction, .shear_axis,
+%        .shear_height_m [m]
+%      Derived values:
+%        N_segments and NT
+%
+%    JSON-to-cfg mapping:
+%      case_name, geometry_mode -> cfg fields with the same names
+%      custom_geometry -> custom_geometry and custom-mode geometry fields
+%      custom_geometry.initial_orientation -> initial_orientation
+%      body.* -> minor_axis, major_axis, N_body, alpha_0, eps_body
+%      pili -> Pili_Matrix and pili_ext
+%      material.* -> E, r_pili, sigma_p
+%      fluid.* -> mu, rho_bac, rho_fluid
+%      simulation.{T_obs,AbsTol,RelTol,tlim,dt,seg_per_um} -> same names
+%      simulation.delta_frac -> delta = pi/delta_frac
+%      brownian.enable -> enable_brown
+%      brownian.temperature -> Temper
+%      brownian.dt_B_ratio -> dt_B = dt*dt_B_ratio
+%      brownian.rng_seed -> brown_rng_seed
+%      output.* -> preview_initial, generate_animation, animation_fps,
+%        animation_skip, auto_confirm, compute_flowfield
+%      flowfield.grid_spacing_um -> flowfield_grid_spacing
+%      flowfield.grid_range_um -> flowfield_grid_range
+%      flowfield.quiver_skip -> flowfield_quiver_skip
+%      flowfield.chunk_size -> flowfield_chunk_size
+%      background_flow.* -> fields of cfg.background_flow
+%
+%  Errors:
+%    Throws load_sim_config:FileNotFound when json_path cannot be opened.
+%    JSON decoding, struct normalisation, and pili parsing errors propagate
+%    from jsondecode, normalise_json_struct_array, and parse_pili_config.
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
+%  Updated: 2026-07-12
 
 %% Read and decode JSON
 fid = fopen(json_path, 'r', 'n', 'UTF-8');

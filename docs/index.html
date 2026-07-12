@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.10.0 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config, Linux HPC cluster execution.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.10.1 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config, Linux HPC cluster execution.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.10.0 &middot; 2026-07-03</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.10.1 &middot; 2026-07-12</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 7.10.0 &bull; 2026-07-03
+      Version 7.10.1 &bull; 2026-07-12
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -537,10 +537,21 @@ tailwind.config = {
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en"><strong>v7.10.0</strong> adds a new Linux HPC cluster execution capability. A dedicated review of <code>batch_repeat_brownian.m</code> for deployment on a single-node-exclusive Linux partition found several Windows-only API calls that hard-error or silently mis-size the worker pool on Linux, a <code>VideoWriter</code> profile that is Windows/Mac-only, and a <code>parpool</code> <code>JobStorageLocation</code> default that is a documented source of pool-startup races on clusters with network home directories. This release adds a maintained fork — <code>run_simulation_HPC_Linux.m</code> / <code>batch_repeat_brownian_HPC_Linux.m</code> — that resolves all of these for Linux while leaving the original Windows-oriented scripts completely unmodified, and separately fixes two cross-platform reproducibility bugs found during the same review. <strong>No physical/numerical simulation outputs change.</strong> See <code>CHANGELOG.md</code> and <code>USER_GUIDE.md</code>.</span>
-      <span class="zh"><strong>v7.10.0</strong> 新增了 Linux 超算集群运行能力。针对将 <code>batch_repeat_brownian.m</code> 部署到独占整节点 Linux 分区所做的专项审查发现，多处 Windows 专属 API 在 Linux 上要么直接报错、要么静默把并行池规模算错；<code>VideoWriter</code> 的默认编码 profile 仅 Windows/Mac 支持；<code>parpool</code> 的 <code>JobStorageLocation</code> 默认路径在集群上是已知会导致池启动竞态的隐患。本版新增维护分支 <code>run_simulation_HPC_Linux.m</code> / <code>batch_repeat_brownian_HPC_Linux.m</code>，针对 Linux 逐一解决了以上问题，同时完全不改动原有面向 Windows 的脚本，并修复了同一轮审查中发现的两处跨平台可复现性 bug。<strong>仿真物理/数值输出无任何变化。</strong>详见 <code>CHANGELOG.md</code> 与 <code>USER_GUIDE.md</code>。</span>
+      <span class="en"><strong>v7.10.1</strong> is a documentation-accuracy and API-contract consistency patch. MATLAB help now matches actual signatures, dimensions, units, coordinate frames, numerical branches, side effects, warning/error identifiers, cache paths, and legacy/live-API boundaries. Utility fixes cover <code>odetpbar</code>, migration verification, and stable capsule-mesh error identifiers. Five end-to-end smoke cases passed. <strong>No physical or numerical algorithm changed.</strong></span>
+      <span class="zh"><strong>v7.10.1</strong> 是文档准确性与 API 契约一致性补丁。MATLAB help 现与实际签名、维数、单位、坐标系、数值分支、副作用、warning/error identifier、缓存路径及 legacy/live API 边界一致；同时修复 <code>odetpbar</code>、迁移校验和胶囊网格稳定错误标识。五类端到端 smoke case 均通过。<strong>物理与数值算法未改变。</strong></span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
+      <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.10.1 &mdash; 2026-07-12</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Documentation accuracy and contract consistency</span><span class="zh">文档准确性与契约一致性</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">Corrected MATLAB help contracts across first-party entry points, scripts, functions, and frozen legacy snapshots.</span><span class="zh">修正全部一方入口、脚本、函数及冻结 legacy 快照的 MATLAB help 契约。</span></li>
+          <li><span class="en">Initialised <code>odetpbar</code> status, updated migration inventory, and stabilised capsule-mesh error identifiers.</span><span class="zh">初始化 <code>odetpbar</code> 状态返回、更新迁移清单，并稳定胶囊网格错误 identifier。</span></li>
+          <li><span class="en">Validated standard, motor, custom-geometry, Brownian, and HPC end-to-end cases; no numerical algorithm changed.</span><span class="zh">通过标准、马达、自定义几何、Brownian 与 HPC 端到端验收；数值算法未改变。</span></li>
+        </ul>
+      </div>
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
         <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.10.0 &mdash; 2026-07-03</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
@@ -1935,7 +1946,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v7.10.0 &middot; 2026-07-03</li>
+        <li>v7.10.1 &middot; 2026-07-12</li>
       </ul>
     </div>
   </div>

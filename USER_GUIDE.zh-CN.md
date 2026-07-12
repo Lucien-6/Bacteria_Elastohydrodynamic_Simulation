@@ -3,12 +3,14 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 7.10.0
-> **更新日期:** 2026-07-03
+> **版本:** 7.10.1
+> **更新日期:** 2026-07-12
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-版本提示：v7.10.0 新增了 Linux 超算集群运行能力——**[`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m)** / **[`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m)**，一个专为无图形界面、独占整节点的 Linux 集群加固的维护分支（详见 §5.3），并修复了同一轮审查中发现的两处跨平台批处理 bug：`capture_partial_outdir`（v7.9.5 引入的失败运行 `outdir`/`log_hint` 字段）在两个平台上其实都从未真正生效过——因为 MATLAB 函数抛出异常时不会把返回值传回调用者；以及 `batch_repeat_brownian_HPC_Linux.m` 中一处非法的 `char(datetimeObj, 'Format', fmt)` 调用（在 R2023a 和 R2026a 上都能复现，证实这是一个与版本无关的潜在 bug，而非兼容性问题）。原有面向 Windows 的 `run_simulation.m` / `batch_repeat_brownian.m` 除上述两处跨平台修复外未做其他改动。**仿真物理/数值输出无任何变化。** v7.9.6 为控制台输出与异常健壮性修正版（修复了自 v7.9.3 起导致所有正常运行的 `logf` 控制台输出全部消失的 `dual_log` 极性反转 bug，以及影响每次自定义几何运行的 `trisurf` 坐标轴指定崩溃；新增贯穿整个运行体的 `try/catch`，确保 `simulation.log` 始终记录完整 `[FATAL]` 分节而非静默截断）。v7.9.5 将静默模式扩展到**自定义几何**（`custom_body_building` / `custom_pili_building` 经注入的 `logf` 受 `cfg.silent` 约束；summary 图在 silent 下 `Visible='off'`），并加强 **`batch_repeat_brownian`** 审计字段（每批 `batch_config_snapshot_<batch_id>.json`、`brown_rng_policy`、`parallel_requested`、尾部 `failed_*` / `pending_*`、FAILED 时的 `outdir` / `log_hint`）。**`cfg.silent`** 为**仅运行时**批处理开关（不写入 JSON）：为 true 时抑制 `logf` 控制台回显、直接 `fprintf`、ODE/动画进度条与 warning；完整文本仍写入 `simulation.log`；error 从不抑制。 v7.9.4 为分层静默完整性版；v7.9.3 为批处理日志健壮性与并行 stdout 整洁性版；v7.9.2 为数值健壮性与文档准确性版；v7.9.1 为审查后 Bug 修复；v7.9.0 将起飞前参数检查统一收口到 `validate_simulation_params.m`（P1–P9）；v7.8.0 修正参考曲率 `kb0` 离散化与常值电机力矩无量纲化。
+版本提示：v7.10.1 是文档准确性与 API 契约一致性补丁。MATLAB help 现与实际函数签名、维数、单位、坐标系、算法分支、副作用、warning/error、缓存路径及 legacy/live API 边界一致；同时完成 `odetpbar` 状态返回、迁移清单和两个胶囊网格错误 identifier 的最小实现修复。标准、马达、自定义几何、Brownian 与 HPC 五类 smoke case 均通过；物理与数值算法未改变。
+
+上一版本 v7.10.0 新增 Linux 超算集群运行能力——**[`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m)** / **[`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m)**，一个专为无图形界面、独占整节点 Linux 集群加固的维护分支（详见 §5.3），并修复两处跨平台批处理问题。
 
 ## 1. 运行前准备
 
