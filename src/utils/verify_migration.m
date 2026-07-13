@@ -24,7 +24,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-05-15
-%  Updated: 2026-07-12
+%  Updated: 2026-07-13
 
 close all force;
 clear; clc;
@@ -46,13 +46,22 @@ expected_structure.root = {
 
 % Core simulation engine
 expected_structure.core = {
+    'assemble_twist_coupling.m'
     'build_coupled_lin_sys.m'
     'build_global_resistance.m'
+    'check_coupled_system_health.m'
+    'check_linear_solve.m'
+    'check_matrix_condition.m'
+    'check_weighted_mobility_health.m'
+    'numerical_diagnostics_state.m'
     'ode_coupled_rhs.m'
+    'solve_motor_self_consistent.m'
+    'weighted_self_adjoint.m'
     };
 
 % Geometry building
 expected_structure.geometry = {
+    'canonical_pili_centerline.m'
     'capsule_body_building.m'
     'capsule_sphere_cap_points.m'
     'capsule_sphere_mesh_cache.m'
@@ -116,15 +125,27 @@ expected_structure.utils = {
     'odetpbar.m'
     'pack_state_rates.m'
     'project_version.m'
+    'simulation_result_status.m'
     'unpack_state.m'
     'verify_migration.m'
+    };
+
+% MATLAB function-based tests
+expected_structure.tests = {
+    'test_canonical_pili_geometry.m'
+    'test_geometry_objectivity.m'
+    'test_hydrodynamic_invariants.m'
+    'test_numerical_guards.m'
+    'test_runtime_contracts.m'
+    'test_smoke_baselines.m'
+    'test_uniform_stiffness_contract.m'
     };
 
 %% Check each location
 all_pass = true;
 
 % Check root directory
-fprintf('[1/8] Checking root directory ...\n');
+fprintf('[1/9] Checking root directory ...\n');
 root_files = dir('*.m');
 root_names = {root_files.name}';
 for i = 1:length(expected_structure.root)
@@ -145,44 +166,50 @@ if all_pass
 end
 
 % Check src/core
-fprintf('[2/8] Checking src/core/ ...\n');
+fprintf('[2/9] Checking src/core/ ...\n');
 if ~verify_subdir('src/core', expected_structure.core)
     all_pass = false;
 end
 
 % Check src/geometry
-fprintf('[3/8] Checking src/geometry/ ...\n');
+fprintf('[3/9] Checking src/geometry/ ...\n');
 if ~verify_subdir('src/geometry', expected_structure.geometry)
     all_pass = false;
 end
 
 % Check src/physics
-fprintf('[4/8] Checking src/physics/ ...\n');
+fprintf('[4/9] Checking src/physics/ ...\n');
 if ~verify_subdir('src/physics', expected_structure.physics)
     all_pass = false;
 end
 
 % Check src/math
-fprintf('[5/8] Checking src/math/ ...\n');
+fprintf('[5/9] Checking src/math/ ...\n');
 if ~verify_subdir('src/math', expected_structure.math)
     all_pass = false;
 end
 
 % Check src/config
-fprintf('[6/8] Checking src/config/ ...\n');
+fprintf('[6/9] Checking src/config/ ...\n');
 if ~verify_subdir('src/config', expected_structure.config)
     all_pass = false;
 end
 
 % Check src/visualization
-fprintf('[7/8] Checking src/visualization/ ...\n');
+fprintf('[7/9] Checking src/visualization/ ...\n');
 if ~verify_subdir('src/visualization', expected_structure.visualization)
     all_pass = false;
 end
 
 % Check src/utils
-fprintf('[8/8] Checking src/utils/ ...\n');
+fprintf('[8/9] Checking src/utils/ ...\n');
 if ~verify_subdir('src/utils', expected_structure.utils)
+    all_pass = false;
+end
+
+% Check tests
+fprintf('[9/9] Checking tests/ ...\n');
+if ~verify_subdir('tests', expected_structure.tests)
     all_pass = false;
 end
 

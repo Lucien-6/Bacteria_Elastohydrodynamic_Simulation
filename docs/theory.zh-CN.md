@@ -4,8 +4,8 @@
 [返回中文 README](../README.zh-CN.md)
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **更新日期:** 2026-07-12
-> **版本:** 7.10.1
+> **更新日期:** 2026-07-13
+> **版本:** 8.0.0
 
 本文档承接原长版 README 中的理论、模型和数值方法说明。仓库首页现在保持精简；实际运行步骤见 [`../USER_GUIDE.md`](../USER_GUIDE.md)，版本历史见 [`../CHANGELOG.md`](../CHANGELOG.md)。
 
@@ -19,6 +19,8 @@
 - **耦合:** 胞体与所有纤毛节点之间的水动力相互作用通过全局迁移率求解保留。
 
 默认参数化胞体由两个半球端盖和一个圆柱中段组成。自定义几何模式下，胞体与纤毛必须同时来自用户导入的点云；当混用字段进入校验器时（内联/程序化 `cfg`，或经 `run_simulation.m` 传入的 JSON `cfg`），`validate_simulation_params.m` 会拒绝“自定义 + 参数化”的双向混用。注意：JSON 参数化模式下，`load_sim_config.m` **不会**将顶层 `custom_geometry` 读入 `cfg`，因此 JSON 中残留的该字段会在加载阶段被**静默忽略**而非触发校验——应从 JSON 中删除该块，或改用 `geometry_mode: "custom"`。
+
+导入的纤毛曲线只转换一次为 canonical 等弦长折线：先去除连续重复点并建立 PCHIP 参数曲线，再用嵌套标量根求解获得参数单调、端点保持且每段弦长相同的节点。参考节点、全部材料 directors 和内禀曲率都来自同一折线。初始胞体姿态对全部参考 directors 施加同一个刚体旋转后再恢复 Euler 角，从而保证弯曲无应力杆的客观性。所有纤毛统一使用全局 \(E\) 与 \(r_{\mathrm{pili}}\)，不存在逐纤毛刚度参数。
 
 ## 2. 主要方法
 
@@ -194,8 +196,8 @@ c_a[\mathbf{x}_0]_{\times}
 \end{bmatrix}
 =
 \begin{bmatrix}
-\mathbf{M}_{\mathrm{weighted}} & \mathbf{C}_{\mathrm{twist}} \\
-\mathbf{C}_{\mathrm{twist}}^{\mathsf T} & \mathbf{M}_{\mathrm{twist}}
+\mathbf{M}_{\mathrm{weighted}} & \mathbf{C}_{\mathrm{forward}} \\
+\mathbf{C}_{\mathrm{reverse}} & \mathbf{M}_{\mathrm{twist}}
 \end{bmatrix}
 \begin{bmatrix}
 \mathbf{f} \\
@@ -206,22 +208,37 @@ c_a[\mathbf{x}_0]_{\times}
 其中 `M_twist` 为非局部线段积分轴向转动迁移率，且
 
 ```math
-\mathbf{C}_{\mathrm{twist}} = \tfrac{1}{2}\mathbf{M}_{\mathrm{rotlet}}\mathbf{D}_{\mathrm{twist}}.
+\mathbf{C}_{\mathrm{forward}}
+=
+\tfrac{1}{2}\mathbf{M}_{\mathrm{rotlet}}\mathbf{D}_{\mathrm{twist}},
+\qquad
+\mathbf{C}_{\mathrm{reverse}}
+=
+\mathbf{W}_m^{-1}\mathbf{C}_{\mathrm{forward}}^{\mathsf T}\mathbf{W}_f.
 ```
 
-`1/2` 因子将 Cortez 的全旋度 rotlet 线段核转换为物理标准 rotlet 约定。代码通过 Schur 互补施加逆作用：
+其中 \(\mathbf{W}_f\) 将胞体/RSS 求积权重重复到每个笛卡尔力分量，
+\(\mathbf{W}_m=\operatorname{diag}(L_s)\) 使用各线段实际长度。于是
+\(\mathbf{W}_f\mathbf{C}_{\mathrm{forward}}
+=\mathbf{C}_{\mathrm{reverse}}^{\mathsf T}\mathbf{W}_m\)，
+这正是 Lorentz 互易在离散虚功内积下的形式；只有两个测度完全相同时才可直接用普通转置。`1/2` 因子将 Cortez 的全旋度 rotlet 线段核转换为物理标准 rotlet 约定。代码通过 Schur 互补施加逆作用：
 
 ```math
 \mathbf{S}_{\mathrm{twist}}
 =
 \mathbf{M}_{\mathrm{twist}}
 -
-\mathbf{C}_{\mathrm{twist}}^{\mathsf T}
+\mathbf{C}_{\mathrm{reverse}}
 \mathbf{M}_{\mathrm{weighted}}^{-1}
-\mathbf{C}_{\mathrm{twist}},
+\mathbf{C}_{\mathrm{forward}},
 ```
 
 因此主线性系统与背景流修正使用同一个耦合算子。
+
+`M_twist` 将扭矩密度映射为角速度，因此它也必须在线测度下自伴：
+\(\mathbf{W}_m\mathbf{M}_{\mathrm{twist}}
+=\mathbf{M}_{\mathrm{twist}}^{\mathsf T}\mathbf{W}_m\)。
+实现使用每一段端点的实际距离强制该关系，不假设不同纤毛具有相同段长。
 
 主要矩阵块为：
 
@@ -229,7 +246,7 @@ c_a[\mathbf{x}_0]_{\times}
 - `M_weighted`: 全局平动水动力迁移率矩阵，包含胞体 RSM 和纤毛 RSS 分块。
 - `M_twist`: 非局部轴向扭转迁移率。
 - `D_twist`: 将标量轴向扭矩密度嵌入为沿线段方向的 3D rotlet 向量。
-- `C_twist`: 采用物理标准 rotlet 缩放的平动/扭转互易耦合。
+- `C_forward`、`C_reverse`: 在线测度下互为加权伴随、并采用物理标准 rotlet 缩放的平动/扭转耦合块。
 - `B_global`: 将分布力和线积分力矩映射到全局力平衡、力矩平衡和纤毛力矩平衡方程。
 - `R`: 重力、弹性力矩、主动力矩、背景流修正和马达力矩项。
 
@@ -312,15 +329,20 @@ director 演化关系为：
 
 - `off`: 关闭背景流。
 - `uniform`: 用户指定方向的均匀流。
-- `shear_z`: 用户指定流向、剪切轴和厚度的有限厚度剪切层。
+- `shear_z`: 用户指定流向、剪切轴和厚度的有限厚度剪切层。不可压缩性要求归一化流向与剪切方向正交；验证器会拒绝 `abs(dot)>1e-12` 的配置。
+
+在未截断的剪切层内部，
+\(\mathbf{u}=U\,\hat{\mathbf d}(\hat{\mathbf s}\cdot\mathbf{x})/H\)，
+因此 \(\nabla\cdot\mathbf{u}=(U/H)\hat{\mathbf d}\cdot\hat{\mathbf s}\)。
+所以正交条件来自质量守恒，而不是单纯的坐标选择偏好。
 
 ## 10. 布朗动力学
 
 启用布朗运动时，确定性弹性流体动力学与随机胞体运动采用算符分裂：
 
 1. 使用 `ode15s` 积分确定性耦合系统。
-2. 在每个布朗时间节点计算全系统有效胞体迁移率。
-3. 施加 6 维平移-旋转相关布朗扰动。
+2. 在每个 Brownian 时间节点，通过探测完整确定性胞体-纤毛系统计算有效胞体迁移率。
+3. 只对胞体姿态施加 6 维平移-转动相关增量，随后重新满足纤毛根部约束。
 
 有效迁移率通过 6 个单位广义胞体载荷探测耦合线性系统得到：
 
@@ -331,7 +353,7 @@ director 演化关系为：
 \qquad i=1,\ldots,6.
 ```
 
-量纲转换后：
+对称正定检查及舍入尺度的谱修复在无量纲迁移率上完成；若出现具有物理量级的负特征值，则视为装配错误而不是直接截断。修复后的矩阵再通过合同变换转换到物理单位：
 
 ```math
 \mathbf{D}_{\mathrm{eff}}
@@ -356,7 +378,9 @@ k_B T\,\mathbf{M}_{\mathrm{eff,dim}},
 \boldsymbol{\eta}\sim\mathcal{N}(\mathbf{0},\mathbf{I}_6).
 ```
 
-Ito 漂移项通过对 SPD 投影后的六维胞体迁移率做有限差分显式计算。这替代了旧的中点近似，使 Brownian 更新保持单一、严格的随机解释。
+Ito 漂移项通过对 SPD 投影后的六维胞体迁移率做有限差分显式计算。当观测时间不能被 `dt_B` 整除时，最后一步使用实际剩余时间。Brownian 抽样来自本次运行独立的随机流，不受几何缓存创建影响。
+
+**Brownian 近似的适用范围。** 所有纤毛的水动力拖曳都会影响探测得到的 6 x 6 胞体迁移率，但纤毛内部 Euler 角自由度不接受随机驱动，只在确定性弹性、水动力、主动力矩和马达力矩作用下演化。因此，该模型适合在忽略纤毛内部热涨落时研究胞体质心和取向扩散；它不是完整耦合热平衡过程，也不能再现纤毛内部模态的能量均分。
 
 **已知近似 —— 确定性算子与随机算子的一致性。**
 
@@ -434,8 +458,12 @@ c_t \sim 4\pi\mu r_{\mathrm{pili}}^2.
 - Walker 风格 Euler 角 `Q` 矩阵与力矩平衡尺度。
 - 固支与自由扭转根部边界条件。
 - 多纤毛状态布局、几何重构和矩阵维度。
-- 全系统布朗有效迁移率和 Cholesky 正定性检查。
+- 完整耦合有效胞体迁移率与 body-only Brownian Cholesky 正定性检查。
+- 平动/扭转加权互易关系与对称功率耗散检查。
+- 尺度无关线性求解后向残差、选定状态 `rcond`、有限值及多马达真实不动点残差检查。
 - MAT、CSV、图像和日志输出单位。
+
+后向残差超过 \(10^{-10}\) 时告警，超过 \(10^{-6}\) 时中止。初始状态和换基后的耦合矩阵在 `rcond<1e-10` 时告警，在 `rcond<1e-14` 时中止。实测极值与固定阈值都会写入 `results.diagnostics`。
 
 详细缺陷修复和版本历史属于 [`../CHANGELOG.md`](../CHANGELOG.md)，不再放在理论文档中。
 

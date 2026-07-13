@@ -7,11 +7,8 @@ function Pili = custom_pili_building(custom_pili_cfg, attachment_sites, ...
 %    applying the same output format as pili_building.m for downstream
 %    compatibility.  For each pilus:
 %      1. Read and deduplicate raw centerline points.
-%      2. Enforce the "uniform segment length" constraint: the user input
-%         MUST discretize the centerline such that every segment has the
-%         same length (relative tolerance 1e-3).  Non-uniform input is
-%         rejected with an error.
-%      3. Resample to the target segment density seg_per_um via PCHIP.
+%      2. Canonicalize the PCHIP parameter curve to the target segment
+%         density using a nested equal-chord root construction.
 %      4. Align the root tangent to the attachment site direction (with
 %         logging of the alignment angle; warn if > 45 deg).
 %      5. Apply optional local-basis deflection rotations around the
@@ -35,7 +32,6 @@ function Pili = custom_pili_building(custom_pili_cfg, attachment_sites, ...
 %                             (default: 0). Applied in the pilus local basis.
 %        .deflection_x     - Rotation about the bending-plane normal [rad]
 %                             (default: 0). Applied in the pilus local basis.
-%        .bending_stiffness - Custom A [N*m^2] (optional, default: E*I)
 %    attachment_sites  - Struct array from custom_body_building:
 %        .position         - [3 x 1] Position in the body-local,
 %                             COM-centred frame [m]
@@ -63,7 +59,8 @@ function Pili = custom_pili_building(custom_pili_cfg, attachment_sites, ...
 %        logic in init_coupled_params.  Previously set to site.direction,
 %        which diverged from the true tangent whenever deflection != 0.
 %
-%  See also: pili_building, read_geometry_csv_mat, rotation_between_vectors,
+%  See also: pili_building, canonical_pili_centerline,
+%            read_geometry_csv_mat, rotation_between_vectors,
 %            normalise_json_struct_array
 %
 %  Author:  Lucien (lucien-6@qq.com)
@@ -72,7 +69,7 @@ function Pili = custom_pili_building(custom_pili_cfg, attachment_sites, ...
 %                         segment-length check, centerline deduplication,
 %                         alignment-angle logging.
 %  Updated: 2026-07-03 — Optional logf_h for run_simulation silent mode.
-%  Updated: 2026-07-12
+%  Updated: 2026-07-13
 
 %% Input validation
 if nargin < 7
@@ -102,9 +99,6 @@ if NPili == 0
     return;
 end
 Pili = repmat(template, 1, NPili);
-
-%% Uniform-segment-length tolerance (relative)
-UNIFORM_SEG_TOL = 1e-3;
 
 %% Construct each pilus
 for j = 1:NPili
@@ -145,12 +139,9 @@ for j = 1:NPili
              j, deflection_z, deflection_x);
     end
 
-    % Bending stiffness (optional)
-    if isfield(cfg_j, 'bending_stiffness') && ~isempty(cfg_j.bending_stiffness)
-        A = cfg_j.bending_stiffness;
-    else
-        A = A_default;
-    end
+    % Bending stiffness is global material metadata and cannot be
+    % overridden per pilus.
+    A = A_default;
 
     % --- Read raw centerline from file ---
     raw_pts = read_geometry_csv_mat(cfg_j.points_file);   % [N_raw x 3] [m]
@@ -158,7 +149,7 @@ for j = 1:NPili
     % --- Remove consecutive duplicates (M5) ---
     raw_pts = remove_consecutive_duplicates(raw_pts, cfg_j.points_file, j, logf_h);
 
-    % --- Enforce uniform segment length (new requirement) ---
+    % --- Measure the raw polyline for target segment-count selection ---
     seg_vecs = diff(raw_pts, 1, 1);
     seg_lens = sqrt(sum(seg_vecs.^2, 2));
     if any(seg_lens <= 0)
@@ -166,35 +157,16 @@ for j = 1:NPili
             'Pilus %d (%s): at least one segment has zero length even after deduplication.', ...
             j, cfg_j.points_file);
     end
-    seg_len_mean = mean(seg_lens);
-    seg_len_spread = (max(seg_lens) - min(seg_lens)) / seg_len_mean;
-    if seg_len_spread > UNIFORM_SEG_TOL
-        error('custom_pili_building:NonUniformSegments', ...
-            ['Pilus %d (%s): segment lengths are not uniform ', ...
-             '(min = %.4e m, max = %.4e m, mean = %.4e m, ', ...
-             'relative spread = %.3e > tolerance %.1e). ', ...
-             'User-supplied pili centerlines MUST be pre-discretized ', ...
-             'with equal-length segments.'], ...
-             j, cfg_j.points_file, ...
-             min(seg_lens), max(seg_lens), seg_len_mean, ...
-             seg_len_spread, UNIFORM_SEG_TOL);
-    end
-
-    L_actual = sum(seg_lens);
+    L_raw = sum(seg_lens);
 
     % --- Determine target segment count (consistent with pili_building) ---
-    L_um  = L_actual * 1e6;
-    N     = max(ceil(L_um * seg_per_um) + 1, 3);
-    ell   = L_actual / (N - 1);
+    L_raw_um = L_raw * 1e6;
+    N        = max(ceil(L_raw_um * seg_per_um) + 1, 3);
 
-    % --- Resample to uniform arc length (PCHIP) ---
-    s_raw = [0; cumsum(seg_lens)];
-    s_new = linspace(0, L_actual, N)';
-
-    x_resampled = zeros(N, 3);
-    for dim = 1:3
-        x_resampled(:, dim) = interp1(s_raw, raw_pts(:, dim), s_new, 'pchip');
-    end
+    % --- Canonical equal-chord PCHIP centreline ---
+    [x_resampled, ell] = canonical_pili_centerline(raw_pts, N - 1);
+    L_canonical = (N - 1) * ell;
+    L_um = L_canonical * 1e6;
 
     % --- Compute root tangent direction from resampled geometry ---
     root_tangent = x_resampled(2, :) - x_resampled(1, :);
@@ -284,7 +256,7 @@ for j = 1:NPili
 
     % --- Store in structure ---
     Pili(j).N          = N;
-    Pili(j).L          = L_actual;
+    Pili(j).L          = L_canonical;
     Pili(j).ell        = ell;
     Pili(j).x          = x;
     Pili(j).v          = v;

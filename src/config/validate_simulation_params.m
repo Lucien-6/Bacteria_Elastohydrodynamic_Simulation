@@ -51,7 +51,7 @@ function validate_simulation_params(cfg, logf_h)
 %                         intrinsic_curvature/active_moment/motor_torque;
 %                         P9 — AbsTol/RelTol wording; Bugbot-fixed alpha_0
 %                         custom-mode regression (empty initial_orientation).
-%  Updated: 2026-07-12
+%  Updated: 2026-07-13
 
 if nargin < 2 || isempty(logf_h)
     logf_h = @(varargin) [];   % no-op fallback
@@ -393,34 +393,31 @@ if isfield(cfg, 'background_flow') && isstruct(cfg.background_flow)
         if ~isfield(bg, 'U_max') || ~isnumeric(bg.U_max) || bg.U_max <= 0
             errs{end+1} = 'background_flow.U_max must be > 0 when flow is enabled.';
         end
-        if isfield(bg, 'direction') && numel(bg.direction) ~= 3
-            errs{end+1} = 'background_flow.direction must be a 3-element vector.';
-        end
-        if isfield(bg, 'shear_axis') && numel(bg.shear_axis) ~= 3
-            errs{end+1} = 'background_flow.shear_axis must be a 3-element vector.';
+        direction_valid = isfield(bg, 'direction') && isnumeric(bg.direction) ...
+            && isreal(bg.direction) && numel(bg.direction) == 3 ...
+            && all(isfinite(bg.direction(:))) && norm(bg.direction(:)) > 1e-30;
+        if ~strcmp(bg_type, 'off') && ~direction_valid
+            errs{end+1} = ['background_flow.direction must be a finite, real, ', ...
+                'non-zero 3-element vector when flow is enabled.'];
         end
         if strcmp(bg_type, 'shear_z')
             if ~isfield(bg, 'shear_height_m') || ~isnumeric(bg.shear_height_m) || bg.shear_height_m <= 0
                 errs{end+1} = 'background_flow.shear_height_m must be > 0 for shear_z flow.';
             end
-            % P5: warn when direction is nearly parallel to shear_axis.
-            % In coupled_background_flow, omega_lab = (U_max/H) * cross(shear_axis, direction).
-            % Parallel inputs yield zero vorticity, so pili experience no
-            % shear-driven rotation even though the translational profile
-            % is non-zero.  This is a common user intent error.
-            if isfield(bg, 'direction') && isfield(bg, 'shear_axis') ...
-                    && isnumeric(bg.direction) && isnumeric(bg.shear_axis) ...
-                    && numel(bg.direction) == 3 && numel(bg.shear_axis) == 3
-                n_d = norm(bg.direction(:));
-                n_s = norm(bg.shear_axis(:));
-                if n_d > 1e-30 && n_s > 1e-30
-                    cos_ang = dot(bg.direction(:)/n_d, bg.shear_axis(:)/n_s);
-                    if abs(cos_ang) > 0.99
-                        warns{end+1} = sprintf(['background_flow: direction nearly parallel ', ...
-                            'to shear_axis (cos(theta) = %.3f). Vorticity = shear_axis x direction ', ...
-                            'will be ~0, so pili experience no shear-driven rotation despite a ', ...
-                            'non-zero translational flow. Verify this is intended.'], cos_ang);
-                    end
+            shear_axis_valid = isfield(bg, 'shear_axis') && isnumeric(bg.shear_axis) ...
+                && isreal(bg.shear_axis) && numel(bg.shear_axis) == 3 ...
+                && all(isfinite(bg.shear_axis(:))) && norm(bg.shear_axis(:)) > 1e-30;
+            if ~shear_axis_valid
+                errs{end+1} = ['background_flow.shear_axis must be a finite, real, ', ...
+                    'non-zero 3-element vector for shear_z flow.'];
+            elseif direction_valid
+                d_hat = bg.direction(:) / norm(bg.direction(:));
+                s_hat = bg.shear_axis(:) / norm(bg.shear_axis(:));
+                cos_ang = dot(d_hat, s_hat);
+                if abs(cos_ang) > 1e-12
+                    errs{end+1} = sprintf(['background_flow.direction and shear_axis must ', ...
+                        'be orthogonal for incompressible shear_z flow; ', ...
+                        'abs(dot(d_hat,s_hat)) = %.3e > 1e-12.'], abs(cos_ang));
                 end
             end
         end

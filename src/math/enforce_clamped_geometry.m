@@ -1,8 +1,9 @@
 ﻿function Z = enforce_clamped_geometry(Z, params, force_full_projection)
-%ENFORCE_CLAMPED_GEOMETRY  Project root directors onto the body frame
+%ENFORCE_CLAMPED_GEOMETRY  Correct root-only director drift
 %
 %  Description:
-%    Corrects geometric drift at each pilus-body junction.  The state is
+%    Corrects geometric drift only at each pilus-body junction.  Interior
+%    segment angles are never modified.  The state is
 %    laid out as
 %      Z = [x_body(3); q_body(4); theta_1; phi_1; psi_1; ...],
 %    where each pilus contributes consecutive theta, phi, and psi blocks,
@@ -42,7 +43,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-07
-%  Updated: 2026-07-12
+%  Updated: 2026-07-13
 
 if nargin < 3 || isempty(force_full_projection)
     force_full_projection = false;

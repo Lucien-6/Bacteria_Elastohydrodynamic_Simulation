@@ -3,14 +3,14 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 7.10.1
-> **更新日期:** 2026-07-12
+> **版本:** 8.0.0
+> **更新日期:** 2026-07-13
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-版本提示：v7.10.1 是文档准确性与 API 契约一致性补丁。MATLAB help 现与实际函数签名、维数、单位、坐标系、算法分支、副作用、warning/error、缓存路径及 legacy/live API 边界一致；同时完成 `odetpbar` 状态返回、迁移清单和两个胶囊网格错误 identifier 的最小实现修复。标准、马达、自定义几何、Brownian 与 HPC 五类 smoke case 均通过；物理与数值算法未改变。
+版本提示：v8.0.0 是一次面向数学物理正确性和运行契约的重大升级，包括不等段长下平动—扭转加权互易、自定义菌毛等弦长 canonical 几何、完整 director 客观初始化、无量纲 Brownian SPD 修复、真实时长余数 kick、独立 Brownian 随机流、严格不可压缩剪切流验证、超时部分结果保存，以及运行级数值诊断。
 
-上一版本 v7.10.0 新增 Linux 超算集群运行能力——**[`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m)** / **[`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m)**，一个专为无图形界面、独占整节点 Linux 集群加固的维护分支（详见 §5.3），并修复两处跨平台批处理问题。
+破坏性配置变更：`Pili_Matrix` 必须精确为 8 行；不再支持逐菌毛 `bending_stiffness`；`shear_z.direction` 必须与 `shear_z.shear_axis` 正交。任一积分段超时后，程序保存已达到的轨迹并正常返回 `results.completed=false` 与 `termination_reason='timeout'`；调用方不得将该部分轨迹用于稳态统计。
 
 ## 1. 运行前准备
 
@@ -105,7 +105,7 @@ main_coupled_simulation
 | `delta` 范围（P2） | `delta <= 0` | 错误 |
 | `delta` 范围（P2） | `delta >= pi/4`（奇异事件过早触发） | 警告 |
 | `N_body` 上限（P4） | `N_body > 2000`（`O(N^2)` 内存） | 警告 |
-| 背景流正交性（P5） | `shear_z` 且 `direction` 与 `shear_axis` 近平行（`|cos(theta)| > 0.99`，零涡量） | 警告 |
+| 背景流正交性（P5） | `shear_z` 要求两个方向均为有限非零向量，且 `abs(dot(direction_hat,shear_axis_hat)) <= 1e-12` | 错误 |
 | `alpha_0` 范围（P6/A1） | 超出 `[-pi/2, pi/2]`；在 parametric 模式及 custom 模式下 `initial_orientation` 为空时生效 | 错误 |
 | `AbsTol` / `RelTol` 措辞（P9） | 超出 `(0, 1]`；推荐 `1e-6 ~ 1e-3` | 警告 |
 
@@ -177,8 +177,8 @@ run('batch_sweep/batch_run_from_json.m');
 
 - 自定义胞体和自定义纤毛必须同时使用。
 - 胞体点云支持 `.csv`、`.txt` 和 `.mat` 文件，且应包含三维空间坐标。
-- 纤毛中心线必须预先离散为等长段；允许的相对段长离散度不超过 $10^{-3}$。
-- 连续重复点或近重复点会在校验前自动移除。
+- 导入的纤毛中心线允许原始点距不均匀。程序先删除连续重复点，再将 PCHIP 参数曲线转换为保持两端点的唯一等弦长 canonical 折线。
+- 不支持逐纤毛 `bending_stiffness`；所有纤毛统一使用全局 `material.E` 与 `r_pili`，旧配置中的非空字段会被明确拒绝。
 - 对任意初始姿态，优先使用 `initial_orientation`，不要依赖只绕单轴的 `alpha_0`。
 - 自定义模式下 `deflection_z` 表示绕对齐后切向的扭转，`deflection_x` 表示倾斜；参数化模式下二者的几何角色相反。
 
@@ -199,7 +199,9 @@ run('batch_sweep/batch_run_from_json.m');
 
 在 JSON 中设置 `brownian.enable`，或在 MATLAB 中设置 `cfg.enable_brown`。
 
-自 v7.7.0 起，Brownian 更新采用严格 body-only Ito 形式：通过有限差分显式计算热漂移 `kBT*div(M_eff)`，并使用 SPD 投影后的扩散协方差。当前不再提供用户可配置的中点漂移选项。
+Brownian 更新采用 body-only Ito 近似，并通过有限差分显式计算热漂移 `kBT*div(M_eff)`。`M_eff` 来自完整胞体-纤毛确定性耦合系统，但随机增量只施加到胞体的三个平移和三个转动自由度；纤毛内部 Euler 角模态仍为确定性演化，每次胞体 kick 后仅重新满足根部约束。因此该方案不是完整耦合热平衡模型，不适用于研究纤毛内部模态的能量均分。
+
+SPD 修复和 Cholesky 分解在无量纲广义坐标中完成，再转换到 SI 单位。当 `T_obs` 不能被 `dt_B` 整除时，最后一次 Brownian kick 使用实际剩余时间。当前不提供用户可配置的中点漂移选项。
 
 重要选项包括：
 
@@ -207,7 +209,7 @@ run('batch_sweep/batch_run_from_json.m');
 - `brownian.rng_seed`: 固定正整数种子，用于可复现运行。
 - `brownian.dt_B_ratio`: 布朗时间步相对于输出时间步的比例。
 
-启用布朗运动后，实际使用的随机种子会保存到 `config.json`、`brownian_rng_seed.txt`、`simulation.log` 和 `simulation_results.mat`。
+启用布朗运动后，实际使用的随机种子会保存到 `config.json`、`brownian_rng_seed.txt`、`simulation.log` 和 `simulation_results.mat`。该种子只控制本次运行的独立随机流，因此几何缓存是否命中以及 MATLAB 全局随机流中的其他调用都不会改变 Brownian 轨迹。
 
 **迁移率条件数告警（自 v7.4.1 起）：** 每次布朗节拍会在 [`src/physics/compute_effective_body_brownian.m`](src/physics/compute_effective_body_brownian.m) 内对已对称化的**无量纲**有效迁移率 `M_eff_dimless` 做 `rcond` 诊断；因此正常运行不应再只因 `M_eff_dim` 各分块的 SI 量纲差异而出现大量虚假的 `IllConditioned`。若 MATLAB 仍以极小的 **`M_eff_dimless` rcond** 抛出该告警，需排查欧拉根是否接近 \(\theta=\pi\)（钳制根部行退化）、体形极端纵横比等与几何/动力学相关的问题，并结合 `simulation.log` 与轨迹核对。
 
@@ -226,6 +228,8 @@ run('batch_sweep/batch_run_from_json.m');
 | `bacteria_3d_motion.mp4` | 可选三维动画。 |
 | `simulation.log` | 完整运行日志。 |
 | `brownian_rng_seed.txt` | 启用布朗运动时写出的随机种子和复现提示。 |
+
+若某个积分段超时，`results.completed=false` 且 `results.termination_reason='timeout'`。程序会保存并正常返回已经获得的部分轨迹，但跳过动画、流场以及批处理稳态统计。
 
 ## 10. 后处理已完成工况
 
@@ -251,7 +255,7 @@ postprocess_cases()
 | MATLAB 找不到函数 | 确认仓库根目录已加入 MATLAB path。 |
 | 胶囊体生成失败 | 确认 S2 Sampling Toolbox 已安装且在 MATLAB path 中。 |
 | JSON 工况运行后没有纤毛 | 检查 `pili` 是否为合法 JSON 数组，且每根纤毛字段完整。 |
-| 自定义几何被拒绝 | 检查点云方向、重复点和纤毛等长段要求。 |
+| 自定义几何被拒绝 | 检查点云方向、重复/退化区间，以及 canonical 等弦长构造是否可收敛。 |
 | `geometry_mode` 混用报错 | 仅使用 parametric **或** custom 字段；勿将 `custom_geometry` 与 `body`/`pili` 矩阵字段混用（v7.4.4+）。 |
 | `helix` 内禀曲率报错 | 须提供结构体：`{"type":"helix","kappa_d2":…,"kappa_d3":…}`，且为有限标量；裸 `"helix"` 无效（v7.4.4+）。 |
 | 输出目录已存在 | 交互式选择处理方式，或设置 `auto_confirm = true` 使用无人值守重命名策略。 |

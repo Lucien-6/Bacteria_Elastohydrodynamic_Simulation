@@ -4,8 +4,8 @@ English | [中文](theory.zh-CN.md)
 [Back to README](../README.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Updated:** 2026-07-12
-> **Version:** 7.10.1
+> **Updated:** 2026-07-13
+> **Version:** 8.0.0
 
 This document contains the model details that were formerly embedded in the long README. The repository entry page is now intentionally short; practical run instructions are in [`../USER_GUIDE.md`](../USER_GUIDE.md), and release history is in [`../CHANGELOG.md`](../CHANGELOG.md).
 
@@ -19,6 +19,16 @@ The simulator models a bacterial body with flexible pili or flagella settling in
 - **Coupling:** hydrodynamic interactions between all body and pili points are retained through a global mobility solve.
 
 The default parametric body is a capsule with two hemispherical caps and a cylindrical midsection. In custom geometry mode, both the body and pili are imported from user-provided point clouds; mixing custom and parametric geometry in either direction is rejected by `validate_simulation_params.m` when the mixed fields reach the validator (inline or programmatic `cfg`, or JSON loaded into `cfg` and passed through `run_simulation.m`). Note: in JSON parametric mode, `load_sim_config.m` does **not** read a top-level `custom_geometry` block into `cfg`, so such stray keys are silently ignored at load time rather than validated—remove them from the JSON file or switch to `geometry_mode: "custom"`.
+
+An imported pilus curve is converted once to a canonical equal-chord polygon:
+consecutive duplicates are removed, a PCHIP parameter curve is formed, and
+nested scalar root solves choose monotonically increasing parameters with a
+common endpoint-to-endpoint chord length.  Reference nodes, all material
+directors, and intrinsic curvature are derived from that same polygon.
+Initial body orientation then applies one rigid rotation to every reference
+director before Euler angles are recovered, preserving objectivity for curved
+stress-free rods.  All pili share the global \(E\) and \(r_{\mathrm{pili}}\);
+there is no per-pilus stiffness parameter.
 
 ## 2. Main Methods
 
@@ -194,8 +204,8 @@ Since v7.6.0, axial twist no longer uses a local RFT torsional resistance. The t
 \end{bmatrix}
 =
 \begin{bmatrix}
-\mathbf{M}_{\mathrm{weighted}} & \mathbf{C}_{\mathrm{twist}} \\
-\mathbf{C}_{\mathrm{twist}}^{\mathsf T} & \mathbf{M}_{\mathrm{twist}}
+\mathbf{M}_{\mathrm{weighted}} & \mathbf{C}_{\mathrm{forward}} \\
+\mathbf{C}_{\mathrm{reverse}} & \mathbf{M}_{\mathrm{twist}}
 \end{bmatrix}
 \begin{bmatrix}
 \mathbf{f} \\
@@ -206,22 +216,45 @@ Since v7.6.0, axial twist no longer uses a local RFT torsional resistance. The t
 where `M_twist` is the non-local segment-integral axial rotation mobility and
 
 ```math
-\mathbf{C}_{\mathrm{twist}} = \tfrac{1}{2}\mathbf{M}_{\mathrm{rotlet}}\mathbf{D}_{\mathrm{twist}}.
+\mathbf{C}_{\mathrm{forward}}
+=
+\tfrac{1}{2}\mathbf{M}_{\mathrm{rotlet}}\mathbf{D}_{\mathrm{twist}},
+\qquad
+\mathbf{C}_{\mathrm{reverse}}
+=
+\mathbf{W}_m^{-1}\mathbf{C}_{\mathrm{forward}}^{\mathsf T}\mathbf{W}_f.
 ```
 
-The `1/2` factor converts Cortez's full-curl rotlet segment kernel to the physical standard-rotlet convention. The code applies the inverse action by Schur complement:
+Here \(\mathbf{W}_f\) repeats the body/RSS quadrature weight for each
+Cartesian force component and
+\(\mathbf{W}_m=\operatorname{diag}(L_s)\) uses the actual segment lengths.
+Thus
+\(\mathbf{W}_f\mathbf{C}_{\mathrm{forward}}
+=\mathbf{C}_{\mathrm{reverse}}^{\mathsf T}\mathbf{W}_m\), which is the
+discrete virtual-power form of Lorentz reciprocity.  An ordinary transpose
+would be correct only when both measures were identical.  The `1/2` factor
+converts Cortez's full-curl rotlet segment kernel to the physical
+standard-rotlet convention. The code applies the inverse action by Schur
+complement:
 
 ```math
 \mathbf{S}_{\mathrm{twist}}
 =
 \mathbf{M}_{\mathrm{twist}}
 -
-\mathbf{C}_{\mathrm{twist}}^{\mathsf T}
+\mathbf{C}_{\mathrm{reverse}}
 \mathbf{M}_{\mathrm{weighted}}^{-1}
-\mathbf{C}_{\mathrm{twist}},
+\mathbf{C}_{\mathrm{forward}},
 ```
 
 so the same coupled operator is used in the main linear system and in background-flow corrections.
+
+`M_twist` maps torque density to angular velocity and is therefore also
+self-adjoint in the line measure:
+\(\mathbf{W}_m\mathbf{M}_{\mathrm{twist}}
+=\mathbf{M}_{\mathrm{twist}}^{\mathsf T}\mathbf{W}_m\).
+The implementation enforces this relation using each segment's endpoint
+distance; it does not assume equal segment lengths across different pili.
 
 The main blocks are:
 
@@ -229,7 +262,7 @@ The main blocks are:
 - `M_weighted`: full translational hydrodynamic mobility matrix, including body RSM and pili RSS blocks.
 - `M_twist`: non-local axial twist mobility.
 - `D_twist`: embeds scalar axial torque density into segment-aligned 3D rotlet vectors.
-- `C_twist`: reciprocal translation/twist coupling with physical standard-rotlet scaling.
+- `C_forward`, `C_reverse`: weighted-adjoint translation/twist coupling blocks with physical standard-rotlet scaling.
 - `B_global`: maps distributed forces and line-integrated torques into global force, moment, and pilus moment-balance equations.
 - `R`: gravitational force, elastic moments, active moments, background-flow corrections, and motor torque terms.
 
@@ -312,15 +345,23 @@ Supported flow types are:
 
 - `off`: no background flow.
 - `uniform`: constant velocity with user-defined direction.
-- `shear_z`: finite-thickness clipped shear layer with user-defined flow direction, shear axis, and thickness.
+- `shear_z`: finite-thickness clipped shear layer with user-defined flow direction, shear axis, and thickness.  Incompressibility requires the normalized flow and shear directions to be orthogonal; validation rejects `abs(dot)>1e-12`.
+
+Inside the unclipped shear layer,
+\(\mathbf{u}=U\,\hat{\mathbf d}(\hat{\mathbf s}\cdot\mathbf{x})/H\),
+so \(\nabla\cdot\mathbf{u}=(U/H)\hat{\mathbf d}\cdot\hat{\mathbf s}\).
+Orthogonality is therefore a mass-conservation condition, not merely a
+preferred coordinate convention.
 
 ## 10. Brownian Dynamics
 
 When Brownian motion is enabled, the deterministic elastohydrodynamic solve is operator-split from stochastic body motion:
 
 1. Integrate the deterministic coupled system with `ode15s`.
-2. At each Brownian time node, compute the full-system effective body mobility.
-3. Apply a correlated 6D translational-rotational Brownian increment.
+2. At each Brownian time node, compute the effective body mobility by
+   probing the full deterministic body-pili system.
+3. Apply a correlated 6D translational-rotational increment to the body
+   pose only, then re-enforce the pilus root constraints.
 
 The effective mobility is computed by probing the coupled linear system with six unit generalized body loads:
 
@@ -331,7 +372,10 @@ The effective mobility is computed by probing the coupled linear system with six
 \qquad i=1,\ldots,6.
 ```
 
-After dimensional conversion:
+The symmetric positive-definite check and any round-off-scale spectral repair
+are performed on the dimensionless mobility.  A materially negative
+eigenvalue is an assembly error rather than something to clamp.  The repaired
+matrix is then converted to physical units by a congruence transformation:
 
 ```math
 \mathbf{D}_{\mathrm{eff}}
@@ -356,7 +400,20 @@ k_B T\,\mathbf{M}_{\mathrm{eff,dim}},
 \boldsymbol{\eta}\sim\mathcal{N}(\mathbf{0},\mathbf{I}_6).
 ```
 
-The Ito drift term is computed explicitly by finite differences of the SPD-projected body mobility in the six body coordinates. This replaces the former midpoint approximation and keeps the Brownian update in a single strict stochastic interpretation.
+The Ito drift term is computed explicitly by finite differences of the
+SPD-projected body mobility in the six body coordinates.  The final step uses
+the actual remaining time if the observation interval is not divisible by
+`dt_B`.  Brownian samples come from a run-local random stream and are
+independent of geometry-cache creation.
+
+**Scope of the Brownian approximation.**  The hydrodynamic drag of every
+pilus affects the probed 6 x 6 body mobility, but pilus internal Euler-angle
+coordinates receive no stochastic forcing.  Those modes evolve only under
+deterministic elasticity, hydrodynamics, active moments, and motor torques.
+Consequently this model is suitable for body translation/orientation
+diffusion when internal pilus thermal fluctuations are neglected; it is not
+a full coupled equilibrium process and cannot reproduce pilus-mode
+equipartition.
 
 **Known approximation — deterministic/stochastic operator consistency.**
 
@@ -434,8 +491,16 @@ The codebase has been checked against the following model-level invariants:
 - Walker-style Euler-angle `Q` matrix and moment-balance scaling.
 - Clamped and free-torsion root boundary constraints.
 - Multi-pilus state layout, geometry reconstruction, and matrix dimensions.
-- Full-system Brownian effective mobility and Cholesky positive-definiteness checks.
+- Full-coupled effective body mobility and body-only Brownian Cholesky positive-definiteness checks.
+- Weighted translation/twist reciprocity and symmetric power dissipation.
+- Scale-independent linear-solve backward residuals, selected-state `rcond`,
+  finite-value checks, and true multi-motor fixed-point residuals.
 - Output units for MAT, CSV, figure, and log files.
+
+Backward residuals above \(10^{-10}\) warn and values above \(10^{-6}\)
+abort.  Initial and post-basis-change coupled matrices warn below
+`rcond=1e-10` and abort below `1e-14`.  Measured extrema and the fixed
+thresholds are saved in `results.diagnostics`.
 
 Detailed bug-fix history belongs in [`../CHANGELOG.md`](../CHANGELOG.md), not in this theory document.
 

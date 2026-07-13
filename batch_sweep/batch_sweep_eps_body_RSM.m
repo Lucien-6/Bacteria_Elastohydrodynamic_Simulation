@@ -27,7 +27,7 @@
 %                        save_sim_config since v6/v7 custom-geometry feature)
 %                        and explicit compute_flowfield = false to skip flow-
 %                        field calculation during RSM calibration.
-%  Updated: 2026-07-12
+%  Updated: 2026-07-13
 
 close all force;
 clear; clc;
@@ -152,13 +152,11 @@ for ii = 1:n_runs
         sweep_results{ii} = res_i;
         sweep_dirs{ii}    = dir_i;
 
-        if ~isempty(res_i) && isfield(res_i, 'V_sink')
+        [run_status(ii), is_complete_i] = simulation_result_status(res_i);
+        if is_complete_i && isfield(res_i, 'V_sink')
             Vs = res_i.V_sink(:);
             nt = numel(Vs);
             steady_V(ii) = mean(Vs(max(1, round(0.95 * nt)):end));
-            run_status(ii) = "OK";
-        else
-            run_status(ii) = "ABORTED";
         end
     catch ME
         run_walltime(ii)  = toc(t_run_start);
@@ -183,7 +181,7 @@ t_sweep_total = toc(t_sweep_start);
 %% ---- Summary table ----
 n_ok  = sum(run_status == "OK");
 n_err = sum(run_status == "FAILED");
-n_abt = sum(run_status == "ABORTED");
+n_abt = sum(run_status == "ABORTED" | run_status == "TIMEOUT");
 
 fprintf('\n========================================\n');
 fprintf('  Sweep complete  (%d runs, %.1f s total)\n', n_runs, t_sweep_total);

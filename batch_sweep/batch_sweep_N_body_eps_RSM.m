@@ -37,7 +37,7 @@
 %  Created: 2026-04-13
 %  Updated: 2026-05-06 — Lucien — added geometry_mode='parametric' (required by
 %                        save_sim_config since v6/v7 custom-geometry feature).
-%  Updated: 2026-07-12
+%  Updated: 2026-07-13
 
 close all force;
 clear; clc;
@@ -193,13 +193,11 @@ for iN = 1:n_N
             walltime_grid(iN, ik) = toc(t_run_start);
             sweep_cell{iN, ik}    = res_i;
 
-            if ~isempty(res_i) && isfield(res_i, 'V_sink')
+            [status_grid(iN, ik), is_complete_i] = simulation_result_status(res_i);
+            if is_complete_i && isfield(res_i, 'V_sink')
                 Vs = res_i.V_sink(:);
                 nt = numel(Vs);
                 steady_V_grid(iN, ik) = mean(Vs(max(1, round(0.95 * nt)):end));
-                status_grid(iN, ik)   = "OK";
-            else
-                status_grid(iN, ik)   = "ABORTED";
             end
         catch ME
             walltime_grid(iN, ik) = toc(t_run_start);
@@ -263,7 +261,7 @@ summary_tbl = table( ...
 
 n_ok  = sum(status_grid == "OK", 'all');
 n_err = sum(status_grid == "FAILED", 'all');
-n_abt = sum(status_grid == "ABORTED", 'all');
+n_abt = sum(status_grid == "ABORTED" | status_grid == "TIMEOUT", 'all');
 
 fprintf('========================================\n');
 fprintf('  Sweep complete  (%.1f s wall time)\n', t_sweep_total);

@@ -23,8 +23,8 @@ function [results, params, output_dir] = run_simulation_HPC_Linux(cfg_or_path)
 %                  Important optional fields:
 %                    cfg.compute_flowfield - logical; default true if omitted.
 %                    cfg.brown_rng_seed - positive numeric scalar; rounded and
-%                      used with the global twister stream for Brownian runs.
-%                      If omitted, an MMddHHmmss seed is generated and saved.
+%                      used with a run-local mt19937ar Brownian stream.  If
+%                      omitted, an MMddHHmmss seed is generated and saved.
 %                    cfg.silent - runtime-only logical (default false);
 %                      suppresses console/progress/warnings but not file logs
 %                      or errors.  silent + preview_initial requires
@@ -41,12 +41,14 @@ function [results, params, output_dir] = run_simulation_HPC_Linux(cfg_or_path)
 %  why a run failed instead of truncating silently.
 %
 %  Outputs:
-%    results    - Results struct; [] if aborted.  Principal fields include
+%    results    - Results struct.  A segment timeout returns valid partial
+%                 results rather than []; principal fields include
 %                 t [1 x NT, s], X_cm_um [3 x NT, um],
 %                 X_pili_um {M}[N_k+1 x 3 x NT, um],
 %                 V_sink [signed dZ/dt, um/s], V_cm_um [3 x NT, um/s],
 %                 tilt_angle [rad], F_sink_pN [pN], units, and the
-%                 corresponding dimensionless state histories.
+%                 corresponding dimensionless state histories, completed,
+%                 termination_reason, target_time_s, and achieved_time_s.
 %    params     - Model parameters and dimensional scale factors; [] if aborted.
 %    output_dir - Created run directory; '' if aborted before allocation.
 %
@@ -54,14 +56,14 @@ function [results, params, output_dir] = run_simulation_HPC_Linux(cfg_or_path)
 %    Adds the project root and project-root/src recursively to the MATLAB path.
 %    Writes the same MAT/CSV/JSON/log/plot products as run_simulation.m.
 %    Animation output is bacteria_3d_motion.mp4 on Windows/macOS and
-%    bacteria_3d_motion.avi on Linux.  Brownian runs modify the global RNG
-%    state and save the seed used.  A configured progress_queue receives
+%    bacteria_3d_motion.avi on Linux.  Brownian runs use an isolated stream
+%    and save its seed without modifying the global RNG.  A configured progress_queue receives
 %    structs with fields type='heartbeat', tag, pct, and elapsed.
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Updated: 2026-07-12
-%  Log banner version: 7.10.1 (2026-07-12) - keep in sync with README / CHANGELOG
+%  Updated: 2026-07-13
+%  Log banner version: 8.0.0 (2026-07-13) - keep in sync with README / CHANGELOG
 %
 %  Path policy: defensive addpath calls here allow
 %  run_simulation_HPC_Linux(cfg) without main_coupled_simulation.m.
@@ -206,8 +208,9 @@ else
     initial_orientation_cfg = [];
 end
 
-% ---- Brownian RNG (twister): must run before save_sim_config and ODE integration ----
+% ---- Brownian RNG: isolated stream, independent of geometry/cache RNG ----
 brown_rng_seed_used = NaN;
+brown_rng_stream    = [];
 if enable_brown
     if isfield(cfg, 'brown_rng_seed') && isscalar(cfg.brown_rng_seed) ...
             && isnumeric(cfg.brown_rng_seed) && isfinite(cfg.brown_rng_seed) ...
@@ -216,7 +219,7 @@ if enable_brown
     else
         brown_rng_seed_used = brown_rng_seed_from_clock();
     end
-    rng(brown_rng_seed_used, 'twister');
+    brown_rng_stream = RandStream('mt19937ar', 'Seed', brown_rng_seed_used);
     cfg.brown_rng_seed = brown_rng_seed_used;
 end
 
@@ -353,7 +356,7 @@ if enable_brown
     if fid_seed ~= -1
         fprintf(fid_seed, '%d\n', brown_rng_seed_used);
         fprintf(fid_seed, ...
-            'Twister seed used for Brownian kicks. Re-run with the same seed via cfg.brown_rng_seed or JSON brownian.rng_seed.\n');
+            'Seed for the isolated mt19937ar Brownian stream. Re-run with the same seed via cfg.brown_rng_seed or JSON brownian.rng_seed.\n');
         fclose(fid_seed);
         logf('[CONFIG] Brownian RNG seed file: %s\n', seed_txt);
     end
@@ -439,7 +442,7 @@ logf('[PARAMS] Flowfield: grid = %.2f um, range = %.1f um, quiver_skip = %d\n', 
 logf('[PARAMS] Brownian: enable = %s, Temper = %.2f K, dt_B = %.4f s, Ito drift = strict finite-difference\n', ...
     mat2str(enable_brown), Temper, dt_B);
 if enable_brown
-    logf('[PARAMS] Brownian RNG: seed = %d (twister), saved for reproducibility\n', ...
+    logf('[PARAMS] Brownian RNG: seed = %d (isolated mt19937ar), saved for reproducibility\n', ...
         brown_rng_seed_used);
 end
 logf('[PARAMS] Auto-confirm: %s\n', mat2str(auto_confirm));
@@ -508,6 +511,12 @@ end
 
 logf('[INIT] Building initial state vector...\n');
 Z0 = init_coupled_state(params, logf);
+numerical_diagnostics_state('reset');
+initial_health = check_coupled_system_health(Z0, params, 'initial state');
+logf(['[DIAG] Initial rcond = %.3e | reciprocity = %.3e | ', ...
+      'min dissipation eigenvalue = %.3e\n'], ...
+    initial_health.rcond, initial_health.weighted_reciprocity_residual, ...
+    initial_health.min_dissipation_eigenvalue);
 
 t_init_elapsed = toc(t_init_start);
 
@@ -836,6 +845,8 @@ basis_changes    = 0;
 segment_count    = 0;
 seg_walltimes    = [];          % Wall time per segment [s]
 seg_dtstar       = [];          % Dimensionless time advanced per segment
+termination_reason = 'completed';
+timed_out          = false;
 
 % Segment-level [ODE] announcements are throttled to avoid flooding
 % simulation.log / console when Brownian dynamics splits the run into
@@ -854,15 +865,20 @@ end
 % ---- Brownian dynamics node tracking ----
 if params.brown_enabled
     dt_B_dimless   = dt_B / params.scales.T_0;
-    T_brown_next   = dt_B_dimless;
-    logf('[BROWN] Brownian dynamics enabled (full-system effective friction)\n');
+    T_brown_last   = 0;
+    T_brown_next   = min(dt_B_dimless, T_obs_dimless);
+    logf(['[BROWN] Body-only Brownian dynamics enabled ', ...
+          '(6-DOF body kicks via coupled effective mobility probe)\n']);
     logf('[BROWN] dt_B = %.4f s = %.4e T*\n', dt_B, dt_B_dimless);
     logf('[BROWN] Strict Ito drift correction: ENABLED (body-only finite-difference div(M))\n');
     brown_kick_count    = 0;
     brown_log_interval  = 100;
+    brown_step_sizes_s  = [];
 else
     dt_B_dimless = Inf;
+    T_brown_last = 0;
     T_brown_next = Inf;
+    brown_step_sizes_s = [];
 end
 
 while T_achieved < T_obs_dimless
@@ -880,6 +896,10 @@ while T_achieved < T_obs_dimless
                     kk, T_achieved);
             end
         end
+        basis_health = check_coupled_system_health( ...
+            Z, params, sprintf('post-basis-change segment %d', segment_count));
+        logf('[DIAG] Post-basis rcond = %.3e | reciprocity = %.3e\n', ...
+            basis_health.rcond, basis_health.weighted_reciprocity_residual);
     end
 
     % Determine integration target for this segment
@@ -888,11 +908,10 @@ while T_achieved < T_obs_dimless
     % Setup ODE solver
     tstart_ode   = tic;
     eventFunc    = @(t_ev, Z_ev) singularity_event(t_ev, Z_ev, params, tstart_ode, tlim);
-    if silent
-        progressFunc = '';   % no OutputFcn — suppresses odetpbar \b progress bar
-    else
-        progressFunc = @(t_p, y_p, fl_p, varargin) odetpbar(t_p, y_p, fl_p);
-    end
+    % Always install the timeout OutputFcn.  In silent mode it omits only
+    % the progress-bar rendering, not the wall-clock interrupt.
+    progressFunc = @(t_p, y_p, fl_p, varargin) ...
+        timeout_output(t_p, y_p, fl_p, tstart_ode, tlim, silent);
 
     ode_ops = odeset('OutputFcn',  progressFunc, ...
                      'Events',     eventFunc, ...
@@ -916,8 +935,12 @@ while T_achieved < T_obs_dimless
     end
 
     % Check if event was triggered
+    stopped_by_timeout_output = seg_wall >= tlim && ...
+        sol.x(end) < T_seg_target - 1e-14;
+    timeout_this_segment = stopped_by_timeout_output;
     if ~isempty(sol.xe)
         event_ids = unique(sol.ie(:)');
+        timeout_this_segment = timeout_this_segment || any(event_ids == 1);
         event_labels = cell(1, numel(event_ids));
         for ei = 1:numel(event_ids)
             switch event_ids(ei)
@@ -931,6 +954,9 @@ while T_achieved < T_obs_dimless
         end
         logf('[ODE]   Event triggered at t* = %.4e | reason = %s\n', ...
             sol.xe(end), strjoin(event_labels, ','));
+    elseif stopped_by_timeout_output
+        logf('[ODE]   OutputFcn stopped at t* = %.4e | reason = timeout\n', ...
+            sol.x(end));
     end
 
     % Update state
@@ -950,25 +976,27 @@ while T_achieved < T_obs_dimless
     % Enforce geometric clamped BC (correct constraint drift)
     Z_end = enforce_clamped_geometry(Z_end, params);
 
-    % ---- Apply Brownian kick at Brownian node (fixed dt_B) ----
-    %  Full-system effective friction: dynamically computes the 6x6
-    %  effective body mobility (including pili drag) at each Brownian
-    %  step via probing the coupled linear system.  The 6D noise
-    %  naturally includes translation-rotation coupling.
+    % ---- Apply Brownian kick at a completed Brownian target ----
+    %  Body-only Ito Brownian step: the 6x6 effective body mobility
+    %  (including pili hydrodynamic drag via Schur complement) is probed
+    %  at each Brownian step.  Only the body receives the stochastic
+    %  increment; pilus internal modes remain deterministic (no thermal noise).
     brown_kick_applied = false;
-    if params.brown_enabled
+    if params.brown_enabled && ~timeout_this_segment
         brown_tol = dt_B_dimless * 1e-8;
-        if T_achieved >= T_brown_next - brown_tol
+        if T_achieved >= T_seg_target - brown_tol
 
             % --- Strict body-only Ito Brownian step ---
             % Mobility-dependent noise requires the thermal drift
             % kB*T*div(M).  The drift is computed by finite differences in
             % the same six body coordinates that receive the stochastic kick;
             % pili internal Brownian modes remain intentionally disabled.
+            dt_B_step = (T_achieved - T_brown_last) * params.scales.T_0;
             L_eff_step = compute_effective_body_brownian(Z_end, params);
             drift_6d   = compute_body_ito_drift(Z_end, params);
-            eta_6d     = randn(6, 1);
-            dU_dim     = drift_6d * dt_B + L_eff_step * eta_6d * sqrt(dt_B);
+            eta_6d     = randn(brown_rng_stream, 6, 1);
+            dU_dim     = drift_6d * dt_B_step + ...
+                         L_eff_step * eta_6d * sqrt(dt_B_step);
 
             % -- Apply translational displacement (lab frame) --
             dX_lab     = dU_dim(1:3);
@@ -990,11 +1018,17 @@ while T_achieved < T_obs_dimless
 
             brown_kick_applied = true;
             brown_kick_count   = brown_kick_count + 1;
-            T_brown_next       = (brown_kick_count + 1) * dt_B_dimless;
+            T_brown_last       = T_achieved;
+            brown_step_sizes_s(end+1) = dt_B_step; %#ok<AGROW>
+            if T_brown_last < T_obs_dimless - brown_tol
+                T_brown_next = min(T_brown_last + dt_B_dimless, T_obs_dimless);
+            else
+                T_brown_next = Inf;
+            end
 
             if brown_kick_count <= 5 || mod(brown_kick_count, brown_log_interval) == 0
-                logf('[BROWN] Kick #%d at t* = %.4e | |dX| = %.2e m | |dTheta| = %.2e rad | |drift| = %.2e /s\n', ...
-                    brown_kick_count, T_achieved, norm(dX_lab), ang, norm(drift_6d));
+                logf('[BROWN] Kick #%d at t* = %.4e | dt = %.4e s | |dX| = %.2e m | |dTheta| = %.2e rad | |drift| = %.2e /s\n', ...
+                    brown_kick_count, T_achieved, dt_B_step, norm(dX_lab), ang, norm(drift_6d));
             end
         end
     end
@@ -1045,6 +1079,27 @@ while T_achieved < T_obs_dimless
 
     current_time_ind = find(ts_dimless <= T_achieved + 1e-14, 1, 'last');
 
+    % A timeout can occur between requested output nodes.  Preserve the exact
+    % terminal state as the final sample before truncating preallocated arrays.
+    if timeout_this_segment
+        if abs(results.t_dimless(current_time_ind) - T_achieved) > 1e-14
+            ti = current_time_ind + 1;
+            results.t_dimless(ti) = T_achieved;
+            [X_cm_i, q_i, ~] = unpack_state(Z_end, N_segs);
+            results.X_cm(:, ti) = X_cm_i;
+            results.q(:, ti)    = q_i;
+            geom_i = reconstruct_geometry(Z_end, params);
+            for k = 1:M_pili
+                results.X_pili{k}(:, :, ti) = geom_i.X_pili{k};
+            end
+            current_time_ind = ti;
+        end
+        timed_out = true;
+        termination_reason = 'timeout';
+        logf('[ODE] Integration aborted after segment %d timeout at t* = %.6e.\n', ...
+            segment_count, T_achieved);
+    end
+
     % Log progress with ETA
     progress_pct = min(100, T_achieved / T_obs_dimless * 100);
     elapsed_ode  = toc(tic_total);
@@ -1070,12 +1125,63 @@ while T_achieved < T_obs_dimless
             'pct', progress_pct, 'elapsed', elapsed_ode));
         t_last_heartbeat = tic;
     end
+
+    if timed_out
+        break;
+    end
 end
 
 elapsed_total = toc(tic_total);
 
+% Remove every uncomputed preallocated sample before diagnostics,
+% post-processing, persistence, and visualisation.
+results.t_dimless = results.t_dimless(1:current_time_ind);
+results.X_cm      = results.X_cm(:, 1:current_time_ind);
+results.q         = results.q(:, 1:current_time_ind);
+for k = 1:M_pili
+    results.X_pili{k} = results.X_pili{k}(:, :, 1:current_time_ind);
+end
+NT = current_time_ind;
+results.completed          = ~timed_out;
+results.termination_reason = termination_reason;
+results.target_time_s      = T_obs;
+results.achieved_time_s    = T_achieved * params.scales.T_0;
+results.segment_count      = segment_count;
+results.brownian_step_sizes_s = brown_step_sizes_s;
+results.diagnostics = numerical_diagnostics_state('snapshot');
+diag = results.diagnostics;
+logf(['[DIAG] Max backward residual = %.3e (warn %.1e, err %.1e) | ', ...
+      'min rcond = %.3e (warn %.1e, err %.1e) | ', ...
+      'max reciprocity residual = %.3e (err %.1e) | ', ...
+      'min dissipation eigenvalue = %.3e (rel err %.1e)\n'], ...
+    diag.max_backward_residual, ...
+    diag.backward_residual_warning_threshold, ...
+    diag.backward_residual_error_threshold, ...
+    diag.min_rcond, ...
+    diag.rcond_warning_threshold, ...
+    diag.rcond_error_threshold, ...
+    diag.max_weighted_reciprocity_residual, ...
+    diag.reciprocity_error_threshold, ...
+    diag.min_dissipation_eigenvalue, ...
+    diag.dissipation_error_relative_threshold);
+logf(['[DIAG] Check counts: linear_solve = %d | rcond = %d | ', ...
+      'hydrodynamic = %d\n'], ...
+    diag.linear_solve_count, diag.rcond_check_count, ...
+    diag.hydrodynamic_check_count);
+
+requested_generate_animation = generate_animation;
+requested_compute_flowfield  = compute_flowfield;
+if timed_out
+    generate_animation = false;
+    compute_flowfield  = false;
+end
+
 logf('\n================================================================\n');
-logf('  INTEGRATION COMPLETED\n');
+if timed_out
+    logf('  INTEGRATION ABORTED: TIMEOUT\n');
+else
+    logf('  INTEGRATION COMPLETED\n');
+end
 logf('================================================================\n');
 logf('[ODE] Total wall time      : %s\n',  format_duration(elapsed_total));
 logf('[ODE] Integration segments : %d\n',     segment_count);
@@ -1136,16 +1242,20 @@ results.units.T_0_s    = T_0;
 results.units.U_0_m_s  = U_0;
 results.units.F_0_N    = F_0;
 
-% --- Sinking velocity [um/s] (Z-component via numerical gradient) ---
-V_sink_all      = gradient(results.X_cm_um(3,:), results.t);
-results.V_sink  = V_sink_all;
-
-% --- Full translational velocity [um/s]: all 3 components ---
-%  Row-by-row gradient avoids any dimension-convention ambiguity of the
-%  multi-argument gradient(F, h1, h2) call on a 2-D matrix.
-results.V_cm_um = [ gradient(results.X_cm_um(1,:), results.t); ...
-                    gradient(results.X_cm_um(2,:), results.t); ...
-                    gradient(results.X_cm_um(3,:), results.t) ];  % [3 x NT]
+% --- Translational velocity [um/s] ---
+% A timeout may occur before the first requested output interval.  Preserve
+% that single state and report an undefined velocity instead of calling
+% gradient with insufficient samples.
+if NT >= 2
+    V_sink_all = gradient(results.X_cm_um(3,:), results.t);
+    results.V_cm_um = [ gradient(results.X_cm_um(1,:), results.t); ...
+                        gradient(results.X_cm_um(2,:), results.t); ...
+                        gradient(results.X_cm_um(3,:), results.t) ];
+else
+    V_sink_all = NaN(1, NT);
+    results.V_cm_um = NaN(3, NT);
+end
+results.V_sink = V_sink_all;
 
 % --- Body tilt angle [rad] ---
 %  Elevation angle of the body long axis (body-local X) from horizontal,
@@ -1887,6 +1997,9 @@ if generate_animation
     vid_info = dir(anim_file);
     logf('[ANIM] Animation saved: %s (%.2f MB, %d frames, %.1f s render)\n', ...
         anim_file, vid_info.bytes/1e6, n_frames, t_anim_elapsed);
+elseif timed_out && requested_generate_animation
+    t_anim_elapsed = 0;
+    logf('\n[ANIM] Skipped (integration timeout).\n\n');
 end
 
 %% =====================================================================
@@ -1903,6 +2016,9 @@ if compute_flowfield
     compute_plot_flowfield(last_Z, params, output_dir, run_id, logf, flow_opts, T_achieved, silent);
     t_flow_elapsed = toc(t_flow_start);
     logf('[FLOW] Flow field visualisation completed in %s\n\n', format_duration(t_flow_elapsed));
+elseif timed_out && requested_compute_flowfield
+    t_flow_elapsed = 0;
+    logf('\n[FLOW] Skipped (integration timeout).\n\n');
 else
     t_flow_elapsed = 0;
     logf('\n[FLOW] Skipped (cfg.compute_flowfield = false).\n\n');
@@ -1915,7 +2031,11 @@ end
 total_sim_walltime = toc(tic_sim_start);
 
 logf('\n================================================================\n');
-logf('  SIMULATION COMPLETE\n');
+if timed_out
+    logf('  SIMULATION PARTIAL: INTEGRATION TIMEOUT\n');
+else
+    logf('  SIMULATION COMPLETE\n');
+end
 logf('================================================================\n');
 logf('  Run ID          : %s\n',    run_id);
 logf('  Timestamp       : %s\n',    run_timestamp);
@@ -2339,6 +2459,18 @@ function add_gravity_indicator_outside(fig_handle, ax_handle, font_size, line_wi
         'VerticalAlignment', 'top');
 end
 
+function status = timeout_output(t, y, flag, tstart, tlim, silent)
+%TIMEOUT_OUTPUT  Stop ode15s when the segment wall-clock limit is reached
+    if toc(tstart) >= tlim
+        status = 1;
+    elseif silent
+        status = 0;
+    else
+        status = odetpbar(t, y, flag);
+    end
+end
+
+
 function [value, isterminal, direction] = singularity_event(~, Z, params, tstart, tlim)
 %SINGULARITY_EVENT  ODE event: Euler angle singularity or timeout
     delta  = params.delta;
@@ -2347,7 +2479,10 @@ function [value, isterminal, direction] = singularity_event(~, Z, params, tstart
 
     % Check timeout
     elapsed     = toc(tstart);
-    timeout_val = tlim - elapsed;
+    % Clamp at zero so a limit already exceeded before the first event
+    % evaluation is still reported as an initial terminal event.  Returning
+    % an always-negative value would provide no sign crossing to ode15s.
+    timeout_val = max(tlim - elapsed, 0);
 
     % Check theta singularities
     min_margin = inf;

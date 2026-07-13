@@ -62,7 +62,7 @@ function postprocess_cases()
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-07
-%  Updated: 2026-07-12
+%  Updated: 2026-07-13
 
 %% ---- Banner ------------------------------------------------------------
 sep = repmat('=', 1, 64);
@@ -116,6 +116,7 @@ cleanupWB = onCleanup(@() close_waitbar_safe(hWB));
 all_rows  = cell(N, 1);
 n_ok      = 0;
 n_err     = 0;
+n_skip    = 0;
 
 for i = 1:N
     % Cancellation check
@@ -146,9 +147,15 @@ for i = 1:N
             row.Vsink_Steady_um_s, row.Tortuosity);
     catch ME
         row        = empty_result_row(folder_name, folder_path);
-        row.Status = ['ERROR: ' ME.message];
-        n_err      = n_err + 1;
-        fprintf('             Status : ERROR  >>  %s\n', ME.message);
+        if strcmp(ME.identifier, 'postprocess_cases:partialSimulation')
+            row.Status = ['TIMEOUT/SKIPPED: ' ME.message];
+            n_skip = n_skip + 1;
+            fprintf('             Status : TIMEOUT/SKIPPED  >>  %s\n', ME.message);
+        else
+            row.Status = ['ERROR: ' ME.message];
+            n_err      = n_err + 1;
+            fprintf('             Status : ERROR  >>  %s\n', ME.message);
+        end
     end
 
     all_rows{i} = row;
@@ -160,7 +167,8 @@ for i = 1:N
 end
 
 fprintf('      %s\n', repmat('-', 1, 56));
-fprintf('      Completed : %d OK,  %d ERROR(S)\n\n', n_ok, n_err);
+fprintf('      Completed : %d OK,  %d TIMEOUT/SKIPPED,  %d ERROR(S)\n\n', ...
+    n_ok, n_skip, n_err);
 
 %% ---- Step 4: Export to Excel + summary figures -----------------------
 fprintf('[4/4] Exporting to Excel and summary figures ...\n');
@@ -290,6 +298,24 @@ end
 %% =========================================================================
 function data = load_case_data(folder_path)
 data.folder = folder_path;
+
+% Completion metadata.  Partial timeout trajectories are valid diagnostic
+% data, but they must not enter steady-state or diffusion summaries.
+mat_path = fullfile(folder_path, 'simulation_results.mat');
+if isfile(mat_path)
+    meta = load(mat_path, 'results');
+    if isfield(meta, 'results') && isfield(meta.results, 'completed') ...
+            && ~logical(meta.results.completed)
+        reason = 'aborted';
+        if isfield(meta.results, 'termination_reason')
+            reason = char(string(meta.results.termination_reason));
+        end
+        error('postprocess_cases:partialSimulation', ...
+            ['Simulation is partial (termination_reason=%s). Its time series ', ...
+             'is preserved for direct inspection but excluded from aggregate metrics.'], ...
+            reason);
+    end
+end
 
 % timeseries.csv
 csv_path = fullfile(folder_path, 'timeseries.csv');

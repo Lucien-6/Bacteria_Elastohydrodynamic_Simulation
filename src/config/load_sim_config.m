@@ -26,7 +26,8 @@
 %        alpha_0 [rad], eps_body [L_0], initial_orientation, Pili_Matrix,
 %        pili_ext, plus custom_geometry in custom mode.  Pili_Matrix row 2
 %        is length [um], rows 3-4 are angles [rad], and other rows are
-%        dimensionless indices or shape parameters.
+%        dimensionless indices or shape parameters.  The matrix must have
+%        exactly eight rows; per-pilus stiffness rows are rejected.
 %      Material and fluid:
 %        E [Pa], r_pili [m], sigma_p, mu [Pa*s], rho_bac [kg/m^3],
 %        rho_fluid [kg/m^3]
@@ -74,7 +75,7 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Updated: 2026-07-12
+%  Updated: 2026-07-13
 
 %% Read and decode JSON
 fid = fopen(json_path, 'r', 'n', 'UTF-8');
@@ -135,6 +136,12 @@ switch cfg.geometry_mode
         % backward compatibility.
         jp = get_json(j, 'pili', []);
         if isnumeric(jp) && ~isempty(jp)
+            if size(jp, 1) ~= 8
+                error('load_sim_config:InvalidPiliMatrixRows', ...
+                    ['Raw numeric pili matrices must have exactly 8 rows; ', ...
+                     'got %d. Pilus stiffness is derived from the global ', ...
+                     'material E and r_pili values.'], size(jp, 1));
+            end
             cfg.Pili_Matrix = jp;
             cfg.pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {}, ...
                                      'root_coupling', {}, 'motor_torque', {});

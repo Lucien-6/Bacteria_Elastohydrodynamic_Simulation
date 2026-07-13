@@ -48,7 +48,8 @@ function [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params)
 %    hydro   - (Optional, 3rd output) Hydrodynamic intermediate struct
 %              for background flow computation.  Fields:
 %                .B_global, .M_weighted, .dM_weighted,
-%                .M_twist, .D_twist, .C_twist, .Minv_C_twist,
+%                .M_twist, .D_twist, .C_twist, .C_twist_reverse,
+%                .W_trans_diag, .W_twist_diag, .Minv_C_twist,
 %                .S_twist, .dS_twist, .M_rotlet, .n_trans
 %              .dM_weighted is a reusable LU decomposition object for
 %              M_weighted \ rhs solves (lets apply_Ainv_u skip a second
@@ -62,7 +63,7 @@ function [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-31
-%  Updated: 2026-07-12
+%  Updated: 2026-07-13
 
 N_body = params.N_body;
 M      = params.M_pili;
@@ -76,6 +77,14 @@ N_total = size(X_all, 1);
 
 %% Step 2: Build global mobility matrices
 [M_weighted, M_twist, M_rotlet, D_twist] = build_global_resistance(X_all, params, geom);
+if any(~isfinite(M_weighted(:)))
+    error('numerical_diagnostics:NonFiniteMobility', ...
+        'Translational mobility matrix contains non-finite values.');
+end
+if ~isempty(M_twist) && any(~isfinite(M_twist(:)))
+    error('numerical_diagnostics:NonFiniteMobility', ...
+        'Twist mobility matrix contains non-finite values.');
+end
 
 %% Step 3-4: Build B, Q matrices
 %  NOTE: Step 5 (elastic restoring moments RHS) is intentionally omitted
@@ -418,30 +427,41 @@ Q_trans  = Q_global(1:n_trans, :);
 dM_weighted = decomposition(M_weighted, 'lu', 'CheckCondition', false);
 
 C_twist      = [];
+C_twist_reverse = [];
 Minv_C_twist = [];
 S_twist      = [];
 dS_twist     = [];
+W_trans_diag = repelem(params.quad_weights(:), 3);
+W_twist_diag = twist_seg_lengths(:);
 
 if ~isempty(M_twist)
     Q_twist = Q_global(n_trans+1:end, :);
 
-    % Full reciprocal mobility inverse:
-    %   [u_t] = [Mtt  C] [f]
-    %   [u_w]   [C' Mll] [m]
-    % where C uses the physical standard rotlet, i.e. half of Cortez's
-    % full-curl rotlet in build_global_resistance.m.
-    C_twist      = 0.5 * (M_rotlet * D_twist);
+    % Weighted-reciprocal mobility inverse:
+    %   [u_t] = [Mtt       C_forward] [f]
+    %   [u_w]   [C_reverse Mll      ] [m],
+    % where C_reverse = W_m \ (C_forward' * W_f).
+    [C_twist, C_twist_reverse, W_trans_diag, W_twist_diag] = ...
+        assemble_twist_coupling(M_rotlet, D_twist, ...
+                                params.quad_weights, twist_seg_lengths);
     Minv_Q_trans = dM_weighted \ Q_trans;
     Minv_C_twist = dM_weighted \ C_twist;
-    S_twist      = M_twist - C_twist' * Minv_C_twist;
+    check_linear_solve(M_weighted, [Minv_Q_trans, Minv_C_twist], ...
+        [Q_trans, C_twist], 'coupled translational mobility solve');
+    S_twist      = M_twist - C_twist_reverse * Minv_C_twist;
     dS_twist     = decomposition(S_twist, 'lu', 'CheckCondition', false);
 
-    AQ_twist_scalar = dS_twist \ (Q_twist - C_twist' * Minv_Q_trans);
+    AQ_twist_scalar = dS_twist \ (Q_twist - C_twist_reverse * Minv_Q_trans);
+    check_linear_solve(S_twist, AQ_twist_scalar, ...
+        Q_twist - C_twist_reverse * Minv_Q_trans, ...
+        'coupled twist Schur solve');
     AQ_trans        = Minv_Q_trans - Minv_C_twist * AQ_twist_scalar;
     AQ_twist        = D_twist * AQ_twist_scalar;
     AQ              = [AQ_trans; AQ_twist];
 else
     AQ_trans = dM_weighted \ Q_trans;
+    check_linear_solve(M_weighted, AQ_trans, Q_trans, ...
+        'coupled translational mobility solve');
     AQ       = AQ_trans;
 end
 
@@ -455,6 +475,9 @@ if nargout >= 3
     hydro.M_twist       = M_twist;
     hydro.D_twist       = D_twist;
     hydro.C_twist       = C_twist;
+    hydro.C_twist_reverse = C_twist_reverse;
+    hydro.W_trans_diag  = W_trans_diag;
+    hydro.W_twist_diag  = W_twist_diag;
     hydro.Minv_C_twist  = Minv_C_twist;
     hydro.S_twist       = S_twist;
     hydro.dS_twist      = dS_twist;
@@ -547,6 +570,11 @@ for k = 1:M
 
     col_offset = col_offset + 3 * N_k;
     row_offset = row_offset + 3 * N_k;
+end
+
+if any(~isfinite(lin_sys(:)))
+    error('numerical_diagnostics:NonFiniteMatrix', ...
+        'Coupled linear system contains non-finite values.');
 end
 
 end

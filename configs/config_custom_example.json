@@ -7,7 +7,8 @@
         "Paths are relative to the project root (run_simulation.m addpath policy).",
         "Re-generate these files with geometry/generate_example_geometry.m or the",
         "pre-shipped CSV copies in geometry/ after cloning.",
-        "User-supplied pili centerlines MUST have equal-length segments (checked)."
+        "Imported centerlines may have nonuniform source spacing; they are converted",
+        "once to endpoint-preserving equal-chord canonical polygons."
     ],
 
     "custom_geometry": {

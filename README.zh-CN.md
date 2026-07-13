@@ -4,8 +4,8 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-07-12
-> **版本:** 7.10.1
+> **更新日期:** 2026-07-13
+> **版本:** 8.0.0
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -16,7 +16,7 @@
 - 支持参数化纤毛或导入自定义纤毛中心线。
 - RSM/RSS 混合流体力学模型，并包含非局部线段积分扭转迁移率、互易 Schur 互补耦合和物理标准 rotlet 缩放。
 - Kirchhoff 弹性杆模型，支持内禀曲率和主动力矩。
-- 可选胞体布朗运动，扩散张量来自完整胞体-纤毛耦合有效迁移率，并使用 SPD 投影协方差与显式严格 Ito 热漂移。
+- 可选 body-only 胞体布朗运动：胞体 6 自由度协方差来自完整胞体-纤毛耦合有效迁移率，并采用无量纲 SPD 修复、显式 Ito 热漂移及独立可复现随机流；纤毛内部弹性模态仍为确定性演化。
 - 可选背景流：关闭、均匀流或有限厚度剪切流。
 - 支持自由扭转根部边界条件和恒定马达力矩，用于马达驱动鞭毛。
 - 支持 MATLAB 内联配置、JSON 配置和程序化批处理运行。
@@ -81,6 +81,8 @@ cfg.auto_confirm = true;
 | `simulation.log` | 控制台与文件双通道运行日志。 |
 | `brownian_rng_seed.txt` | 仅在启用布朗运动时写出随机种子。 |
 
+`results.completed` 与 `results.termination_reason` 用于区分完整运行和超时截断运行。任一积分段超时后，程序保存已获得的 MAT/CSV/配置/日志数据并正常返回；批处理与汇总后处理不会把该部分轨迹纳入稳态统计。
+
 ## 核心文件
 
 | 路径 | 作用 |
@@ -94,7 +96,7 @@ cfg.auto_confirm = true;
 | [`src/config/init_coupled_state.m`](src/config/init_coupled_state.m) | 初始状态向量构建。 |
 | [`src/core/ode_coupled_rhs.m`](src/core/ode_coupled_rhs.m) | 耦合弹性流体动力学 ODE 右端项。 |
 | [`src/core/build_coupled_lin_sys.m`](src/core/build_coupled_lin_sys.m) | 耦合线性系统组装。 |
-| [`src/physics/compute_effective_body_brownian.m`](src/physics/compute_effective_body_brownian.m) | 全系统有效布朗迁移率、SPD 扩散张量和 Cholesky 噪声因子计算。 |
+| [`src/physics/compute_effective_body_brownian.m`](src/physics/compute_effective_body_brownian.m) | 完整耦合有效胞体迁移率与 body-only Brownian 噪声因子计算。 |
 | [`src/visualization/compute_plot_flowfield.m`](src/visualization/compute_plot_flowfield.m) | 在实际达到的终止时间进行末状态流场计算与图像导出。 |
 
 ## 文档导航
@@ -109,7 +111,9 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **7.10.1 (2026-07-12)**，属于文档准确性与契约一致性补丁。对全部一方 MATLAB 入口、脚本、函数及冻结 legacy 快照的完整复核，修正了 help 头部中的函数签名、状态维数、单位、坐标系、数值分支、副作用、warning/error、缓存路径以及 legacy/live API 边界。必要的最小实现修复包括：确保 `odetpbar` 所有路径返回初始化状态、让 `verify_migration` 识别 HPC 入口与 `project_version.m`，以及为两个胶囊网格错误路径提供稳定 identifier。发布验收覆盖全部一方 MATLAB 文件，以及标准、马达驱动、自定义几何、Brownian 和 HPC 五类端到端工况。**水动力、弹性、Brownian、马达与几何数值算法均未改变。**
+当前版本为 **8.0.0 (2026-07-13)**，是一次面向数学物理正确性和运行契约的重大升级。平动—扭转耦合现在对不等段长满足线测度加权互易关系；自定义菌毛统一使用唯一的等弦长 canonical 中心线，并在任意初始胞体旋转下保持完整材料标架的客观性。body-only Brownian 动力学改为在无量纲空间修复 SPD、按真实时长施加最后一个余数 kick，并使用独立随机流。逐菌毛刚度覆盖接口已删除，不可压缩 `shear_z` 强制要求流动方向与剪切轴正交；任一积分段超时后会保存并正常返回部分结果，批处理和后处理不会将其纳入稳态统计。新增有限值、后向残差、条件数、互易性、耗散性和多马达收敛诊断，并写入 `simulation.log` 与 `results.diagnostics`。
+
+**8.0.0 破坏性变更：** `Pili_Matrix` 必须精确为 8 行；自定义或具名配置中的 `bending_stiffness` 会被拒绝，刚度统一由全局 `material.E` 与 `r_pili` 决定；非正交 `shear_z` 配置会被拒绝；超时运行在保存部分轨迹后返回 `results.completed=false` 与 `termination_reason='timeout'`。
 
 **7.10.0 (2026-07-03)** 新增 Linux 超算集群运行能力，并修复两处跨平台批处理问题；该版本引入维护分支 **[`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m)** / **[`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m)**。
 

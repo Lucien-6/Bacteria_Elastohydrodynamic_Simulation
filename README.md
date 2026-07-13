@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-07-12
-> **Version:** 7.10.1
+> **Updated:** 2026-07-13
+> **Version:** 8.0.0
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -16,7 +16,7 @@ This project simulates the low-Reynolds-number settling dynamics of a rigid bact
 - Parametric or imported custom pili centerlines.
 - Coupled RSM/RSS hydrodynamics with non-local segment-integral twist mobility, reciprocal Schur-complement coupling, and physical standard-rotlet scaling.
 - Kirchhoff elastic rods with intrinsic curvature and active moment options.
-- Optional body Brownian dynamics using the full coupled effective mobility tensor, SPD-projected covariance, and explicit strict Ito thermal drift.
+- Optional body-only Brownian dynamics: the 6-DOF body covariance uses the full coupled body-pili effective mobility, dimensionless SPD repair, explicit Ito thermal drift, and an isolated reproducible random stream. Pili internal elastic modes remain deterministic.
 - Optional background flow: off, uniform, or finite-thickness shear.
 - Free-torsion root coupling and constant motor torque for motor-driven flagella.
 - Inline MATLAB configuration, JSON configuration, and programmatic batch execution.
@@ -87,6 +87,11 @@ Results are written under `output/<case_name>/` or an automatically timestamped 
 | `simulation.log` | Console and file log of the run. |
 | `brownian_rng_seed.txt` | Brownian RNG seed, only when Brownian dynamics are enabled. |
 
+`results.completed` and `results.termination_reason` distinguish complete
+runs from timeout-truncated runs.  A segment timeout saves the available
+MAT/CSV/config/log data and returns normally; batch and post-processing
+drivers exclude that partial trajectory from steady-state statistics.
+
 ## Core Files
 
 | Path | Role |
@@ -100,7 +105,7 @@ Results are written under `output/<case_name>/` or an automatically timestamped 
 | [`src/config/init_coupled_state.m`](src/config/init_coupled_state.m) | Initial state vector construction. |
 | [`src/core/ode_coupled_rhs.m`](src/core/ode_coupled_rhs.m) | Coupled elastohydrodynamic ODE right-hand side. |
 | [`src/core/build_coupled_lin_sys.m`](src/core/build_coupled_lin_sys.m) | Coupled linear system assembly. |
-| [`src/physics/compute_effective_body_brownian.m`](src/physics/compute_effective_body_brownian.m) | Full-system effective Brownian mobility, SPD diffusion, and Cholesky noise factor. |
+| [`src/physics/compute_effective_body_brownian.m`](src/physics/compute_effective_body_brownian.m) | Full-coupled effective body mobility and body-only Brownian noise factor. |
 | [`src/visualization/compute_plot_flowfield.m`](src/visualization/compute_plot_flowfield.m) | End-state flow-field evaluation at the achieved final time and figure export. |
 
 ## Documentation
@@ -115,7 +120,9 @@ Results are written under `output/<case_name>/` or an automatically timestamped 
 
 ## Version Notes
 
-The current release is **7.10.1 (2026-07-12)**, a documentation-accuracy and contract-consistency patch. A complete review of all first-party MATLAB entry points, scripts, functions, and frozen legacy snapshots corrected help headers for signatures, state dimensions, units, coordinate frames, numerical branches, side effects, warnings, errors, cache locations, and legacy/live-API boundaries. Small implementation-consistency fixes initialise `odetpbar`'s return status on every path, update `verify_migration` for the HPC entry point and `project_version.m`, and provide stable identifiers for the two capsule-mesh error paths. Release validation covered all first-party MATLAB files plus standard, motor-driven, custom-geometry, Brownian, and HPC end-to-end smoke cases. **No hydrodynamic, elastic, Brownian, motor, or geometry numerical algorithm changed.**
+The current release is **8.0.0 (2026-07-13)**, a major mathematical-physics correctness and runtime-contract release. Translation/twist coupling now satisfies line-measure-weighted reciprocity for unequal segment lengths; custom pili use one equal-chord canonical centerline and retain full material-director objectivity under arbitrary initial body rotations. Body-only Brownian dynamics now performs SPD repair in dimensionless coordinates, applies the final remainder kick with its true duration, and uses an isolated random stream. Per-pilus stiffness overrides have been removed, incompressible `shear_z` configurations require orthogonal flow and shear directions, and segment timeouts return saved partial results without contaminating steady-state statistics. New finite-value, backward-residual, conditioning, reciprocity, dissipation, and multi-motor convergence guards make numerical failures auditable through `simulation.log` and `results.diagnostics`.
+
+**Breaking changes in 8.0.0:** `Pili_Matrix` must have exactly eight rows; custom or named `bending_stiffness` fields are rejected in favour of global `material.E` and `r_pili`; non-orthogonal `shear_z` configurations are rejected; and a timed-out run returns `results.completed=false` with `termination_reason='timeout'` after saving its partial trajectory.
 
 **7.10.0 (2026-07-03)** added Linux HPC cluster execution and fixed two cross-platform batch-driver bugs. It introduced the maintained **[`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m)** / **[`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m)** fork with platform-aware video export, Linux-native resource probing, node-local `parpool` job storage, heavy-output sampling, and live progress heartbeats.
 

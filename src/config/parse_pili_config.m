@@ -21,6 +21,8 @@
 %      .deflection_x   - Deflection angle from X-axis [rad] (default: 0)
 %      .shape_params   - [1x3] shape parameters (default: [NaN NaN NaN])
 %      .site           - Attachment site index, 1-14
+%      Per-pilus bending_stiffness is not supported; stiffness is derived
+%      from the global material E and r_pili values.
 %      .intrinsic_curvature - (Optional) 'frozen' | struct with .type etc.
 %      .active_moment       - (Optional) struct('type','off') | etc.
 %      .root_coupling       - (Optional) 'clamped' (default) | 'free_torsion'
@@ -36,25 +38,33 @@
 %                  .active_moment, .root_coupling, and .motor_torque
 %                  per pili (defaults: 'frozen' / 'off' / 'clamped' / off)
 %
-%  Note:
-%    This parser never creates a ninth matrix row.  Downstream
-%    pili_building also accepts a manually supplied [9 x M] raw numeric
-%    matrix whose row 9 stores custom bending stiffness [N*m^2]; such a
-%    matrix can bypass this parser through load_sim_config.
-%
 %  Errors:
 %    Throws for a missing or invalid type, nonpositive length, more than
 %    three shape parameters, or an attachment site outside integer 1-14.
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
-%  Updated: 2026-07-12
+%  Updated: 2026-07-13
 
 if isempty(pili_cfg)
     Pili_Matrix = zeros(8, 0);
     pili_ext    = struct('intrinsic_curvature', {}, 'active_moment', {}, ...
                          'root_coupling', {}, 'motor_torque', {});
     return;
+end
+if isnumeric(pili_cfg)
+    if size(pili_cfg, 1) == 9
+        error('parse_pili_config:InvalidPiliMatrixRows', ...
+            ['Nine-row pili matrices are not supported. Use exactly 8 rows; ', ...
+             'pilus stiffness is derived from the global material E and r_pili values.']);
+    end
+    error('parse_pili_config:InvalidInputType', ...
+        ['parse_pili_config expects a named struct array. Raw numeric ', ...
+         'Pili_Matrix input must be handled by load_sim_config.']);
+end
+if ~isstruct(pili_cfg)
+    error('parse_pili_config:InvalidInputType', ...
+        'pili_cfg must be a named struct array.');
 end
 
 type_map = struct( ...
@@ -69,6 +79,12 @@ Pili_Matrix = zeros(8, M);
 
 for k = 1:M
     pc = pili_cfg(k);
+
+    if isfield(pc, 'bending_stiffness') && ~isempty(pc.bending_stiffness)
+        error('parse_pili_config:UnsupportedBendingStiffness', ...
+            ['Pili %d: bending_stiffness is not supported. ', ...
+             'Set the global material E and r_pili values instead.'], k);
+    end
 
     % --- Type ---
     if isfield(pc, 'type') && ~isempty(pc.type)

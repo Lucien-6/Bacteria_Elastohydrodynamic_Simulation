@@ -1,7 +1,16 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 7.10.1 (2026-07-12)
+# Release: 8.0.0 (2026-07-13)
 #
+# v8.0.0: major mathematical-physics correctness and runtime-contract release.
+#   Weighted-reciprocal translation/twist hydrodynamics now supports unequal
+#   segment lengths; custom pili use an equal-chord canonical centerline and
+#   objective full-director initialization. Body-only Brownian dynamics uses
+#   dimensionless SPD repair, true-duration remainder kicks, and an isolated
+#   random stream. Strict shear validation, partial timeout persistence, and
+#   finite/residual/condition/reciprocity/dissipation/motor diagnostics are
+#   included. Pili_Matrix is now exactly eight rows and per-pilus
+#   bending_stiffness overrides are rejected. No new runtime dependency.
 # v7.10.1: documentation-accuracy and API-contract consistency patch.
 #   MATLAB help headers now match actual signatures, dimensions, units, frames,
 #   numerical branches, side effects, warnings/errors, cache paths, and

@@ -224,7 +224,7 @@
     </p>
     <div class="title-meta">
       <div><b style="color:#fff;">Author</b> &nbsp; Lucien &nbsp;·&nbsp; lucien-6@qq.com</div>
-      <div><b style="color:#fff;">Version</b> &nbsp; 7.10.1 &nbsp;·&nbsp; 2026-07-12</div>
+      <div><b style="color:#fff;">Version</b> &nbsp; 8.0.0 &nbsp;·&nbsp; 2026-07-13</div>
       <div><b style="color:#fff;">Methods</b> &nbsp; RSM + RSS + Rotlet · Kirchhoff rods · Quaternion · Brownian</div>
     </div>
   </div>
@@ -897,10 +897,10 @@
       <div>
         <p class="small lang-en">Thermal motion is added by <strong>operator splitting</strong> around the deterministic solve:</p>
         <p class="small lang-zh">热运动通过在确定性求解外层<strong>算符分裂</strong>引入：</p>
-        <ol class="small lang-en"><li>Integrate the deterministic coupled system with <code>ode15s</code>.</li><li>At each Brownian node, compute the <em>full-system</em> effective body mobility.</li><li>Apply a correlated 6-D translation–rotation kick (next slide).</li></ol>
-        <ol class="small lang-zh"><li>用 <code>ode15s</code> 积分确定性耦合系统。</li><li>在每个布朗节点计算<em>全系统</em>有效胞体迁移率。</li><li>施加关联的 6 维平动–转动扰动（见下一页）。</li></ol>
-        <p class="small muted lang-en"><strong>Why full-system?</strong> The body never diffuses in isolation — every pilus segment adds drag and hydrodynamic coupling, so the mobility must come from the assembled \(\mathbf{L}\), not an isolated body resistance.</p>
-        <p class="small muted lang-zh"><strong>为何用全系统？</strong>胞体从不孤立扩散——每段纤毛都增加阻力与水动力耦合，故迁移率须取自组装后的 \(\mathbf{L}\)，而非孤立胞体阻力。</p>
+        <ol class="small lang-en"><li>Integrate the deterministic coupled system with <code>ode15s</code>.</li><li>At each Brownian node, compute effective body mobility from that coupled deterministic system.</li><li>Apply a correlated 6-D body translation–rotation kick; pili internal modes receive no stochastic kick.</li></ol>
+        <ol class="small lang-zh"><li>用 <code>ode15s</code> 积分确定性耦合系统。</li><li>在每个布朗节点由该确定性耦合系统计算有效胞体迁移率。</li><li>仅对胞体施加关联的 6 维平动–转动 kick；菌毛内部模态不接收随机 kick。</li></ol>
+        <p class="small muted lang-en"><strong>Why coupled mobility?</strong> Every pilus segment contributes drag and hydrodynamic coupling, so body mobility must come from the assembled \(\mathbf{L}\), while stochastic forcing remains body-only.</p>
+        <p class="small muted lang-zh"><strong>为何使用耦合迁移率？</strong>每段菌毛都会贡献阻力与水动力耦合，因此胞体迁移率须取自组装后的 \(\mathbf{L}\)，但随机驱动仍限定于胞体自由度。</p>
       </div>
       <div>
         <p class="small lang-en">Probe the <em>same</em> cached LU with six unit generalized body loads \(-\mathbf{e}_i\); the top \(6\times6\) of the responses is the effective body mobility:</p>
@@ -971,8 +971,8 @@
       </div>
       <div class="card">
         <h3><span class="lang-en">Outer loop — <code>run_simulation.m</code></span><span class="lang-zh">外层循环 — <code>run_simulation.m</code></span></h3>
-        <ul class="small lang-en"><li>Adaptive <code>ode15s</code> with <em>event-driven segmenting</em>: stop on Euler-angle singularity or time limit.</li><li><code>adaptive_basis_check</code>: rotate per-pilus basis away from \(\theta\to0,\pi\).</li><li>Re-normalize the body quaternion each segment.</li><li>Inject correlated Brownian kicks at Brownian nodes.</li><li>Post-process → units, derived quantities, exports.</li></ul>
-        <ul class="small lang-zh"><li>自适应 <code>ode15s</code> + <em>事件驱动分段</em>：遇 Euler 角奇点或超时即停。</li><li><code>adaptive_basis_check</code>：将逐纤毛基底旋转远离 \(\theta\to0,\pi\)。</li><li>每段后重新归一化胞体四元数。</li><li>在布朗节点注入关联布朗扰动。</li><li>后处理 → 单位、导出量、输出文件。</li></ul>
+        <ul class="small lang-en"><li>Adaptive <code>ode15s</code> with <em>event-driven segmenting</em>: stop on Euler-angle singularity or time limit.</li><li><code>adaptive_basis_check</code>: rotate per-pilus basis away from \(\theta\to0,\pi\).</li><li>Re-normalize the body quaternion each segment.</li><li>Inject 6-DOF body-only correlated Brownian kicks at Brownian nodes (no thermal noise on pilus internal modes).</li><li>Post-process → units, derived quantities, exports.</li></ul>
+        <ul class="small lang-zh"><li>自适应 <code>ode15s</code> + <em>事件驱动分段</em>：遇 Euler 角奇点或超时即停。</li><li><code>adaptive_basis_check</code>：将逐纤毛基底旋转远离 \(\theta\to0,\pi\)。</li><li>每段后重新归一化胞体四元数。</li><li>在布朗节点仅向胞体注入 6 维关联布朗 kick（纤毛内部模态无热噪声）。</li><li>后处理 → 单位、导出量、输出文件。</li></ul>
       </div>
     </div>
   </div>
@@ -1165,7 +1165,7 @@ cfg.auto_confirm = true;
     <span class="kicker"><span class="lang-en">Thank You</span><span class="lang-zh">谢谢</span></span>
     <h1 style="font-size:1.85em;"><span class="lang-en">Questions &amp; Discussion</span><span class="lang-zh">提问与讨论</span></h1>
     <div class="bar" style="margin-left:auto;margin-right:auto;"></div>
-    <p class="muted" style="font-size:.68em;">Lucien &nbsp;·&nbsp; lucien-6@qq.com &nbsp;·&nbsp; Version 7.10.1 (2026-07-12)</p>
+    <p class="muted" style="font-size:.68em;">Lucien &nbsp;·&nbsp; lucien-6@qq.com &nbsp;·&nbsp; Version 8.0.0 (2026-07-13)</p>
   </div>
 </section>
 
@@ -1220,8 +1220,8 @@ cfg.auto_confirm = true;
       en:'The ODE right-hand side. Assembles R (gravity, elastic + active + motor moments, background-flow correction), applies root boundary conditions, solves L·z_dot = R, and packs dZ/dt.',
       zh:'ODE 右端函数。组装 R（重力、弹性 + 主动 + 马达力矩、背景流修正），施加根部边界条件，求解 L·z_dot = R，并打包 dZ/dt。' },
     BROWN: { t:'src/physics/compute_effective_body_brownian.m',
-      en:'Probes the coupled linear system with six unit body loads to obtain the full-system 6×6 effective mobility, the diffusion tensor D=kT·M, and its Cholesky factor for correlated Brownian kicks.',
-      zh:'用 6 个单位胞体载荷探测耦合线性系统，得到全系统 6×6 有效迁移率、扩散张量 D=kT·M 及其 Cholesky 因子，用于生成关联布朗扰动。' },
+      en:'Probes the deterministic coupled system with six unit body loads to obtain the 6×6 effective body mobility, D=kT·M, and its Cholesky factor. Only body coordinates receive correlated Brownian kicks.',
+      zh:'用 6 个单位胞体载荷探测确定性耦合系统，得到 6×6 有效胞体迁移率、D=kT·M 及其 Cholesky 因子；仅胞体坐标接收关联布朗 kick。' },
     FLOW: { t:'src/visualization/compute_plot_flowfield.m',
       en:'Reconstructs the end-state geometry, evaluates the flow on XZ and YZ planes around the body centre, masks body interiors, and exports a 2×2 panel figure.',
       zh:'重建末态几何，在胞体中心周围的 XZ 与 YZ 平面上求流场，屏蔽胞体内部，并导出 2×2 面板图。' },

@@ -5,8 +5,9 @@ function Z0 = init_coupled_state(params, logf_h)
 %    Creates the initial state vector for the coupled body-pili system.
 %    The body starts at the origin with the pre-resolved orientation in
 %    params.q_0_init.  Each pilus starts in its reference centreline
-%    configuration, rotated consistently with the body, and its first
-%    director frame is projected onto the root boundary condition.
+%    configuration.  Every body-local material director is rotated with the
+%    body before all segment Euler angles are recovered in the active basis.
+%    A final root-only projection removes junction round-off drift.
 %
 %  Syntax:
 %    Z0 = init_coupled_state(params)
@@ -15,7 +16,7 @@ function Z0 = init_coupled_state(params, logf_h)
 %  Inputs:
 %    params  - Parameter structure (from init_coupled_params)
 %              Must include q_0_init, M_pili, N_segments, rot, pili_x0,
-%              and D_local, together with fields required by
+%              directors_ref, and D_local, together with fields required by
 %              enforce_clamped_geometry and reconstruct_geometry.
 %              q_0_init is a scalar-first quaternion [w;x;y;z] and is
 %              normalised before use.  When an explicit initial_orientation
@@ -43,7 +44,7 @@ function Z0 = init_coupled_state(params, logf_h)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-07-12
+%  Updated: 2026-07-13
 
 if nargin < 2 || isempty(logf_h)
     logf_h = @(varargin) fprintf(varargin{:});
@@ -80,22 +81,25 @@ for k = 1:M
     N_k   = N_segs(k);
     rot_k = params.rot{k};
 
-    % Pili coords in params.pili_x0{k} are in the body-local frame
-    % (parametric: body-X is the long axis; custom: user-defined axes).
-    % Rotate them to the lab frame matching the initial body orientation.
-    coords_k_orig = params.pili_x0{k};              % [(N_k+1) x 3]
-    coords_k = (R_body * coords_k_orig')';          % [(N_k+1) x 3] in lab frame
+    if ~isfield(params, 'directors_ref') || ...
+            numel(params.directors_ref) < k || isempty(params.directors_ref{k})
+        error('init_coupled_state:MissingReferenceDirectors', ...
+            'params.directors_ref{%d} is required for objective initialization.', k);
+    end
 
-    tangents = diff(coords_k, 1, 1);
-    seg_lens = sqrt(sum(tangents.^2, 2));
-    tangents = tangents ./ seg_lens;
-
-    % Transform tangents to pili basis
-    tangents_basis = (rot_k * tangents')';
-
-    theta_k = acos(max(-1, min(1, tangents_basis(:, 3))));
-    phi_k   = atan2(tangents_basis(:, 2), tangents_basis(:, 1));
-    psi_k   = zeros(N_k, 1);
+    % Rotate the complete material frame from body-local coordinates to the
+    % lab frame, then express it in the current pilus basis.  Recovering psi
+    % from these rotated directors preserves reference curvature under any
+    % initial body quaternion.
+    ref = params.directors_ref{k};
+    d1_lab = (R_body * ref.d1')';
+    d2_lab = (R_body * ref.d2')';
+    d3_lab = (R_body * ref.d3')';
+    d1_basis = (rot_k * d1_lab')';
+    d2_basis = (rot_k * d2_lab')';
+    d3_basis = (rot_k * d3_lab')';
+    [theta_k, phi_k, psi_k] = pili_euler_angles( ...
+        d1_basis, d2_basis, d3_basis);
 
     Z0(idx        : idx+N_k-1)   = theta_k;
     Z0(idx+N_k    : idx+2*N_k-1) = phi_k;
@@ -103,21 +107,11 @@ for k = 1:M
     idx = idx + 3*N_k;
 end
 
-%% Enforce clamped geometry: correct first-segment Euler angles
-%  The first-segment directors must satisfy D_lab = R_body * D_local{k}.
-%  Setting psi = 0 above uses the Walker (2020) convention default, which
-%  does NOT account for the body rotation when alpha_0 != 0.  The enforce
-%  step overwrites the first-segment (theta, phi, psi) to be exactly
-%  consistent with the clamped boundary condition at the position level.
-%
-%  We pass force_full_projection = true so that ψ_1 is projected even for
-%  free_torsion pili.  Otherwise, with alpha_0 ≠ 0 (or any non-identity
-%  initial body orientation), the first-segment director frame would not
-%  match the BC requirement at t = 0, triggering a spurious torsional
-%  elastic energy that "releases" during the first ODE step.  At runtime
-%  (run_simulation main loop, post-quaternion-renorm, post-Brownian-kick)
-%  the function is called WITHOUT this flag so free_torsion ψ_1 keeps
-%  evolving freely as designed.
+%% Remove root-junction round-off drift only
+%  All segment frames are already objective.  This projection is restricted
+%  to the first segment and only removes numerical mismatch at the body root.
+%  Full root projection is required at initialization even for free torsion;
+%  runtime calls omit the flag so free psi_1 dynamics remain unchanged.
 Z0 = enforce_clamped_geometry(Z0, params, true);
 
 %% Verify reconstruction consistency

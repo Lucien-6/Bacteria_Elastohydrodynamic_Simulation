@@ -55,7 +55,7 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-06
-%  Updated: 2026-07-12
+%  Updated: 2026-07-13
 
 %% ---- Configuration ----
 if nargin < 6 || isempty(flow_opts), flow_opts = struct(); end
@@ -208,16 +208,34 @@ logf('[FLOW] Building hydrodynamic matrices...\n');
 %  ======================================================================
 logf('[FLOW] Solving for force coefficients (%d DOFs)...\n', 3*N_total);
 if ~isempty(M_twist)
-    C_twist  = 0.5 * (M_rotlet * D_twist);
+    twist_segment_lengths = zeros(sum(N_segs), 1);
+    seg_offset = 0;
+    for k = 1:M_pili
+        N_k = N_segs(k);
+        X_k = geom.X_pili{k};
+        twist_segment_lengths(seg_offset + (1:N_k)) = ...
+            sqrt(sum(diff(X_k, 1, 1).^2, 2));
+        seg_offset = seg_offset + N_k;
+    end
+
+    [C_twist, C_twist_reverse] = assemble_twist_coupling( ...
+        M_rotlet, D_twist, params.quad_weights, twist_segment_lengths);
     Minv_v   = M_weighted \ v_trans;
     Minv_C   = M_weighted \ C_twist;
-    S_twist  = M_twist - C_twist' * Minv_C;
-    m_twist  = S_twist \ (v_twist - C_twist' * Minv_v);
+    check_linear_solve(M_weighted, [Minv_v, Minv_C], ...
+        [v_trans, C_twist], 'flow-field translational solve');
+    S_twist  = M_twist - C_twist_reverse * Minv_C;
+    m_twist  = S_twist \ (v_twist - C_twist_reverse * Minv_v);
+    check_linear_solve(S_twist, m_twist, ...
+        v_twist - C_twist_reverse * Minv_v, ...
+        'flow-field twist Schur solve');
     f_coeffs = Minv_v - Minv_C * m_twist;
     tau      = D_twist * m_twist;
 else
     tau = zeros(0, 1);
     f_coeffs = M_weighted \ v_trans;
+    check_linear_solve(M_weighted, f_coeffs, v_trans, ...
+        'flow-field translational solve');
 end
 
 %% ======================================================================

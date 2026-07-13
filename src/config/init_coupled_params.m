@@ -23,8 +23,8 @@ function params = init_coupled_params(varargin)
 %    'rho_bac'            Bacterium density [kg/m^3] (default: 1180)
 %    'rho_fluid'          Fluid density [kg/m^3] (default: 998.232)
 %    'N_segments'         Scalar or per-pilus segment counts (default: 300)
-%    'Pili_Matrix'        Parametric pili matrix [8-9 x M]; optional row 9
-%                         stores custom bending stiffness [N*m^2]
+%    'Pili_Matrix'        Parametric pili matrix, exactly [8 x M].
+%                         Stiffness is derived from global E and r_pili.
 %                         (default: [1;3;0;0;NaN;NaN;NaN;1])
 %    'seg_per_um'         Segments per micron (default: 10)
 %    'delta'              Euler-angle singularity margin [rad] (default: pi/20)
@@ -52,7 +52,7 @@ function params = init_coupled_params(varargin)
 %      .scales              L_0, T_0, U_0, F_0, and EI
 %      .N_body, .body_*     body geometry and visualisation metadata
 %      .M_pili, .N_segments pilus counts
-%      .r_local, .d_local, .D_local, .ell, .rot, .pili_x0
+%      .r_local, .d_local, .D_local, .directors_ref, .ell, .rot, .pili_x0
 %      .kb0, .am_cfg, .root_coupling, .motor_cfg
 %      .q_0_init, .orientation_source, .alpha_0
 %      .Eg, .epsilon, .sigma, .g_hat, .delta, .eps_body
@@ -71,7 +71,7 @@ function params = init_coupled_params(varargin)
 %  Created: 2026-02-06
 %  History: 2026-06-17 — v7.9.0 P8 motor_torque string acceptance and
 %           removal of the redundant no-pili assignment branch.
-%  Updated: 2026-07-12
+%  Updated: 2026-07-13
 
 %% Parse inputs
 p = inputParser;
@@ -105,6 +105,13 @@ addParameter(p, 'logf_file', @(varargin) [], @(x) isa(x, 'function_handle'));
 parse(p, varargin{:});
 
 geometry_mode = p.Results.geometry_mode;
+Pili_Matrix_input = p.Results.Pili_Matrix;
+if size(Pili_Matrix_input, 1) ~= 8
+    error('init_coupled_params:InvalidPiliMatrixRows', ...
+        ['Pili_Matrix must have exactly 8 rows; got %d. ', ...
+         'Pilus stiffness is derived from the global E and r_pili values.'], ...
+        size(Pili_Matrix_input, 1));
+end
 
 %% Store dimensional parameters
 params.dim.minor_axis = p.Results.minor_axis;
@@ -328,7 +335,7 @@ params.dim.dis   = dis;
 %% Build pili geometry (dispatch by geometry_mode)
 switch geometry_mode
     case 'parametric'
-        Pili_Matrix = p.Results.Pili_Matrix;
+        Pili_Matrix = Pili_Matrix_input;
     case 'custom'
         % In custom mode, Pili_Matrix is intentionally empty here regardless
         % of whether custom_cfg.pili is defined.  Custom pili are built
@@ -390,6 +397,7 @@ if M_pili > 0 && strcmp(geometry_mode, 'parametric')
     params.r_local  = cell(M_pili, 1);
     params.d_local  = cell(M_pili, 1);
     params.D_local  = cell(M_pili, 1);
+    params.directors_ref = cell(M_pili, 1);
     params.ell      = zeros(M_pili, 1);
     params.rot      = cell(M_pili, 1);
     params.kb0      = cell(M_pili, 1);
@@ -400,32 +408,18 @@ if M_pili > 0 && strcmp(geometry_mode, 'parametric')
         params.r_local{k} = Pili_struct(k).root_local / L_0;
         params.d_local{k} = Pili_struct(k).root_dir;
 
-        % Dimensionless pili length
-        params.ell(k) = Pili_struct(k).L / L_0;
-
         % Initial adaptive basis: identity
         params.rot{k} = eye(3);
 
-        % Initial pili node coordinates (nondimensionalised, lab frame)
+        % Canonicalize the parametric centreline directly to the requested
+        % segment count.  params.ell is the total discrete rod length, so it
+        % must equal N times the canonical chord rather than the analytic
+        % curve arc length.  This makes reconstruction reproduce pili_x0.
         x_pili_dim     = Pili_struct(k).x;
         x_pili_dimless = x_pili_dim / L_0;
-
-        % Resample to N_segments(k)+1 nodes if needed
-        N_orig   = size(x_pili_dimless, 2);
-        N_target = N_segments(k) + 1;
-
-        if N_orig ~= N_target
-            s_orig   = [0, cumsum(sqrt(sum(diff(x_pili_dimless, 1, 2).^2, 1)))];
-            s_target = linspace(0, s_orig(end), N_target);
-            x_resampled = zeros(3, N_target);
-            for dim = 1:3
-                x_resampled(dim,:) = interp1(s_orig, x_pili_dimless(dim,:), ...
-                                              s_target, 'pchip');
-            end
-            params.pili_x0{k} = x_resampled';
-        else
-            params.pili_x0{k} = x_pili_dimless';
-        end
+        [params.pili_x0{k}, chord_k] = canonical_pili_centerline( ...
+            x_pili_dimless', N_segments(k));
+        params.ell(k) = N_segments(k) * chord_k;
 
         % Compute intrinsic curvature in Euler-angle representation
         coords_k    = params.pili_x0{k};
@@ -440,8 +434,12 @@ if M_pili > 0 && strcmp(geometry_mode, 'parametric')
 
         [d1_0, d2_0, d3_0] = pili_directors(theta0, phi0, psi0);
 
-        % Store first-segment director frame (body-local)
+        % Store the complete body-local reference frame from the same
+        % centreline used by pili_x0 and kb0.
+        params.directors_ref{k} = struct( ...
+            'd1', d1_0, 'd2', d2_0, 'd3', d3_0);
         params.D_local{k} = [d1_0(1,:)', d2_0(1,:)', d3_0(1,:)'];
+        params.d_local{k} = d3_0(1, :)';
 
         % Compute intrinsic curvature at nodes.
         % Use the SAME node-director operator (compute_node_directors:
@@ -612,6 +610,7 @@ else
         params.r_local  = cell(M_pili, 1);
         params.d_local  = cell(M_pili, 1);
         params.D_local  = cell(M_pili, 1);
+        params.directors_ref = cell(M_pili, 1);
         params.ell      = zeros(M_pili, 1);
         params.rot      = cell(M_pili, 1);
         params.kb0      = cell(M_pili, 1);
@@ -655,8 +654,12 @@ else
 
             [d1_0, d2_0, d3_0] = pili_directors(theta0, phi0, psi0);
 
-            % Store first-segment director frame (body-local)
+            % Store the complete body-local reference frame from the same
+            % canonical centreline used by pili_x0 and kb0.
+            params.directors_ref{k} = struct( ...
+                'd1', d1_0, 'd2', d2_0, 'd3', d3_0);
             params.D_local{k} = [d1_0(1,:)', d2_0(1,:)', d3_0(1,:)'];
+            params.d_local{k} = d3_0(1, :)';
 
             % Compute intrinsic curvature at nodes.
             % Use the SAME node-director operator (compute_node_directors:
@@ -799,6 +802,7 @@ else
         params.r_local    = {};
         params.d_local    = {};
         params.D_local    = {};
+        params.directors_ref = {};
         params.ell        = [];
         params.rot        = {};
         params.kb0        = {};
@@ -841,18 +845,43 @@ if ~strcmp(bg_input.type, 'off')
     else
         d_vec = [1; 0; 0];
     end
-    params.bg_flow.direction = d_vec / max(norm(d_vec), 1e-30);
-
-    if isfield(bg_input, 'shear_axis')
-        s_vec = bg_input.shear_axis(:);
-    else
-        s_vec = [0; 0; 1];
+    if ~isnumeric(d_vec) || ~isreal(d_vec) || numel(d_vec) ~= 3 || ...
+            any(~isfinite(d_vec)) || norm(d_vec) <= 1e-30
+        error('init_coupled_params:InvalidFlowDirection', ...
+            'Background-flow direction must be a finite, real, non-zero 3-vector.');
     end
-    params.bg_flow.shear_axis = s_vec / max(norm(s_vec), 1e-30);
+    params.bg_flow.direction = d_vec / norm(d_vec);
 
-    if isfield(bg_input, 'shear_height_m')
-        params.bg_flow.shear_height_dimless = bg_input.shear_height_m / L_0;
+    if strcmp(bg_input.type, 'shear_z')
+        if isfield(bg_input, 'shear_axis')
+            s_vec = bg_input.shear_axis(:);
+        else
+            s_vec = [0; 0; 1];
+        end
+        if ~isnumeric(s_vec) || ~isreal(s_vec) || numel(s_vec) ~= 3 || ...
+                any(~isfinite(s_vec)) || norm(s_vec) <= 1e-30
+            error('init_coupled_params:InvalidShearAxis', ...
+                ['shear_z shear_axis must be a finite, real, non-zero ', ...
+                 '3-vector.']);
+        end
+        params.bg_flow.shear_axis = s_vec / norm(s_vec);
+        if abs(dot(params.bg_flow.direction, params.bg_flow.shear_axis)) > 1e-12
+            error('init_coupled_params:NonOrthogonalShear', ...
+                ['shear_z direction and shear_axis must be orthogonal; ', ...
+                 'abs(dot) = %.3e.'], ...
+                abs(dot(params.bg_flow.direction, params.bg_flow.shear_axis)));
+        end
+        if isfield(bg_input, 'shear_height_m')
+            params.bg_flow.shear_height_dimless = ...
+                bg_input.shear_height_m / L_0;
+        else
+            params.bg_flow.shear_height_dimless = 1.0;
+        end
     else
+        % Uniform flow does not use shear_axis or shear_height_m.  Ignore
+        % irrelevant user-supplied values so validation and initialization
+        % have the same contract.
+        params.bg_flow.shear_axis = [0; 0; 1];
         params.bg_flow.shear_height_dimless = 1.0;
     end
 else
@@ -863,24 +892,18 @@ else
 end
 
 %% Brownian motion configuration
-%  The effective body diffusion tensor is now computed dynamically at each
-%  Brownian step via compute_effective_body_brownian, which probes the full
-%  coupled body-pili linear system.  No pre-computation is needed here.
-%  The old body-only routine compute_body_brownian_params.m has been
-%  removed; its functionality is fully superseded by the new method.
-%  Thermal drift is handled explicitly in run_simulation.m with the strict
-%  body-only Ito finite-difference correction kB*T*div(M).
+%  The body-only diffusion tensor is computed dynamically at each Brownian
+%  step by probing the full deterministic coupled body-pili system.  Pilus
+%  internal modes receive no stochastic forcing.  Thermal drift is handled
+%  explicitly in the run entry points with the body-coordinate Ito
+%  finite-difference correction kB*T*div(M).
 
-%% Run token for cross-step persistent caches in ode_coupled_rhs
-%  ode_coupled_rhs.m keeps a persistent dpsi_1 cache for motor speed-
-%  limiting (free_torsion + constant motor torque).  The cache must be
-%  reset between independent simulations sharing the same MATLAB session;
-%  comparing this token lets that function detect a fresh `params` and
-%  flush the cache automatically.  `tic` is a high-resolution monotonic
-%  counter, so collisions across runs are practically impossible.
+%% Run token for run-scoped diagnostics and future cache isolation
+%  A high-resolution monotonic token distinguishes independent simulations
+%  sharing one MATLAB process.
 params.run_token = uint64(tic);
 
-%% Per-pilus dpsi_1 cache (placeholder, see ode_coupled_rhs persistent block)
+%% Per-pilus diagnostic placeholder
 %  Initialised here so that downstream code can reference the field if
 %  needed; the authoritative cross-step state lives in the persistent
 %  variable inside ode_coupled_rhs.m.

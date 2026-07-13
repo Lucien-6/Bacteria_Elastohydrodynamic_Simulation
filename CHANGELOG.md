@@ -10,6 +10,72 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [8.0.0] — 2026-07-13
+
+Major mathematical-physics correctness and runtime-contract release following
+a first-principles review of the coupled hydrodynamic, elastic, Brownian,
+geometric, motor, timeout, and numerical-diagnostics algorithms.
+
+### Corrected
+
+- Enforce line-measure-weighted reciprocity for translation/twist coupling
+  and unequal-length twist segments; use the same operator in simulation and
+  flow-field reconstruction.
+- Remove the non-functional per-pilus stiffness interfaces.  `Pili_Matrix`
+  is exactly eight rows and all pili use the global material modulus and
+  radius.
+- Preserve full material-director objectivity under arbitrary initial body
+  rotations, and derive custom-pilus reference geometry, directors, and
+  intrinsic curvature from one equal-chord canonical centerline.
+- Apply Brownian SPD repair in dimensionless coordinates, include the final
+  remainder step, and isolate Brownian random draws from global/cache RNG
+  state.  The stochastic model remains intentionally body-only.
+- Reject non-orthogonal `shear_z` flow/shear directions as incompatible with
+  incompressibility.
+- Treat any integration-segment timeout as a normal partial termination:
+  truncate preallocated arrays, save MAT/CSV/config/log data, return
+  `termination_reason='timeout'`, and exclude the trajectory from batch
+  steady-state statistics.
+- Add finite-value, linear backward-residual, weighted reciprocity,
+  dissipation, conditioning, and multi-motor convergence diagnostics.
+
+### Validation
+
+- Add MATLAB `functiontests` for hydrodynamic invariants, canonical geometry,
+  initial-frame objectivity, uniform-stiffness contracts, Brownian remainder
+  stepping, timeout persistence, strict shear validation, and numerical
+  guards.
+- Pass 38 MATLAB tests, five end-to-end families (sphere/standard,
+  motor-driven, custom-geometry, seeded Brownian, and HPC), JSON
+  configuration validation, Windows/HPC deterministic-entry agreement,
+  migration verification, and whitespace checks.
+
+### Documentation
+
+- Update `README.md`, `README.zh-CN.md`, `USER_GUIDE.md`,
+  `USER_GUIDE.zh-CN.md`, `requirements.txt`, both theory documents, the
+  project website, presentation, runtime banners, and `project_version.m` to
+  version 8.0.0 dated 2026-07-13.
+- Document the body-only Brownian model boundary, weighted hydrodynamic
+  operators, equal-chord canonical geometry, strict incompressible shear
+  contract, timeout return lifecycle, and numerical diagnostic fields.
+
+### Compatibility
+
+- **Breaking:** `Pili_Matrix` must have exactly eight rows. The former ninth
+  row and custom/named `bending_stiffness` overrides are rejected; all pili
+  derive stiffness from global `material.E` and `r_pili`.
+- **Breaking:** `shear_z.direction` and `shear_z.shear_axis` must be finite,
+  non-zero, and orthogonal within `1e-12`; invalid configurations now fail
+  pre-flight validation.
+- **Runtime contract:** a segment timeout no longer aborts without a usable
+  return. It saves the achieved trajectory and returns
+  `results.completed=false` with `termination_reason='timeout'`; first-party
+  batch and post-processing code excludes it from steady-state statistics.
+- No new MATLAB, toolbox, Python, Conda, or pip dependency.
+
+---
+
 ## [7.10.1] — 2026-07-12
 
 Documentation-accuracy and API-contract consistency patch following a complete review of all first-party MATLAB scripts, functions, entry points, and frozen legacy snapshots. This release does not change the hydrodynamic, elastic, Brownian, motor, or geometry numerical algorithms.

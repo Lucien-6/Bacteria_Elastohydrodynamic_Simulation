@@ -326,14 +326,17 @@ if n_run > 0
                 [res_i, ~, dir_i] = run_simulation(cfg_k);
                 wall_k = toc(t_run);
 
-                if isempty(res_i)
-                    status_k  = "FAILED";
-                    errmsg_k  = "run_simulation returned empty results (possible abort)";
+                [status_k, is_complete_k] = simulation_result_status(res_i);
+                if ~is_complete_k
+                    if isempty(res_i)
+                        errmsg_k = "run_simulation returned empty results";
+                    else
+                        errmsg_k = "run_simulation returned partial results";
+                    end
                     outdir_k  = char(string(dir_i));
                 elseif isfield(res_i, 'V_sink') && ~isempty(res_i.V_sink)
                     Vs            = res_i.V_sink;
                     V_steady_k    = mean(Vs(max(1, round(0.95 * numel(Vs))):end));
-                    status_k      = "OK";
                     outdir_k      = char(string(dir_i));
                 else
                     status_k = "FAILED";
@@ -409,16 +412,19 @@ if n_run > 0
                 [res_i, ~, dir_i] = run_simulation(cfg);
                 run_walltime(ii) = toc(t_run_start);
 
-                if isempty(res_i)
-                    run_status(ii)  = "FAILED";
-                    run_errmsg(ii)  = "run_simulation returned empty results (possible abort)";
+                [run_status(ii), is_complete_i] = simulation_result_status(res_i);
+                if ~is_complete_i
+                    if isempty(res_i)
+                        run_errmsg(ii) = "run_simulation returned empty results";
+                    else
+                        run_errmsg(ii) = "run_simulation returned partial results";
+                    end
                     run_outdir(ii)  = string(dir_i);
-                    fprintf('  [WARN] Run %d returned empty results.\n', ii);
-                    blog('  [WARN] Run %d returned empty results.\n', ii);
+                    fprintf('  [%s] Run %d returned partial/empty results.\n', run_status(ii), ii);
+                    blog('  [%s] Run %d returned partial/empty results.\n', run_status(ii), ii);
                 elseif isfield(res_i, 'V_sink') && ~isempty(res_i.V_sink)
                     Vs              = res_i.V_sink;
                     V_steady        = mean(Vs(max(1, round(0.95 * numel(Vs))):end));
-                    run_status(ii)  = "OK";
                     run_Vsink(ii)   = V_steady;
                     run_outdir(ii)  = string(dir_i);
                     fprintf('  [OK]   Run %d complete  |  V_sink = %.4e um/s  |  %.1f s\n', ...
@@ -480,6 +486,7 @@ t_batch_total = toc(t_batch_start);
 %% ---- Final Summary ----
 n_ok      = sum(run_status == "OK");
 n_failed  = sum(run_status == "FAILED");
+n_partial = sum(run_status == "TIMEOUT" | run_status == "ABORTED");
 n_skipped = sum(run_status == "SKIPPED");
 
 fprintf('\n%s\n', sep);
@@ -488,6 +495,7 @@ fprintf('  Total JSON files : %d\n', n_total);
 fprintf('  Queued to run    : %d\n', n_run);
 fprintf('  Succeeded        : %d\n', n_ok);
 fprintf('  Failed           : %d\n', n_failed);
+fprintf('  Partial          : %d (excluded from steady statistics)\n', n_partial);
 fprintf('  Skipped          : %d\n', n_skipped);
 fprintf('  Total wall time  : %.1f s  (%.1f min)\n', t_batch_total, t_batch_total / 60);
 fprintf('%s\n', sep);
@@ -498,6 +506,7 @@ blog('  Total JSON files : %d\n', n_total);
 blog('  Queued to run    : %d\n', n_run);
 blog('  Succeeded        : %d\n', n_ok);
 blog('  Failed           : %d\n', n_failed);
+blog('  Partial          : %d (excluded from steady statistics)\n', n_partial);
 blog('  Skipped          : %d\n', n_skipped);
 blog('  Total wall time  : %.1f s  (%.1f min)\n', t_batch_total, t_batch_total / 60);
 blog('%s\n', sep);

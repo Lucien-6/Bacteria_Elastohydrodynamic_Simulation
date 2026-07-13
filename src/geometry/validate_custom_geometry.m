@@ -7,9 +7,9 @@ function [errs_out, warns_out] = validate_custom_geometry(custom_cfg, errs, warn
 %      - Body point cloud file existence and integrity
 %      - Attachment sites (labels, positions, directions; near-surface and
 %        outward-pointing checks)
-%      - Pili centerline files and their uniform-segment relative-spread
-%        constraint, (max-min)/mean <= 1e-3
-%      - Site indices, deflection angles, bending stiffness
+%      - Pili centerline file integrity
+%      - Site indices and deflection angles
+%      - Rejection of the retired per-pilus bending_stiffness interface
 %      - L_0 override, L_0_suggest_mode
 %      - initial_orientation spec (quaternion/axis_angle/euler_zyx)
 %
@@ -42,9 +42,7 @@ function [errs_out, warns_out] = validate_custom_geometry(custom_cfg, errs, warn
 %  Created: 2026-04-28
 %  Updated: 2026-05-04 — Uniform-segment check, site-on-surface diagnostics,
 %                         cell/struct compat, initial_orientation.
-%  Updated: 2026-07-12
-
-UNIFORM_SEG_TOL = 1e-3;   % relative spread tolerance (must match custom_pili_building)
+%  Updated: 2026-07-13
 
 %% ---- Body point cloud file ----
 if ~isfield(custom_cfg, 'body_points_file') || isempty(custom_cfg.body_points_file)
@@ -176,24 +174,6 @@ if isfield(custom_cfg, 'pili') && ~isempty(custom_cfg.pili)
                     errs{end+1} = sprintf( ...
                         'Custom pili %d: centerline has only %d points; minimum 2 required.', ...
                         k, size(ppts, 1));
-                else
-                    % Uniform segment length pre-flight check (new requirement)
-                    seg_lens = sqrt(sum(diff(ppts, 1, 1).^2, 2));
-                    if any(seg_lens <= 0)
-                        errs{end+1} = sprintf( ...
-                            'Custom pili %d: one or more zero-length segments in centerline.', k);
-                    else
-                        seg_spread = (max(seg_lens) - min(seg_lens)) / mean(seg_lens);
-                        if seg_spread > UNIFORM_SEG_TOL
-                            errs{end+1} = sprintf( ...
-                                ['Custom pili %d (%s): segment lengths non-uniform ', ...
-                                 '(min=%.4e, max=%.4e, mean=%.4e, relative spread=%.3e > %.1e). ', ...
-                                 'User-supplied centerlines MUST have equal-length segments.'], ...
-                                k, pili_cfg(k).points_file, ...
-                                min(seg_lens), max(seg_lens), mean(seg_lens), ...
-                                seg_spread, UNIFORM_SEG_TOL);
-                        end
-                    end
                 end
             catch ME
                 errs{end+1} = sprintf('Custom pili %d: failed to read centerline file: %s', ...
@@ -224,14 +204,12 @@ if isfield(custom_cfg, 'pili') && ~isempty(custom_cfg.pili)
             end
         end
 
-        % Custom bending stiffness (optional, positive scalar)
+        % Per-pilus stiffness was a dead interface.  Material stiffness is
+        % defined once from the global E and r_pili inputs.
         if isfield(pili_cfg(k), 'bending_stiffness') && ~isempty(pili_cfg(k).bending_stiffness)
-            if ~isnumeric(pili_cfg(k).bending_stiffness) || ...
-                    ~isscalar(pili_cfg(k).bending_stiffness) || ...
-                    pili_cfg(k).bending_stiffness <= 0
-                errs{end+1} = sprintf( ...
-                    'Custom pili %d: bending_stiffness must be a positive scalar.', k);
-            end
+            errs{end+1} = sprintf( ...
+                ['Custom pili %d: bending_stiffness is not supported. ', ...
+                 'Set the global material E and r_pili values instead.'], k);
         end
     end
 

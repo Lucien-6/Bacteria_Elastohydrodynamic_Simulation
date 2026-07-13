@@ -47,9 +47,13 @@ function dZ = ode_coupled_rhs(t, Z, params)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-07-12
+%  Updated: 2026-07-13
 
 %% Extract frequently used parameters
+if ~isscalar(t) || ~isfinite(t) || any(~isfinite(Z(:)))
+    error('numerical_diagnostics:NonFiniteState', ...
+        'ODE time and state must be finite.');
+end
 N_segs = params.N_segments;
 sigma  = params.sigma;
 Eg     = params.Eg;
@@ -202,8 +206,14 @@ end
 %  former lagged persistent cache and makes the RHS a pure function of
 %  (t, Z) (defect-2 remediation).
 n_motor = numel(motor_rows);
+if any(~isfinite(R_global))
+    error('numerical_diagnostics:NonFiniteRhs', ...
+        'RHS vector R_global must be finite.');
+end
 if n_motor == 0
     z_dot = lin_sys \ R_global;
+    check_linear_solve(lin_sys, z_dot, R_global, ...
+        'ode_coupled_rhs base solve');
 else
     E_motor = zeros(n_state, n_motor);
     for i = 1:n_motor
@@ -211,6 +221,8 @@ else
     end
 
     sol_aug   = lin_sys \ [R_global, E_motor];
+    check_linear_solve(lin_sys, sol_aug, [R_global, E_motor], ...
+        'ode_coupled_rhs augmented motor solve');
     zdot_base = sol_aug(:, 1);
     S_motor   = sol_aug(:, 2:end);
 
@@ -221,6 +233,8 @@ else
         motor_tau(:), motor_ommax(:), get_rhs_logf(params));
 
     z_dot = zdot_base + S_motor * tau_eff;
+    check_linear_solve(lin_sys, z_dot, R_global + E_motor * tau_eff, ...
+        'ode_coupled_rhs motor-coupled solution');
 end
 
 %% Step 10: Pack state rates
@@ -267,108 +281,35 @@ function back = apply_Ainv_u(u_bg, hydro)
 
     if isfield(hydro, 'M_twist') && ~isempty(hydro.M_twist)
         Minv_u = Ainv \ u_t;
-        rhs_w  = u_w - hydro.C_twist' * Minv_u;
+        check_linear_solve(hydro.M_weighted, Minv_u, u_t, ...
+            'ode_coupled_rhs background translational solve');
+        rhs_w  = u_w - hydro.C_twist_reverse * Minv_u;
 
         if isfield(hydro, 'dS_twist') && ~isempty(hydro.dS_twist)
             m_twist = hydro.dS_twist \ rhs_w;
         else
             m_twist = hydro.S_twist \ rhs_w;
         end
+        check_linear_solve(hydro.S_twist, m_twist, rhs_w, ...
+            'ode_coupled_rhs background Schur solve');
 
         if isfield(hydro, 'Minv_C_twist') && ~isempty(hydro.Minv_C_twist)
             Au_t = Minv_u - hydro.Minv_C_twist * m_twist;
         else
-            Au_t = Ainv \ (u_t - hydro.C_twist * m_twist);
+            translational_rhs = u_t - hydro.C_twist * m_twist;
+            Au_t = Ainv \ translational_rhs;
+            check_linear_solve(hydro.M_weighted, Au_t, ...
+                translational_rhs, ...
+                'ode_coupled_rhs background coupled translational solve');
         end
         Au = [Au_t; hydro.D_twist * m_twist];
     else
         Au = Ainv \ u_t;
+        check_linear_solve(hydro.M_weighted, Au, u_t, ...
+            'ode_coupled_rhs background solve');
     end
 
     back = hydro.B_global * Au;
-end
-
-
-function tau = solve_motor_self_consistent(a, B, tau_motor, om_max, logf_h)
-%SOLVE_MOTOR_SELF_CONSISTENT  Exact stall-curve torque(s) for free-torsion motors
-%
-%  Solves the reduced self-consistency problem
-%      omega = a + B * tau,
-%      tau_i = motor_law(omega_i),
-%  where  motor_law(om) = tau_motor*(1 - |om|/om_max)  if |om| < om_max,
-%  else 0.  Here a (= baseline dpsi_1) and B (= sensitivity of dpsi_1 to a
-%  unit motor torque) are precomputed from a single factorisation of the
-%  coupled linear system, so this routine performs NO further linear solves.
-%
-%  For a single motor the solution is closed form; for several motors a
-%  damped fixed-point iteration is used (the map is a contraction whenever
-%  the feedback gain |B*tau_motor/om_max| < 1, i.e. away from the critical
-%  stall-feedback limit).
-    n = numel(a);
-    if n == 1
-        tau = motor_law_root_scalar(a, B(1,1), tau_motor(1), om_max(1));
-        return;
-    end
-
-    tau   = zeros(n, 1);
-    relax = 0.7;
-    for it = 1:500 %#ok<NASGU>
-        omega   = a + B * tau;
-        tau_t   = motor_law_vec(omega, tau_motor, om_max);
-        tau_new = (1 - relax) * tau + relax * tau_t;
-        if norm(tau_new - tau, inf) <= 1e-13 * (1 + norm(tau_new, inf))
-            tau = tau_new;
-            return;
-        end
-        tau = tau_new;
-    end
-    if ~isempty(logf_h)
-        logf_h('[ODE] WARNING: motor self-consistent solve did not fully converge (n=%d motors).\n', n);
-    end
-end
-
-
-function tau = motor_law_root_scalar(a, b, tm, om_max)
-%MOTOR_LAW_ROOT_SCALAR  Closed-form self-consistent torque for one motor
-%  f(omega) = a + b*tau(omega) - omega is continuous, piecewise linear and
-%  strictly decreasing (for subcritical feedback), so it has a unique root.
-%  Exactly one of the three branches below satisfies its own consistency
-%  test; the saturated branch (tau = 0) is the continuous fallback.
-    if ~(om_max > 0)
-        tau = tm;   % no speed limiting if om_max is non-positive
-        return;
-    end
-
-    % Active branch, omega >= 0:  tau = tm*(1 - omega/om_max)
-    om_p = (a + b*tm) / (1 + b*tm/om_max);
-    if om_p >= 0 && abs(om_p) < om_max
-        tau = tm * (1 - abs(om_p)/om_max);
-        return;
-    end
-
-    % Active branch, omega < 0:   tau = tm*(1 + omega/om_max)
-    om_n = (a + b*tm) / (1 - b*tm/om_max);
-    if om_n < 0 && abs(om_n) < om_max
-        tau = tm * (1 - abs(om_n)/om_max);
-        return;
-    end
-
-    % Saturated branch: |omega| >= om_max  =>  tau = 0
-    tau = 0;
-end
-
-
-function tau = motor_law_vec(omega, tau_motor, om_max)
-%MOTOR_LAW_VEC  Elementwise stall-curve torque from current angular speeds
-    n   = numel(omega);
-    tau = zeros(n, 1);
-    for i = 1:n
-        if om_max(i) > 0 && abs(omega(i)) < om_max(i)
-            tau(i) = tau_motor(i) * (1 - abs(omega(i)) / om_max(i));
-        else
-            tau(i) = 0;
-        end
-    end
 end
 
 

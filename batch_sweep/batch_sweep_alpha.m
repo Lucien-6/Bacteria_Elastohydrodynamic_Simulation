@@ -24,7 +24,7 @@
 %  Updated: 2026-05-06 — Lucien — added geometry_mode='parametric' (required by
 %                        save_sim_config since v6/v7 custom-geometry feature)
 %                        and project-root cd-block for robust standalone runs.
-%  Updated: 2026-07-12
+%  Updated: 2026-07-13
 
 close all force;
 clear; clc;
@@ -127,11 +127,7 @@ for ii = 1:n_runs
         run_walltime(ii)  = toc(t_run_start);
         sweep_results{ii} = res_i;
         sweep_dirs{ii}    = dir_i;
-        if isempty(res_i)
-            run_status(ii) = "ABORTED";
-        else
-            run_status(ii) = "OK";
-        end
+        run_status(ii) = simulation_result_status(res_i);
     catch ME
         run_walltime(ii)  = toc(t_run_start);
         run_status(ii)    = "FAILED";
@@ -165,7 +161,7 @@ t_sweep_total = toc(t_sweep_start);
 %% ---- Summary ----
 n_ok  = sum(run_status == "OK");
 n_err = sum(run_status == "FAILED");
-n_abt = sum(run_status == "ABORTED");
+n_abt = sum(run_status == "ABORTED" | run_status == "TIMEOUT");
 
 fprintf('\n========================================\n');
 fprintf('  Sweep Complete  (%d runs, %.1f s total)\n', n_runs, t_sweep_total);

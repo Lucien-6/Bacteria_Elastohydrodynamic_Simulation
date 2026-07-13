@@ -1,12 +1,13 @@
 function [L_eff, D_eff, M_eff_dim] = compute_effective_body_brownian(Z, params)
-%COMPUTE_EFFECTIVE_BODY_BROWNIAN  Full-system effective 6x6 body Brownian parameters
+%COMPUTE_EFFECTIVE_BODY_BROWNIAN  Effective 6x6 body-only Brownian parameters
 %
 %  Description:
 %    Computes the effective 6x6 body mobility, diffusion tensor, and
 %    Cholesky factor by probing the fully coupled body-pili linear
 %    system.  The resulting mobility implicitly incorporates the
 %    hydrodynamic contribution of ALL pili via the Schur complement
-%    of the pili DOFs:
+%    of the pili DOFs, but stochastic forcing is subsequently applied only
+%    to the body pose; pili internal modes remain deterministic:
 %
 %      M_eff = [Xi_gen^{-1}]_{BB}
 %            = (Xi_BB - Xi_BP * Xi_PP^{-1} * Xi_PB)^{-1}
@@ -28,19 +29,21 @@ function [L_eff, D_eff, M_eff_dim] = compute_effective_body_brownian(Z, params)
 %       M_eff <- (M_eff + M_eff')/2.
 %       The deterministic ode_coupled_rhs solve continues to use the
 %       original, unsymmetrised hydrodynamic operator.
-%    5. Dimensionalise using the translational/rotational scales.
-%    6. Form D_eff = kB*T*M_eff_dim, defensively symmetrise it, and
-%       project its eigenspectrum to strictly positive values if needed.
-%    7. Return the lower Cholesky factor of 2*D_eff.  No stochastic
-%       increment is sampled here.
+%    5. Project the dimensionless mobility to SPD when round-off requires
+%       it.  A materially negative eigenvalue is treated as an assembly error.
+%    6. Dimensionalise using a congruence transformation.
+%    7. Form D_eff = kB*T*M_eff_dim and map the dimensionless Cholesky
+%       factor to physical coordinates.  No mixed-unit eigendecomposition
+%       is performed and no stochastic increment is sampled here.
 %
 %  Diagnostics and Warnings:
 %    Emits compute_effective_body_brownian:AsymmetryHigh when relative
 %    asymmetry exceeds 1e-3; a further log note is written above 1e-2.
 %    Emits compute_effective_body_brownian:IllConditioned when the
 %    dimensionless effective mobility is nonfinite or has rcond < 1e-10.
-%    Emits compute_effective_body_brownian:NotPosDef when D_eff requires
-%    eigenvalue projection to obtain a strictly positive covariance.
+%    Emits compute_effective_body_brownian:NotPosDef when the dimensionless
+%    mobility requires a round-off-scale SPD projection.  A materially
+%    indefinite mobility raises compute_effective_body_brownian:Indefinite.
 %
 %  Syntax:
 %    [L_eff, D_eff, M_eff_dim] = compute_effective_body_brownian(Z, params)
@@ -67,7 +70,7 @@ function [L_eff, D_eff, M_eff_dim] = compute_effective_body_brownian(Z, params)
 %  Created: 2026-03-31
 %  History: 2026-05-06 — rcond diagnostic moved to M_eff_dimless
 %           (project v7.4.1; see CHANGELOG.md).
-%  Updated: 2026-07-12
+%  Updated: 2026-07-13
 
 %% Step 1: Assemble coupled linear system
 [lin_sys, ~] = build_coupled_lin_sys(Z, params);
@@ -85,6 +88,8 @@ R_probe = zeros(n_state, 6);
 R_probe(1:6, 1:6) = -eye(6);
 
 z_dot_probe = lin_sys \ R_probe;
+check_linear_solve(lin_sys, z_dot_probe, R_probe, ...
+    'effective body mobility probe solve');
 
 %% Step 3: Extract dimensionless 6x6 effective mobility
 M_eff_dimless = z_dot_probe(1:6, :);
@@ -143,6 +148,22 @@ end
 % increment.
 M_eff_dimless = 0.5 * (M_eff_dimless + M_eff_dimless');
 
+% Perform all spectral repair in dimensionless generalized coordinates.
+% Translational and rotational entries of the dimensional covariance have
+% different units, so an eigendecomposition of D_eff is not invariant under
+% a change of length unit.  The dimensionless mobility has one coherent
+% numerical scale and is the correct object on which to enforce SPD.
+[M_eff_dimless, was_projected, min_eig_before] = ...
+    project_spd_dimensionless(M_eff_dimless);
+if was_projected
+    logf_h(['[BROWN] WARNING: dimensionless effective mobility required an ', ...
+        'SPD projection (min eigenvalue = %.2e).\n'], min_eig_before);
+    warning('compute_effective_body_brownian:NotPosDef', ...
+        ['Dimensionless effective mobility was not strictly positive ', ...
+         'definite (min eigenvalue = %.2e); a round-off-scale SPD ', ...
+         'projection was applied.'], min_eig_before);
+end
+
 %  Diagnostic: condition number of the DIMENSIONLESS effective mobility.
 %  We deliberately probe `M_eff_dimless` rather than the dimensional
 %  `M_eff_dim` because the dimensional matrix mixes TT/TR/RR blocks at
@@ -184,15 +205,13 @@ coeff = 8 * pi * mu;
 S = [sqrt(coeff * L_0) * ones(3,1); sqrt(coeff * L_0^3) * ones(3,1)];
 M_eff_dim = M_eff_dimless ./ (S * S');
 
-%  Note: no separate symmetrisation of M_eff_dim is needed here.
+%  Note: no separate symmetrisation or spectral projection of M_eff_dim is
+%  needed here.
 %  M_eff_dimless was symmetrised at Step 3 (line above the rcond check),
 %  and the Hadamard division by the symmetric outer product (S * S')
 %  preserves symmetry:  (A ./ B)_ij = A_ij / B_ij, so if A_ij = A_ji and
 %  B_ij = B_ji then (A ./ B)_ij = (A ./ B)_ji.  The downstream
-%  project_spd_covariance helper re-symmetrises D_eff as a defensive
-%  measure (it is a standalone utility that may be called with non-symmetric
-%  input from other paths), but for the in-line flow here M_eff_dim is
-%  already symmetric by construction.
+%  M_eff_dim is already symmetric positive definite by congruence.
 
 %% Step 5: Diffusion tensor and Cholesky decomposition
 kB    = 1.380649e-23;
@@ -203,17 +222,12 @@ if ~(isfinite(Temper) && Temper > 0)
 end
 
 D_eff = kB * Temper * M_eff_dim;
-[D_eff, was_projected, min_eig_before] = project_spd_covariance(D_eff);
-if was_projected
-    logf_h('[BROWN] WARNING: D_eff was not positive definite (min eigenvalue = %.2e). Projected to nearest SPD covariance.\n', ...
-        min_eig_before);
-    warning('compute_effective_body_brownian:NotPosDef', ...
-        'D_eff was not positive definite (min eigenvalue = %.2e). Projected to nearest SPD covariance.', ...
-        min_eig_before);
-    M_eff_dim = D_eff / (kB * Temper);
-end
 
-L_eff = chol(2 * D_eff, 'lower');
+% Factor in dimensionless coordinates, then apply the physical row scaling.
+% This is algebraically equivalent to chol(2*D_eff) but avoids asking a
+% mixed-unit matrix to determine its own numerical spectral scale.
+L_dimless = chol(2 * kB * Temper * M_eff_dimless, 'lower');
+L_eff = L_dimless ./ S;
 
 end
 
@@ -230,18 +244,26 @@ function logf_h = get_brown_logf(params)
 end
 
 
-function [A_spd, was_projected, min_eig_before] = project_spd_covariance(A)
-%PROJECT_SPD_COVARIANCE  Symmetric positive-definite projection for 6x6 D.
-%  The Brownian covariance is represented in the mixed coordinate vector
-%  [x;y;z;theta_x;theta_y;theta_z].  If round-off or a non-reciprocal
-%  hydrodynamic discretisation leaves a tiny negative eigenvalue, clamp the
-%  symmetric spectrum instead of adding a unit-scaled diagonal correction.
+function [A_spd, was_projected, min_eig_before] = project_spd_dimensionless(A)
+%PROJECT_SPD_DIMENSIONLESS  SPD repair in dimensionless coordinates only.
+%  Round-off-scale non-positive eigenvalues are lifted to a relative
+%  machine-precision floor.  A materially negative eigenvalue indicates a
+%  non-dissipative hydrodynamic operator and is never silently hidden.
     A_sym = 0.5 * (A + A');
     [V, D] = eig(A_sym);
     lam = real(diag(D));
     min_eig_before = min(lam);
-    max_eig = max(lam);
-    floor_eig = max(eps(max(norm(A_sym, 'fro'), 1)), eps(max_eig) * max(max_eig, 1));
+    spectral_scale = max(max(abs(lam)), realmin('double'));
+    material_tol = 1e-10 * spectral_scale;
+    if min_eig_before < -material_tol
+        error('compute_effective_body_brownian:Indefinite', ...
+            ['Dimensionless effective mobility is materially indefinite: ', ...
+             'lambda_min = %.3e, spectral scale = %.3e.'], ...
+            min_eig_before, spectral_scale);
+    end
+
+    floor_eig = max(100 * size(A_sym, 1) * eps(spectral_scale), ...
+                    realmin('double'));
 
     if min_eig_before > floor_eig
         A_spd = A_sym;

@@ -3,14 +3,14 @@
 English | [中文](USER_GUIDE.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Version:** 7.10.1
-> **Updated:** 2026-07-12
+> **Version:** 8.0.0
+> **Updated:** 2026-07-13
 
 This guide is for running simulations, choosing the right configuration path, finding outputs, and post-processing completed cases. For model equations and derivations, see [`docs/theory.md`](docs/theory.md). For release history, see [`CHANGELOG.md`](CHANGELOG.md).
 
-Release note: v7.10.1 is a documentation-accuracy and API-contract consistency patch. MATLAB help now records the actual signatures, dimensions, units, frames, algorithm branches, side effects, warnings, errors, cache locations, and legacy/live-API boundaries. Minimal implementation fixes initialise `odetpbar`'s status output, update the migration inventory, and stabilise two capsule-mesh error identifiers. All standard, motor, custom-geometry, Brownian, and HPC smoke cases passed; no physical or numerical algorithm changed.
+Release note: v8.0.0 is a major mathematical-physics correctness and runtime-contract release. It introduces weighted-reciprocal translation/twist hydrodynamics for unequal segment lengths, equal-chord canonical custom-pilus geometry, objective full-director initialisation, dimensionless Brownian SPD repair, true-duration remainder kicks, isolated Brownian random streams, strict incompressible-shear validation, saved partial timeout returns, and run-scoped numerical diagnostics.
 
-Previous release: v7.10.0 added a new Linux HPC cluster execution capability — **[`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m)** / **[`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m)**, a maintained fork hardened for headless, single-node-exclusive Linux clusters (see §5.3) — and fixed two cross-platform batch-driver bugs found during the corresponding review.
+Breaking configuration changes: `Pili_Matrix` must contain exactly eight rows; per-pilus `bending_stiffness` is no longer supported; and `shear_z.direction` must be orthogonal to `shear_z.shear_axis`. A segment timeout now saves the achieved trajectory and returns normally with `results.completed=false` and `termination_reason='timeout'`; callers must not use that partial trajectory for steady-state statistics.
 
 ## 1. Before You Run
 
@@ -106,7 +106,7 @@ A typical top-level layout includes:
 | `delta` range (P2) | `delta <= 0` | error |
 | `delta` range (P2) | `delta >= pi/4` (premature singularity event) | warning |
 | `N_body` upper bound (P4) | `N_body > 2000` (`O(N^2)` memory) | warning |
-| Background-flow orthogonality (P5) | `shear_z` with `direction` nearly parallel to `shear_axis` (`|cos(theta)| > 0.99`, zero vorticity) | warning |
+| Background-flow orthogonality (P5) | `shear_z` requires finite nonzero vectors and `abs(dot(direction_hat,shear_axis_hat)) <= 1e-12` | error |
 | `alpha_0` range (P6/A1) | outside `[-pi/2, pi/2]`; enforced in parametric mode and custom mode with empty `initial_orientation` | error |
 | `AbsTol` / `RelTol` wording (P9) | outside `(0, 1]`; recommended `1e-6 ~ 1e-3` | warning |
 
@@ -180,8 +180,11 @@ Use custom mode when both the body and pili are imported from point-cloud files.
 
 - Custom body and custom pili must be used together.
 - Body point clouds support `.csv`, `.txt`, and `.mat` files with three spatial coordinates.
-- Pili centerlines must be pre-discretized into equal-length segments; the accepted relative segment-length spread is at most $10^{-3}$.
-- Consecutive duplicate or near-duplicate points are removed before validation.
+- Imported pili centerlines may have nonuniform source spacing.  Consecutive
+  duplicates are removed, then a PCHIP curve is converted to one canonical
+  equal-chord polygon while preserving both endpoints.
+- Per-pilus `bending_stiffness` is not supported.  Every pilus uses the global
+  `material.E` and `r_pili`, so a non-empty legacy field is rejected.
 - For arbitrary body orientation, prefer `initial_orientation` over `alpha_0`.
 - Custom-mode `deflection_z` is a twist about the aligned tangent, while custom-mode `deflection_x` is a tilt. In parametric mode these geometric roles are swapped.
 
@@ -202,7 +205,19 @@ For `free_torsion`, the root twist angle $\psi_1$ evolves dynamically. The motor
 
 Set `brownian.enable` in JSON or `cfg.enable_brown` in MATLAB.
 
-Since v7.7.0, Brownian updates use the strict body-only Ito form with explicit finite-difference thermal drift `kBT*div(M_eff)` and an SPD-projected diffusion covariance. There is no user-facing midpoint drift option.
+Brownian updates use a body-only Ito approximation with explicit
+finite-difference thermal drift `kBT*div(M_eff)`.  `M_eff` is obtained from
+the complete coupled body-pili deterministic system, but stochastic
+increments are applied only to the body's three translations and three
+rotations.  Pili internal Euler-angle modes remain deterministic, and the
+root constraints are re-enforced after each body kick.  This is not a full
+coupled thermal-equilibrium model and should not be used to study pilus-mode
+equipartition.
+
+SPD repair and Cholesky factorisation are performed in dimensionless
+generalized coordinates before conversion to SI units.  A final Brownian
+step uses the actual remaining time when `T_obs` is not divisible by `dt_B`.
+There is no user-facing midpoint drift option.
 
 Important options:
 
@@ -210,7 +225,7 @@ Important options:
 - `brownian.rng_seed`: fixed positive seed for reproducible runs.
 - `brownian.dt_B_ratio`: Brownian time step relative to output step.
 
-When Brownian dynamics are enabled, the realized seed is saved in `config.json`, `brownian_rng_seed.txt`, `simulation.log`, and `simulation_results.mat`.
+When Brownian dynamics are enabled, the realized seed is saved in `config.json`, `brownian_rng_seed.txt`, `simulation.log`, and `simulation_results.mat`.  It seeds a run-local stream, so cache creation and unrelated calls to MATLAB's global random stream cannot change the trajectory.
 
 **Mobility conditioning warning (since v7.4.1):** Each Brownian step evaluates an `rcond`-based diagnostic inside [`src/physics/compute_effective_body_brownian.m`](src/physics/compute_effective_body_brownian.m) on the **dimensionless** effective mobility after symmetrisation (`M_eff_dimless`). Routine runs should therefore **not** spam `compute_effective_body_brownian:IllConditioned` from dimensional TT/TR/RR scaling alone; if MATLAB still emits this warning with a very small **`M_eff_dimless` rcond**, investigate degenerate kinematics or geometry (e.g. Euler roots near \(\theta = \pi\) for clamped pili rows, unusually extreme body aspect ratios) with `simulation.log` alongside the kinematic trajectory.
 
@@ -229,6 +244,11 @@ Outputs are written under `output/<case_name>/` or a timestamped run directory.
 | `bacteria_3d_motion.mp4` | Optional 3D animation. |
 | `simulation.log` | Complete run log. |
 | `brownian_rng_seed.txt` | Brownian seed and reproduce hint when Brownian dynamics are enabled. |
+
+`results.completed=false` with `results.termination_reason='timeout'`
+identifies a segment-timeout return.  The available trajectory is saved and
+returned normally, but animation/flow-field generation and steady-state
+batch statistics are skipped.
 
 ## 10. Post-Processing Completed Runs
 
@@ -254,7 +274,7 @@ The post-processor reads `timeseries.csv` and `config.json`, computes summary ki
 | MATLAB cannot find a function | Confirm the repository root is on the MATLAB path. |
 | Capsule generation fails | Confirm the S2 Sampling Toolbox is installed and visible on the MATLAB path. |
 | JSON case runs without pili | Check that `pili` is a valid JSON array and that each pilus entry has the required fields. |
-| Custom geometry is rejected | Check point-cloud orientation, duplicate points, and equal-length pilus segments. |
+| Custom geometry is rejected | Check point-cloud orientation, duplicate/degenerate intervals, and canonical equal-chord construction convergence. |
 | `geometry_mode` mixing error | Use parametric **or** custom fields only; do not combine `custom_geometry` with `body`/`pili` matrix fields (v7.4.4+). |
 | `helix` intrinsic curvature error | Provide a struct: `{"type":"helix","kappa_d2":…,"kappa_d3":…}` with finite scalars; bare `"helix"` is invalid (v7.4.4+). |
 | Output folder already exists | Use `auto_confirm = true` for unattended rename behavior, or choose interactively. |

@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v7.10.1 (MATLAB): RSM+RSS Stokes flow, strict Ito Brownian drift, SPD diffusion, non-local pili twist mobility, Schur-complement twist coupling, physical standard rotlets, Kirchhoff pili, JSON config, Linux HPC cluster execution.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v8.0.0 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, objective equal-chord pili geometry, body-only Ito Brownian dynamics, dimensionless SPD repair, partial timeout persistence, numerical diagnostics, JSON config, and Linux HPC execution.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v7.10.1 &middot; 2026-07-12</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v8.0.0 &middot; 2026-07-13</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 7.10.1 &bull; 2026-07-12
+      Version 8.0.0 &bull; 2026-07-13
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -270,13 +270,13 @@ tailwind.config = {
       <span class="en">A MATLAB simulation framework for modelling capsule-shaped bacteria with elastic pili
       sinking in Stokes flow. Combines regularized Stokeslet methods (RSM + RSS + Rotlet segments),
       Kirchhoff elastic rods with configurable intrinsic curvature and time-varying active moments,
-      full-system effective-friction Brownian dynamics, steady background flow, adaptive Euler-angle
+      body-only Brownian dynamics using coupled-system effective body mobility, steady background flow, adaptive Euler-angle
       singularity avoidance, 3D visualization and animation,
       JSON configuration, batch parameter-sweep
       scripts, and automated post-processing to Excel summaries.</span>
       <span class="zh">一个基于 MATLAB 的仿真框架，用于模拟携带弹性纤毛的胶囊状细菌在 Stokes 流体中的沉降运动。
       融合正则化 Stokeslet 方法（RSM + RSS + Rotlet 线段）、Kirchhoff 弹性杆（可配置固有曲率与时变主动力矩）、
-      全系统有效摩擦布朗动力学、稳态背景流场、自适应欧拉角奇点规避、三维可视化与动画、
+      使用耦合系统有效胞体迁移率的 body-only 布朗动力学、稳态背景流场、自适应欧拉角奇点规避、三维可视化与动画、
       JSON 配置系统、批量参数扫描脚本，以及自动化后处理 Excel 汇总。</span>
     </p>
     <div class="flex flex-wrap justify-center gap-4">
@@ -388,8 +388,8 @@ tailwind.config = {
             <strong class="text-gray-800 dark:text-gray-200">
               <span class="en">Brownian motion</span><span class="zh">布朗运动</span>
             </strong> &mdash;
-            <span class="en">Thermal fluctuations applied to the body using a full-system effective friction tensor that naturally includes pili drag.</span>
-            <span class="zh">基于全系统有效摩擦张量为胞体施加热涨落，该张量自然包含纤毛带来的额外阻力。</span>
+            <span class="en">Correlated thermal fluctuations are applied only to the body's six rigid degrees of freedom, using effective body mobility computed from the deterministic coupled body-pili system. Pili internal modes remain deterministic.</span>
+            <span class="zh">仅对胞体的 6 个刚体自由度施加关联热涨落；有效胞体迁移率由确定性胞体—菌毛耦合系统计算，菌毛内部模态保持确定性。</span>
           </p>
         </div>
       </div>
@@ -413,7 +413,7 @@ tailwind.config = {
       <div class="info-card bg-white dark:bg-navy-900 rounded-xl p-5 border border-gray-200 dark:border-navy-700 shadow-sm">
         <div class="text-2xl mb-2">🔬</div>
         <h4 class="font-semibold text-sm mb-1">
-          <span class="en">Full-System Brownian</span><span class="zh">全系统布朗运动</span>
+          <span class="en">Body-Only Brownian</span><span class="zh">Body-only 胞体布朗运动</span>
         </h4>
         <p class="text-xs text-gray-500 dark:text-gray-400">
           <span class="en">Dynamic 6&times;6 effective diffusion tensor via probing method; pili drag naturally suppresses thermal diffusion.</span>
@@ -537,19 +537,19 @@ tailwind.config = {
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en"><strong>v7.10.1</strong> is a documentation-accuracy and API-contract consistency patch. MATLAB help now matches actual signatures, dimensions, units, coordinate frames, numerical branches, side effects, warning/error identifiers, cache paths, and legacy/live-API boundaries. Utility fixes cover <code>odetpbar</code>, migration verification, and stable capsule-mesh error identifiers. Five end-to-end smoke cases passed. <strong>No physical or numerical algorithm changed.</strong></span>
-      <span class="zh"><strong>v7.10.1</strong> 是文档准确性与 API 契约一致性补丁。MATLAB help 现与实际签名、维数、单位、坐标系、数值分支、副作用、warning/error identifier、缓存路径及 legacy/live API 边界一致；同时修复 <code>odetpbar</code>、迁移校验和胶囊网格稳定错误标识。五类端到端 smoke case 均通过。<strong>物理与数值算法未改变。</strong></span>
+      <span class="en"><strong>v8.0.0</strong> is a major mathematical-physics correctness and runtime-contract release. It adds weighted reciprocity for unequal twist segments, objective equal-chord custom-pilus geometry, dimensionless body-only Brownian SPD repair, remainder kicks, isolated random streams, strict incompressible-shear validation, saved partial timeout returns, and auditable numerical guards.</span>
+      <span class="zh"><strong>v8.0.0</strong> 是面向数学物理正确性和运行契约的重大升级：新增不等扭转段长加权互易、客观等弦长自定义菌毛几何、无量纲 body-only Brownian SPD 修复、余数 kick、独立随机流、严格不可压缩剪切流验证、超时部分结果保存及可审计数值防线。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
-        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v7.10.1 &mdash; 2026-07-12</p>
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v8.0.0 &mdash; 2026-07-13</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
-          <span class="en">Documentation accuracy and contract consistency</span><span class="zh">文档准确性与契约一致性</span>
+          <span class="en">Mathematical-physics correctness and runtime contracts</span><span class="zh">数学物理正确性与运行契约</span>
         </h3>
         <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
-          <li><span class="en">Corrected MATLAB help contracts across first-party entry points, scripts, functions, and frozen legacy snapshots.</span><span class="zh">修正全部一方入口、脚本、函数及冻结 legacy 快照的 MATLAB help 契约。</span></li>
-          <li><span class="en">Initialised <code>odetpbar</code> status, updated migration inventory, and stabilised capsule-mesh error identifiers.</span><span class="zh">初始化 <code>odetpbar</code> 状态返回、更新迁移清单，并稳定胶囊网格错误 identifier。</span></li>
-          <li><span class="en">Validated standard, motor, custom-geometry, Brownian, and HPC end-to-end cases; no numerical algorithm changed.</span><span class="zh">通过标准、马达、自定义几何、Brownian 与 HPC 端到端验收；数值算法未改变。</span></li>
+          <li><span class="en">Corrected weighted hydrodynamic reciprocity, unequal-segment twist symmetry, and full-director initial-frame objectivity.</span><span class="zh">修正加权水动力互易、不等段长扭转对称性及完整 director 初始标架客观性。</span></li>
+          <li><span class="en">Hardened body-only Brownian stepping, strict shear/stiffness contracts, and timeout-safe partial-result handling.</span><span class="zh">强化 body-only Brownian 时间步、严格剪切流/刚度契约及超时安全的部分结果处理。</span></li>
+          <li><span class="en">Added numerical health guards and MATLAB tests spanning standard, motor, custom-geometry, Brownian, and HPC paths.</span><span class="zh">新增数值健康防线与 MATLAB 测试，覆盖标准、马达、自定义几何、Brownian 和 HPC 路径。</span></li>
         </ul>
       </div>
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
@@ -934,18 +934,18 @@ tailwind.config = {
         the body alone &mdash; pili attached to the body contribute additional hydrodynamic drag.
         More and longer pili <strong>increase the effective friction</strong> and correspondingly
         <strong>reduce thermal diffusion</strong>. This coupling is captured through the Schur complement
-        of the full-system generalised resistance matrix.</span>
+        of the coupled deterministic generalised resistance matrix; pili internal coordinates do not receive stochastic kicks.</span>
         <span class="zh">在过阻尼区域 ($\text{Re} \ll 1$) 中，胞体受<strong>涨落耗散定理</strong> (FDT) 支配的热涨落驱动。
         胞体的有效摩擦不仅取决于胞体本身——附着于胞体的纤毛贡献了额外的流体动力学阻力。
         纤毛越多、越长，有效摩擦越大，相应的<strong>热扩散越弱</strong>。
-        该耦合通过全系统广义阻力矩阵的 Schur 补来捕捉。</span>
+        该耦合通过确定性耦合广义阻力矩阵的 Schur 补来捕捉；菌毛内部坐标不接收随机 kick。</span>
       </p>
       <div class="bg-gray-50 dark:bg-navy-800 rounded-xl p-5 border border-gray-200 dark:border-navy-700">
         $$\mathbf{M}_\text{eff} = \left[\boldsymbol{\Xi}_\text{gen}^{-1}\right]_{BB} = \left(\boldsymbol{\Xi}_{BB} - \boldsymbol{\Xi}_{BP}\,\boldsymbol{\Xi}_{PP}^{-1}\,\boldsymbol{\Xi}_{PB}\right)^{-1}$$
       </div>
       <p class="text-xs text-gray-500 dark:text-gray-500 mt-3">
-        <span class="en">The Schur complement $\boldsymbol{\Xi}_{BB} - \boldsymbol{\Xi}_{BP}\,\boldsymbol{\Xi}_{PP}^{-1}\,\boldsymbol{\Xi}_{PB}$ is the effective body resistance after eliminating pili DOFs. Since the full system includes hydrodynamic coupling from the pili, the resulting body mobility $\mathbf{M}_\text{eff}$ is smaller (more damped) than the isolated body's mobility.</span>
-        <span class="zh">Schur 补 $\boldsymbol{\Xi}_{BB} - \boldsymbol{\Xi}_{BP}\,\boldsymbol{\Xi}_{PP}^{-1}\,\boldsymbol{\Xi}_{PB}$ 为消除纤毛自由度后胞体的有效阻力。由于全系统包含纤毛的流体动力学耦合，所得胞体迁移率 $\mathbf{M}_\text{eff}$ 小于（阻尼更大）孤立胞体的迁移率。</span>
+        <span class="en">The Schur complement $\boldsymbol{\Xi}_{BB} - \boldsymbol{\Xi}_{BP}\,\boldsymbol{\Xi}_{PP}^{-1}\,\boldsymbol{\Xi}_{PB}$ is the effective body resistance after eliminating deterministic pili DOFs. Pili hydrodynamic drag therefore modifies $\mathbf{M}_\text{eff}$, while stochastic forcing remains restricted to the body coordinates.</span>
+        <span class="zh">Schur 补 $\boldsymbol{\Xi}_{BB} - \boldsymbol{\Xi}_{BP}\,\boldsymbol{\Xi}_{PP}^{-1}\,\boldsymbol{\Xi}_{PB}$ 是消去确定性菌毛自由度后的有效胞体阻力。菌毛水动力阻力会改变 $\mathbf{M}_\text{eff}$，但随机驱动仍仅作用于胞体坐标。</span>
       </p>
     </div>
 
@@ -1390,7 +1390,7 @@ graph TD
 │   │   └── skew_matrix.m                    % 3×3 skew-symmetric matrix
 │   ├── physics/
 │   │   ├── compute_curvature_binormal.m     % Discrete curvature binormal
-│   │   ├── compute_effective_body_brownian.m % Full-system Brownian (probing)
+│   │   ├── compute_effective_body_brownian.m % Body-only Brownian (coupled probe)
 │   │   ├── compute_node_directors.m         % Segment → node directors (SVD polar)
 │   │   ├── compute_pili_elastic_moments.m   % Kirchhoff elastic moments
 │   │   ├── coupled_active_moment.m          % Per-pili active moments
@@ -1946,7 +1946,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v7.10.1 &middot; 2026-07-12</li>
+        <li>v8.0.0 &middot; 2026-07-13</li>
       </ul>
     </div>
   </div>

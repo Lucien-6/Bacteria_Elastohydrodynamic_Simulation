@@ -11,7 +11,7 @@ function Pili = pili_building(Pili_Matrix, seg_per_um, major_axis, minor_axis, d
 %    Pili = pili_building(Pili_Matrix, seg_per_um, major_axis, minor_axis, dis, E, r_pili)
 %
 %  Inputs:
-%    Pili_Matrix  - [8-9 x M] Pili parameter matrix (M = number of pili)
+%    Pili_Matrix  - [8 x M] Pili parameter matrix (M = number of pili)
 %        Row 1 : Morphology type (1=linear, 2=parabolic, 3=circular,
 %                 4=sinusoidal, 5=conical spiral)
 %        Row 2 : Length [um]
@@ -19,7 +19,6 @@ function Pili = pili_building(Pili_Matrix, seg_per_um, major_axis, minor_axis, d
 %        Row 4 : Deflection angle relative to X-axis [rad]
 %        Row 5-7: Shape control parameters (type-dependent)
 %        Row 8 : Attachment position on bacterial body (1-14)
-%        Row 9 : (optional) Custom bending stiffness A [N*m^2]
 %    seg_per_um   - Segments per micron for discretization [seg/um]
 %    major_axis   - Semi-major axis of bacterial body [m]
 %    minor_axis   - Semi-minor axis of bacterial body [m]
@@ -52,12 +51,18 @@ function Pili = pili_building(Pili_Matrix, seg_per_um, major_axis, minor_axis, d
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-01-23
-%  Updated: 2026-07-12
+%  Updated: 2026-07-13
 
 %% Input validation
 if nargin < 7
     error('pili_building:InsufficientInputs', ...
           'pili_building requires at least 7 input arguments.');
+end
+if size(Pili_Matrix, 1) ~= 8
+    error('pili_building:InvalidPiliMatrixRows', ...
+        ['Pili_Matrix must have exactly 8 rows; got %d. ', ...
+         'Pilus stiffness is derived from the global E and r_pili values.'], ...
+        size(Pili_Matrix, 1));
 end
 
 %% Calculate default bending stiffness (EI = E * pi * r^4 / 4)
@@ -68,11 +73,12 @@ A_default = E * I_pili;           % Bending stiffness [N*m^2]
 NPili = size(Pili_Matrix, 2);
 
 %% Pre-allocate output structure array
-Pili(NPili) = struct('N', [], 'L', [], 'ell', [], ...
+template = struct('N', [], 'L', [], 'ell', [], ...
     'x', [], 'v', [], 'kb', [], 'kb0', [], ...
     'A', [], 'r', [], 'f_bend', [], ...
     'attach_idx', [], 'root_local', [], 'root_dir', [], ...
     'type', [], 'is_clamped', []);
+Pili = repmat(template, 1, NPili);
 
 %% Construct each pilus
 for j = 1:NPili
@@ -83,12 +89,8 @@ for j = 1:NPili
     L          = L_um * 1e-6;                % Length [m]
     attach_idx = Pili_Matrix(8, j);
 
-    % Bending stiffness: use custom value if provided in row 9
-    if size(Pili_Matrix, 1) >= 9 && ~isnan(Pili_Matrix(9, j))
-        A = Pili_Matrix(9, j);
-    else
-        A = A_default;
-    end
+    % Bending stiffness is uniform global material metadata.
+    A = A_default;
 
     % --- Compute number of vertices ---
     N   = ceil(L_um * seg_per_um) + 1;

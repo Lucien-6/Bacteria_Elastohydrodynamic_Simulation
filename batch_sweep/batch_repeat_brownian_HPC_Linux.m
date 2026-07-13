@@ -605,19 +605,23 @@ if use_parallel
             wall_k = toc(t_run);
             run_wall(k) = wall_k;
 
-            if isempty(res_k)
-                run_status(k) = "FAILED";
-                run_errmsg(k) = "run_simulation_HPC_Linux returned empty results";
-                run_errid(k)  = "N/A (empty results)";
+            [run_status(k), is_complete_k] = simulation_result_status(res_k);
+            if ~is_complete_k
+                if isempty(res_k)
+                    run_errmsg(k) = "run_simulation_HPC_Linux returned empty results";
+                    run_errid(k)  = "N/A (empty results)";
+                else
+                    run_errmsg(k) = "run_simulation_HPC_Linux returned partial results";
+                    run_errid(k)  = string(res_k.termination_reason);
+                end
                 run_errloc(k) = "";
                 run_outdir(k) = string(dir_k);
-                send(progress_q, struct('type', 'done', 'k', k, 'status', "FAILED", ...
+                send(progress_q, struct('type', 'done', 'k', k, 'status', run_status(k), ...
                     'msg', char(run_errmsg(k)), 'wall', wall_k, ...
                     'seed', seeds(k), 'outdir', char(string(dir_k)), ...
                     'identifier', char(run_errid(k)), ...
                     'stack_name', '', 'stack_line', NaN));
             else
-                run_status(k) = "OK";
                 run_outdir(k) = string(dir_k);
                 send(progress_q, struct('type', 'done', 'k', k, 'status', "OK", ...
                     'msg', '', 'wall', wall_k, ...
@@ -683,15 +687,19 @@ else
             [res_k, ~, dir_k] = run_simulation_HPC_Linux(cfg_k);
             run_wall(k) = toc(t_run);
 
-            if isempty(res_k)
-                run_status(k) = "FAILED";
-                run_errmsg(k) = "run_simulation_HPC_Linux returned empty results";
-                run_errid(k)  = "N/A (empty results)";
+            [run_status(k), is_complete_k] = simulation_result_status(res_k);
+            if ~is_complete_k
+                if isempty(res_k)
+                    run_errmsg(k) = "run_simulation_HPC_Linux returned empty results";
+                    run_errid(k)  = "N/A (empty results)";
+                else
+                    run_errmsg(k) = "run_simulation_HPC_Linux returned partial results";
+                    run_errid(k)  = string(res_k.termination_reason);
+                end
                 run_errloc(k) = "";
                 run_outdir(k) = string(dir_k);
-                fprintf('  [WARN] Empty results.\n');
+                fprintf('  [%s] Partial/empty results.\n', run_status(k));
             else
-                run_status(k) = "OK";
                 run_outdir(k) = string(dir_k);
                 fprintf('  [OK]   Wall time %.1f s  |  %s\n', run_wall(k), dir_k);
             end
@@ -755,6 +763,7 @@ elapsed = toc(t_batch);
 
 n_ok      = sum(run_status == "OK");
 n_failed  = sum(run_status == "FAILED");
+n_partial = sum(run_status == "TIMEOUT" | run_status == "ABORTED");
 n_pending = sum(run_status == "PENDING");
 
 fprintf('\n%s\n', sep);
@@ -767,6 +776,9 @@ end
 fprintf('  Success: %d / %d\n', n_ok, n_repeats);
 if n_failed > 0
     fprintf('  Failed:  %d\n', n_failed);
+end
+if n_partial > 0
+    fprintf('  Partial: %d (TIMEOUT/ABORTED; excluded from statistics)\n', n_partial);
 end
 if n_pending > 0
     fprintf('  Pending: %d (not completed)\n', n_pending);
@@ -807,6 +819,7 @@ if ~isempty(sum_path)
             fprintf(fid_foot, 'parallel_speedup_estimate: %.2f\n', sum_wall / max(elapsed, eps));
         end
         fprintf(fid_foot, 'failed_count: %d\n', n_failed);
+        fprintf(fid_foot, 'partial_count: %d\n', n_partial);
         if n_failed > 0
             failed_idx = find(run_status == "FAILED");
             idx_labels = arrayfun(@(k) sprintf('%03d', k), failed_idx, 'UniformOutput', false);
@@ -1180,7 +1193,7 @@ function append_run_summary(sum_path, k, seed, status, wall, errid, errmsg, errl
     outdir_char = char(string(outdir));
 
     fprintf(fid, '%03d  %s  status=%s  wall=%.2f s\n', k, seed_tag, status, wall);
-    if status == "FAILED" && strlength(errmsg) > 0
+    if status ~= "OK" && status ~= "PENDING" && strlength(errmsg) > 0
         fprintf(fid, '         Identifier : %s\n', errid);
         fprintf(fid, '         Message    : %s\n', errmsg);
         if strlength(errloc) > 0
@@ -1189,7 +1202,7 @@ function append_run_summary(sum_path, k, seed, status, wall, errid, errmsg, errl
     elseif status == "OK" && strlength(outdir_char) > 0
         fprintf(fid, '  out: %s\n', path_for_log(outdir_char));
     end
-    if status == "FAILED" && strlength(outdir_char) > 0
+    if status ~= "OK" && status ~= "PENDING" && strlength(outdir_char) > 0
         fprintf(fid, '         outdir     : %s\n', path_for_log(outdir_char));
         log_hint = fullfile(outdir_char, 'simulation.log');
         if isfile(log_hint)
@@ -1400,8 +1413,8 @@ function print_progress(msg, n_total)
         if numel(err_one_line) > 120
             err_one_line = [err_one_line(1:117), '...'];
         end
-        fprintf('  [%3d/%3d] FAILED k=%03d  wall=%6.1f s  | err: %s\n', ...
-            n_done, n_total, msg.k, msg.wall, err_one_line);
+        fprintf('  [%3d/%3d] %-7s k=%03d  wall=%6.1f s  | %s\n', ...
+            n_done, n_total, char(msg.status), msg.k, msg.wall, err_one_line);
         % Extended error details (identifier + location), mirroring the
         % serial branch's console output and batch_run_from_json's parallel
         % branch.  Fields are always present (sent by both catch paths).

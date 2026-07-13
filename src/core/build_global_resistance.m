@@ -397,7 +397,8 @@ M_twist = (L_r / 4) .* ( ...
   + (ei_dot_x0 .* ej_dot_v + ei_dot_v .* ej_dot_x0) .* S1 ...
   + ei_dot_v .* ej_dot_v .* S2);
 
-% The target midpoint/source segment quadrature is not exactly symmetric for
-% curved or unequal segments; enforce the reciprocal operator used downstream.
-M_twist = 0.5 * (M_twist + M_twist.');
+% The operator maps torque density to angular velocity, so reciprocity uses
+% the actual segment-length inner product.  This reduces to ordinary
+% symmetrisation when all segment lengths are equal.
+M_twist = weighted_self_adjoint(M_twist, L_all);
 end

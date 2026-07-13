@@ -40,7 +40,7 @@ function Vtool = sphere_particle_sample_cached(SPN)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Date:    2026-04-18
-%  Updated: 2026-07-12
+%  Updated: 2026-07-13
 
 % --- Cache key constants — bump FORMAT_VERSION on any change ---------------
 CACHE_ETOL      = 1e-5;          % ParticleSampleSphere toolbox default
@@ -144,7 +144,10 @@ try
         'created',    char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')) ...
     );
 
-    tmp_path = sprintf('%s.tmp_%d', fpath, round(rand() * 1e9));
+    % Use a filesystem-generated unique path.  Cache I/O must never consume
+    % MATLAB's global random stream because Brownian simulations require the
+    % stochastic trajectory to be independent of cache hit/miss state.
+    tmp_path = [tempname(cache_dir), '.mat'];
     save(tmp_path, 'Vtool', 'meta', '-v7');
     movefile(tmp_path, fpath);
 
