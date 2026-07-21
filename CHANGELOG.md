@@ -10,6 +10,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [8.0.1] — 2026-07-21
+
+Patch release hardening runtime numerical diagnostics after production
+Brownian batch failures on dense mobility operators (`N_body ~ 300`).
+
+### Fixed
+
+- Dense weighted-mobility dissipation checks no longer call
+  `eigs(...,'smallestreal')`. Dense operators use full `eig`; iterative
+  `eigs` is retained only for sparse matrices with automatic fallback to
+  dense `eig` on non-convergence (instead of aborting).
+- Isolated `rcond < 1e-14` no longer hard-aborts. It warns as
+  `NearSingularMatrix` and is recorded in `results.diagnostics`.
+- Residual WARN-band checks no longer escalate into a singularity abort.
+  `SingularMatrix` requires the joint gate:
+  backward residual `> 1e-6` **and** `rcond < 1e-14`.
+- Initial / post-basis health checks probe a gravity-or-unit RHS through
+  `check_linear_solve`, so singularity is gated jointly with solve quality.
+- Diagnostic snapshot field renamed from `rcond_error_threshold` to
+  `rcond_near_singular_threshold`; log banners label it as near-singularity /
+  joint-abort context rather than a standalone error threshold.
+- `verify_migration.m` no longer expects a `tests/` tree (offline MATLAB
+  `functiontests` suite is not shipped in this release layout).
+
+### Documentation
+
+- Update `README.md`, `README.zh-CN.md`, `USER_GUIDE.md`,
+  `USER_GUIDE.zh-CN.md`, `requirements.txt`, both theory documents, the
+  project website, presentation, runtime banners, and `project_version.m`
+  to version 8.0.1 dated 2026-07-21.
+
+### Compatibility
+
+- **Runtime contract:** `numerical_diagnostics:SingularMatrix` now means the
+  joint singularity gate failed (large residual **and** near-singular
+  `rcond`). Isolated near-singularity warns via
+  `numerical_diagnostics:NearSingularMatrix`.
+- No new MATLAB, toolbox, Python, Conda, or pip dependency.
+- Physical hydrodynamic / elastic / Brownian algorithms are unchanged from
+  8.0.0 aside from the diagnostic gate behaviour above.
+
+---
+
 ## [8.0.0] — 2026-07-13
 
 Major mathematical-physics correctness and runtime-contract release following

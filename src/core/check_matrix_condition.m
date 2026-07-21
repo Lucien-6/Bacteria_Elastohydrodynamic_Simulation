@@ -1,8 +1,15 @@
 function condition_reciprocal = check_matrix_condition(A, context)
-%CHECK_MATRIX_CONDITION  Validate finiteness and reciprocal condition number
+%CHECK_MATRIX_CONDITION  Record rcond; warn on ill-conditioning
+%
+%  rcond is always accumulated in numerical_diagnostics_state.  Values below
+%  1e-10 or 1e-14 emit warnings, but this routine never hard-aborts solely on
+%  rcond: Stokes operators can be extremely ill-conditioned while still
+%  admitting an accurate solve.  Joint abort with a large backward residual is
+%  enforced by check_linear_solve / check_coupled_system_health.
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-07-13
+%  Updated: 2026-07-21
 
 if nargin < 2 || isempty(context)
     context = 'matrix';
@@ -21,8 +28,9 @@ if ~isfinite(condition_reciprocal)
     error('numerical_diagnostics:NonFiniteCondition', ...
         'Non-finite rcond detected in %s.', context);
 elseif condition_reciprocal < 1e-14
-    error('numerical_diagnostics:SingularMatrix', ...
-        'rcond %.3e is below 1e-14 in %s.', ...
+    warning('numerical_diagnostics:NearSingularMatrix', ...
+        ['rcond %.3e is below 1e-14 in %s (recorded; hard abort requires a ', ...
+         'joint large backward residual).'], ...
         condition_reciprocal, context);
 elseif condition_reciprocal < 1e-10
     warning('numerical_diagnostics:IllConditionedMatrix', ...

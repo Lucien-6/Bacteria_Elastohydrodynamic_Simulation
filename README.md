@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-07-13
-> **Version:** 8.0.0
+> **Updated:** 2026-07-21
+> **Version:** 8.0.1
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -120,9 +120,11 @@ drivers exclude that partial trajectory from steady-state statistics.
 
 ## Version Notes
 
-The current release is **8.0.0 (2026-07-13)**, a major mathematical-physics correctness and runtime-contract release. Translation/twist coupling now satisfies line-measure-weighted reciprocity for unequal segment lengths; custom pili use one equal-chord canonical centerline and retain full material-director objectivity under arbitrary initial body rotations. Body-only Brownian dynamics now performs SPD repair in dimensionless coordinates, applies the final remainder kick with its true duration, and uses an isolated random stream. Per-pilus stiffness overrides have been removed, incompressible `shear_z` configurations require orthogonal flow and shear directions, and segment timeouts return saved partial results without contaminating steady-state statistics. New finite-value, backward-residual, conditioning, reciprocity, dissipation, and multi-motor convergence guards make numerical failures auditable through `simulation.log` and `results.diagnostics`.
+The current release is **8.0.1 (2026-07-21)**, a numerical-diagnostics hardening patch on top of 8.0.0. Dense weighted-mobility dissipation checks use full `eig` (iterative `eigs` only for sparse matrices, with fallback); isolated `rcond < 1e-14` warns as `NearSingularMatrix` instead of aborting; `SingularMatrix` now requires the joint gate of a large backward residual and near-singular `rcond`; and health checks probe solve quality through `check_linear_solve`. Diagnostic snapshots expose `rcond_near_singular_threshold` rather than a standalone `rcond_error_threshold`.
 
-**Breaking changes in 8.0.0:** `Pili_Matrix` must have exactly eight rows; custom or named `bending_stiffness` fields are rejected in favour of global `material.E` and `r_pili`; non-orthogonal `shear_z` configurations are rejected; and a timed-out run returns `results.completed=false` with `termination_reason='timeout'` after saving its partial trajectory.
+**8.0.0 (2026-07-13)** was the major mathematical-physics correctness and runtime-contract release: weighted-reciprocal translation/twist hydrodynamics for unequal segment lengths, equal-chord canonical custom-pilus geometry, objective full-director initialisation, dimensionless body-only Brownian SPD repair with remainder kicks and isolated RNG, strict incompressible `shear_z` orthogonality, timeout-safe partial returns, and auditable numerical guards via `simulation.log` / `results.diagnostics`.
+
+**Breaking changes retained from 8.0.0:** `Pili_Matrix` must have exactly eight rows; custom or named `bending_stiffness` fields are rejected in favour of global `material.E` and `r_pili`; non-orthogonal `shear_z` configurations are rejected; and a timed-out run returns `results.completed=false` with `termination_reason='timeout'` after saving its partial trajectory.
 
 **7.10.0 (2026-07-03)** added Linux HPC cluster execution and fixed two cross-platform batch-driver bugs. It introduced the maintained **[`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m)** / **[`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m)** fork with platform-aware video export, Linux-native resource probing, node-local `parpool` job storage, heavy-output sampling, and live progress heartbeats.
 

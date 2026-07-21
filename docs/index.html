@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v8.0.0 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, objective equal-chord pili geometry, body-only Ito Brownian dynamics, dimensionless SPD repair, partial timeout persistence, numerical diagnostics, JSON config, and Linux HPC execution.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v8.0.1 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, objective equal-chord pili geometry, body-only Ito Brownian dynamics, hardened joint-gated numerical diagnostics, partial timeout persistence, JSON config, and Linux HPC execution.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v8.0.0 &middot; 2026-07-13</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v8.0.1 &middot; 2026-07-21</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 8.0.0 &bull; 2026-07-13
+      Version 8.0.1 &bull; 2026-07-21
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -537,19 +537,19 @@ tailwind.config = {
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en"><strong>v8.0.0</strong> is a major mathematical-physics correctness and runtime-contract release. It adds weighted reciprocity for unequal twist segments, objective equal-chord custom-pilus geometry, dimensionless body-only Brownian SPD repair, remainder kicks, isolated random streams, strict incompressible-shear validation, saved partial timeout returns, and auditable numerical guards.</span>
-      <span class="zh"><strong>v8.0.0</strong> 是面向数学物理正确性和运行契约的重大升级：新增不等扭转段长加权互易、客观等弦长自定义菌毛几何、无量纲 body-only Brownian SPD 修复、余数 kick、独立随机流、严格不可压缩剪切流验证、超时部分结果保存及可审计数值防线。</span>
+      <span class="en"><strong>v8.0.1</strong> hardens numerical diagnostics after dense-mobility false aborts: full <code>eig</code> for dense dissipation checks, joint <code>SingularMatrix</code> gating with backward residual, and <code>NearSingularMatrix</code> warnings for isolated near-singularity. It builds on the v8.0.0 mathematical-physics correctness release.</span>
+      <span class="zh"><strong>v8.0.1</strong> 针对稠密迁移率误杀加固数值诊断：稠密耗散用全谱 <code>eig</code>、<code>SingularMatrix</code> 与后向残差联合门控、孤立近奇异仅 <code>NearSingularMatrix</code> 告警；建立在 v8.0.0 数学物理正确性大版本之上。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
-        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v8.0.0 &mdash; 2026-07-13</p>
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v8.0.1 &mdash; 2026-07-21</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
-          <span class="en">Mathematical-physics correctness and runtime contracts</span><span class="zh">数学物理正确性与运行契约</span>
+          <span class="en">Numerical-diagnostics hardening</span><span class="zh">数值诊断加固</span>
         </h3>
         <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
-          <li><span class="en">Corrected weighted hydrodynamic reciprocity, unequal-segment twist symmetry, and full-director initial-frame objectivity.</span><span class="zh">修正加权水动力互易、不等段长扭转对称性及完整 director 初始标架客观性。</span></li>
-          <li><span class="en">Hardened body-only Brownian stepping, strict shear/stiffness contracts, and timeout-safe partial-result handling.</span><span class="zh">强化 body-only Brownian 时间步、严格剪切流/刚度契约及超时安全的部分结果处理。</span></li>
-          <li><span class="en">Added numerical health guards and MATLAB tests spanning standard, motor, custom-geometry, Brownian, and HPC paths.</span><span class="zh">新增数值健康防线与 MATLAB 测试，覆盖标准、马达、自定义几何、Brownian 和 HPC 路径。</span></li>
+          <li><span class="en">Dense dissipation health checks use full <code>eig</code>; sparse <code>eigs</code> falls back instead of aborting.</span><span class="zh">稠密耗散体检使用全谱 <code>eig</code>；稀疏 <code>eigs</code> 失败时回退而不中止。</span></li>
+          <li><span class="en"><code>SingularMatrix</code> requires large residual and near-singular <code>rcond</code>; isolated <code>rcond</code> only warns.</span><span class="zh"><code>SingularMatrix</code> 需大残差与近奇异 <code>rcond</code> 同时成立；孤立 <code>rcond</code> 仅告警。</span></li>
+          <li><span class="en">Diagnostic field renamed to <code>rcond_near_singular_threshold</code>; migration check no longer expects a <code>tests/</code> tree.</span><span class="zh">诊断字段更名为 <code>rcond_near_singular_threshold</code>；迁移检查不再要求 <code>tests/</code> 目录。</span></li>
         </ul>
       </div>
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
@@ -1946,7 +1946,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v8.0.0 &middot; 2026-07-13</li>
+        <li>v8.0.1 &middot; 2026-07-21</li>
       </ul>
     </div>
   </div>

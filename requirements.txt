@@ -1,7 +1,13 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 8.0.0 (2026-07-13)
+# Release: 8.0.1 (2026-07-21)
 #
+# v8.0.1: numerical-diagnostics hardening patch. Dense dissipation checks use
+#   full eig (eigs only for sparse + fallback); isolated rcond<1e-14 warns as
+#   NearSingularMatrix; SingularMatrix requires joint large residual and
+#   near-singular rcond; health probes use check_linear_solve; diagnostics
+#   field rcond_near_singular_threshold replaces rcond_error_threshold.
+#   verify_migration no longer expects a tests/ tree. No new dependency.
 # v8.0.0: major mathematical-physics correctness and runtime-contract release.
 #   Weighted-reciprocal translation/twist hydrodynamics now supports unequal
 #   segment lengths; custom pili use an equal-chord canonical centerline and

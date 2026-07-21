@@ -6,8 +6,13 @@ function backward_residual = check_linear_solve( ...
 %      ||A*x-b||_inf / (||A||_inf*||x||_inf + ||b||_inf).
 %  By default, residuals above 1e-10 warn and residuals above 1e-6 error.
 %
+%  On the residual warning path, rcond is recorded/warned only and never
+%  upgraded to a hard abort.  SingularMatrix requires the joint gate:
+%      residual > error_threshold  AND  rcond < 1e-14.
+%
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-07-13
+%  Updated: 2026-07-21
 
 if nargin < 4 || isempty(context)
     context = 'linear solve';
@@ -53,11 +58,19 @@ if ~isfinite(backward_residual)
     error('numerical_diagnostics:NonFiniteResidual', ...
         'Non-finite backward residual detected in %s.', context);
 elseif backward_residual > error_threshold
-    check_matrix_condition(A, sprintf('%s condition', context));
+    condition_reciprocal = check_matrix_condition( ...
+        A, sprintf('%s condition', context));
+    if isfinite(condition_reciprocal) && condition_reciprocal < 1e-14
+        error('numerical_diagnostics:SingularMatrix', ...
+            ['rcond %.3e < 1e-14 and backward residual %.3e exceeds %.3e ', ...
+             'in %s (joint singularity gate).'], ...
+            condition_reciprocal, backward_residual, error_threshold, context);
+    end
     error('numerical_diagnostics:LargeBackwardResidual', ...
         'Backward residual %.3e exceeds %.3e in %s.', ...
         backward_residual, error_threshold, context);
 elseif backward_residual > warning_threshold
+    % Record/warn rcond only; never hard-abort from the residual WARN path.
     check_matrix_condition(A, sprintf('%s condition', context));
     warning('numerical_diagnostics:ElevatedBackwardResidual', ...
         'Backward residual %.3e exceeds %.3e in %s.', ...

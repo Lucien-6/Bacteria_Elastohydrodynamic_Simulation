@@ -3,14 +3,16 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 8.0.0
-> **更新日期:** 2026-07-13
+> **版本:** 8.0.1
+> **更新日期:** 2026-07-21
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-版本提示：v8.0.0 是一次面向数学物理正确性和运行契约的重大升级，包括不等段长下平动—扭转加权互易、自定义菌毛等弦长 canonical 几何、完整 director 客观初始化、无量纲 Brownian SPD 修复、真实时长余数 kick、独立 Brownian 随机流、严格不可压缩剪切流验证、超时部分结果保存，以及运行级数值诊断。
+版本提示：v8.0.1 在 v8.0.0 之上加固运行期数值诊断。稠密耗散检验改用全谱 `eig`；孤立近奇异（`rcond < 1e-14`）以 `NearSingularMatrix` 告警；`SingularMatrix` 仅在大后向残差（`> 1e-6`）与近奇异 `rcond` 同时成立时中止。诊断快照字段为 `rcond_near_singular_threshold`。
 
-破坏性配置变更：`Pili_Matrix` 必须精确为 8 行；不再支持逐菌毛 `bending_stiffness`；`shear_z.direction` 必须与 `shear_z.shear_axis` 正交。任一积分段超时后，程序保存已达到的轨迹并正常返回 `results.completed=false` 与 `termination_reason='timeout'`；调用方不得将该部分轨迹用于稳态统计。
+v8.0.0 引入不等段长平动—扭转加权互易、自定义菌毛等弦长 canonical 几何、完整 director 客观初始化、无量纲 Brownian SPD 修复、真实时长余数 kick、独立 Brownian 随机流、严格不可压缩剪切流验证、超时部分结果保存，以及运行级数值诊断。
+
+破坏性配置变更（自 8.0.0 起）：`Pili_Matrix` 必须精确为 8 行；不再支持逐菌毛 `bending_stiffness`；`shear_z.direction` 必须与 `shear_z.shear_axis` 正交。任一积分段超时后，程序保存已达到的轨迹并正常返回 `results.completed=false` 与 `termination_reason='timeout'`；调用方不得将该部分轨迹用于稳态统计。
 
 ## 1. 运行前准备
 
@@ -264,6 +266,8 @@ postprocess_cases()
 | JSON 文件夹批跑未并行执行 | 同上，针对 `batch_run_from_json.m`，或设置 `use_parallel = false`。 |
 | JSON 批跑因重复 `case_name` 被跳过 | 非空 `case_name` 仅字母序首个 JSON 会运行；请使用唯一 `case_name` 或留空以自动时间戳目录。 |
 | `IllConditioned` 布朗迁移率告警（`M_eff_dimless rcond`） | v7.4.1+ 在无量纲迁移率上做诊断；若仍出现告警，多半是真实的病态几何/欧拉根问题，核对 §8、`simulation.log` 及 \(\theta\approx\pi\) 配置。 |
+| `NearSingularMatrix` 告警（`rcond < 1e-14`） | v8.0.1+：仅记录/告警，**不会单独中止**。中止需同时出现大后向残差（`> 1e-6`）→ `SingularMatrix`。查看 `results.diagnostics` / `[DIAG]` 日志。 |
+| 稠密迁移率上出现 `DissipationEigensolveFailure` | v8.0.1 后稠密路径应走 `eig`，一般不再出现。若仍出现，确认版本 ≥8.0.1 且矩阵并非意外变为稀疏。 |
 | `run_simulation:SilentPreviewDeadlock` 报错（v7.9.6+） | `cfg.silent = true` 且 `preview_initial = true` 时必须同时 `auto_confirm = true`（无头/并行 worker 无法应答交互式 `questdlg`）。设置 `auto_confirm = true` 或 `preview_initial = false`。 |
 | Linux 上 `VideoWriter` 报错 `"The specified profile is not valid."` | 改用 [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m)（§5.3）而非 `run_simulation.m`——`'MPEG-4'` 仅支持 Windows/Mac，HPC_Linux 分支会在 Linux 上自动切换为 `'Motion JPEG AVI'`。 |
 | 批跑过程中 `top` 里 worker 进程数量突然变少、整批卡死不动（Linux） | 大概率是 Linux OOM Killer；`parfor` 没有内置超时或掉线 worker 恢复机制。在 `batch_repeat_brownian_HPC_Linux.m`（§5.3）上，用实测得到的真实内存峰值重新标定 `mem_per_worker_gb`（不要用默认值），和/或缩小 `heavy_output_sample_idx` 覆盖范围。可用 `dmesg \| grep -i "killed process"` 或 `journalctl -k \| grep -i "out of memory"` 确认。 |

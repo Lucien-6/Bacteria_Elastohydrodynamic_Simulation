@@ -4,6 +4,7 @@ function metrics = check_weighted_mobility_health( ...
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-07-13
+%  Updated: 2026-07-20
 
 if nargin < 7 || isempty(context)
     context = 'weighted mobility';
@@ -50,22 +51,7 @@ end
 
 power_symmetric = 0.5 * (grand_weighted + grand_weighted');
 dissipation_scale = max(norm(power_symmetric, 'fro'), realmin('double'));
-n = size(power_symmetric, 1);
-if n <= 600
-    min_dissipation = min(eig(power_symmetric, 'vector'));
-else
-    options.issym = true;
-    options.isreal = true;
-    options.tol = 1e-9;
-    options.maxit = 1000;
-    [~, value, flag] = eigs(power_symmetric, 1, 'smallestreal', options);
-    if flag ~= 0
-        error('numerical_diagnostics:DissipationEigensolveFailure', ...
-            'Smallest dissipation eigenvalue did not converge in %s.', context);
-    end
-    min_dissipation = value(1,1);
-end
-min_dissipation = real(min_dissipation);
+min_dissipation = smallest_symmetric_eigenvalue(power_symmetric, context);
 
 if reciprocity_residual > 1e-10
     error('numerical_diagnostics:ReciprocityFailure', ...
@@ -92,4 +78,32 @@ metrics = struct( ...
     'weighted_reciprocity_residual', reciprocity_residual, ...
     'min_dissipation_eigenvalue', min_dissipation, ...
     'dissipation_scale', dissipation_scale);
+end
+
+
+function lambda_min = smallest_symmetric_eigenvalue(A, context)
+%SMALLEST_SYMMETRIC_EIGENVALUE  Robust lambda_min for dissipation diagnostics
+%
+%  RSM/RSS weighted mobility operators are dense.  Iterative eigs with
+%  'smallestreal' is unreliable on dense, clustered Stokes spectra and must
+%  never abort a physically valid solve merely because the eigensolver fails.
+
+n = size(A, 1);
+use_iterative = issparse(A) && n > 600;
+if use_iterative
+    options.issym = true;
+    options.isreal = true;
+    options.tol = 1e-9;
+    options.maxit = 1000;
+    [~, value, flag] = eigs(A, 1, 'smallestreal', options);
+    if flag == 0
+        lambda_min = real(value(1, 1));
+        return;
+    end
+    warning('numerical_diagnostics:DissipationEigensolveFallback', ...
+        ['Iterative smallest-eigenvalue solve did not converge in %s; ', ...
+         'falling back to dense eig.'], context);
+end
+
+lambda_min = real(min(eig(full(A), 'vector')));
 end

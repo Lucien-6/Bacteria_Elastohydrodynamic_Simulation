@@ -4,8 +4,8 @@ English | [中文](theory.zh-CN.md)
 [Back to README](../README.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Updated:** 2026-07-13
-> **Version:** 8.0.0
+> **Updated:** 2026-07-21
+> **Version:** 8.0.1
 
 This document contains the model details that were formerly embedded in the long README. The repository entry page is now intentionally short; practical run instructions are in [`../USER_GUIDE.md`](../USER_GUIDE.md), and release history is in [`../CHANGELOG.md`](../CHANGELOG.md).
 
@@ -498,9 +498,10 @@ The codebase has been checked against the following model-level invariants:
 - Output units for MAT, CSV, figure, and log files.
 
 Backward residuals above \(10^{-10}\) warn and values above \(10^{-6}\)
-abort.  Initial and post-basis-change coupled matrices warn below
-`rcond=1e-10` and abort below `1e-14`.  Measured extrema and the fixed
-thresholds are saved in `results.diagnostics`.
+abort.  Coupled-matrix `rcond` below `1e-10` or `1e-14` warns and is
+recorded; a hard abort requires the joint gate of residual \(>10^{-6}\)
+and `rcond<1e-14`.  Measured extrema and the fixed thresholds are saved
+in `results.diagnostics`.
 
 Detailed bug-fix history belongs in [`../CHANGELOG.md`](../CHANGELOG.md), not in this theory document.
 

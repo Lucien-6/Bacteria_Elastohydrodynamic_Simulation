@@ -4,8 +4,8 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-07-13
-> **版本:** 8.0.0
+> **更新日期:** 2026-07-21
+> **版本:** 8.0.1
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -111,9 +111,11 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **8.0.0 (2026-07-13)**，是一次面向数学物理正确性和运行契约的重大升级。平动—扭转耦合现在对不等段长满足线测度加权互易关系；自定义菌毛统一使用唯一的等弦长 canonical 中心线，并在任意初始胞体旋转下保持完整材料标架的客观性。body-only Brownian 动力学改为在无量纲空间修复 SPD、按真实时长施加最后一个余数 kick，并使用独立随机流。逐菌毛刚度覆盖接口已删除，不可压缩 `shear_z` 强制要求流动方向与剪切轴正交；任一积分段超时后会保存并正常返回部分结果，批处理和后处理不会将其纳入稳态统计。新增有限值、后向残差、条件数、互易性、耗散性和多马达收敛诊断，并写入 `simulation.log` 与 `results.diagnostics`。
+当前版本为 **8.0.1 (2026-07-21)**，是在 8.0.0 之上的数值诊断加固补丁。稠密加权迁移率耗散检验改用全谱 `eig`（`eigs` 仅用于稀疏矩阵并带回退）；孤立 `rcond < 1e-14` 以 `NearSingularMatrix` 告警而不再中止；`SingularMatrix` 需同时满足大后向残差与近奇异 `rcond` 的联合门控；健康体检通过 `check_linear_solve` 探针评估求解质量。诊断快照字段改为 `rcond_near_singular_threshold`，不再使用独立的 `rcond_error_threshold`。
 
-**8.0.0 破坏性变更：** `Pili_Matrix` 必须精确为 8 行；自定义或具名配置中的 `bending_stiffness` 会被拒绝，刚度统一由全局 `material.E` 与 `r_pili` 决定；非正交 `shear_z` 配置会被拒绝；超时运行在保存部分轨迹后返回 `results.completed=false` 与 `termination_reason='timeout'`。
+**8.0.0 (2026-07-13)** 为面向数学物理正确性和运行契约的重大升级：不等段长平动—扭转加权互易、自定义菌毛等弦长 canonical 几何、完整 director 客观初始化、无量纲 body-only Brownian SPD 修复与余数 kick/独立 RNG、严格不可压缩 `shear_z` 正交性、超时部分结果安全返回，以及经 `simulation.log` / `results.diagnostics` 可审计的数值防线。
+
+**自 8.0.0 起保留的破坏性变更：** `Pili_Matrix` 必须精确为 8 行；自定义或具名配置中的 `bending_stiffness` 会被拒绝，刚度统一由全局 `material.E` 与 `r_pili` 决定；非正交 `shear_z` 配置会被拒绝；超时运行在保存部分轨迹后返回 `results.completed=false` 与 `termination_reason='timeout'`。
 
 **7.10.0 (2026-07-03)** 新增 Linux 超算集群运行能力，并修复两处跨平台批处理问题；该版本引入维护分支 **[`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m)** / **[`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m)**。
 

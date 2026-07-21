@@ -3,14 +3,16 @@
 English | [中文](USER_GUIDE.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Version:** 8.0.0
-> **Updated:** 2026-07-13
+> **Version:** 8.0.1
+> **Updated:** 2026-07-21
 
 This guide is for running simulations, choosing the right configuration path, finding outputs, and post-processing completed cases. For model equations and derivations, see [`docs/theory.md`](docs/theory.md). For release history, see [`CHANGELOG.md`](CHANGELOG.md).
 
-Release note: v8.0.0 is a major mathematical-physics correctness and runtime-contract release. It introduces weighted-reciprocal translation/twist hydrodynamics for unequal segment lengths, equal-chord canonical custom-pilus geometry, objective full-director initialisation, dimensionless Brownian SPD repair, true-duration remainder kicks, isolated Brownian random streams, strict incompressible-shear validation, saved partial timeout returns, and run-scoped numerical diagnostics.
+Release note: v8.0.1 hardens runtime numerical diagnostics on top of v8.0.0. Dense dissipation checks use full `eig`; isolated near-singularity (`rcond < 1e-14`) warns as `NearSingularMatrix`; `SingularMatrix` aborts only under the joint gate of a large backward residual (`> 1e-6`) and near-singular `rcond`. Diagnostic snapshots store `rcond_near_singular_threshold`.
 
-Breaking configuration changes: `Pili_Matrix` must contain exactly eight rows; per-pilus `bending_stiffness` is no longer supported; and `shear_z.direction` must be orthogonal to `shear_z.shear_axis`. A segment timeout now saves the achieved trajectory and returns normally with `results.completed=false` and `termination_reason='timeout'`; callers must not use that partial trajectory for steady-state statistics.
+v8.0.0 introduced weighted-reciprocal translation/twist hydrodynamics for unequal segment lengths, equal-chord canonical custom-pilus geometry, objective full-director initialisation, dimensionless Brownian SPD repair, true-duration remainder kicks, isolated Brownian random streams, strict incompressible-shear validation, saved partial timeout returns, and run-scoped numerical diagnostics.
+
+Breaking configuration changes (since 8.0.0): `Pili_Matrix` must contain exactly eight rows; per-pilus `bending_stiffness` is no longer supported; and `shear_z.direction` must be orthogonal to `shear_z.shear_axis`. A segment timeout now saves the achieved trajectory and returns normally with `results.completed=false` and `termination_reason='timeout'`; callers must not use that partial trajectory for steady-state statistics.
 
 ## 1. Before You Run
 
@@ -283,6 +285,8 @@ The post-processor reads `timeseries.csv` and `config.json`, computes summary ki
 | Parallel JSON folder batch runs serially | Same as above for `batch_run_from_json.m`, or set `use_parallel = false`. |
 | JSON batch skipped as duplicate `case_name` | Only the alphabetically first JSON with that non-empty `case_name` runs; assign unique `case_name` values or leave empty for auto timestamp folders. |
 | `IllConditioned` Brownian mobility warning (`M_eff_dimless rcond`) | v7.4.1+ diagnoses the dimensionless mobility; residual warnings mean genuinely ill-conditioned kinematics/hydrodynamics — cross-check Euler roots (\(\theta\approx\pi\)), body geometry, and `simulation.log` (see §8). |
+| `NearSingularMatrix` warning (`rcond < 1e-14`) | v8.0.1+: recorded only; does **not** abort by itself. Abort requires joint large backward residual (`> 1e-6`) → `SingularMatrix`. Check `results.diagnostics` / `[DIAG]` log lines. |
+| `DissipationEigensolveFailure` on dense mobility | Should not appear after v8.0.1 (dense path uses `eig`). If seen, confirm you are on ≥8.0.1 and that mobility is not unexpectedly sparse. |
 | `run_simulation:SilentPreviewDeadlock` error (v7.9.6+) | `cfg.silent = true` with `preview_initial = true` requires `auto_confirm = true` (a headless/parallel worker cannot answer the interactive `questdlg`). Set `auto_confirm = true` or `preview_initial = false`. |
 | `VideoWriter` `"The specified profile is not valid."` on Linux | Use [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) (§5.3) instead of `run_simulation.m` — `'MPEG-4'` is Windows/Mac-only; the HPC_Linux fork switches to `'Motion JPEG AVI'` on Linux automatically. |
 | Worker process count drops mid-batch (`top`), batch hangs indefinitely (Linux) | Likely the Linux OOM-killer; `parfor` has no built-in timeout / dead-worker recovery. On `batch_repeat_brownian_HPC_Linux.m` (§5.3), calibrate `mem_per_worker_gb` from a real measured peak RSS (not the default) and/or reduce `heavy_output_sample_idx` coverage. Confirm with `dmesg \| grep -i "killed process"` or `journalctl -k \| grep -i "out of memory"`. |
