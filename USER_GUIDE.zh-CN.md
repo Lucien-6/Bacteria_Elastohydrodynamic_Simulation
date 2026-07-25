@@ -3,12 +3,14 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 8.0.1
-> **更新日期:** 2026-07-21
+> **版本:** 8.1.0
+> **更新日期:** 2026-07-25
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-版本提示：v8.0.1 在 v8.0.0 之上加固运行期数值诊断。稠密耗散检验改用全谱 `eig`；孤立近奇异（`rcond < 1e-14`）以 `NearSingularMatrix` 告警；`SingularMatrix` 仅在大后向残差（`> 1e-6`）与近奇异 `rcond` 同时成立时中止。诊断快照字段为 `rcond_near_singular_threshold`。
+版本提示：v8.1.0 扩展批量后处理（`postprocess_cases`）：在 \(0<\tau\le T/2\) 上拟合三维平移 MSD，并新增 XZ 平面转动扩散 \(D_\mathrm{rot}\)（MSAD）。仿真物理相对 v8.0.1 未改。
+
+v8.0.1 在 v8.0.0 之上加固运行期数值诊断。稠密耗散检验改用全谱 `eig`；孤立近奇异（`rcond < 1e-14`）以 `NearSingularMatrix` 告警；`SingularMatrix` 仅在大后向残差（`> 1e-6`）与近奇异 `rcond` 同时成立时中止。诊断快照字段为 `rcond_near_singular_threshold`。
 
 v8.0.0 引入不等段长平动—扭转加权互易、自定义菌毛等弦长 canonical 几何、完整 director 客观初始化、无量纲 Brownian SPD 修复、真实时长余数 kick、独立 Brownian 随机流、严格不可压缩剪切流验证、超时部分结果保存，以及运行级数值诊断。
 
@@ -248,7 +250,16 @@ postprocess_cases()
 2. 选择要纳入统计的工况文件夹。
 3. 选择输出 `.xlsx` 文件路径。
 
-后处理脚本会读取 `timeseries.csv` 和 `config.json`，计算运动学指标，写出 Excel 工作簿，并导出 PNG、PDF 和可选 HTML 格式的汇总图。
+后处理脚本读取 `timeseries.csv` 与 `config.json`（可选从 `simulation_results.mat` 读取 `results.q` 以获得取向）。每个选中的 Case 文件夹对应一条轨迹，计算：
+
+| 指标 | 方法 |
+| --- | --- |
+| 沉降速度 | \(-\texttt{Vsink\_um\_s}\) 的均值 / 末 5% 稳态 / 标准差 |
+| 最大水平位移、三维曲折度 | 由 \(X,Y,Z\) 轨迹几何量 |
+| 平移 \(D_\mathrm{trans}\)、\(V_\mathrm{msd}\) | 三维 TAMSD；在 \(0<\tau\le T/2\) 拟合 \(\mathrm{MSD}=6D\tau+V^2\tau^2\)（滞后覆盖整段 \(T\)） |
+| 转动 \(D_\mathrm{rot}\) | XZ 体轴 MSAD；在 \(0<\tau\le T/2\) 拟合 \(\mathrm{MSAD}=2D_\mathrm{rot}\tau\) |
+
+结果写入单个 Excel，并导出多面板汇总图（PNG、PDF；R2026a+ 可选 HTML）。超时部分轨迹（`results.completed=false`）不纳入扩散类汇总指标。
 
 ## 11. 常见检查
 

@@ -1,7 +1,13 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 8.0.1 (2026-07-21)
+# Release: 8.1.0 (2026-07-25)
 #
+# v8.1.0: batch post-processing kinematics feature release.
+#   postprocess_cases.m: 3-D TAMSD fit MSD=6D*tau+V^2*tau^2 on 0<tau<=T/2
+#   (lags still span full T); adds XZ-plane MSAD rotational diffusion
+#   D_rot (prefer results.q atan2(ez,ex), else tilt_rad). Excel + 2x3
+#   summary figure export D_rot_rad2_s / MSAD_R2. Simulation core unchanged.
+#   No new dependency.
 # v8.0.1: numerical-diagnostics hardening patch. Dense dissipation checks use
 #   full eig (eigs only for sparse + fallback); isolated rcond<1e-14 warns as
 #   NearSingularMatrix; SingularMatrix requires joint large residual and

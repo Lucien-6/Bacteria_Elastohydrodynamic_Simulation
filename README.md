@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-07-21
-> **Version:** 8.0.1
+> **Updated:** 2026-07-25
+> **Version:** 8.1.0
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -69,7 +69,7 @@ cfg.auto_confirm = true;
 [results, params, output_dir] = run_simulation(cfg);
 ```
 
-Batch sweep **driver scripts** live in [`batch_sweep/`](batch_sweep/). Parameter-sweep CSV/MAT products are written under `batch sweep/` (with a space) when those drivers run. To batch-run every `*.json` in a folder (optional parallel, duplicate `case_name` skip, real-time `batch_summary_*.log`), use [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m). Multi-case post-processing is available in [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m).
+Batch sweep **driver scripts** live in [`batch_sweep/`](batch_sweep/). Parameter-sweep CSV/MAT products are written under `batch sweep/` (with a space) when those drivers run. To batch-run every `*.json` in a folder (optional parallel, duplicate `case_name` skip, real-time `batch_summary_*.log`), use [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m). Multi-case post-processing is available in [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m): 3-D translational MSD fit (\(\mathrm{MSD}=6D\tau+V^2\tau^2\) on \(0<\tau\le T/2\)) and XZ-plane rotational diffusion from MSAD (\(\mathrm{MSAD}=2D_\mathrm{rot}\tau\)), exported to Excel plus a PNG/PDF/(optional HTML) summary figure.
 
 ## Main Outputs
 
@@ -120,7 +120,9 @@ drivers exclude that partial trajectory from steady-state statistics.
 
 ## Version Notes
 
-The current release is **8.0.1 (2026-07-21)**, a numerical-diagnostics hardening patch on top of 8.0.0. Dense weighted-mobility dissipation checks use full `eig` (iterative `eigs` only for sparse matrices, with fallback); isolated `rcond < 1e-14` warns as `NearSingularMatrix` instead of aborting; `SingularMatrix` now requires the joint gate of a large backward residual and near-singular `rcond`; and health checks probe solve quality through `check_linear_solve`. Diagnostic snapshots expose `rcond_near_singular_threshold` rather than a standalone `rcond_error_threshold`.
+The current release is **8.1.0 (2026-07-25)**, a batch post-processing feature update: [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m) fits 3-D translational diffusion on \(0<\tau\le T/2\) and adds XZ-plane rotational diffusion \(D_\mathrm{rot}\) from MSAD (prefer body quaternion; fall back to `tilt_rad`). The hydrodynamic / elastic / Brownian simulation core is unchanged from 8.0.1.
+
+**8.0.1 (2026-07-21)** was a numerical-diagnostics hardening patch on top of 8.0.0. Dense weighted-mobility dissipation checks use full `eig` (iterative `eigs` only for sparse matrices, with fallback); isolated `rcond < 1e-14` warns as `NearSingularMatrix` instead of aborting; `SingularMatrix` requires the joint gate of a large backward residual and near-singular `rcond`; health checks probe solve quality through `check_linear_solve`. Diagnostic snapshots expose `rcond_near_singular_threshold`.
 
 **8.0.0 (2026-07-13)** was the major mathematical-physics correctness and runtime-contract release: weighted-reciprocal translation/twist hydrodynamics for unequal segment lengths, equal-chord canonical custom-pilus geometry, objective full-director initialisation, dimensionless body-only Brownian SPD repair with remainder kicks and isolated RNG, strict incompressible `shear_z` orthogonality, timeout-safe partial returns, and auditable numerical guards via `simulation.log` / `results.diagnostics`.
 

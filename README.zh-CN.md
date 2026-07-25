@@ -4,8 +4,8 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-07-21
-> **版本:** 8.0.1
+> **更新日期:** 2026-07-25
+> **版本:** 8.1.0
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -63,7 +63,7 @@ cfg.auto_confirm = true;
 [results, params, output_dir] = run_simulation(cfg);
 ```
 
-批量扫描**驱动脚本**位于 [`batch_sweep/`](batch_sweep/)；运行后 CSV/MAT 等汇总输出写入 `batch sweep/`（带空格，由脚本自动创建）。对文件夹内全部 `*.json` 进行批跑（可选并行、非空 `case_name` 去重、实时 `batch_summary_*.log`）请使用 [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m)。多工况后处理入口为 [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m)。
+批量扫描**驱动脚本**位于 [`batch_sweep/`](batch_sweep/)；运行后 CSV/MAT 等汇总输出写入 `batch sweep/`（带空格，由脚本自动创建）。对文件夹内全部 `*.json` 进行批跑（可选并行、非空 `case_name` 去重、实时 `batch_summary_*.log`）请使用 [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m)。多工况后处理入口为 [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m)：三维平移 MSD 拟合（\(\mathrm{MSD}=6D\tau+V^2\tau^2\)，拟合窗 \(0<\tau\le T/2\)）与 XZ 平面转动扩散 MSAD（\(\mathrm{MSAD}=2D_\mathrm{rot}\tau\)），导出 Excel 及 PNG/PDF/（可选 HTML）汇总图。
 
 ## 主要输出
 
@@ -111,7 +111,9 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **8.0.1 (2026-07-21)**，是在 8.0.0 之上的数值诊断加固补丁。稠密加权迁移率耗散检验改用全谱 `eig`（`eigs` 仅用于稀疏矩阵并带回退）；孤立 `rcond < 1e-14` 以 `NearSingularMatrix` 告警而不再中止；`SingularMatrix` 需同时满足大后向残差与近奇异 `rcond` 的联合门控；健康体检通过 `check_linear_solve` 探针评估求解质量。诊断快照字段改为 `rcond_near_singular_threshold`，不再使用独立的 `rcond_error_threshold`。
+当前版本为 **8.1.0 (2026-07-25)**，主要为批量后处理运动学功能更新：[`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m) 在 \(0<\tau\le T/2\) 上拟合三维平移扩散，并新增 XZ 平面转动扩散 \(D_\mathrm{rot}\)（优先体四元数，回退 `tilt_rad`）。流体/弹性/布朗仿真核心相对 8.0.1 **未改**。
+
+**8.0.1 (2026-07-21)** 为在 8.0.0 之上的数值诊断加固补丁。稠密加权迁移率耗散检验改用全谱 `eig`（`eigs` 仅用于稀疏矩阵并带回退）；孤立 `rcond < 1e-14` 以 `NearSingularMatrix` 告警而不再中止；`SingularMatrix` 需同时满足大后向残差与近奇异 `rcond` 的联合门控；健康体检通过 `check_linear_solve` 探针评估求解质量。诊断快照字段为 `rcond_near_singular_threshold`。
 
 **8.0.0 (2026-07-13)** 为面向数学物理正确性和运行契约的重大升级：不等段长平动—扭转加权互易、自定义菌毛等弦长 canonical 几何、完整 director 客观初始化、无量纲 body-only Brownian SPD 修复与余数 kick/独立 RNG、严格不可压缩 `shear_z` 正交性、超时部分结果安全返回，以及经 `simulation.log` / `results.diagnostics` 可审计的数值防线。
 

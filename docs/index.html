@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v8.0.1 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, objective equal-chord pili geometry, body-only Ito Brownian dynamics, hardened joint-gated numerical diagnostics, partial timeout persistence, JSON config, and Linux HPC execution.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v8.1.0 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, objective equal-chord pili geometry, body-only Ito Brownian dynamics, batch post-processing with 3-D MSD and XZ MSAD diffusion fits, hardened numerical diagnostics, partial timeout persistence, JSON config, and Linux HPC execution.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v8.0.1 &middot; 2026-07-21</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v8.1.0 &middot; 2026-07-25</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 8.0.1 &bull; 2026-07-21
+      Version 8.1.0 &bull; 2026-07-25
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -520,8 +520,8 @@ tailwind.config = {
           <span class="text-[10px] ml-1 bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-400 px-1.5 py-0.5 rounded font-bold">NEW</span>
         </h4>
         <p class="text-xs text-gray-500 dark:text-gray-400">
-          <span class="en"><code>post_processing/postprocess_cases.m</code>: multi-select Case folders under a parent directory, read <code>timeseries.csv</code> + <code>config.json</code>, export kinematic metrics to one Excel workbook (optional Windows COM styling).</span>
-          <span class="zh"><code>post_processing/postprocess_cases.m</code>：在父目录下多选含 <code>timeseries.csv</code> 的 Case 子文件夹，读取 <code>config.json</code>，将运动学指标汇总导出至单个 Excel（Windows 下可选 COM 排版）。</span>
+          <span class="en"><code>post_processing/postprocess_cases.m</code>: multi-select Case folders; 3-D MSD translational fit on \(0&lt;\tau\le T/2\) plus XZ MSAD rotational \(D_\mathrm{rot}\); Excel + summary figure (optional Windows COM styling).</span>
+          <span class="zh"><code>post_processing/postprocess_cases.m</code>：多选 Case；三维 MSD 平移拟合（\(0&lt;\tau\le T/2\)）与 XZ 平面 MSAD 转动 \(D_\mathrm{rot}\)；导出 Excel 与汇总图（Windows 下可选 COM 排版）。</span>
         </p>
       </div>
     </div>
@@ -537,12 +537,23 @@ tailwind.config = {
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en"><strong>v8.0.1</strong> hardens numerical diagnostics after dense-mobility false aborts: full <code>eig</code> for dense dissipation checks, joint <code>SingularMatrix</code> gating with backward residual, and <code>NearSingularMatrix</code> warnings for isolated near-singularity. It builds on the v8.0.0 mathematical-physics correctness release.</span>
-      <span class="zh"><strong>v8.0.1</strong> 针对稠密迁移率误杀加固数值诊断：稠密耗散用全谱 <code>eig</code>、<code>SingularMatrix</code> 与后向残差联合门控、孤立近奇异仅 <code>NearSingularMatrix</code> 告警；建立在 v8.0.0 数学物理正确性大版本之上。</span>
+      <span class="en"><strong>v8.1.0</strong> extends batch post-processing with 3-D translational MSD fits on \(0&lt;\tau\le T/2\) and XZ-plane rotational diffusion from MSAD. Simulation physics is unchanged from v8.0.1.</span>
+      <span class="zh"><strong>v8.1.0</strong> 扩展批量后处理：三维平移 MSD（拟合窗 \(0&lt;\tau\le T/2\)）与 XZ 平面 MSAD 转动扩散；仿真物理相对 v8.0.1 未改。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
-        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v8.0.1 &mdash; 2026-07-21</p>
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v8.1.0 &mdash; 2026-07-25</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Post-processing diffusion metrics</span><span class="zh">后处理扩散指标</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">3-D TAMSD fit \(\mathrm{MSD}=6D\tau+V^2\tau^2\) on \(0&lt;\tau\le T/2\) (lags span full \(T\)).</span><span class="zh">三维 TAMSD：\(\mathrm{MSD}=6D\tau+V^2\tau^2\)，拟合 \(0&lt;\tau\le T/2\)（滞后覆盖整段 \(T\)）。</span></li>
+          <li><span class="en">XZ MSAD rotational \(D_\mathrm{rot}\) from body quaternion (fallback <code>tilt_rad</code>); Excel + \(2\times3\) summary figure.</span><span class="zh">XZ 平面 MSAD 转动 \(D_\mathrm{rot}\)（优先体四元数，回退 <code>tilt_rad</code>）；Excel 与 \(2\times3\) 汇总图。</span></li>
+          <li><span class="en">No change to the hydrodynamic / elastic / Brownian simulation core.</span><span class="zh">流体 / 弹性 / 布朗仿真核心无改动。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50/50 dark:bg-navy-950/20 p-6">
+        <p class="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">v8.0.1 &mdash; 2026-07-21</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
           <span class="en">Numerical-diagnostics hardening</span><span class="zh">数值诊断加固</span>
         </h3>
@@ -1475,6 +1486,7 @@ postprocess_cases();</code></pre>
         <ul class="text-xs text-gray-600 dark:text-gray-400 space-y-1">
           <li><code>timeseries.csv</code> <span class="en">(required)</span><span class="zh">（必需）</span></li>
           <li><code>config.json</code> <span class="en">(optional; metadata columns if present)</span><span class="zh">（可选；用于元数据列）</span></li>
+          <li><code>simulation_results.mat</code> <span class="en">(optional; <code>results.q</code> for XZ angle)</span><span class="zh">（可选；<code>results.q</code> 用于 XZ 取向角）</span></li>
         </ul>
       </div>
       <div class="bg-white dark:bg-navy-900 rounded-xl p-5 border border-gray-200 dark:border-navy-700">
@@ -1484,7 +1496,8 @@ postprocess_cases();</code></pre>
         <ul class="text-xs text-gray-600 dark:text-gray-400 space-y-1">
           <li><span class="en">Sinking velocity (mean / steady-state / std)</span><span class="zh">沉降速度（均值 / 稳态 / 标准差）</span></li>
           <li><span class="en">Max horizontal displacement, 3-D tortuosity</span><span class="zh">最大水平位移、三维曲折度</span></li>
-          <li><span class="en">MSD fit: translational $D$ and drift speed, $R^2$</span><span class="zh">MSD 拟合：平移扩散系数与漂移速度、$R^2$</span></li>
+          <li><span class="en">3-D MSD fit on \(0&lt;\tau\le T/2\): \(D_\mathrm{trans}\), drift speed, \(R^2\)</span><span class="zh">三维 MSD（\(0&lt;\tau\le T/2\)）：\(D_\mathrm{trans}\)、漂移速度、\(R^2\)</span></li>
+          <li><span class="en">XZ MSAD fit: rotational \(D_\mathrm{rot}\), \(R^2\)</span><span class="zh">XZ MSAD 拟合：转动 \(D_\mathrm{rot}\)、\(R^2\)</span></li>
         </ul>
       </div>
     </div>
@@ -1946,7 +1959,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v8.0.1 &middot; 2026-07-21</li>
+        <li>v8.1.0 &middot; 2026-07-25</li>
       </ul>
     </div>
   </div>

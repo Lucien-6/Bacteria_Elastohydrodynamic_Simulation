@@ -12,11 +12,12 @@ function postprocess_cases()
 %       natural (human) name order; user multi-selects which cases to process.
 %    3. For each selected case the script:
 %         (a) Loads  timeseries.csv  and  config.json
-%         (b) Computes four kinematic metrics:
+%         (b) Computes five kinematic metrics:
 %               - Sinking velocity statistics
 %               - Maximum horizontal displacement
 %               - 3-D trajectory tortuosity
-%               - Translational diffusion coefficient  (MSD fit)
+%               - Translational diffusion coefficient  (3-D MSD fit)
+%               - Rotational diffusion coefficient     (XZ MSAD fit)
 %    4. All results are exported to a formatted Excel workbook plus a batch
 %       summary figure (.png, .pdf, and .html on R2026a+, same base name).
 %
@@ -26,17 +27,27 @@ function postprocess_cases()
 %    speed magnitudes, computed as -mean(Vsink_um_s); the standard deviation
 %    is unchanged by this sign conversion.
 %
-%    Translational diffusion uses the 3-D time-averaged MSD over lags from
-%    one mean sample interval through floor(NT/4):
+%    Translational diffusion uses the 3-D time-averaged MSD.  TAMSD is
+%    evaluated for lags spanning the full observation window T
+%    (tau = dt .. ~T); the ballistic–diffusive model is fitted only on
+%    0 < tau <= T/2:
 %      MSD(tau) = 6*D_trans*tau + V_msd^2*tau^2.
 %    The no-intercept coefficients are obtained by unconstrained least squares;
 %    reported D_trans and V_msd are clamped to non-negative physical values.
+%
+%    Rotational diffusion uses the mean-square angular displacement (MSAD) of
+%    the body long-axis angle in the XZ plane.  Prefer atan2(e_z, e_x) from
+%    results.q in simulation_results.mat; fall back to timeseries tilt_rad.
+%    MSAD lags span T; the pure-diffusion model is fitted on 0 < tau <= T/2:
+%      MSAD(tau) = 2*D_rot*tau.
+%    Reported D_rot is clamped to a non-negative physical value.
 %
 %  Data source per case folder  (non-recursive — subfolders are ignored):
 %    timeseries.csv  ->  t_s, X_um, Y_um, Z_um,
 %                        Vx_um_s, Vy_um_s, Vz_um_s,
 %                        Vsink_um_s, tilt_rad, tilt_deg
 %    config.json     ->  nested JSON  (same structure as config_example.json)
+%    simulation_results.mat (optional) -> results.q for XZ body-axis angle
 %
 %  Syntax:
 %    postprocess_cases()
@@ -62,7 +73,7 @@ function postprocess_cases()
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-07
-%  Updated: 2026-07-13
+%  Updated: 2026-07-25
 
 %% ---- Banner ------------------------------------------------------------
 sep = repmat('=', 1, 64);
@@ -143,8 +154,9 @@ for i = 1:N
         row    = build_result_row(folder_name, folder_path, data, mets);
         row.Status = 'OK';
         n_ok   = n_ok + 1;
-        fprintf('             Status : OK   |  V_sink_steady = %+.4e µm/s  |  Tortuosity = %.4f\n', ...
-            row.Vsink_Steady_um_s, row.Tortuosity);
+        fprintf(['             Status : OK   |  V_sink_steady = %+.4e µm/s  |  ', ...
+            'Tortuosity = %.4f  |  D_rot = %+.4e rad²/s\n'], ...
+            row.Vsink_Steady_um_s, row.Tortuosity, row.D_rot_rad2_s);
     catch ME
         row        = empty_result_row(folder_name, folder_path);
         if strcmp(ME.identifier, 'postprocess_cases:partialSimulation')
@@ -298,6 +310,7 @@ end
 %% =========================================================================
 function data = load_case_data(folder_path)
 data.folder = folder_path;
+data.q = [];   % optional [4 x NT] body quaternions from .mat
 
 % Completion metadata.  Partial timeout trajectories are valid diagnostic
 % data, but they must not enter steady-state or diffusion summaries.
@@ -314,6 +327,10 @@ if isfile(mat_path)
             ['Simulation is partial (termination_reason=%s). Its time series ', ...
              'is preserved for direct inspection but excluded from aggregate metrics.'], ...
             reason);
+    end
+    if isfield(meta, 'results') && isfield(meta.results, 'q') ...
+            && ~isempty(meta.results.q)
+        data.q = meta.results.q;
     end
 end
 
@@ -350,7 +367,7 @@ end
 
 %% =========================================================================
 %  LOCAL FUNCTION: compute_metrics
-%  Computes all four kinematic indicators from loaded Case data.
+%  Computes kinematic indicators from loaded Case data.
 %% =========================================================================
 function m = compute_metrics(data)
 ts = data.ts;
@@ -360,6 +377,23 @@ Y  = ts.Y_um(:);
 Z  = ts.Z_um(:);
 Vs = ts.Vsink_um_s(:);
 NT = numel(t);
+
+% Shared lag / fit window for translational and rotational diffusion
+T_obs = t(end) - t(1);
+if ~(isfinite(T_obs) && T_obs > 0)
+    T_obs = t(end);
+end
+dt      = mean(diff(t));
+max_lag = max(1, NT - 1);          % lags spanning the full observation T
+lags    = (1 : max_lag)';
+tau_vec = lags * dt;
+fit_mask = tau_vec <= (T_obs / 2);
+if nnz(fit_mask) < 2
+    n_fit = max(1, min(numel(tau_vec), floor(NT / 2)));
+    fit_mask = false(size(tau_vec));
+    fit_mask(1:n_fit) = true;
+end
+tau_fit = tau_vec(fit_mask);
 
 % (1) Sinking velocity statistics  (mean & steady reported as -Vsink from CSV:
 %      e.g. raw dZ/dt < 0 for sinking in +Z frame -> positive summary magnitudes)
@@ -383,19 +417,15 @@ else
     m.Tortuosity = NaN;
 end
 
-% (4) Translational diffusion coefficient via time-averaged MSD fitting
+% (4) Translational diffusion coefficient via 3-D TAMSD fitting
 %
-%   TAMSD(tau) = < |r(t+tau) - r(t)|^2 >_t        (3-D, all components)
+%   TAMSD(tau) = < |r(t+tau) - r(t)|^2 >_t   (3-D: X, Y, Z)
 %   Model      : MSD(tau) = 6*D*tau + V^2*tau^2
 %
-%   Lag range  : tau = dt  ..  T_obs/4   (statistical reliability)
+%   Lag range  : tau = dt  ..  ~T_obs     (full observation window)
+%   Fit range  : 0 < tau <= T_obs/2
 %   Fit method : unconstrained least-squares  A \ b
-dt      = mean(diff(t));
-max_lag = max(1, floor(NT / 4));
-lags    = (1 : max_lag)';
-tau_vec = lags * dt;
 msd_vec = zeros(max_lag, 1);
-
 for li = 1:max_lag
     lag = lags(li);
     dr2 = (X(lag+1:end) - X(1:end-lag)).^2 + ...
@@ -403,9 +433,10 @@ for li = 1:max_lag
         (Z(lag+1:end) - Z(1:end-lag)).^2;
     msd_vec(li) = mean(dr2);
 end
+msd_fit = msd_vec(fit_mask);
 
-A     = [tau_vec, tau_vec.^2];    % design matrix  (no intercept)
-coeff = A \ msd_vec;
+A_msd = [tau_fit, tau_fit.^2];    % design matrix  (no intercept)
+coeff = A_msd \ msd_fit;
 
 % Clamp D_trans to non-negative: a negative diffusion coefficient is
 % non-physical and arises from finite-sampling noise when the true motion
@@ -413,14 +444,65 @@ coeff = A \ msd_vec;
 m.D_trans_um2_s = max(0, coeff(1)) / 6;
 m.V_msd_um_s    = sqrt(max(0, coeff(2)));
 
-msd_pred = A * coeff;
-ss_res   = sum((msd_vec - msd_pred).^2);
-ss_tot   = sum((msd_vec - mean(msd_vec)).^2);
+msd_pred = A_msd * coeff;
+ss_res   = sum((msd_fit - msd_pred).^2);
+ss_tot   = sum((msd_fit - mean(msd_fit)).^2);
 m.MSD_R2 = ternary(ss_tot > 0, 1 - ss_res/ss_tot, NaN);
 
-% Store MSD curve for potential downstream use
+% Store full MSD curve (lags through T) for potential downstream use
 m.tau_vec_s   = tau_vec;
 m.msd_vec_um2 = msd_vec;
+
+% (5) Rotational diffusion via XZ-plane MSAD fitting
+%
+%   Orientation : body long-axis angle in the XZ plane
+%                 phi = atan2(e_z, e_x)  (from results.q when available)
+%                 else tilt_rad from timeseries.csv
+%   MSAD(tau)   = < [Theta(t+tau) - Theta(t)]^2 >_t
+%   Model       : MSAD(tau) = 2*D_rot*tau   (no intercept)
+%   Lag / fit   : same window as translational MSD (full T; fit <= T/2)
+phi = extract_xz_body_angle(data, NT);
+angle_diffs = diff(phi);
+angle_diffs = mod(angle_diffs + pi, 2*pi) - pi;   % unwrap jumps to (-pi, pi]
+cumulative  = [0; cumsum(angle_diffs)];
+
+msad_vec = zeros(max_lag, 1);
+for li = 1:max_lag
+    lag = lags(li);
+    dth = cumulative(lag+1:end) - cumulative(1:end-lag);
+    msad_vec(li) = mean(dth.^2);
+end
+msad_fit = msad_vec(fit_mask);
+
+p1_msad = tau_fit \ msad_fit;          % slope of MSAD = p1 * tau
+m.D_rot_rad2_s = max(0, p1_msad) / 2;  % MSAD = 2*D_rot*tau
+
+msad_pred = p1_msad * tau_fit;
+ss_res_a  = sum((msad_fit - msad_pred).^2);
+ss_tot_a  = sum((msad_fit - mean(msad_fit)).^2);
+m.MSAD_R2 = ternary(ss_tot_a > 0, 1 - ss_res_a/ss_tot_a, NaN);
+
+m.msad_vec_rad2 = msad_vec;
+end
+
+
+%% =========================================================================
+%  LOCAL FUNCTION: extract_xz_body_angle
+%  Body long-axis angle in the XZ plane [rad].
+%% =========================================================================
+function phi = extract_xz_body_angle(data, NT)
+% Prefer full in-plane angle from quaternions (analogous to XY atan2 in
+% Stokes-Brown MSAD); fall back to exported tilt elevation angle.
+if isfield(data, 'q') && ~isempty(data.q) && size(data.q, 1) == 4 ...
+        && size(data.q, 2) == NT
+    phi = zeros(NT, 1);
+    for ti = 1:NT
+        R = quat_to_rotmat(data.q(:, ti));
+        phi(ti) = atan2(R(3, 1), R(1, 1));   % atan2(e_z, e_x)
+    end
+else
+    phi = data.ts.tilt_rad(:);
+end
 end
 
 
@@ -472,6 +554,8 @@ row.Tortuosity        = mets.Tortuosity;
 row.D_trans_um2_s     = mets.D_trans_um2_s;
 row.V_msd_um_s        = mets.V_msd_um_s;
 row.MSD_R2            = mets.MSD_R2;
+row.D_rot_rad2_s      = mets.D_rot_rad2_s;
+row.MSAD_R2           = mets.MSAD_R2;
 
 row.Status = 'OK';
 end
@@ -505,6 +589,8 @@ row.Tortuosity         = NaN;
 row.D_trans_um2_s      = NaN;
 row.V_msd_um_s         = NaN;
 row.MSD_R2             = NaN;
+row.D_rot_rad2_s       = NaN;
+row.MSAD_R2            = NaN;
 row.Status             = 'ERROR';
 end
 
@@ -538,9 +624,11 @@ cols = { ...
     'Path_Length_um',    '3D Path Length',           'µm',    '0.0000'; ...
     'Direct_Dist_um',    'Direct Distance',          'µm',    '0.0000'; ...
     'Tortuosity',        'Tortuosity',               '—',     '0.0000'; ...
-    'D_trans_um2_s',     'D_trans  (MSD fit)',       'µm²/s', '0.000E+00'; ...
-    'V_msd_um_s',        'V_drift  (MSD fit)',       'µm/s',  '0.0000'; ...
-    'MSD_R2',            'MSD Fit R²',               '—',     '0.0000'; ...
+    'D_trans_um2_s',     'D_trans  (MSD fit, 3D)',   'µm²/s', '0.000E+00'; ...
+    'V_msd_um_s',        'V_drift  (MSD fit, 3D)',   'µm/s',  '0.0000'; ...
+    'MSD_R2',            'MSD Fit R² (3D, ≤T/2)',    '—',     '0.0000'; ...
+    'D_rot_rad2_s',      'D_rot  (MSAD fit, XZ)',    'rad²/s','0.000E+00'; ...
+    'MSAD_R2',           'MSAD Fit R² (XZ, ≤T/2)',   '—',     '0.0000'; ...
     'Status',            'Status',                   '—',     ''; ...
     };
 n_cols = size(cols, 1);
@@ -609,6 +697,7 @@ case_names = cell(N, 1);
 v_steady   = nan(N, 1);
 tort       = nan(N, 1);
 d_trans    = nan(N, 1);
+d_rot      = nan(N, 1);
 max_h      = nan(N, 1);
 ok_flags   = false(N, 1);
 
@@ -620,6 +709,7 @@ for i = 1:N
     v_steady(i) = postprocess_scalar_metric(r, 'Vsink_Steady_um_s');
     tort(i)     = postprocess_scalar_metric(r, 'Tortuosity');
     d_trans(i)  = postprocess_scalar_metric(r, 'D_trans_um2_s');
+    d_rot(i)    = postprocess_scalar_metric(r, 'D_rot_rad2_s');
     max_h(i)    = postprocess_scalar_metric(r, 'Max_Horiz_Disp_um');
 end
 
@@ -635,12 +725,12 @@ for i = 1:N
 end
 
 fig = figure('Name', 'Batch Post-Process Summary', 'Color', 'w', ...
-    'Position', [80, 80, 1400, 900]);
+    'Position', [60, 60, 1600, 900]);
 set(fig, 'DefaultAxesFontName', 'Arial', ...
     'DefaultAxesFontSize', 10, ...
     'DefaultAxesLineWidth', 0.8);
 
-ax1 = subplot(2, 2, 1);
+ax1 = subplot(2, 3, 1);
 b1 = bar(ax1, 1:N, v_steady, 0.65, 'FaceColor', 'flat');
 b1.CData = bar_colors;
 set(ax1, 'XTick', 1:N, 'XTickLabel', case_names, 'TickDir', 'out', 'Box', 'off');
@@ -659,7 +749,7 @@ leg = legend(ax1, 'Location', 'northeast', 'FontSize', 9, 'Box', 'off');
 set(leg, 'FontName', 'Arial');
 hold(ax1, 'off');
 
-ax2 = subplot(2, 2, 2);
+ax2 = subplot(2, 3, 2);
 b2 = bar(ax2, 1:N, tort, 0.65, 'FaceColor', 'flat');
 b2.CData = bar_colors;
 set(ax2, 'XTick', 1:N, 'XTickLabel', case_names, 'TickDir', 'out', 'Box', 'off');
@@ -670,7 +760,7 @@ ylabel(ax2, 'Tortuosity (—)', 'FontName', 'Arial', 'FontSize', 11);
 title(ax2, 'Path tortuosity', 'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold');
 grid(ax2, 'on');
 
-ax3 = subplot(2, 2, 3);
+ax3 = subplot(2, 3, 3);
 b3 = bar(ax3, 1:N, d_trans, 0.65, 'FaceColor', 'flat');
 b3.CData = bar_colors;
 set(ax3, 'XTick', 1:N, 'XTickLabel', case_names, 'TickDir', 'out', 'Box', 'off');
@@ -678,10 +768,10 @@ if N > 4
     xtickangle(ax3, 35);
 end
 ylabel(ax3, '{\itD}_{trans} (μm^2/s)', 'FontName', 'Arial', 'FontSize', 11, 'Interpreter', 'tex');
-title(ax3, 'Translational diffusion (MSD fit)', 'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold');
+title(ax3, 'Translational diffusion (3D MSD fit)', 'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold');
 grid(ax3, 'on');
 
-ax4 = subplot(2, 2, 4);
+ax4 = subplot(2, 3, 4);
 b4 = bar(ax4, 1:N, max_h, 0.65, 'FaceColor', 'flat');
 b4.CData = bar_colors;
 set(ax4, 'XTick', 1:N, 'XTickLabel', case_names, 'TickDir', 'out', 'Box', 'off');
@@ -691,6 +781,17 @@ end
 ylabel(ax4, 'Max horiz. displacement (μm)', 'FontName', 'Arial', 'FontSize', 11);
 title(ax4, 'Maximum horizontal drift', 'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold');
 grid(ax4, 'on');
+
+ax5 = subplot(2, 3, 5);
+b5 = bar(ax5, 1:N, d_rot, 0.65, 'FaceColor', 'flat');
+b5.CData = bar_colors;
+set(ax5, 'XTick', 1:N, 'XTickLabel', case_names, 'TickDir', 'out', 'Box', 'off');
+if N > 4
+    xtickangle(ax5, 35);
+end
+ylabel(ax5, '{\itD}_{rot} (rad^2/s)', 'FontName', 'Arial', 'FontSize', 11, 'Interpreter', 'tex');
+title(ax5, 'Rotational diffusion (XZ MSAD fit)', 'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold');
+grid(ax5, 'on');
 
 set(0, 'CurrentFigure', fig);
 sgtitle(sprintf('Batch kinematic summary  (%d case(s))', N), ...

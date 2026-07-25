@@ -10,6 +10,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [8.1.0] — 2026-07-25
+
+Minor feature release for batch post-processing kinematics: 3-D
+translational MSD fitting with a \(0\sim T/2\) window, plus XZ-plane
+rotational diffusion from MSAD.
+
+### Added
+
+- **`post_processing/postprocess_cases.m` — rotational diffusion (`D_rot`)**:
+  mean-square angular displacement (MSAD) of the body long-axis angle in
+  the XZ plane. Prefer \(\phi=\mathrm{atan2}(e_z,e_x)\) from `results.q`
+  in `simulation_results.mat`; fall back to `tilt_rad` from
+  `timeseries.csv`. Fit \(\mathrm{MSAD}(\tau)=2D_\mathrm{rot}\tau\)
+  (no intercept) on \(0<\tau\le T/2\); export `D_rot_rad2_s` and
+  `MSAD_R2` to Excel and the batch summary figure.
+
+### Changed
+
+- **3-D translational MSD fit window**: TAMSD still uses full observation
+  lags \(\tau=dt,\ldots,\sim T\), but the ballistic–diffusive model
+  \(\mathrm{MSD}=6D\tau+V^2\tau^2\) is fitted only on \(0<\tau\le T/2\)
+  (replacing the former \(\sim T/4\) fit cutoff). Reported `D_trans` /
+  `V_msd` remain non-negative-clamped.
+- Batch summary figure layout expanded to \(2\times3\) panels to include
+  \(D_\mathrm{rot}\).
+
+### Documentation
+
+- Update `README.md`, `README.zh-CN.md`, `USER_GUIDE.md`,
+  `USER_GUIDE.zh-CN.md`, `requirements.txt`, both theory documents, the
+  project website, presentation, runtime banners, and `project_version.m`
+  to version 8.1.0 dated 2026-07-25.
+
+### Compatibility
+
+- No change to the hydrodynamic / elastic / Brownian simulation core.
+- No new MATLAB, toolbox, Python, Conda, or pip dependency.
+- Post-process Excel schema gains two columns (`D_rot_rad2_s`, `MSAD_R2`);
+  consumers that hard-code column indices should be updated.
+
+---
+
 ## [8.0.1] — 2026-07-21
 
 Patch release hardening runtime numerical diagnostics after production

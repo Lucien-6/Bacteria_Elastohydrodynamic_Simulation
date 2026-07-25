@@ -63,7 +63,7 @@ function [results, params, output_dir] = run_simulation_HPC_Linux(cfg_or_path)
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
 %  Updated: 2026-07-21
-%  Log banner version: 8.0.1 (2026-07-21) - keep in sync with README / CHANGELOG
+%  Log banner version: 8.1.0 (2026-07-25) - keep in sync with README / CHANGELOG
 %
 %  Path policy: defensive addpath calls here allow
 %  run_simulation_HPC_Linux(cfg) without main_coupled_simulation.m.

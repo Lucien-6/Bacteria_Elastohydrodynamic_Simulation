@@ -3,12 +3,14 @@
 English | [中文](USER_GUIDE.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Version:** 8.0.1
-> **Updated:** 2026-07-21
+> **Version:** 8.1.0
+> **Updated:** 2026-07-25
 
 This guide is for running simulations, choosing the right configuration path, finding outputs, and post-processing completed cases. For model equations and derivations, see [`docs/theory.md`](docs/theory.md). For release history, see [`CHANGELOG.md`](CHANGELOG.md).
 
-Release note: v8.0.1 hardens runtime numerical diagnostics on top of v8.0.0. Dense dissipation checks use full `eig`; isolated near-singularity (`rcond < 1e-14`) warns as `NearSingularMatrix`; `SingularMatrix` aborts only under the joint gate of a large backward residual (`> 1e-6`) and near-singular `rcond`. Diagnostic snapshots store `rcond_near_singular_threshold`.
+Release note: v8.1.0 extends batch post-processing (`postprocess_cases`): 3-D translational MSD fit on \(0<\tau\le T/2\), plus XZ-plane rotational diffusion \(D_\mathrm{rot}\) from MSAD. Simulation physics is unchanged from v8.0.1.
+
+v8.0.1 hardened runtime numerical diagnostics: dense dissipation checks use full `eig`; isolated near-singularity (`rcond < 1e-14`) warns as `NearSingularMatrix`; `SingularMatrix` aborts only under the joint gate of a large backward residual (`> 1e-6`) and near-singular `rcond`. Diagnostic snapshots store `rcond_near_singular_threshold`.
 
 v8.0.0 introduced weighted-reciprocal translation/twist hydrodynamics for unequal segment lengths, equal-chord canonical custom-pilus geometry, objective full-director initialisation, dimensionless Brownian SPD repair, true-duration remainder kicks, isolated Brownian random streams, strict incompressible-shear validation, saved partial timeout returns, and run-scoped numerical diagnostics.
 
@@ -267,7 +269,16 @@ postprocess_cases()
 2. Select the case folders to include.
 3. Choose the output `.xlsx` path.
 
-The post-processor reads `timeseries.csv` and `config.json`, computes summary kinematic metrics, writes an Excel workbook, and exports a summary figure as PNG, PDF, and optional HTML.
+The post-processor reads `timeseries.csv` and `config.json` (and optionally `results.q` from `simulation_results.mat` for orientation). For each selected case folder (one trajectory) it computes:
+
+| Metric | Method |
+| --- | --- |
+| Sinking velocity | Mean / last-5% steady / std of \(-\texttt{Vsink\_um\_s}\) |
+| Max horizontal displacement, 3-D tortuosity | Path geometry from \(X,Y,Z\) |
+| Translational \(D_\mathrm{trans}\), \(V_\mathrm{msd}\) | 3-D TAMSD; fit \(\mathrm{MSD}=6D\tau+V^2\tau^2\) on \(0<\tau\le T/2\) (lags span full \(T\)) |
+| Rotational \(D_\mathrm{rot}\) | XZ body-axis MSAD; fit \(\mathrm{MSAD}=2D_\mathrm{rot}\tau\) on \(0<\tau\le T/2\) |
+
+Results go to one Excel workbook plus a multi-panel summary figure (PNG, PDF, optional HTML on R2026a+). Partial timeout cases (`results.completed=false`) are excluded from aggregate diffusion metrics.
 
 ## 11. Common Checks
 
