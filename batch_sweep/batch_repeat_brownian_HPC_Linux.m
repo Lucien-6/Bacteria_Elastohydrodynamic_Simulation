@@ -52,7 +52,7 @@
 %
 %  Description:
 %    Runs the same physical setup multiple times with independent RNG streams
-%    for Brownian kicks.  Each repeat is saved under:
+%    for the Brownian thermal forces.  Each repeat is saved under:
 %        output/<case_name_base>/001/
 %        output/<case_name_base>/002/
 %        ...
@@ -90,6 +90,8 @@
 %  Forked:  2026-07-03 — Lucien — HPC_Linux variant per WX2 partition review
 %                        (Linux, MATLAB R2023a, exclusive single node,
 %                        distributed/network storage): see items 1-5 above.
+%  Updated: 2026-07-16 — Lucien — capture_partial_outdir moved to src/utils
+%                        (parfor-safe); FATAL handler prints MException.cause.
 clear; clc;
 
 % Ensure working directory is project root (contains run_simulation_HPC_Linux.m)
@@ -743,9 +745,27 @@ catch ME_batch
     batch_fatal_error = ME_batch;
     fprintf('\n%s\n', sep);
     fprintf('  [FATAL] Batch execution aborted: %s\n', ME_batch.message);
+    fprintf('          Identifier: %s\n', ME_batch.identifier);
     if ~isempty(ME_batch.stack)
         fprintf('          Location: %s (line %d)\n', ...
             ME_batch.stack(1).name, ME_batch.stack(1).line);
+    end
+    % SourceCodeNotAvailable often wraps the real worker-side failure in .cause
+    if ~isempty(ME_batch.cause)
+        for iCause = 1:numel(ME_batch.cause)
+            C = ME_batch.cause{iCause};
+            fprintf('          Caused by [%d]: [%s] %s\n', iCause, C.identifier, C.message);
+            if ~isempty(C.stack)
+                fprintf('                       at %s (line %d)\n', C.stack(1).name, C.stack(1).line);
+            end
+            if ~isempty(C.cause)
+                for jCause = 1:numel(C.cause)
+                    C2 = C.cause{jCause};
+                    fprintf('                       nested [%d]: [%s] %s\n', ...
+                        jCause, C2.identifier, C2.message);
+                end
+            end
+        end
     end
     fprintf('  Continuing to final report with partial results...\n');
     fprintf('%s\n', sep);
@@ -1261,40 +1281,6 @@ function write_resource_probe_summary(fid, info, mem_per_worker_gb, cpu_frac, me
     fprintf(fid, 'mem_cap: %d\n',              info.mem_cap);
     fprintf(fid, 'binding: %s\n',              char(info.binding));
     fprintf(fid, 'worker_blas_threads: %d\n',  blas_threads);
-end
-
-
-function outdir_char = capture_partial_outdir(dir_k, expected_dir)
-%CAPTURE_PARTIAL_OUTDIR  Best-effort recovery of a failed run's output folder.
-%
-%  MATLAB does not propagate a function's output arguments back to the
-%  caller when that function throws an uncaught error -- even though
-%  run_simulation_HPC_Linux computes output_dir (and creates the folder, and may
-%  have written a partial simulation.log with a [FATAL] block) well
-%  before the point where the error is raised, [res_k, ~, dir_k] =
-%  run_simulation_HPC_Linux(cfg_k) leaves dir_k at whatever value it held before
-%  the call (verified empirically: a function erroring after assigning
-%  an output argument still returns nothing to the caller).  So dir_k
-%  here is always '' on failure and cannot recover the real path.
-%
-%  Instead, since cfg_k.case_name is deterministic per repeat
-%  (case_name_base/NNN) and run_simulation_HPC_Linux only appends a timestamp
-%  suffix when the target folder already contains prior run data (which
-%  a fresh repeat folder normally does not), the caller passes the
-%  expected path as expected_dir; we confirm it actually exists on disk
-%  before reporting it, so a batch_repeat_brownian_HPC_Linux bug or a genuinely
-%  never-created folder still correctly yields ''.
-    outdir_char = '';
-    if nargin >= 1 && ~isempty(dir_k)
-        dir_str = strtrim(char(string(dir_k)));
-        if ~isempty(dir_str)
-            outdir_char = dir_str;
-            return;
-        end
-    end
-    if nargin >= 2 && ~isempty(expected_dir) && isfolder(expected_dir)
-        outdir_char = expected_dir;
-    end
 end
 
 

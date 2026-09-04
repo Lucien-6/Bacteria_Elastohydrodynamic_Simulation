@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-07-25
-> **Version:** 8.1.0
+> **Updated:** 2026-09-04
+> **Version:** 8.5.0
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -16,7 +16,7 @@ This project simulates the low-Reynolds-number settling dynamics of a rigid bact
 - Parametric or imported custom pili centerlines.
 - Coupled RSM/RSS hydrodynamics with non-local segment-integral twist mobility, reciprocal Schur-complement coupling, and physical standard-rotlet scaling.
 - Kirchhoff elastic rods with intrinsic curvature and active moment options.
-- Optional body-only Brownian dynamics: the 6-DOF body covariance uses the full coupled body-pili effective mobility, dimensionless SPD repair, explicit Ito thermal drift, and an isolated reproducible random stream. Pili internal elastic modes remain deterministic.
+- Optional body-only Brownian dynamics: the 6-DOF body covariance uses the full coupled body-pili effective mobility with dimensionless SPD repair and an isolated reproducible random stream; each interval's increment is realised as a constant thermal generalised force acting through the coupled ODE (implicit Ito drift, no root kink). Pili internal elastic modes receive no thermal noise of their own.
 - Optional background flow: off, uniform, or finite-thickness shear.
 - Free-torsion root coupling and constant motor torque for motor-driven flagella.
 - Inline MATLAB configuration, JSON configuration, and programmatic batch execution.
@@ -105,7 +105,11 @@ drivers exclude that partial trajectory from steady-state statistics.
 | [`src/config/init_coupled_state.m`](src/config/init_coupled_state.m) | Initial state vector construction. |
 | [`src/core/ode_coupled_rhs.m`](src/core/ode_coupled_rhs.m) | Coupled elastohydrodynamic ODE right-hand side. |
 | [`src/core/build_coupled_lin_sys.m`](src/core/build_coupled_lin_sys.m) | Coupled linear system assembly. |
-| [`src/physics/compute_effective_body_brownian.m`](src/physics/compute_effective_body_brownian.m) | Full-coupled effective body mobility and body-only Brownian noise factor. |
+| [`src/physics/compute_pili_curvature.m`](src/physics/compute_pili_curvature.m) | Shared node-collocated, second-order curvature/twist operator (moments and `kb0`). |
+| [`src/physics/compute_pili_elastic_moments.m`](src/physics/compute_pili_elastic_moments.m) | Kirchhoff restoring moments with root boundary rules. |
+| [`src/physics/compute_effective_body_brownian.m`](src/physics/compute_effective_body_brownian.m) | Full-coupled effective body mobility, Brownian covariance factor, and dimensionless mobility. |
+| [`src/physics/sample_brownian_body_force.m`](src/physics/sample_brownian_body_force.m) | Per-interval thermal generalised body force (force realisation of the Brownian increment). |
+| [`src/physics/background_flow_velocity.m`](src/physics/background_flow_velocity.m) | Shared background-flow velocity evaluator (solver and flow-field plots). |
 | [`src/visualization/compute_plot_flowfield.m`](src/visualization/compute_plot_flowfield.m) | End-state flow-field evaluation at the achieved final time and figure export. |
 
 ## Documentation
@@ -120,7 +124,9 @@ drivers exclude that partial trajectory from steady-state statistics.
 
 ## Version Notes
 
-The current release is **8.1.0 (2026-07-25)**, a batch post-processing feature update: [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m) fits 3-D translational diffusion on \(0<\tau\le T/2\) and adds XZ-plane rotational diffusion \(D_\mathrm{rot}\) from MSAD (prefer body quaternion; fall back to `tilt_rad`). The hydrodynamic / elastic / Brownian simulation core is unchanged from 8.0.1.
+The current release is **8.5.0 (2026-09-04)**, which changes how body-only Brownian motion is applied: each Brownian interval's thermal increment is realised as a constant generalised force `f_th = M_eff \ (dU/dt_B)` acting on the body through the coupled ODE (`sample_brownian_body_force.m`, `ode_coupled_rhs` Step 8a) instead of an instantaneous displacement kick followed by root re-projection. Pili now follow the body's thermal motion continuously, so the spurious curvature kink between segments 1 and 2 that every kick used to inject — and the stiff high-wavenumber relaxation it forced onto `ode15s` — is gone; the Ito drift `kBT div(M)` is generated implicitly by the mobility gradient along the trajectory, so the explicit finite-difference drift (12 extra coupled solves per node) was removed. Brownian trajectories differ from earlier versions even for the same seed; deterministic runs are unchanged. The type-2 parabolic pilus template is also anchored exactly at the origin. Release **8.4.0 (2026-09-04)** corrected the `free_torsion` root twist equation: the root $\psi_1$ row is the whole-filament axial moment balance and now carries only the boundary (motor) torque, whereas the interior Kirchhoff twist moment used to be added as well, making the motor balance the drag of the first segment only and inflating the steady rotor speed by the segment count $N$. Release **8.3.0 (2026-09-04)** was a discretisation-accuracy and geometry-consistency update: the Kirchhoff curvature stencil is now node-collocated and second-order accurate (shared operator `compute_pili_curvature.m`, also used for `kb0`), and the 14 attachment-site maps in `pili_building.m` are proper rotations (sites 1, 2, 5, 7, 10, 11, 14 previously reflected chiral pili) with a right-handed `deflection_x`; planar pili are placed identically to before. The preceding release, **8.2.0 (2026-09-04)**, was a physics-correctness update from the full mathematical review: the flagellar motor now follows a signed (asymmetric) linear torque-speed law in the rotor speed *relative to the cell body* (full axial rate `dpsi_1 + cos(theta_1) dphi_1 - Omega_body . d3`), with a documented sign convention (positive torque = right-handed about the outward root tangent); the flow-field post-processor solves force densities from the velocity relative to the ambient flow and adds the background flow to the plotted field; `validate_simulation_params` rejects missing/invalid `shape_params` for pilus types 2-5 with a clear message; and the user guides document the `1/L_pili` and `EI/L_pili` units of all curvature and moment inputs.
+
+**8.1.0 (2026-07-25)** was a batch post-processing feature update: [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m) fits 3-D translational diffusion on \(0<\tau\le T/2\) and adds XZ-plane rotational diffusion \(D_\mathrm{rot}\) from MSAD (prefer body quaternion; fall back to `tilt_rad`). The hydrodynamic / elastic / Brownian simulation core is unchanged from 8.0.1.
 
 **8.0.1 (2026-07-21)** was a numerical-diagnostics hardening patch on top of 8.0.0. Dense weighted-mobility dissipation checks use full `eig` (iterative `eigs` only for sparse matrices, with fallback); isolated `rcond < 1e-14` warns as `NearSingularMatrix` instead of aborting; `SingularMatrix` requires the joint gate of a large backward residual and near-singular `rcond`; health checks probe solve quality through `check_linear_solve`. Diagnostic snapshots expose `rcond_near_singular_threshold`.
 

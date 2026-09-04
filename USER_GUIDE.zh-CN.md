@@ -3,12 +3,11 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 8.1.0
-> **更新日期:** 2026-07-25
-
+> **版本:** 8.5.0
+> **更新日期:** 2026-09-04
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-版本提示：v8.1.0 扩展批量后处理（`postprocess_cases`）：在 \(0<\tau\le T/2\) 上拟合三维平移 MSD，并新增 XZ 平面转动扩散 \(D_\mathrm{rot}\)（MSAD）。仿真物理相对 v8.0.1 未改。
+版本提示：v8.5.0 改变 body-only 布朗运动的施加方式——每个区间的热增量以恒定广义力经耦合 ODE 实现，取代“位移 kick + 根部重投影”，从而消除每个 Brownian 节点处的纤毛根部伪折点，并使 Ito 漂移隐式生成（见 §8）。即使随机种子相同，Brownian 轨迹也与旧版本不同；确定性算例不受影响。2 型抛物线菌毛模板现在精确锚定于原点（此前首节点偏移约 4 nm/K）。v8.4.0 修正 `free_torsion` 根部扭转方程——马达扭矩现在由整根鞭毛的扭转阻力平衡，而不再只由第 1 段平衡，因此马达驱动算例的稳态转子转速相对旧版约下降为 1/N（N 为分段数，见 §7）；运行前失速诊断改用一致的阻力系数。v8.3.0 将菌毛曲率差分模板改为节点共位的二阶格式，并将 14 个参数化附着位点变换全部改为真旋转、`deflection_x` 改为右手约定。平面菌毛（1–4 型、`deflection_x = 0`）的放置与旧版完全一致；位点 1、2、5、7、10、11、14 上的锥形螺旋菌毛以及任何 `deflection_x` 非零的菌毛现在具有正确（旧版为镜像）的手性——若配置是针对旧几何调参的，请将螺旋参数 `c` 或 `deflection_x` 取反。v8.2.0 为物理正确性更新。鞭毛马达改用以转子相对胞体转速表述的带符号线性扭矩–转速关系并明确符号约定（见 §7）；流场后处理计入背景流；2–5 型菌毛的 `shape_params` 在运行前校验；曲率/力矩输入的单位已写入文档（§4）。v8.1.0 扩展批量后处理（`postprocess_cases`）：在 \(0<\tau\le T/2\) 上拟合三维平移 MSD，并新增 XZ 平面转动扩散 \(D_\mathrm{rot}\)（MSAD）。
 
 v8.0.1 在 v8.0.0 之上加固运行期数值诊断。稠密耗散检验改用全谱 `eig`；孤立近奇异（`rcond < 1e-14`）以 `NearSingularMatrix` 告警；`SingularMatrix` 仅在大后向残差（`> 1e-6`）与近奇异 `rcond` 同时成立时中止。诊断快照字段为 `rcond_near_singular_threshold`。
 
@@ -98,6 +97,20 @@ main_coupled_simulation
 | `motor_torque` | 裸字符串（`off`、`constant`）**或**含 `.type` 的结构体（v7.9.0 P7/P8） | `validate_simulation_params.m` |
 | `background_flow.type` | `off`、`uniform`、`shear_z` | `coupled_background_flow.m` |
 | `root_coupling` | `clamped`、`free_torsion` | `build_coupled_lin_sys.m` |
+
+### 菌毛曲率与力矩输入的单位
+
+每根菌毛的弹性杆方程以**菌毛长度** $L_{\mathrm{pili}}$（而非全局体尺度 $L_0$）无量纲化：弧长取 $s \in [0, 1]$，节点间距为 $1/N_{\mathrm{seg}}$。因此所有曲率量都是以 $1/L_{\mathrm{pili}}$ 为单位的无量纲数，所有分布力矩都以 $EI/L_{\mathrm{pili}}$ 为单位。
+
+| 输入 | 含义 | 单位 / 换算 |
+| --- | --- | --- |
+| `intrinsic_curvature.kappa = [k1, k2, k3]`（`constant`） | 参考 $\kappa_1 = \mathbf{d}_3\cdot\mathbf{d}_2'$（绕 $\mathbf{d}_1$ 弯曲）、$\kappa_2 = \mathbf{d}_1\cdot\mathbf{d}_3'$（绕 $\mathbf{d}_2$ 弯曲）、$\kappa_3 = \mathbf{d}_2\cdot\mathbf{d}_1'$（扭转） | 无量纲；物理值 $= k_i / L_{\mathrm{pili}}$ [1/m] |
+| `intrinsic_curvature.kappa_d2`、`kappa_d3`（`helix`） | 均匀的绕 $\mathbf{d}_2$ 参考弯曲与参考扭转 | 无量纲；对半径 $R$、约化螺距 $p$（螺距 $=2\pi p$）的螺旋：`kappa_d2` $= L_{\mathrm{pili}}\,R/(R^2+p^2)$，`kappa_d3` $= L_{\mathrm{pili}}\,p/(R^2+p^2)$ |
+| `active_moment.amplitude_Nm` | 内部主动力矩幅值 | 物理量 [N m]；`amplitude_dimless = amplitude_Nm * L_pili / EI` |
+| `motor_torque.torque_pN_nm` | 马达失速扭矩 | 物理量 [pN nm]；`torque_dimless = torque / (EI/L_pili)` |
+| `motor_torque.max_omega_Hz` | 零扭矩（空载）转速 | 物理量 [Hz]；`max_omega_dimless = 2*pi*max_omega_Hz*T_0` |
+
+由于曲率输入按菌毛长度缩放，同一个 `kappa` 值用于不同 `length_um` 的菌毛时对应不同的物理曲率。`intrinsic_curvature = "frozen"`（默认）直接取初始几何为参考曲率，无需换算。
 
 ### 起飞前参数检查（v7.9.0）
 
@@ -194,18 +207,36 @@ run('batch_sweep/batch_run_from_json.m');
 
 - `root_coupling`: `"clamped"` 或 `"free_torsion"`。
 - `motor_torque.type`: `"off"` 或 `"constant"`。
-- `motor_torque.torque_pN_nm`: 马达力矩，单位 pN nm。
-- `motor_torque.max_omega_Hz`: 可选停转速度限制，单位 Hz。
+- `motor_torque.torque_pN_nm`: 马达失速扭矩，单位 pN nm（带符号，见下）。
+- `motor_torque.max_omega_Hz`: 线性扭矩–转速关系的零扭矩转速，单位 Hz。
 
-在 `free_torsion` 模式下，根部扭转角 $\psi_1$ 会动态演化。马达力矩只施加到纤毛根部 $d_3$ 力矩平衡行；不会额外加入 `R_global(4:6)`，因为这些行表示完整“胞体 + 纤毛”耦合系统的角动量平衡。
+在 `free_torsion` 模式下，根部扭转角 $\psi_1$ 会动态演化。其方程是**整根鞭毛关于根部**的轴向（$d_3$）力矩平衡：鞭毛所受水动力扭矩由胞体经根部传递的扭矩平衡，即马达扭矩（`motor_torque.type = "off"` 时为无摩擦轴承，扭矩为零）。内部 Kirchhoff 扭转力矩不出现在该行——它由内部节点承担（v8.4.0；此前内部扭转力矩也被加入根部行，使马达扭矩仅与第 1 段的阻力平衡，稳态转子转速被放大为分段数 $N$ 倍）。不会额外向 `R_global(4:6)` 加入反力矩，因为这些行表示完整“胞体 + 纤毛”耦合系统的角动量平衡。
+
+稳态下直鞭毛的转子转速由整根鞭毛的扭转阻力决定：$\omega \approx \tau_{\mathrm{eff}} / (\xi_t L)$，其中 $\xi_t$ 为正则化 Stokeslet 线段模型的单位长度轴向转动阻力（默认 $\epsilon = r_{\mathrm{pili}}$ 时 $\xi_t \approx 2\pi\mu\epsilon^2$，是无滑移圆柱值 $4\pi\mu r^2$ 的一半；`validate_simulation_params.m` 的运行前失速诊断采用同一系数）。
+
+**扭矩–转速关系（v8.2.0）。** 有效马达扭矩采用细菌鞭毛马达实测的线性扭矩–转速关系：
+
+$$\tau_{\mathrm{eff}} = \tau_{\mathrm{motor}}\left(1 - \frac{\omega_{\mathrm{rel}}}{\omega_{\max}}\right),\qquad
+\omega_{\mathrm{rel}} = \operatorname{sign}(\tau_{\mathrm{motor}})\,\big[(\dot\psi_1 + \cos\theta_1\,\dot\phi_1) - \boldsymbol{\Omega}_{\mathrm{body}}\cdot\mathbf{d}_3^{(1)}\big].$$
+
+- $\omega_{\mathrm{rel}}$ 是转子（第 1 段）**相对胞体**的自旋速率，以马达驱动方向为正；它使用第 1 段完整的轴向角速度，而不是单独的 $\dot\psi_1$。
+- 该关系是非对称的：$\omega_{\mathrm{rel}} = 0$ 给出失速扭矩，$\omega_{\mathrm{rel}} = \omega_{\max}$ 给出零扭矩，被迫反转（$\omega_{\mathrm{rel}} < 0$）时扭矩高于失速值，转速超过 $\omega_{\max}$ 时马达变为制动器（$\tau_{\mathrm{eff}} < 0$）。旧版的 $|\omega|$ 形式对两个转向一视同仁。
+- 由于关系是线性的，自洽扭矩在每次 RHS 调用中通过一个小型线性方程组精确求得（任意数量的马达）。
+
+**符号约定。** 正的 `torque_pN_nm` 使转子绕指向远离胞体的根部切向量 $\mathbf{d}_3$ 做右手旋转，即从鞭毛末端朝胞体看为逆时针（左手螺旋鞭毛的大肠杆菌“直行”转向）；负值为顺时针。v8.2.0 之前的配置采用相反且未记录的转向。
 
 ## 8. 布朗动力学
 
 在 JSON 中设置 `brownian.enable`，或在 MATLAB 中设置 `cfg.enable_brown`。
 
-Brownian 更新采用 body-only Ito 近似，并通过有限差分显式计算热漂移 `kBT*div(M_eff)`。`M_eff` 来自完整胞体-纤毛确定性耦合系统，但随机增量只施加到胞体的三个平移和三个转动自由度；纤毛内部 Euler 角模态仍为确定性演化，每次胞体 kick 后仅重新满足根部约束。因此该方案不是完整耦合热平衡模型，不适用于研究纤毛内部模态的能量均分。
+Brownian 动力学为 body-only：6×6 有效迁移率 `M_eff` 来自完整胞体-纤毛确定性耦合系统，但热驱动只施加到胞体的三个平移和三个转动自由度；纤毛内部 Euler 角模态本身不接受热噪声。因此该方案不是完整耦合热平衡模型，不适用于研究纤毛内部模态的能量均分。
 
-SPD 修复和 Cholesky 分解在无量纲广义坐标中完成，再转换到 SI 单位。当 `T_obs` 不能被 `dt_B` 整除时，最后一次 Brownian kick 使用实际剩余时间。当前不提供用户可配置的中点漂移选项。
+**力实现方案（v8.5.0）。** 每个 Brownian 区间 `dt_B` 开始时探测 `M_eff`，抽取 Euler–Maruyama 增量 `dU = L_eff * eta * sqrt(dt_B)`，并将其换算为恒定的广义热力 `f_th = M_eff \ (dU / dt_B)`，在整个区间内加到 ODE 右端项的胞体行上。胞体由耦合求解器推动，纤毛通过水动力与弹性耦合连续跟随——与它们跟随重力或马达扭矩的方式完全一致。两点实际影响：
+
+- 根部不再出现伪折点。旧版本在每个节点瞬时移动胞体，并只将第 1 段纤毛重新投影到移动后的胞体上，每次 kick 都在第 1、2 段之间注入曲率跳变，激发刚性高波数弹性模态，迫使 `ode15s` 在每个节点之后采用极小步长。改为力实现后根部约束从未被破坏，Brownian 算例不再需要更短的 `dt_B` 或更细的分段来保持光滑。
+- 隐式 Ito 漂移。沿轨迹采样到的迁移率梯度在 `dt_B` 一阶精度上复现热漂移 `kBT*div(M_eff)`（见 `docs/theory.md` §10.2），因此不再计算显式有限差分漂移（v7.5.0–v8.4.0 每个节点额外 12 次耦合求解）。`[BROWN]` 日志在前 5 个区间及之后每 100 个区间起点报告抽取的 `|F_th|`、`|tau_th|` 与冻结迁移率下的目标增量。
+
+SPD 修复和 Cholesky 分解在无量纲广义坐标中完成，再转换到 SI 单位。当 `T_obs` 不能被 `dt_B` 整除时，最后一个 Brownian 区间使用实际剩余时间。当前不提供用户可配置的中点漂移选项。固定 `brownian.rng_seed` 的算例仍可复现，但由于随机增量的实现方式不同，轨迹与 v8.4.0 及更早版本不一致。
 
 重要选项包括：
 

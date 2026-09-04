@@ -1,4 +1,4 @@
-function M_active = coupled_active_moment(t, k, N_k, d1, d2, d3, d1N, d2N, d3N, am_cfg, root_coupling_k)
+function M_active = coupled_active_moment(t, k, N_k, d1, d2, d3, d1N, d2N, d3N, am_cfg, root_coupling_k) %#ok<INUSD>  (retained for interface stability)
 %COUPLED_ACTIVE_MOMENT  Per-pili time-varying active internal moments
 %
 %  Description:
@@ -58,9 +58,9 @@ function M_active = coupled_active_moment(t, k, N_k, d1, d2, d3, d1N, d2N, d3N, 
 %               segment-associated balance node i = 1,...,N_k, in the
 %               local nodal director basis.
 %               Row 1: d1 component, Row 2: d2 component, Row 3: d3 component.
-%               For clamped coupling, first segment is zeroed (overwritten by BC).
-%               For free_torsion, only bending components (rows 1-2) of the
-%               first segment are zeroed; torsional component (row 3) is preserved.
+%               Column 1 (root node) is zeroed for both coupling modes: the
+%               root internal moment is the body->rod torque (clamped
+%               reaction or motor torque), not the integrated active moment.
 %
 %  References:
 %    [1] Walker et al. (2020), Physical Review E.
@@ -68,11 +68,8 @@ function M_active = coupled_active_moment(t, k, N_k, d1, d2, d3, d1N, d2N, d3N, 
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-03
-%  Updated: 2026-07-12
-
-if nargin < 11 || isempty(root_coupling_k)
-    root_coupling_k = 'clamped';
-end
+%  Updated: 2026-09-04 (v8.4.0: root column zeroed for both coupling modes;
+%                       root_coupling_k retained for interface stability)
 
 if strcmp(am_cfg.type, 'off')
     M_active = zeros(3, N_k);
@@ -130,11 +127,15 @@ switch am_cfg.type
             'Unknown active_moment type: ''%s'' for pili %d.', am_cfg.type, k);
 end
 
-if strcmp(root_coupling_k, 'clamped')
-    M_active(:, 1) = 0;     % All components zeroed (overwritten by clamped BC)
-else
-    M_active(1:2, 1) = 0;   % Bending components zeroed (theta_1, phi_1 constrained)
-    % M_active(3, 1) preserved — torsional component drives free psi_1 dynamics
-end
+%% Zero the root column (node 1) for both root-coupling modes (v8.4.0)
+%  The integrated active moment int_{s_i}^{1} m ds is the INTERNAL moment
+%  carried across the cross-section at node i.  At s = 0 the internal moment
+%  equals the torque the body applies to the rod: for clamped roots this is
+%  an unknown reaction (rows replaced by kinematic constraints); for
+%  free_torsion the d3 component is the motor torque supplied in
+%  ode_coupled_rhs (zero for a free bearing).  Internal moments cannot spin
+%  the rod as a whole, so keeping M_active(3,1) (pre-8.4.0) let a purely
+%  internal twist wave rotate a free-bearing filament -- unphysical.
+M_active(:, 1) = 0;
 
 end

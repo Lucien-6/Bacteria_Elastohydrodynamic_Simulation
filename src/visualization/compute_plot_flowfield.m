@@ -56,6 +56,9 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-06
 %  Updated: 2026-07-13
+%  Updated: 2026-09-04 — background flow: forces solved from the velocity
+%           relative to the ambient fluid; ambient flow added to the
+%           plotted field (previously ignored in both places)
 
 %% ---- Configuration ----
 if nargin < 6 || isempty(flow_opts), flow_opts = struct(); end
@@ -198,6 +201,29 @@ for k = 1:M_pili
 end
 
 %% ======================================================================
+%  Step 5b: Remove the prescribed background flow (if any)
+%  ======================================================================
+%  The regularised Stokeslet/rotlet densities generate only the
+%  DISTURBANCE flow.  With a background flow u_bg the mobility relation
+%  used by ode_coupled_rhs is  v - u_bg = M f,  so the force solve below
+%  must use the velocity of the structure RELATIVE to the ambient fluid
+%  (translational block and segment twist rates alike).  The ambient
+%  flow is then added back to the evaluated grid field in Step 9/10 via
+%  bg_fun so that the plotted velocity is the total fluid velocity.
+has_bg_flow = isfield(params, 'bg_flow') && isfield(params.bg_flow, 'type') ...
+    && ~strcmp(params.bg_flow.type, 'off');
+if has_bg_flow
+    u_bg_all = coupled_background_flow(X_all, geom, params);
+    v_trans  = v_trans - u_bg_all(1:3*N_total);
+    v_twist  = v_twist - u_bg_all(3*N_total+1:end);
+    bg_fun   = @(X) background_flow_velocity(X, params);
+    logf('[FLOW] Background flow ''%s'' active: forces solved from relative velocity; ambient flow added to plotted field.\n', ...
+        params.bg_flow.type);
+else
+    bg_fun = [];
+end
+
+%% ======================================================================
 %  Step 6: Build hydrodynamic matrices (re-use existing function)
 %  ======================================================================
 logf('[FLOW] Building hydrodynamic matrices...\n');
@@ -314,7 +340,7 @@ if silent
 end
 [Ux_xz, ~, Uz_xz, Umag_xz, mask_xz, dist_xz] = evaluate_plane_velocity( ...
     grid_xz_dl, [Nz_xz, Nx_xz], X_cm, R_body, body_vis, ...
-    body_data, seg_data, um_s_factor, chunk_size, xz_progress_tag);
+    body_data, seg_data, um_s_factor, chunk_size, xz_progress_tag, bg_fun);
 
 logf('[FLOW] XZ velocity range: [%.4e, %.4e] um/s\n', ...
     min(Umag_xz(:), [], 'omitnan'), max(Umag_xz(:), [], 'omitnan'));
@@ -340,7 +366,7 @@ if silent
 end
 [~, Uy_yz, Uz_yz, Umag_yz, mask_yz, dist_yz] = evaluate_plane_velocity( ...
     grid_yz_dl, [Nz_yz, Ny_yz], X_cm, R_body, body_vis, ...
-    body_data, seg_data, um_s_factor, chunk_size, yz_progress_tag);
+    body_data, seg_data, um_s_factor, chunk_size, yz_progress_tag, bg_fun);
 
 t_flow_elapsed = toc(t_flow_start);
 logf('[FLOW] YZ velocity range: [%.4e, %.4e] um/s  (total compute: %.1f s)\n', ...
@@ -641,11 +667,13 @@ end
 %  =====================================================================
 function [Ux, Uy, Uz, Umag, inside_mask, dist_field] = evaluate_plane_velocity( ...
     grid_pts_dl, grid_size, X_cm, R_body, body_vis, ...
-    body_data, seg_data, um_s_factor, chunk_size, progress_tag)
+    body_data, seg_data, um_s_factor, chunk_size, progress_tag, bg_fun)
 %EVALUATE_PLANE_VELOCITY  Stokes velocity on a planar evaluation grid
 %
 %  Performs body-interior masking and evaluates the RSM (body) plus
-%  RSS+Rotlet (pili) velocity kernels at all exterior grid points.
+%  RSS+Rotlet (pili) velocity kernels at all exterior grid points.  When a
+%  background-flow evaluator bg_fun is supplied, the ambient velocity is
+%  added so the returned field is the TOTAL fluid velocity.
 %
 %  Inputs:
 %    grid_pts_dl   [N x 3]  Grid points in dimensionless units
@@ -661,6 +689,8 @@ function [Ux, Uy, Uz, Umag, inside_mask, dist_field] = evaluate_plane_velocity( 
 %    um_s_factor   scalar   Velocity unit conversion factor
 %    chunk_size    scalar   Memory-management chunk size
 %    progress_tag  char     (optional) Progress bar label, e.g. '[FLOW-XZ] '
+%    bg_fun        handle   (optional) X [N x 3] -> [N x 3] dimensionless
+%                             background velocity; [] when no ambient flow
 %
 %  Outputs:
 %    Ux, Uy, Uz  [Nrows x Ncols]  Velocity components [um/s] (NaN inside)
@@ -672,6 +702,7 @@ function [Ux, Uy, Uz, Umag, inside_mask, dist_field] = evaluate_plane_velocity( 
 %                                   extract_body_outline).
 
 if nargin < 10 || isempty(progress_tag), progress_tag = ''; end
+if nargin < 11, bg_fun = []; end
 show_progress = ~isempty(progress_tag);
 
 Nrows = grid_size(1);
@@ -847,6 +878,14 @@ if seg_data.active
             render_progress_bar(progress_tag, flow_tick, n_chunks_total, t_flow_bar);
         end
     end
+end
+
+% ---- Add prescribed background flow (total = ambient + disturbance) ----
+if ~isempty(bg_fun) && N_eval > 0
+    u_bg_ev = bg_fun(X_eval);              % [N_eval x 3], dimensionless
+    ux_ev = ux_ev + u_bg_ev(:, 1);
+    uy_ev = uy_ev + u_bg_ev(:, 2);
+    uz_ev = uz_ev + u_bg_ev(:, 3);
 end
 
 % ---- Map to grid and convert units ----

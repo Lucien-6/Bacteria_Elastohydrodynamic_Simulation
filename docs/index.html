@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v8.1.0 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, objective equal-chord pili geometry, body-only Ito Brownian dynamics, batch post-processing with 3-D MSD and XZ MSAD diffusion fits, hardened numerical diagnostics, partial timeout persistence, JSON config, and Linux HPC execution.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v8.5.0 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, second-order Kirchhoff curvature stencil, proper-rotation attachment sites, signed motor torque-speed law, whole-filament free-torsion root balance, body-only Brownian dynamics realised as a thermal force through the coupled ODE, batch post-processing with 3-D MSD and XZ MSAD diffusion fits, hardened numerical diagnostics, JSON config, and Linux HPC execution.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v8.1.0 &middot; 2026-07-25</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v8.5.0 &middot; 2026-09-04</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 8.1.0 &bull; 2026-07-25
+      Version 8.5.0 &bull; 2026-09-04
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -537,10 +537,51 @@ tailwind.config = {
     </h2>
     <div class="w-16 h-1 bg-teal-600 rounded mb-6"></div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">
-      <span class="en"><strong>v8.1.0</strong> extends batch post-processing with 3-D translational MSD fits on \(0&lt;\tau\le T/2\) and XZ-plane rotational diffusion from MSAD. Simulation physics is unchanged from v8.0.1.</span>
-      <span class="zh"><strong>v8.1.0</strong> 扩展批量后处理：三维平移 MSD（拟合窗 \(0&lt;\tau\le T/2\)）与 XZ 平面 MSAD 转动扩散；仿真物理相对 v8.0.1 未改。</span>
+      <span class="en"><strong>v8.2.0&ndash;v8.5.0</strong> (2026-09-04) are the physics-correctness releases from the full mathematical review: signed motor torque-speed law, second-order curvature stencil and proper-rotation attachment sites, whole-filament <code>free_torsion</code> root balance, and body-only Brownian dynamics realised as a constant thermal force through the coupled ODE (no root kink, implicit It&ocirc; drift).</span>
+      <span class="zh"><strong>v8.2.0&ndash;v8.5.0</strong>（2026-09-04）为全面数理审查后的物理正确性系列版本：带符号马达扭矩–转速关系、二阶曲率模板与真旋转附着位点、整根鞭毛的 <code>free_torsion</code> 根部平衡，以及以恒定热力经耦合 ODE 实现的 body-only 布朗动力学（无根部折点、隐式 It&ocirc; 漂移）。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
+      <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v8.5.0 &mdash; 2026-09-04</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Brownian force realisation</span><span class="zh">布朗增量的力实现</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">Each Brownian interval's body-only increment becomes a constant generalised force \(\mathbf{f}_{\rm th}=\mathbf{M}_{\rm eff}^{-1}\,\delta\mathbf{U}/\Delta t_B\) applied to the body rows of the ODE right-hand side (<code>sample_brownian_body_force.m</code>, <code>ode_coupled_rhs</code> Step 8a); pili follow the body through the coupled solve.</span><span class="zh">每个 Brownian 区间的 body-only 增量改为恒定广义力 \(\mathbf{f}_{\rm th}=\mathbf{M}_{\rm eff}^{-1}\,\delta\mathbf{U}/\Delta t_B\)，加到 ODE 右端项的胞体行（<code>sample_brownian_body_force.m</code>、<code>ode_coupled_rhs</code> 第 8a 步）；纤毛经耦合求解跟随胞体。</span></li>
+          <li><span class="en">Removes the spurious segment-1/2 curvature kink injected by the former displacement kick + root re-projection, and the stiff \(\ell^4\) relaxation it forced onto <code>ode15s</code>.</span><span class="zh">消除旧“位移 kick + 根部重投影”在第 1、2 段之间注入的伪曲率折点及其强加给 <code>ode15s</code> 的刚性 \(\ell^4\) 松弛。</span></li>
+          <li><span class="en">The It&ocirc; drift \(k_BT\,\nabla\!\cdot\!\mathbf{M}\) is generated implicitly by the mobility gradient along the trajectory (identically zero in an unbounded fluid); the explicit finite-difference drift (12 probes per node) is removed. Same seed, different trajectories; deterministic runs unchanged. Type-2 parabolic template anchored at the origin.</span><span class="zh">It&ocirc; 漂移 \(k_BT\,\nabla\!\cdot\!\mathbf{M}\) 由沿轨迹的迁移率梯度隐式生成（无界流体中恒为零），显式有限差分漂移（每节点 12 次探测）已移除。种子相同但轨迹不同；确定性算例不变。2 型抛物线模板锚定于原点。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50/50 dark:bg-navy-950/20 p-6">
+        <p class="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">v8.4.0 &mdash; 2026-09-04</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en"><code>free_torsion</code> root twist row</span><span class="zh"><code>free_torsion</code> 根部扭转行</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">The root \(\psi_1\) row is the whole-filament axial moment balance and carries only the boundary (motor) torque; the interior Kirchhoff twist and integrated active moments are no longer double counted (steady rotor speeds drop by \(\approx N\)).</span><span class="zh">根部 \(\psi_1\) 行为整根鞭毛的轴向力矩平衡，仅携带边界（马达）扭矩；内部 Kirchhoff 扭转与积分主动力矩不再重复计入（稳态转子转速下降约 \(N\) 倍）。</span></li>
+          <li><span class="en">Pre-flight stall diagnostic uses \(\xi_t = 2\pi\mu\epsilon^2 L\) (regularised rotlet segments).</span><span class="zh">运行前失速诊断改用 \(\xi_t = 2\pi\mu\epsilon^2 L\)（正则化 rotlet 线段）。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v8.3.0 &mdash; 2026-09-04</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Second-order curvature stencil and proper attachment rotations</span><span class="zh">二阶曲率模板与真旋转附着位点</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">Node-collocated \(O(\Delta s^2)\) curvature/twist operator <code>compute_pili_curvature.m</code> shared by the elastic moments and <code>kb0</code> (observed order 2.00 vs 0.98).</span><span class="zh">节点共位的 \(O(\Delta s^2)\) 曲率/扭转算子 <code>compute_pili_curvature.m</code>，弹性力矩与 <code>kb0</code> 共用（实测阶数 2.00 对 0.98）。</span></li>
+          <li><span class="en">All 14 attachment-site maps are rotations with \(\det R=+1\) (sites 1, 2, 5, 7, 10, 11, 14 previously mirrored chiral pili); <code>deflection_x</code> is right-handed. Planar pili are placed exactly as before.</span><span class="zh">14 个附着位点变换均为 \(\det R=+1\) 的真旋转（位点 1、2、5、7、10、11、14 此前会镜像手性菌毛）；<code>deflection_x</code> 为右手约定。平面菌毛放置与旧版完全一致。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50/50 dark:bg-navy-950/20 p-6">
+        <p class="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">v8.2.0 &mdash; 2026-09-04</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Physics-correctness update from the full review</span><span class="zh">全面审查后的物理正确性更新</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">Signed (asymmetric) linear motor torque-speed law in the rotor speed relative to the body, solved exactly and self-consistently per RHS call; documented sign convention.</span><span class="zh">以转子相对胞体转速表述的带符号（非对称）线性马达扭矩–转速关系，每次 RHS 调用精确自洽求解；符号约定已写入文档。</span></li>
+          <li><span class="en">Flow-field post-processor solves force densities from the velocity relative to the ambient flow and adds the background flow to the plotted field; <code>shape_params</code> of pilus types 2&ndash;5 validated up front; curvature/moment input units documented.</span><span class="zh">流场后处理由相对环境流的速度求解力密度并叠加背景流；2&ndash;5 型菌毛的 <code>shape_params</code> 运行前校验；曲率/力矩输入单位已写入文档。</span></li>
+        </ul>
+      </div>
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
         <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v8.1.0 &mdash; 2026-07-25</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
@@ -999,49 +1040,63 @@ M_eff_dimless = z_dot_probe(1:6, :);  % 6x6 effective mobility</code></pre>
         $$\mathbf{D}_\text{eff} = k_B T\,\mathbf{M}_\text{eff}, \qquad \mathbf{L}_\text{eff}\,\mathbf{L}_\text{eff}^\top = 2\,\mathbf{D}_\text{eff}, \qquad \delta\mathbf{U} = \mathbf{L}_\text{eff}\,\boldsymbol{\eta}\,\sqrt{\Delta t_B}, \quad \boldsymbol{\eta} \sim \mathcal{N}(\mathbf{0},\,\mathbf{I}_6)$$
       </div>
       <p class="text-gray-600 dark:text-gray-400 text-sm">
-        <span class="en">The 6D displacement $\delta\mathbf{U}$ contains both translational ($\delta\mathbf{X}$, in metres)
+        <span class="en">The 6D increment $\delta\mathbf{U}$ contains both translational ($\delta\mathbf{X}$, in metres)
         and rotational ($\delta\boldsymbol{\omega}$, in radians) components, coupled through the off-diagonal
-        blocks of $\mathbf{L}_\text{eff}$. The rotation is applied via quaternion composition:
-        $\mathbf{q}_{n+1} = \Delta\mathbf{q}\,\otimes\,\mathbf{q}_n$.</span>
-        <span class="zh">6D 位移 $\delta\mathbf{U}$ 包含平动分量 ($\delta\mathbf{X}$，单位：米)
+        blocks of $\mathbf{L}_\text{eff}$. Since v8.5.0 it is <strong>not applied as a displacement kick</strong>:
+        it is converted into the constant generalised force that would produce it on the frozen system,
+        $\mathbf{f}_\text{th} = \mathbf{M}_\text{eff}^{-1}\,\delta\mathbf{U}/\Delta t_B$, which is held in the
+        body rows of the ODE right-hand side for the whole Brownian interval (<code>sample_brownian_body_force.m</code>,
+        <code>ode_coupled_rhs</code> Step 8a). The body is then moved by the coupled solver and the pili follow it
+        continuously, exactly as they follow gravity or a motor torque.</span>
+        <span class="zh">6D 增量 $\delta\mathbf{U}$ 包含平动分量 ($\delta\mathbf{X}$，单位：米)
         和转动分量 ($\delta\boldsymbol{\omega}$，单位：弧度)，通过 $\mathbf{L}_\text{eff}$ 的非对角块耦合。
-        转动通过四元数复合施加：$\mathbf{q}_{n+1} = \Delta\mathbf{q}\,\otimes\,\mathbf{q}_n$。</span>
+        自 v8.5.0 起它<strong>不再以位移 kick 施加</strong>，而是换算为在冻结系统上恰好产生该增量的恒定广义力
+        $\mathbf{f}_\text{th} = \mathbf{M}_\text{eff}^{-1}\,\delta\mathbf{U}/\Delta t_B$，在整个 Brownian 区间内保持在
+        ODE 右端项的胞体行中（<code>sample_brownian_body_force.m</code>、<code>ode_coupled_rhs</code> 第 8a 步）。
+        胞体由耦合求解器推动，纤毛连续跟随——与它们跟随重力或马达扭矩的方式完全一致。</span>
       </p>
     </div>
 
-    <!-- Explicit Ito drift (collapsible) -->
+    <!-- Force realisation and implicit Ito drift (collapsible) -->
     <div class="bg-white dark:bg-navy-900 rounded-xl border border-gray-200 dark:border-navy-700 overflow-hidden">
       <button onclick="this.nextElementSibling.classList.toggle('open'); this.querySelector('svg').classList.toggle('rotate-180')"
         class="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 dark:hover:bg-navy-800 transition">
         <span class="font-semibold text-sm">
-          <span class="en">Strict Ito Drift Correction</span>
-          <span class="zh">严格 Ito 漂移修正</span>
+          <span class="en">Force Realisation and Implicit It&ocirc; Drift (v8.5.0)</span>
+          <span class="zh">力实现与隐式 It&ocirc; 漂移（v8.5.0）</span>
         </span>
         <svg class="w-5 h-5 text-gray-400 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
       </button>
       <div class="collapsible-body px-5 pb-5">
         <p class="text-gray-600 dark:text-gray-400 text-sm mb-4">
-          <span class="en">When $\mathbf{M}_\text{eff}$ depends on the configuration (as it does here &mdash; pili change shape over time),
-          the It&ocirc; form of the overdamped SDE acquires a <strong>thermal drift term</strong>
-          $k_B T\,\nabla_{\!\mathbf{q}}\!\cdot\!\mathbf{M}_\text{eff}$. Directly computing this divergence
-          in the six body coordinates gives a single, strict stochastic interpretation for the Brownian update.</span>
-          <span class="zh">当 $\mathbf{M}_\text{eff}$ 依赖于构型时（此处确实如此——纤毛形状随时间变化），
-          过阻尼 SDE 的 It&ocirc; 形式会产生一个<strong>热漂移项</strong>
-          $k_B T\,\nabla_{\!\mathbf{q}}\!\cdot\!\mathbf{M}_\text{eff}$。在六个胞体坐标上直接计算该散度，
-          使 Brownian 更新保持单一、严格的随机解释。</span>
+          <span class="en">Before v8.5.0 the body pose was displaced instantaneously at each Brownian node and only the first
+          pilus segment was re-projected onto the moved body. Every kick therefore injected a curvature discontinuity
+          between segments 1 and 2 of amplitude $\sim|\delta\boldsymbol{\Theta}|/\ell$, exciting high-wavenumber elastic
+          modes that relaxed on the stiff $\ell^4$ time scale and forced <code>ode15s</code> into very small steps.
+          Realising the increment as a constant force removes the kink entirely: the root constraint is never violated.</span>
+          <span class="zh">v8.5.0 之前，胞体姿态在每个 Brownian 节点被瞬时移动，且只有第 1 段纤毛被重新投影到移动后的胞体上，
+          因此每次 kick 都在第 1、2 段之间注入幅值 $\sim|\delta\boldsymbol{\Theta}|/\ell$ 的曲率间断，激发在刚性 $\ell^4$
+          时间尺度上松弛的高波数弹性模态，迫使 <code>ode15s</code> 采用极小步长。将增量实现为恒定力后折点完全消失：根部约束从未被破坏。</span>
         </p>
         <p class="text-gray-600 dark:text-gray-400 text-sm mb-3">
-          <span class="en">The implemented step uses:</span>
-          <span class="zh">当前实现采用：</span>
+          <span class="en">Expanding the constant-force ODE over one interval and using
+          $\mathbb{E}[\mathbf{f}_\text{th}\mathbf{f}_\text{th}^{\top}]\,\Delta t_B = 2k_BT\,\mathbf{M}_\text{eff}^{-1}$ gives</span>
+          <span class="zh">在一个区间内展开恒力 ODE，并利用
+          $\mathbb{E}[\mathbf{f}_\text{th}\mathbf{f}_\text{th}^{\top}]\,\Delta t_B = 2k_BT\,\mathbf{M}_\text{eff}^{-1}$，得到</span>
         </p>
-        <ol class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-decimal list-inside mb-4">
-          <li><span class="en">Project the diffusion tensor to an SPD covariance before Cholesky sampling.</span><span class="zh">Cholesky 采样前将扩散张量投影为 SPD 协方差。</span></li>
-          <li><span class="en">Evaluate $k_B T\,\nabla\!\cdot\!\mathbf{M}_\text{eff}$ by centered finite differences over translation and rotation coordinates.</span><span class="zh">对平动和转动坐标做中心差分，计算 $k_B T\,\nabla\!\cdot\!\mathbf{M}_\text{eff}$。</span></li>
-          <li><span class="en">Apply $\Delta\mathbf{U}=\mathbf{b}_\text{Ito}\Delta t_B+\mathbf{L}\boldsymbol{\eta}\sqrt{\Delta t_B}$ to the body pose.</span><span class="zh">将 $\Delta\mathbf{U}=\mathbf{b}_\text{Ito}\Delta t_B+\mathbf{L}\boldsymbol{\eta}\sqrt{\Delta t_B}$ 施加到胞体姿态。</span></li>
-        </ol>
+        <div class="bg-gray-50 dark:bg-navy-800 rounded-xl p-5 border border-gray-200 dark:border-navy-700 mb-4">
+          $$\mathbb{E}\big[\delta\mathbf{U}_\text{real}\big] = k_BT\,\nabla\!\cdot\!\mathbf{M}_\text{eff}\,\Delta t_B + \mathcal{O}(\Delta t_B^{3/2}),\qquad
+            \operatorname{Cov}\big[\delta\mathbf{U}_\text{real}\big] = 2k_BT\,\mathbf{M}_\text{eff}\,\Delta t_B + \mathcal{O}(\Delta t_B^{3/2})$$
+        </div>
         <p class="text-xs text-gray-500 dark:text-gray-500">
-          <span class="en">Cost: one covariance evaluation plus centered finite-difference mobility probes per Brownian step; no midpoint option is exposed.</span>
-          <span class="zh">代价：每个布朗步需要一次协方差评估和中心差分迁移率探测；不再暴露中点选项。</span>
+          <span class="en">The It&ocirc; drift is therefore generated implicitly by the mobility gradient along the trajectory (the scheme is a
+          consistent weak first-order integrator), so the explicit finite-difference $k_BT\,\nabla\!\cdot\!\mathbf{M}_\text{eff}$
+          of v7.5.0&ndash;v8.4.0 (12 extra coupled solves per node) is no longer applied. In an unbounded fluid
+          $\mathbf{M}_\text{eff}=\mathbf{R}\,\mathbf{M}_\text{shape}\mathbf{R}^{\top}$ and this divergence vanishes identically.
+          Cost: one effective-mobility probe per interval.</span>
+          <span class="zh">因此 It&ocirc; 漂移由沿轨迹的迁移率梯度隐式生成（该方案为一致的弱一阶积分器），v7.5.0&ndash;v8.4.0 的显式有限差分
+          $k_BT\,\nabla\!\cdot\!\mathbf{M}_\text{eff}$（每节点额外 12 次耦合求解）不再施加。无界流体中
+          $\mathbf{M}_\text{eff}=\mathbf{R}\,\mathbf{M}_\text{shape}\mathbf{R}^{\top}$，该散度恒为零。代价：每区间一次有效迁移率探测。</span>
         </p>
       </div>
     </div>
@@ -1300,7 +1355,7 @@ graph TD
             <tr>
               <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">Engine</span><span class="zh">引擎</span></td>
               <td class="px-4 py-2"><code>run_simulation.m</code></td>
-              <td class="px-4 py-2"><span class="en">ODE loop, Brownian kicks, post-processing, visualisation, data export; closes summary/flow-field figures after PNG export</span><span class="zh">ODE 循环、布朗扰动、后处理、可视化、数据导出；PNG 导出后关闭总览/流场图窗</span></td>
+              <td class="px-4 py-2"><span class="en">ODE loop, per-interval Brownian thermal forces, post-processing, visualisation, data export; closes summary/flow-field figures after PNG export</span><span class="zh">ODE 循环、逐区间布朗热力、后处理、可视化、数据导出；PNG 导出后关闭总览/流场图窗</span></td>
             </tr>
             <tr>
               <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">ODE Core</span><span class="zh">ODE 核心</span></td>
@@ -1959,7 +2014,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v8.1.0 &middot; 2026-07-25</li>
+        <li>v8.5.0 &middot; 2026-09-04</li>
       </ul>
     </div>
   </div>

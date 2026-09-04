@@ -1,7 +1,28 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 8.1.0 (2026-07-25)
+# Release: 8.5.0 (2026-09-04)
 #
+# v8.5.0: Brownian force-realisation release. Each dt_B interval's body-only
+#   thermal increment is realised as a constant generalised force
+#   f_th = M_eff \ (dU/dt_B) acting through the coupled ODE
+#   (new src/physics/sample_brownian_body_force.m, ode_coupled_rhs Step 8a)
+#   instead of a displacement kick + root re-projection; removes the spurious
+#   pilus root kink and the explicit finite-difference Ito drift (implicit
+#   now; identically zero in an unbounded fluid). Type-2 parabolic template
+#   anchored at the origin. No new dependency.
+# v8.4.0: free_torsion root twist row carries only the boundary (motor)
+#   torque; interior Kirchhoff twist and integrated active moments no longer
+#   double counted (steady rotor speeds drop by ~N). Stall diagnostic uses
+#   xi_t = 2*pi*mu*eps^2*L. No new dependency.
+# v8.3.0: node-collocated second-order curvature stencil (shared
+#   compute_pili_curvature.m, also for kb0); all 14 attachment-site maps are
+#   proper rotations; right-handed deflection_x. No new dependency.
+# v8.2.0: physics-correctness release after the full mathematical review:
+#   signed linear motor torque-speed law in the rotor speed relative to the
+#   body with exact self-consistent solve; flow-field post-processor accounts
+#   for the background flow (shared background_flow_velocity.m); shape_params
+#   validation for pilus types 2-5; documented curvature/moment units.
+#   No new dependency.
 # v8.1.0: batch post-processing kinematics feature release.
 #   postprocess_cases.m: 3-D TAMSD fit MSD=6D*tau+V^2*tau^2 on 0<tau<=T/2
 #   (lags still span full T); adds XZ-plane MSAD rotational diffusion

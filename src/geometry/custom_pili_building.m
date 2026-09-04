@@ -70,6 +70,7 @@ function Pili = custom_pili_building(custom_pili_cfg, attachment_sites, ...
 %                         alignment-angle logging.
 %  Updated: 2026-07-03 — Optional logf_h for run_simulation silent mode.
 %  Updated: 2026-07-13
+%  Updated: 2026-09-04 — v8.3.0 RX_loc made right-handed.
 
 %% Input validation
 if nargin < 7
@@ -220,14 +221,15 @@ for j = 1:NPili
     %   are swapped (deflection_z = twist, deflection_x = tilt).  The
     %   parameter NAMES are kept for JSON-compatibility only; users
     %   migrating a deflection setting from parametric to custom must
-    %   swap deflection_x <-> deflection_z.  RX_loc retains the parametric
-    %   left-handed sign for deflection_x.
+    %   swap deflection_x <-> deflection_z.  Both RZ_loc and RX_loc are
+    %   standard right-handed rotations (v8.3.0; RX_loc previously carried
+    %   the legacy left-handed sign of parametric mode).
     RZ_loc = [ cos(deflection_z), -sin(deflection_z), 0;
                sin(deflection_z),  cos(deflection_z), 0;
                0,                   0,                  1];
     RX_loc = [1,  0,                  0;
-              0,  cos(deflection_x),  sin(deflection_x);
-              0, -sin(deflection_x),  cos(deflection_x)];
+              0,  cos(deflection_x), -sin(deflection_x);
+              0,  sin(deflection_x),  cos(deflection_x)];
     R_deflect_local = RX_loc * RZ_loc;
     R_deflect       = B * R_deflect_local * B.';     % local -> lab conjugation
 

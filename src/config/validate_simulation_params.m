@@ -52,6 +52,9 @@ function validate_simulation_params(cfg, logf_h)
 %                         P9 — AbsTol/RelTol wording; Bugbot-fixed alpha_0
 %                         custom-mode regression (empty initial_orientation).
 %  Updated: 2026-07-13
+%  Updated: 2026-09-04 — Pili_Matrix shape-parameter checks for types 2-5
+%           (validate_pili_shape_params); v8.4.0 stall diagnostic uses the
+%           RSS torsional drag 2*pi*mu*eps^2*L and free-bearing wording.
 
 if nargin < 2 || isempty(logf_h)
     logf_h = @(varargin) [];   % no-op fallback
@@ -159,6 +162,12 @@ else
                 if PM(1, kk) < 1 || PM(1, kk) > 5 || floor(PM(1, kk)) ~= PM(1, kk)
                     errs{end+1} = sprintf('Pili %d: type (row 1) must be integer 1-5, got %g.', ...
                         kk, PM(1, kk));
+                else
+                    % Shape parameters (rows 5-7) required by types 2-5.
+                    % parse_pili_config fills missing entries with NaN, which
+                    % previously surfaced only as an opaque concatenation
+                    % error deep inside pili_type_building.
+                    errs = validate_pili_shape_params(PM(:, kk), kk, errs);
                 end
             end
         end
@@ -458,6 +467,53 @@ end
 
 %% ==================== Local helper functions ====================
 
+function errs = validate_pili_shape_params(pm_col, kk, errs)
+%VALIDATE_PILI_SHAPE_PARAMS  Check Pili_Matrix rows 5-7 against the type.
+%
+%  Mirrors the parameter usage in pili_type_building.m:
+%    type 2 (parabolic) : PM(5) = K       curvature scale, K > 0, K*L_um <= 4
+%                         (the arc-length polynomial is fitted on [0, 4])
+%    type 3 (circular)  : PM(5) = angle   subtended angle [rad], 0 < angle <= 2*pi
+%    type 4 (sinusoidal): PM(5) = a, PM(6) = b   (finite)
+%    type 5 (spiral)    : PM(5) = a, PM(6) = b, PM(7) = c   (finite)
+%  parse_pili_config stores unspecified shape parameters as NaN.
+
+    pili_type = pm_col(1);
+    L_um      = pm_col(2);
+    sp        = pm_col(5:7);
+
+    switch pili_type
+        case 1
+            % linear: no shape parameters required
+        case 2
+            if ~isfinite(sp(1)) || sp(1) <= 0
+                errs{end+1} = sprintf(['Pili %d: parabolic type requires shape_params(1) = K > 0 ', ...
+                    '(curvature scale), got %s.'], kk, num2str(sp(1)));
+            elseif isfinite(L_um) && sp(1) * L_um > 4
+                errs{end+1} = sprintf(['Pili %d: parabolic type requires K * length_um <= 4 ', ...
+                    '(arc-length polynomial fitted on [0, 4]), got K*L = %.3f.'], kk, sp(1) * L_um);
+            end
+        case 3
+            if ~isfinite(sp(1)) || sp(1) <= 0 || sp(1) > 2*pi
+                errs{end+1} = sprintf(['Pili %d: circular type requires shape_params(1) = ', ...
+                    'subtended angle in (0, 2*pi] rad, got %s.'], kk, num2str(sp(1)));
+            end
+        case 4
+            if ~all(isfinite(sp(1:2)))
+                errs{end+1} = sprintf(['Pili %d: sinusoidal type requires finite shape_params ', ...
+                    '[a, b] (amplitude growth, wavenumber), got %s.'], kk, mat2str(sp(1:2)'));
+            end
+        case 5
+            if ~all(isfinite(sp(1:3)))
+                errs{end+1} = sprintf(['Pili %d: spiral type requires finite shape_params ', ...
+                    '[a, b, c] (radial growth, axial pitch, angular rate), got %s.'], kk, mat2str(sp'));
+            elseif sp(1) == 0 && sp(2) == 0
+                errs{end+1} = sprintf(['Pili %d: spiral type with a = 0 and b = 0 is degenerate ', ...
+                    '(zero arc length).'], kk);
+            end
+    end
+end
+
 function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
 %VALIDATE_PILI_EXT  Validate per-pilus extended fields (intrinsic_curvature,
 %                   active_moment, root_coupling, motor_torque).
@@ -632,11 +688,19 @@ function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
 
                     % --- Stall-curve diagnostic (Issue #7+#9, v7.3.0) ---
                     %
-                    % The motor model is tau_eff = tau_motor*(1 - |omega|/omega_max).
-                    % In steady state, motor torque balances RFT torsional drag:
+                    % The motor model is the signed linear torque-speed law
+                    % tau_eff = tau_motor*(1 - omega_rel/omega_max), omega_rel
+                    % measured in the driving direction (v8.2.0; see
+                    % solve_motor_self_consistent.m).  On the working branch
+                    % (omega_rel > 0) the steady-state estimate below is unchanged.
+                    % In steady state, motor torque balances the torsional drag
+                    % of the WHOLE filament (v8.4.0 root row):
                     %     tau_motor*(1 - omega/omega_max) = xi_t * omega
-                    % with xi_t ~ 4*pi*mu*r_pili^2*L_pilus (no-slip rotational drag
-                    % of a slender rod about its own axis, RFT leading order).
+                    % with xi_t = 2*pi*mu*eps^2*L_pilus, the axial rotational
+                    % drag of a straight regularised-rotlet-segment line with
+                    % the Cortez (2018) 7/2 blob (eps = r_pili in this code).
+                    % This is half the no-slip-cylinder value 4*pi*mu*r^2*L and
+                    % matches the simulator's own steady state to <1e-3.
                     % Solving: omega_steady = tau_motor / (xi_t + tau_motor/omega_max)
                     % => omega_steady/omega_max = tau_motor / (xi_t*omega_max + tau_motor)
                     %
@@ -660,7 +724,7 @@ function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
                         L_k         = aux.pili_lengths_m(kk);            % [m]
                         tau_motor_N = abs(mt_val.torque_pN_nm) * 1e-21;  % pN*nm -> N*m
                         omega_max   = 2*pi * mt_val.max_omega_Hz;        % Hz -> rad/s
-                        xi_t        = 4*pi*aux.mu*aux.r_pili^2*L_k;      % N*m*s/rad
+                        xi_t        = 2*pi*aux.mu*aux.r_pili^2*L_k;      % N*m*s/rad (RSS line, eps = r_pili)
                         ratio       = tau_motor_N / (xi_t*omega_max + tau_motor_N);
                         if ratio >= 0.7
                             warns{end+1} = sprintf(['Pili %d: motor is operating ', ...
@@ -681,7 +745,9 @@ function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
                     end
                 elseif strcmp(rc_actual, 'free_torsion')
                     warns{end+1} = sprintf(['Pili %d: root_coupling = free_torsion but ', ...
-                        'motor_torque = off. Psi_1 will evolve purely under elastic torsion.'], kk);
+                        'motor_torque = off. The root acts as a frictionless bearing: ', ...
+                        'psi_1 evolves so that the net axial hydrodynamic torque on the ', ...
+                        'filament vanishes (no torque is transmitted to the body).'], kk);
                 end
             end
         end

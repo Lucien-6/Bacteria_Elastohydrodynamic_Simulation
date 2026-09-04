@@ -41,6 +41,8 @@ function Pili_str = pili_type_building(PM, Ntail)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2024-10-10
+%  Updated: 2026-09-04 (v8.3.0: RX made right-handed)
+%  Updated: 2026-09-04 (v8.5.0: type-2 parabola anchored at the origin)
 
 %% Extract common parameters
 Pili_Type = PM(1);   % Morphology type
@@ -49,10 +51,12 @@ theta     = PM(3);   % Deflection angle from Z-axis [rad]
 gama      = PM(4);   % Deflection angle from X-axis [rad]
 
 % Build deflection rotation matrix.
-% Note: RX below uses a LEFT-HANDED sign convention for gama (the standard
-% right-handed form would flip the signs of the two sin(gama) entries).
-% This convention is project-internal and preserved because legacy
-% trajectories and tests depend on it.
+% Both RZ and RX are standard RIGHT-HANDED rotations (positive angle =
+% counter-clockwise when looking down the axis toward the origin), so
+% RM = RX * RZ is a proper rotation with det = +1 and the same sign
+% convention as pili_directors / quat_to_rotmat.  (Before v8.3.0 RX used
+% a left-handed sign for gama; configurations with a non-zero
+% deflection_x therefore see the sense of that twist reversed.)
 %
 % Parametric-mode semantics (for cross-reference with custom_pili_building.m):
 %   - The pilus is constructed along the +X axis, so X IS the initial
@@ -69,8 +73,8 @@ RZ = [ cos(theta), -sin(theta), 0;
        sin(theta),  cos(theta), 0;
        0,           0,          1];
 RX = [1, 0,          0;
-      0, cos(gama),  sin(gama);
-      0, -sin(gama), cos(gama)];
+      0, cos(gama), -sin(gama);
+      0, sin(gama),  cos(gama)];
 RM = RX * RZ;
 
 %% Generate morphology-specific coordinates
@@ -99,6 +103,14 @@ switch Pili_Type
         XEnd    = -0.0002146*L_helix.^6 + 0.004265*L_helix.^5 ...
                   - 0.0352*L_helix.^4 + 0.1586*L_helix.^3 ...
                   - 0.4459*L_helix.^2 + 1.087*L_helix - 0.004127;
+        % The least-squares fit carries a residual constant term (-0.004127)
+        % so that x(s=0) != 0 and the template's first node would sit
+        % ~4.1 nm/K off the origin.  Every downstream consumer
+        % (pili_building, custom_pili_building, enforce_clamped_geometry)
+        % assumes the template starts exactly at the origin, so anchor the
+        % inverted curve there (v8.5.0).  The shift is uniform in x and does
+        % not change the node spacing.
+        XEnd    = XEnd - XEnd(1);
         rxtail  = XEnd / K;
         rytail  = rxtail.^2.0;
         rxtail  = rxtail .* 1e-6;

@@ -3,12 +3,11 @@
 English | [中文](USER_GUIDE.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Version:** 8.1.0
-> **Updated:** 2026-07-25
-
+> **Version:** 8.5.0
+> **Updated:** 2026-09-04
 This guide is for running simulations, choosing the right configuration path, finding outputs, and post-processing completed cases. For model equations and derivations, see [`docs/theory.md`](docs/theory.md). For release history, see [`CHANGELOG.md`](CHANGELOG.md).
 
-Release note: v8.1.0 extends batch post-processing (`postprocess_cases`): 3-D translational MSD fit on \(0<\tau\le T/2\), plus XZ-plane rotational diffusion \(D_\mathrm{rot}\) from MSAD. Simulation physics is unchanged from v8.0.1.
+Release note: v8.5.0 changes how body-only Brownian motion is applied — each interval's thermal increment is realised as a constant generalised force acting through the coupled ODE instead of a displacement kick followed by root re-projection, which removes the spurious pilus root kink at every Brownian node and makes the Ito drift implicit (see §8). Brownian trajectories therefore differ from earlier versions even for the same seed; deterministic runs are unchanged. The type-2 parabolic pilus template is now anchored exactly at the origin (its first node was previously offset by ~4 nm/K). v8.4.0 corrects the `free_torsion` root twist equation — the motor torque is now balanced by the torsional drag of the whole filament instead of the first segment only, so steady rotor speeds of motor-driven runs drop by roughly the segment count $N$ relative to earlier versions (see §7); the pre-flight stall diagnostic uses the matching drag coefficient. v8.3.0 makes the pilus curvature stencil node-collocated and second-order accurate, and turns all 14 parametric attachment-site maps into proper rotations with a right-handed `deflection_x`. Planar pili (types 1-4, `deflection_x = 0`) are placed exactly as before; conical-spiral pili at sites 1, 2, 5, 7, 10, 11, 14 and any pilus with non-zero `deflection_x` now have the intended (previously mirrored) handedness — flip the sign of spiral parameter `c` or of `deflection_x` if a configuration was tuned against the old geometry. v8.2.0 was a physics-correctness update. The flagellar motor uses a signed linear torque-speed law in the rotor speed relative to the body with a documented sign convention (see §7); the flow-field post-processor accounts for the background flow; `shape_params` of pilus types 2-5 are validated up front; and the units of curvature/moment inputs are documented (§4). v8.1.0 extended batch post-processing (`postprocess_cases`): 3-D translational MSD fit on \(0<\tau\le T/2\), plus XZ-plane rotational diffusion \(D_\mathrm{rot}\) from MSAD.
 
 v8.0.1 hardened runtime numerical diagnostics: dense dissipation checks use full `eig`; isolated near-singularity (`rcond < 1e-14`) warns as `NearSingularMatrix`; `SingularMatrix` aborts only under the joint gate of a large backward residual (`> 1e-6`) and near-singular `rcond`. Diagnostic snapshots store `rcond_near_singular_threshold`.
 
@@ -25,7 +24,7 @@ Breaking configuration changes (since 8.0.0): `Pili_Matrix` must contain exactly
 - Capsule body surface generation requires Anton Semechko's **S2 Sampling Toolbox** from MATLAB Add-On Explorer / File Exchange.
 - No Python, Conda, or pip environment is required. [`requirements.txt`](requirements.txt) documents this explicitly.
 - **Parallel Computing Toolbox** is optional: needed for the default parallel branches of [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) and [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m) (`use_parallel = true`).
-- **Running on a Linux HPC cluster (v7.10.0+):** use [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) / [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m) instead of the originals — see §5.3.
+- **Running on a Linux HPC cluster (v8.2.0+):** use [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) / [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m) instead of the originals — see §5.3.
 
 ### Recommended Working Folder
 
@@ -100,6 +99,27 @@ A typical top-level layout includes:
 | `background_flow.type` | `off`, `uniform`, `shear_z` | `coupled_background_flow.m` |
 | `root_coupling` | `clamped`, `free_torsion` | `build_coupled_lin_sys.m` |
 
+### Units of Pilus Curvature and Moment Inputs
+
+The elastic-rod equations of each pilus are nondimensionalised with the pilus
+length $L_{\mathrm{pili}}$ (not the global body scale $L_0$): arc length runs
+over $s \in [0, 1]$ with node spacing $1/N_{\mathrm{seg}}$, so every curvature
+is a dimensionless quantity in units of $1/L_{\mathrm{pili}}$ and every
+distributed moment is in units of $EI/L_{\mathrm{pili}}$.
+
+| Input | Meaning | Unit / conversion |
+| --- | --- | --- |
+| `intrinsic_curvature.kappa = [k1, k2, k3]` (`constant`) | reference $\kappa_1 = \mathbf{d}_3\cdot\mathbf{d}_2'$ (bending about $\mathbf{d}_1$), $\kappa_2 = \mathbf{d}_1\cdot\mathbf{d}_3'$ (bending about $\mathbf{d}_2$), $\kappa_3 = \mathbf{d}_2\cdot\mathbf{d}_1'$ (twist) | dimensionless; physical value $= k_i / L_{\mathrm{pili}}$ [1/m] |
+| `intrinsic_curvature.kappa_d2`, `kappa_d3` (`helix`) | uniform reference bending about $\mathbf{d}_2$ and reference twist | dimensionless; for a helix of radius $R$ and reduced pitch $p$ (pitch $=2\pi p$): `kappa_d2` $= L_{\mathrm{pili}}\,R/(R^2+p^2)$, `kappa_d3` $= L_{\mathrm{pili}}\,p/(R^2+p^2)$ |
+| `active_moment.amplitude_Nm` | internal active moment amplitude | physical [N m]; `amplitude_dimless = amplitude_Nm * L_pili / EI` |
+| `motor_torque.torque_pN_nm` | motor stall torque | physical [pN nm]; `torque_dimless = torque / (EI/L_pili)` |
+| `motor_torque.max_omega_Hz` | zero-torque (run-away) speed | physical [Hz]; `max_omega_dimless = 2*pi*max_omega_Hz*T_0` |
+
+Because curvature inputs are scaled by the pilus length, the same `kappa`
+value on pili of different `length_um` describes different physical
+curvatures.  With `intrinsic_curvature = "frozen"` (default) the reference
+curvature is taken from the initial geometry and no unit conversion is needed.
+
 ### Pre-flight Parameter Checks (v7.9.0)
 
 [`validate_simulation_params.m`](src/config/validate_simulation_params.m) runs before initialisation and aggregates all errors into a single report. Notable checks added or tightened in v7.9.0:
@@ -156,7 +176,7 @@ From the repository root, run [`batch_sweep/batch_run_from_json.m`](batch_sweep/
 run('batch_sweep/batch_run_from_json.m');
 ```
 
-### 5.3 Linux HPC cluster batch (`batch_repeat_brownian_HPC_Linux.m`, v7.10.0+)
+### 5.3 Linux HPC cluster batch (`batch_repeat_brownian_HPC_Linux.m`, v8.2.0+)
 
 For headless, single-node-exclusive Linux HPC cluster execution, use [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) / [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m) instead of the originals. This is a maintained fork, not auto-synced with `run_simulation.m` / `batch_repeat_brownian.m` — any future physics/algorithm fix to the originals must be ported here manually. Usage is otherwise identical to §5.1 (same `case_name_base` / `n_repeats` / `brown_rng_seed_mode` / inline-or-JSON config settings).
 
@@ -200,28 +220,66 @@ Key fields under each pilus entry:
 
 - `root_coupling`: `"clamped"` or `"free_torsion"`.
 - `motor_torque.type`: `"off"` or `"constant"`.
-- `motor_torque.torque_pN_nm`: motor torque in pN nm.
-- `motor_torque.max_omega_Hz`: optional stall-speed limit in Hz.
+- `motor_torque.torque_pN_nm`: motor stall torque in pN nm (signed, see below).
+- `motor_torque.max_omega_Hz`: zero-torque speed of the linear torque-speed law in Hz.
 
-For `free_torsion`, the root twist angle $\psi_1$ evolves dynamically. The motor torque is applied to the pilus root $d_3$ moment-balance row only; no separate reaction torque is added to `R_global(4:6)` because those rows represent the angular-momentum balance of the full coupled body-pilus system.
+For `free_torsion`, the root twist angle $\psi_1$ evolves dynamically. Its equation is the axial ($d_3$) moment balance of the **whole filament about the root**: the hydrodynamic torque on the filament is balanced by the torque the body transmits through the root, which is the motor torque (or zero for a frictionless bearing when `motor_torque.type = "off"`). The internal Kirchhoff twist moment does not appear in this row — it is carried by the interior nodes (v8.4.0; before that the interior twist moment was also added to the root row, which made the motor torque balance the drag of the first segment only and inflated the steady rotor speed by a factor of the segment count $N$). No separate reaction torque is added to `R_global(4:6)` because those rows represent the angular-momentum balance of the full coupled body-pilus system.
+
+In steady state the rotor speed of a straight filament is set by the whole-filament torsional drag, $\omega \approx \tau_{\mathrm{eff}} / (\xi_t L)$ with $\xi_t$ the axial rotational drag per unit length of the regularized-Stokeslet-segment model (for the default $\epsilon = r_{\mathrm{pili}}$ this evaluates to $\xi_t \approx 2\pi\mu\epsilon^2$, half the no-slip-cylinder value $4\pi\mu r^2$ used by the pre-flight stall diagnostic in `validate_simulation_params.m`).
+
+**Torque-speed law (v8.2.0).** The effective motor torque follows the
+measured linear torque-speed relation of the bacterial flagellar motor:
+
+$$\tau_{\mathrm{eff}} = \tau_{\mathrm{motor}}\left(1 - \frac{\omega_{\mathrm{rel}}}{\omega_{\max}}\right),\qquad
+\omega_{\mathrm{rel}} = \operatorname{sign}(\tau_{\mathrm{motor}})\,\big[(\dot\psi_1 + \cos\theta_1\,\dot\phi_1) - \boldsymbol{\Omega}_{\mathrm{body}}\cdot\mathbf{d}_3^{(1)}\big].$$
+
+- $\omega_{\mathrm{rel}}$ is the rotor (segment 1) spin **relative to the cell body**, measured positive in the motor's driving direction. It uses the full axial angular velocity of segment 1, not $\dot\psi_1$ alone.
+- The law is asymmetric: $\omega_{\mathrm{rel}} = 0$ gives the stall torque, $\omega_{\mathrm{rel}} = \omega_{\max}$ gives zero torque, forcing the rotor backwards ($\omega_{\mathrm{rel}} < 0$) raises the torque above stall, and spinning it faster than $\omega_{\max}$ turns the motor into a brake ($\tau_{\mathrm{eff}} < 0$). The former $|\omega|$ form treated both rotation senses identically.
+- Because the law is linear, the self-consistent torque is obtained exactly from one small linear solve per RHS call (any number of motors).
+
+**Sign convention.** A positive `torque_pN_nm` drives the rotor in the right-handed sense about the root tangent $\mathbf{d}_3$ pointing away from the body, i.e. counter-clockwise when viewed from the filament tip looking toward the cell (the *E. coli* run sense for a left-handed filament). A negative value drives it clockwise. Older configurations (before v8.2.0) had the opposite, undocumented sense.
 
 ## 8. Brownian Dynamics
 
 Set `brownian.enable` in JSON or `cfg.enable_brown` in MATLAB.
 
-Brownian updates use a body-only Ito approximation with explicit
-finite-difference thermal drift `kBT*div(M_eff)`.  `M_eff` is obtained from
-the complete coupled body-pili deterministic system, but stochastic
-increments are applied only to the body's three translations and three
-rotations.  Pili internal Euler-angle modes remain deterministic, and the
-root constraints are re-enforced after each body kick.  This is not a full
-coupled thermal-equilibrium model and should not be used to study pilus-mode
-equipartition.
+Brownian dynamics is body-only: the 6×6 effective mobility `M_eff` is
+obtained from the complete coupled body-pili deterministic system, but
+thermal forcing is applied only to the body's three translations and three
+rotations.  Pili internal Euler-angle modes receive no thermal noise of their
+own.  This is not a full coupled thermal-equilibrium model and should not be
+used to study pilus-mode equipartition.
+
+**Force realisation (v8.5.0).**  Each Brownian interval `dt_B` starts by
+probing `M_eff`, drawing the Euler–Maruyama increment
+`dU = L_eff * eta * sqrt(dt_B)`, and converting it into the constant
+generalised thermal force `f_th = M_eff \ (dU / dt_B)` that is added to the
+body rows of the ODE right-hand side for the whole interval.  The body is
+therefore moved by the coupled solver, and the pili follow it continuously
+through their hydrodynamic and elastic coupling exactly as they follow
+gravity or a motor torque.  Two practical consequences:
+
+- No spurious root kink.  Earlier versions displaced the body instantaneously
+  and re-projected only the first pilus segment onto the moved body; every
+  kick injected a curvature jump between segments 1 and 2 that excited stiff
+  high-wavenumber elastic modes and forced `ode15s` into very small steps
+  after each node.  With force realisation the root constraint is never
+  violated, so Brownian runs no longer need a shorter `dt_B` or finer
+  segmentation to stay smooth.
+- Implicit Ito drift.  The mobility gradient sampled along the trajectory
+  reproduces the thermal drift `kBT*div(M_eff)` to first order in `dt_B`
+  (see `docs/theory.md` §10.2), so the explicit finite-difference drift
+  (12 extra coupled solves per node in v7.5.0–v8.4.0) is no longer computed.
+  The `[BROWN]` log reports the sampled `|F_th|`, `|tau_th|` and the
+  frozen-mobility target increment at the start of the first five intervals
+  and every 100th interval thereafter.
 
 SPD repair and Cholesky factorisation are performed in dimensionless
-generalized coordinates before conversion to SI units.  A final Brownian
-step uses the actual remaining time when `T_obs` is not divisible by `dt_B`.
-There is no user-facing midpoint drift option.
+generalized coordinates before conversion to SI units.  The final Brownian
+interval uses the actual remaining time when `T_obs` is not divisible by
+`dt_B`.  There is no user-facing midpoint drift option.  Runs with a fixed
+`brownian.rng_seed` remain reproducible, but trajectories differ from
+v8.4.0 and earlier because the stochastic increment is realised differently.
 
 Important options:
 

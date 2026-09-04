@@ -10,6 +10,319 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [8.5.0] — 2026-09-04
+
+Physics/algorithm release for the second "major" finding of the full
+mathematical/physical code review: the body-only Brownian displacement kick
+followed by root re-projection injected a spurious elastic kink at the pilus
+root on every Brownian node.  The stochastic increment is now realised as a
+constant generalised thermal force acting through the coupled ODE.  Also
+closes the remaining minor geometry finding (type-2 parabolic template not
+anchored at the origin).
+
+### Changed
+
+- **Brownian dynamics — force realisation instead of displacement kicks
+  (`run_simulation.m`, `run_simulation_HPC_Linux.m`, new
+  `src/physics/sample_brownian_body_force.m`, `ode_coupled_rhs.m` Step 8a,
+  `compute_effective_body_brownian.m`, `init_coupled_params.m`).**  At the
+  start of every Brownian interval `[T_last, T_last + dt_B]` the 6×6
+  effective body mobility `M_eff` is probed once, the frozen-mobility
+  Euler–Maruyama increment `dU = L_eff * eta * sqrt(dt_B)` is drawn (six
+  normal deviates from the isolated stream, as before), and the constant
+  generalised force `f_th = M_eff \ (dU / dt_B)` (dimensionless units
+  `F_0`, `F_0*L_0`) is stored in the new field `params.brown_force_dimless`.
+  `ode_coupled_rhs` subtracts it from `R_global(1:6)` with the same sign
+  convention as gravity for the whole interval; the field is reset to zero
+  when the interval closes and after the main loop.  The body is therefore
+  moved by the coupled solver and the pili follow it continuously through
+  their hydrodynamic and elastic coupling — the root constraint is never
+  violated, so the post-kick `enforce_clamped_geometry` re-projection (which
+  rotated segment 1 onto the moved body while segments `2..N` kept their
+  orientation, creating an `O(|dTheta|/ell)` curvature jump that relaxed on
+  the stiff `ell^4` time scale and forced `ode15s` into very small steps
+  after every node) is no longer needed.  A basis-rotation or timeout
+  restart inside an interval keeps the already-sampled force.
+  `compute_effective_body_brownian` gains a fourth output `M_eff_dimless`.
+- **Ito drift is now implicit.**  Expanding the constant-force ODE over one
+  interval gives `E[dU_real] = kBT div(M) dt_B + O(dt_B^{3/2})` because
+  `E[f_th f_th'] dt_B = 2 kBT M^{-1}` (docs/theory.md §10.2), so the
+  scheme is a consistent weak first-order integrator of the body-only Ito
+  SDE.  The explicit centred finite-difference `kBT*div(M_eff)` correction
+  introduced in 7.5.0 (`compute_body_ito_drift` / `perturb_body_pose`, 12
+  extra coupled solves per node) is removed from both run entry points;
+  adding it again would double count the drift.  Per-node cost drops from
+  13 to 1 effective-mobility probe.
+- The `brown_kick_applied` post-kick sample override in the output-time
+  loop is removed (the ODE solution is already the realised state).  Log
+  lines change from `[BROWN] Kick #n ...` to `[BROWN] Interval #n start ...`
+  (sampled `|F_th|`, `|tau_th|`, frozen-mobility target `|dX|`,
+  `|dTheta|`) and `[BROWN] Interval #n closed ...`; the `[PARAMS]` Brownian
+  line reports the scheme.  `results.brownian_step_sizes_s` keeps its
+  meaning (completed interval lengths).
+- `docs/theory.md` / `theory.zh-CN.md` §10 restructured (10.1 effective
+  mobility, 10.2 force realisation with the kink and implicit-drift
+  derivations, plus the remark that in an unbounded fluid
+  `M_eff = R M_shape R'` so the body-pose Ito drift `kBT div(M)` vanishes
+  identically); `USER_GUIDE` §8 (EN/ZH), READMEs and `project_version.m`
+  bumped to 8.5.0.
+- Documentation catch-up for 8.2.0–8.5.0: `requirements.txt` release
+  notes, the README core-file tables (`compute_pili_curvature.m`,
+  `compute_pili_elastic_moments.m`, `sample_brownian_body_force.m`,
+  `background_flow_velocity.m`), the version/documentation-release headers
+  of `main_coupled_simulation.m` / `run_simulation*.m`, and the project
+  website (`docs/index.html` release cards, Brownian section rewritten for
+  the force realisation and implicit Ito drift; `docs/presentation.html`
+  Brownian slides and module notes) were still at 8.1.0 and described the
+  displacement-kick scheme; all now reflect 8.5.0.
+
+### Fixed
+
+- **`pili_type_building.m` — type-2 parabolic template anchored at the
+  origin.**  The least-squares arc-length inversion polynomial carries a
+  residual constant term (`-0.004127`), so `x(s = 0) != 0` and the first
+  template node sat `~4.1 nm / K` off the origin, contradicting the
+  origin-anchored template assumption of `pili_building`,
+  `custom_pili_building` and `enforce_clamped_geometry`.  The inverted curve
+  is now shifted by its own `s = 0` value (uniform in `x`, node spacing
+  unchanged).
+
+### Behaviour changes / migration notes
+
+- Brownian runs change quantitatively even for a fixed `brownian.rng_seed`:
+  the same six deviates per interval are consumed, but the increment is
+  realised through the coupled trajectory (mobility evaluated along the
+  path, pili deforming with the body) instead of on the frozen mobility.
+  Statistics (MSD, MSAD, `D_rot`) agree with <= 8.4.0 to the `O(dt_B)`
+  weak-order accuracy of both schemes; trajectories do not.  Deterministic
+  runs (`brownian.enable = false`) are bit-for-bit unchanged.
+- Brownian runs should be noticeably faster: no finite-difference drift
+  probes and no post-node stiff transient.  Configurations that had
+  shortened `dt_B` or refined `N_segments` solely to tame the root kink can
+  revert to their physically motivated values.
+- Parabolic (type-2) pili are translated by `0.004127 / K` um along the
+  template tangent relative to <= 8.4.0.
+
+## [8.4.0] — 2026-09-04
+
+Physics-correctness release for the first "major" finding of the full
+mathematical/physical code review: the `free_torsion` root twist equation
+double-counted the interior Kirchhoff twist moment.  The remaining major
+finding (body-only Brownian kick creating a spurious root kink) was fixed in
+8.5.0.
+
+### Fixed
+
+- **`compute_pili_elastic_moments.m` / `coupled_active_moment.m` — root
+  row zeroed for `free_torsion` as well as `clamped`.**  Row `i` of the
+  pilus moment balance is the balance of the rod portion `[s_i, 1]` about
+  node `i`; the internal moment `M(s_i)` that enters it is the moment
+  exerted by `[0, s_i)` on `[s_i, 1]`.  At the root node `[0, s_1)` is the
+  cell body, so `M(0)` is the torque the body applies through the
+  bearing/motor — the motor torque added in `ode_coupled_rhs` Step 9 (zero
+  for a free bearing).  The discrete `kappa_3` available at node 1 is
+  evaluated between segments 1 and 2 and is already the internal moment
+  used by the node-2 balance; adding it to the root row too (`kappa3(1)
+  preserved`, since v7.x) meant that subtracting the node-2 row left
+  `tau_motor = drag of segment 1 alone`, so the whole filament span up to
+  the rate at which the first segment's drag balanced the motor.  Verified
+  on a straight 2 um filament (`N = 10`, 1 pN nm, no speed limit): steady
+  `omega_rel` was `8.47e4 rad/s` before and is `8.84e3 rad/s` after the
+  fix (ratio exactly `N`); the steady twist profile is linear from node 2
+  to the tip with `GJ*kappa_3(s_2) = tau*(1 - 1/N)`; a free bearing with a
+  `helix` intrinsic twist and no motor now gives zero net axial
+  hydrodynamic torque (`sum(dpsi) / max|dpsi| = 1e-5` at `t = 0`) and
+  relaxes to rest at `kappa_3 = kappa_d3`.  The integrated active moment is
+  likewise an internal moment, so its root `d3` component is dropped for
+  the same reason (a purely internal twist wave can no longer spin a
+  free-bearing filament).  Both functions keep their `root_coupling_k`
+  argument for interface stability.
+- **`validate_simulation_params.m` — stall diagnostic drag coefficient.**
+  The steady-state estimate now uses `xi_t = 2*pi*mu*eps^2*L`, the axial
+  rotational drag of a straight regularised-rotlet-segment line with the
+  Cortez (2018) 7/2 blob (`eps = r_pili`), which the simulator reproduces to
+  `< 1e-3`; the former `4*pi*mu*r^2*L` (no-slip cylinder) under-predicted
+  the simulated speed by exactly 2.  The `free_torsion` + `motor off`
+  warning now describes the frictionless-bearing behaviour.
+
+### Changed
+
+- Comments in `ode_coupled_rhs.m` (BC RHS block) and
+  `build_coupled_lin_sys.m` (Step 7) describe the `psi_1` row as the
+  whole-rod boundary-torque balance.
+- `docs/theory.md` / `theory.zh-CN.md` §8 gain a "Root twist row for
+  `free_torsion`" subsection with the derivation and the `xi_t` note;
+  `USER_GUIDE` §7 (EN/ZH), READMEs and `project_version.m` bumped to 8.4.0.
+
+### Behaviour changes / migration notes
+
+- All `free_torsion` runs change quantitatively.  With a motor, steady
+  rotor speeds (and the induced body counter-rotation, swimming speed and
+  flow fields) drop by roughly the segment count `N` relative to <= 8.3.0;
+  motor configurations tuned to reproduce a target rotation rate under the
+  old code must be re-tuned (the pre-flight stall estimate is now a
+  reliable guide).  Without a motor the root acts as a true frictionless
+  bearing.  `clamped` runs are unaffected.
+
+## [8.3.0] — 2026-09-04
+
+Discretisation-accuracy and geometry-consistency release addressing the two
+"medium" findings of the full mathematical/physical code review: the
+half-segment offset of the Kirchhoff curvature stencil and the handedness
+(chirality) flip introduced by some attachment-site transforms.  The
+hydrodynamic kernels, the coupled linear system and the Brownian stepping
+are untouched.  The two remaining major findings (free-torsion root moment
+double counting, body-only Brownian kick kink) are still tracked separately.
+
+### Added
+
+- **`src/physics/compute_pili_curvature.m`** — single shared operator that
+  returns the raw nodal curvature/twist `[kappa_1, kappa_2, kappa_3]`
+  (`[(N_k+1) x 3]`, units `1/L_pili`) from the segment directors.  Nodal
+  frames come from `compute_node_directors` (SVD polar mean); the arc-length
+  derivative at interior node `i` is formed from the two **segment** frames
+  meeting at that node, `(d_seg(i) - d_seg(i-1)) / ds`, which is centred at
+  the node.  Both factors of the projection are therefore collocated and the
+  stencil is second-order accurate.  End nodes replicate the nearest interior
+  stencil (node 1 is overwritten by the root BC; node N+1 is unused).
+
+### Changed
+
+- **`compute_pili_elastic_moments.m` — node-collocated curvature stencil.**
+  Previously the nodal directors were differenced backwards,
+  `(dN(i) - dN(i-1)) / ds`, which is centred at `s_i - ds/2`, i.e. half a
+  segment away from the nodal director it was projected onto.  On an
+  analytic constant-Darboux-vector frame the observed convergence order was
+  0.98; with the new operator it is 2.00 and the absolute error at N = 40
+  drops from `3.4e-2` to `3.7e-4` (|Omega| ~ 2.6).  The function now calls
+  `compute_pili_curvature` and only applies the intrinsic-curvature
+  subtraction, root-row rules and the `1/(1+sigma)` twist factor.
+- **`init_coupled_params.m` — `kb0` via the same operator.**  Both the
+  parametric and custom branches replace their duplicated stencil code by a
+  call to `compute_pili_curvature`, so `kappa_live - kb0` at `t = 0` remains
+  bit-consistent (`1.7e-13` over pilus types 1-5 in the regression check) and
+  `frozen` pili still start at exact zero-moment equilibrium.
+- **`pili_building.m` — attachment-site maps are proper rotations.**
+  `pili_location_single` now applies `p_body = R * p_template + SPoint` with
+  `R = [c1, c2, c1 x c2]` (`c1` = outward site direction = image of the
+  template tangent `+x`, `c2` = image of the template bending direction
+  `+y`) and asserts `det R = +1`.  The legacy per-site coordinate swaps had
+  `det = -1` at sites **1, 2, 5, 7, 10, 11, 14** and mirrored every
+  out-of-plane feature: a right-handed conical-spiral template (type 5)
+  became left-handed at those seven sites, and the sense of the
+  `deflection_x` twist was inverted, so the same `Pili_Matrix` column
+  produced opposite chirality depending only on the attachment site.  The
+  new rotations agree with the legacy maps on the template bending plane
+  `z = 0`, so all planar templates (types 1-4 with `deflection_x = 0`) are
+  placed **identically** to before (regression difference 0.0 at all 14
+  sites); only the out-of-plane component changes sign at the seven
+  affected sites.
+- **`pili_type_building.m` / `custom_pili_building.m` — right-handed `RX`.**
+  The deflection matrix about the template tangent (`gama` / `deflection_x`)
+  used a left-handed sign convention (documented as "project-internal").  It
+  is now the standard right-handed rotation, consistent with `RZ`,
+  `pili_directors` and `quat_to_rotmat`; `RM = RX * RZ` is a rotation with
+  `det = +1`.  Verified: a parabola bending toward `+y` with
+  `deflection_x = +pi/2` now bends toward `+z`.
+- **`verify_migration.m`** — expected file lists extended with
+  `background_flow_velocity.m` (added in 8.2.0) and
+  `compute_pili_curvature.m`.
+- **Documentation** — `docs/theory.md` gains a "Discrete curvature stencil"
+  subsection and a paragraph on the attachment-site rotations; version
+  strings bumped to 8.3.0 in `project_version.m`, READMEs, user guides and
+  the theory document.
+
+### Behaviour changes / migration notes
+
+- Runs with **type-5 (conical spiral) pili** at sites 1, 2, 5, 7, 10, 11 or
+  14, or with **non-zero `deflection_x`** at any site, will see the mirror
+  image of the pre-8.3.0 initial geometry.  The pre-8.3.0 geometry was the
+  unintended reflection; if a specific handedness was tuned against it,
+  flip the sign of spiral parameter `c` (type 5) or of `deflection_x`.
+- All planar configurations (types 1-4, `deflection_x = 0`) and all
+  `frozen` / `zero` / `constant` / `helix` intrinsic-curvature settings are
+  unaffected in their initial state.  Elastic moments away from the
+  reference configuration change at `O(ds)` because of the improved stencil;
+  trajectories at coarse `seg_per_um` will differ slightly from 8.2.0 and
+  should be regarded as more accurate.
+
+## [8.2.0] — 2026-09-04
+
+Physics-correctness release addressing the "secondary" findings of the full
+mathematical/physical code review (motor torque-speed law, flow-field
+background flow, shape-parameter validation, unit documentation).  The
+hydrodynamic kernels, elastic-rod discretisation and Brownian stepping are
+untouched in this release; the major review findings (free-torsion root
+moment double counting, body-only Brownian kick kink, half-segment curvature
+stencil offset, attachment-site handedness) are tracked separately.
+
+### Changed
+
+- **`solve_motor_self_consistent.m` / `ode_coupled_rhs.m` — signed, asymmetric
+  linear torque-speed law in the relative rotor speed.**  The former law
+  `tau_eff = tau_motor*(1 - |omega|/omega_max)` with `omega = dpsi_1` was
+  symmetric in the rotation sense (a rotor forced backwards saw the same
+  torque drop as one spinning forwards) and measured the speed of segment 1
+  in the lab basis with the `cos(theta_1)*dphi_1` part of the axial rate
+  omitted.  The motor now follows
+  `tau_eff = tau_motor*(1 - omega_rel/omega_max)` with
+  `omega_rel = sign(tau_motor) * [(dpsi_1 + cos(theta_1) dphi_1) - Omega_body . d3_1]`,
+  i.e. the full axial angular velocity of the rotor segment relative to the
+  cell body, positive in the driving direction (Berg & Turner 1993; Berg
+  2003).  Forced reverse rotation raises the torque above stall and speeds
+  beyond `max_omega_Hz` make the motor a brake.  Because the law is linear,
+  the reduced motor problem is solved exactly as a small linear system for
+  any number of motors (the scalar piecewise root / damped fixed point are
+  removed).  `ode_coupled_rhs` builds one observation vector per motor
+  (`motor_obs`) instead of indexing `dpsi_1` columns.
+- **Motor torque sign convention defined (`ode_coupled_rhs.m` Step 9).**
+  `R_global` stores the negative of the applied generalised force, so the
+  motor torque now enters its `psi_1` row as `-tau`: a positive
+  `torque_pN_nm` drives the rotor in the right-handed sense about the
+  outward root tangent `d3` (counter-clockwise viewed from the filament tip
+  toward the cell).  Before 8.2.0 the sense was the opposite and undocumented;
+  configurations that relied on the old rotation direction must flip the
+  sign of `torque_pN_nm`.  The `|omega|` law made this sign irrelevant to the
+  speed limiter, which is why it went unnoticed.
+- **`compute_plot_flowfield.m` — background flow honoured.**  Force and
+  torque densities are now solved from the velocity of the structure
+  *relative to the ambient fluid* (`v - u_bg` for the translational block and
+  the segment twist rates), matching `ode_coupled_rhs`; the ambient velocity
+  is added back to every exterior grid point so the plotted field is the
+  total fluid velocity.  Previously both steps ignored `background_flow`,
+  yielding wrong force densities and a disturbance-only picture whenever a
+  `uniform` / `shear_z` flow was active.
+- **`coupled_background_flow.m`** delegates the translational profile to
+  the new shared evaluator (behaviour unchanged).
+
+### Added
+
+- **`src/physics/background_flow_velocity.m`** — single evaluator of the
+  translational background-flow profile (and the fluid angular velocity of
+  the shear layer) at arbitrary points, used by both the ODE RHS and the
+  flow-field post-processor so the simulated and visualised ambient flow
+  cannot diverge.
+- **`validate_simulation_params.m` — `shape_params` checks (local
+  `validate_pili_shape_params`).**  Parametric pili of type 2-5 now fail
+  validation with an explicit message when `Pili_Matrix` rows 5-7 are
+  missing (NaN from `parse_pili_config`) or out of range: parabolic needs
+  `K > 0` and `K*length_um <= 4` (fitted range of the arc-length
+  polynomial); circular needs a subtended angle in `(0, 2*pi]`; sinusoidal
+  needs finite `[a, b]`; spiral needs finite `[a, b, c]` and not `a = b = 0`.
+  Previously such inputs surfaced only as an opaque "dimension mismatch"
+  concatenation error inside `pili_type_building.m`.
+
+### Documentation
+
+- **`USER_GUIDE.md` / `USER_GUIDE.zh-CN.md` — units of pilus curvature and
+  moment inputs.**  New subsection stating that pilus elasticity is
+  nondimensionalised by the pilus length: `intrinsic_curvature.kappa`,
+  `kappa_d2`, `kappa_d3` are in units of `1/L_pili` (helix conversion
+  formulas given), while `active_moment.amplitude_Nm`, `torque_pN_nm` and
+  `max_omega_Hz` are converted to `EI/L_pili` and `1/T_0` units.  §7 documents
+  the new torque-speed law and the torque sign convention.
+- `README.md` / `README.zh-CN.md` version notes; `project_version` -> 8.2.0.
+
 ## [8.1.0] — 2026-07-25
 
 Minor feature release for batch post-processing kinematics: 3-D

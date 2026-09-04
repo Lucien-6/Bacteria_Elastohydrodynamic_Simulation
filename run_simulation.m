@@ -61,13 +61,18 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %    HTML export depends on MATLAB release support.  Existing-output and
 %    preview dialogs may be shown unless cfg.auto_confirm suppresses them.
 %    Brownian draws use an isolated stream and do not modify MATLAB's global
-%    RNG state.  On timeout, MAT/CSV/config/log data are saved while animation
-%    and flow-field generation are skipped.
+%    RNG state.  Since v8.5.0 the body-only Brownian increment of each
+%    interval dt_B is realised as a constant thermal generalised force acting
+%    through the coupled ODE (sample_brownian_body_force) rather than as a
+%    displacement kick, so pili follow the body continuously and the Ito
+%    drift is generated implicitly.  On timeout, MAT/CSV/config/log data are
+%    saved while animation and flow-field generation are skipped.
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
 %  Updated: 2026-07-21
-%  Log banner version: 8.1.0 (2026-07-25) - keep in sync with README / CHANGELOG
+%  Updated: 2026-09-04 — v8.5.0 Brownian force-realisation scheme
+%  Log banner version: 8.5.0 (2026-09-04) - emitted via project_version(); keep README / CHANGELOG in sync
 %
 %  Path policy: defensive addpath calls here allow run_simulation(cfg) without
 %  main_coupled_simulation.m.  Standalone drivers in batch_sweep/ and
@@ -429,7 +434,7 @@ logf('[PARAMS] Preview: %s\n', mat2str(preview_initial));
 logf('[PARAMS] Animation: fps = %d, skip = %d\n', animation_fps, animation_skip);
 logf('[PARAMS] Flowfield: grid = %.2f um, range = %.1f um, quiver_skip = %d\n', ...
     flowfield_grid_spacing, flowfield_grid_range, flowfield_quiver_skip);
-logf('[PARAMS] Brownian: enable = %s, Temper = %.2f K, dt_B = %.4f s, Ito drift = strict finite-difference\n', ...
+logf('[PARAMS] Brownian: enable = %s, Temper = %.2f K, dt_B = %.4f s, scheme = constant thermal force per interval (implicit Ito drift)\n', ...
     mat2str(enable_brown), Temper, dt_B);
 if enable_brown
     logf('[PARAMS] Brownian RNG: seed = %d (isolated mt19937ar), saved for reproducibility\n', ...
@@ -852,23 +857,38 @@ else
 end
 
 % ---- Brownian dynamics node tracking ----
+%  v8.5.0 scheme: at the start of every Brownian interval [T_brown_last,
+%  T_brown_next] a constant generalised thermal force f_th is drawn from the
+%  6x6 effective body mobility (sample_brownian_body_force) and stored in
+%  params.brown_force_dimless; ode_coupled_rhs applies it to the body rows
+%  for the whole interval.  The pili therefore follow the body's thermal
+%  motion through the coupled hydrodynamic solve (no root-projection kink),
+%  and the Ito drift kB*T*div(M) is generated implicitly by the mobility
+%  gradient along the trajectory (no finite-difference correction).
 if params.brown_enabled
     dt_B_dimless   = dt_B / params.scales.T_0;
     T_brown_last   = 0;
     T_brown_next   = min(dt_B_dimless, T_obs_dimless);
     logf(['[BROWN] Body-only Brownian dynamics enabled ', ...
-          '(6-DOF body kicks via coupled effective mobility probe)\n']);
+          '(constant 6-DOF thermal generalised force per interval, ', ...
+          'coupled effective mobility probe at each interval start)\n']);
     logf('[BROWN] dt_B = %.4f s = %.4e T*\n', dt_B, dt_B_dimless);
-    logf('[BROWN] Strict Ito drift correction: ENABLED (body-only finite-difference div(M))\n');
-    brown_kick_count    = 0;
+    logf(['[BROWN] Ito drift: IMPLICIT (constant-force realisation along the ', ...
+          'coupled trajectory reproduces kB*T*div(M) to O(dt_B))\n']);
+    brown_kick_count    = 0;      % completed Brownian intervals
     brown_log_interval  = 100;
     brown_step_sizes_s  = [];
+    brown_force_active  = false;  % true while an interval's force is held
+    brown_tol           = dt_B_dimless * 1e-8;
 else
     dt_B_dimless = Inf;
     T_brown_last = 0;
     T_brown_next = Inf;
     brown_step_sizes_s = [];
+    brown_force_active = false;
+    brown_tol          = 0;
 end
+params.brown_force_dimless = zeros(6, 1);
 
 while T_achieved < T_obs_dimless
     Z = last_Z;
@@ -893,6 +913,28 @@ while T_achieved < T_obs_dimless
 
     % Determine integration target for this segment
     T_seg_target = min(T_brown_next, T_obs_dimless);
+
+    % ---- Brownian: realise the thermal force for a NEW interval ----
+    %  Executed once per Brownian interval (a basis-rotation or timeout
+    %  restart inside an interval keeps the already-sampled force so that
+    %  the realised increment stays consistent with the drawn deviates).
+    if params.brown_enabled && ~brown_force_active && ...
+            T_achieved < T_obs_dimless - brown_tol
+        dt_B_step = (T_seg_target - T_achieved) * params.scales.T_0;   % [s]
+        [f_th_dimless, brown_info] = sample_brownian_body_force( ...
+            Z, params, dt_B_step, brown_rng_stream);
+        params.brown_force_dimless = f_th_dimless;
+        brown_force_active = true;
+
+        if brown_kick_count < 5 || mod(brown_kick_count + 1, brown_log_interval) == 0
+            logf(['[BROWN] Interval #%d start at t* = %.4e | dt = %.4e s | ', ...
+                  '|F_th| = %.2e N | |tau_th| = %.2e N*m | ', ...
+                  'target |dX| = %.2e m | target |dTheta| = %.2e rad\n'], ...
+                brown_kick_count + 1, T_achieved, dt_B_step, ...
+                norm(brown_info.f_th_dim(1:3)), norm(brown_info.f_th_dim(4:6)), ...
+                norm(brown_info.dU_target_dim(1:3)), norm(brown_info.dU_target_dim(4:6)));
+        end
+    end
 
     % Setup ODE solver
     tstart_ode   = tic;
@@ -965,47 +1007,18 @@ while T_achieved < T_obs_dimless
     % Enforce geometric clamped BC (correct constraint drift)
     Z_end = enforce_clamped_geometry(Z_end, params);
 
-    % ---- Apply Brownian kick at a completed Brownian target ----
-    %  Body-only Ito Brownian step: the 6x6 effective body mobility
-    %  (including pili hydrodynamic drag via Schur complement) is probed
-    %  at each Brownian step.  Only the body receives the stochastic
-    %  increment; pilus internal modes remain deterministic (no thermal noise).
-    brown_kick_applied = false;
-    if params.brown_enabled && ~timeout_this_segment
-        brown_tol = dt_B_dimless * 1e-8;
+    % ---- Close the Brownian interval at a completed Brownian target ----
+    %  The thermal force sampled at the interval start has now acted on the
+    %  body through the coupled solve for the whole interval; the state
+    %  Z_end already contains the realised (mobility-consistent) increment,
+    %  so no displacement kick or root re-projection is applied here.  The
+    %  force is cleared; a fresh one is drawn at the top of the next segment.
+    if params.brown_enabled && ~timeout_this_segment && brown_force_active
         if T_achieved >= T_seg_target - brown_tol
-
-            % --- Strict body-only Ito Brownian step ---
-            % Mobility-dependent noise requires the thermal drift
-            % kB*T*div(M).  The drift is computed by finite differences in
-            % the same six body coordinates that receive the stochastic kick;
-            % pili internal Brownian modes remain intentionally disabled.
             dt_B_step = (T_achieved - T_brown_last) * params.scales.T_0;
-            L_eff_step = compute_effective_body_brownian(Z_end, params);
-            drift_6d   = compute_body_ito_drift(Z_end, params);
-            eta_6d     = randn(brown_rng_stream, 6, 1);
-            dU_dim     = drift_6d * dt_B_step + ...
-                         L_eff_step * eta_6d * sqrt(dt_B_step);
+            params.brown_force_dimless = zeros(6, 1);
+            brown_force_active = false;
 
-            % -- Apply translational displacement (lab frame) --
-            dX_lab     = dU_dim(1:3);
-            Z_end(1:3) = Z_end(1:3) + dX_lab / params.scales.L_0;
-
-            % -- Apply rotational displacement (lab-frame angle -> quaternion) --
-            dTheta_lab = dU_dim(4:6);
-            ang        = norm(dTheta_lab);
-            if ang > 1e-15
-                Delta_q = [cos(ang / 2); (sin(ang / 2) / ang) * dTheta_lab];
-            else
-                Delta_q = [1; 0; 0; 0];
-            end
-            Z_end(4:7) = quat_multiply(Delta_q, Z_end(4:7));
-            Z_end(4:7) = Z_end(4:7) / norm(Z_end(4:7));
-
-            % Re-enforce clamped BC (body quaternion changed)
-            Z_end = enforce_clamped_geometry(Z_end, params);
-
-            brown_kick_applied = true;
             brown_kick_count   = brown_kick_count + 1;
             T_brown_last       = T_achieved;
             brown_step_sizes_s(end+1) = dt_B_step; %#ok<AGROW>
@@ -1016,12 +1029,12 @@ while T_achieved < T_obs_dimless
             end
 
             if brown_kick_count <= 5 || mod(brown_kick_count, brown_log_interval) == 0
-                logf('[BROWN] Kick #%d at t* = %.4e | dt = %.4e s | |dX| = %.2e m | |dTheta| = %.2e rad | |drift| = %.2e /s\n', ...
-                    brown_kick_count, T_achieved, dt_B_step, norm(dX_lab), ang, norm(drift_6d));
+                logf('[BROWN] Interval #%d closed at t* = %.4e | dt = %.4e s\n', ...
+                    brown_kick_count, T_achieved, dt_B_step);
             end
         end
     end
-    % ---- End Brownian kick ----
+    % ---- End Brownian interval bookkeeping ----
 
     last_Z = Z_end;
 
@@ -1043,11 +1056,6 @@ while T_achieved < T_obs_dimless
         for i = 1:length(valid_ts)
             ti  = current_time_ind + i;
             Z_i = Z_at_ts(:, i);
-
-            % Override with post-kick state at Brownian node
-            if brown_kick_applied && abs(valid_ts(i) - T_achieved) < 1e-14
-                Z_i = Z_end;
-            end
 
             % Renormalise quaternion
             Z_i(4:7) = Z_i(4:7) / norm(Z_i(4:7));
@@ -1109,6 +1117,10 @@ while T_achieved < T_obs_dimless
 end
 
 elapsed_total = toc(tic_total);
+
+% The thermal force is an interval-local quantity; never let it leak into
+% post-processing (flow-field evaluation, saved params) after the loop.
+params.brown_force_dimless = zeros(6, 1);
 
 % Remove every uncomputed preallocated sample before diagnostics,
 % post-processing, persistence, and visualisation.
@@ -2247,51 +2259,6 @@ end
 function u8 = im2uint8_mat(Z)
     Z = max(0, min(255, round(Z)));
     u8 = uint8(Z);
-end
-
-function drift_6d = compute_body_ito_drift(Z, params)
-%COMPUTE_BODY_ITO_DRIFT  Finite-difference kBT*div(M) for body-only Brownian.
-%  Coordinates are physical [m,m,m,rad,rad,rad].  The perturbations are
-%  applied to the body pose only, then root geometry is projected back to the
-%  current clamped/free-torsion constraints.
-    kB = 1.380649e-23;
-    kBT = kB * params.dim.Temper;
-    drift_6d = zeros(6, 1);
-
-    h_trans = max(1e-5 * params.scales.L_0, 1e-12);
-    h_rot   = 1e-5;
-    h = [h_trans; h_trans; h_trans; h_rot; h_rot; h_rot];
-
-    for j = 1:6
-        Z_plus  = perturb_body_pose(Z, params, j,  h(j));
-        Z_minus = perturb_body_pose(Z, params, j, -h(j));
-
-        [~, ~, M_plus]  = compute_effective_body_brownian(Z_plus,  params);
-        [~, ~, M_minus] = compute_effective_body_brownian(Z_minus, params);
-
-        drift_6d = drift_6d + kBT * (M_plus(:, j) - M_minus(:, j)) / (2 * h(j));
-    end
-end
-
-function Zp = perturb_body_pose(Z, params, coord_idx, step_phys)
-%PERTURB_BODY_POSE  Perturb one body coordinate in physical units.
-    Zp = Z;
-    if coord_idx <= 3
-        Zp(coord_idx) = Zp(coord_idx) + step_phys / params.scales.L_0;
-    else
-        axis_vec = zeros(3, 1);
-        axis_vec(coord_idx - 3) = 1;
-        dtheta = step_phys * axis_vec;
-        ang = norm(dtheta);
-        if ang > 1e-15
-            dq = [cos(ang / 2); (sin(ang / 2) / ang) * dtheta];
-        else
-            dq = [1; 0; 0; 0];
-        end
-        Zp(4:7) = quat_multiply(dq, Zp(4:7));
-        Zp(4:7) = Zp(4:7) / norm(Zp(4:7));
-    end
-    Zp = enforce_clamped_geometry(Zp, params);
 end
 
 function str = format_duration(seconds)

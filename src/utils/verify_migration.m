@@ -78,12 +78,15 @@ expected_structure.geometry = {
 
 % Physics computations
 expected_structure.physics = {
+    'background_flow_velocity.m'
     'compute_curvature_binormal.m'
     'compute_effective_body_brownian.m'
     'compute_node_directors.m'
+    'compute_pili_curvature.m'
     'compute_pili_elastic_moments.m'
     'coupled_active_moment.m'
     'coupled_background_flow.m'
+    'sample_brownian_body_force.m'
     };
 
 % Mathematical utilities

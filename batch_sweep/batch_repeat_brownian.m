@@ -3,7 +3,7 @@
 %
 %  Description:
 %    Runs the same physical setup multiple times with independent RNG streams
-%    for Brownian kicks.  Each repeat is saved under:
+%    for the Brownian thermal forces.  Each repeat is saved under:
 %        output/<case_name_base>/001/
 %        output/<case_name_base>/002/
 %        ...
@@ -38,6 +38,9 @@
 %                        batch_id snapshot, brown_rng_policy, fallback probe);
 %                        FAILED outdir/log_hint; footer finished/failed/pending;
 %                        unified empty-results msg; catch partial outdir.
+%  Updated: 2026-07-16 — Lucien — move capture_partial_outdir to src/utils so
+%                        parfor workers can resolve it (fixes SourceCodeNotAvailable);
+%                        FATAL handler prints MException.cause.
 clear; clc;
 
 % Ensure working directory is project root (contains run_simulation.m)
@@ -60,10 +63,10 @@ addpath(genpath(fullfile(projectRoot, 'src')));
 
 % --- Root folder name under output/ (required).  Repeats go to:
 %     output/<case_name_base>/001, 002, ...
-case_name_base = 'TwoPili-S29-L3-Brown';
+case_name_base = 'TwoPili-S29-L3-Brown-Test';
 
 % --- Number of independent repeats (>= 1)
-n_repeats = 100;
+n_repeats = 2;
 
 % --- RNG (Brownian twister; see run_simulation.m):
 %     'fixed'     — per repeat: cfg.brown_rng_seed = rng_seed_base + k (reproducible).
@@ -129,7 +132,7 @@ cfg_base.mu        = 1e-3;
 cfg_base.rho_bac   = 1180.0;
 cfg_base.rho_fluid = 998.232;
 
-cfg_base.T_obs  = 200.0;
+cfg_base.T_obs  = 1.0;
 cfg_base.AbsTol = 1e-4;
 cfg_base.RelTol = 1e-4;
 cfg_base.delta  = pi / 20;
@@ -320,8 +323,8 @@ if ~isfolder(out_root)
 end
 
 batch_start_dt   = datetime('now');
-log_ts           = char(batch_start_dt, 'Format', 'uuuuMMdd''_''HHmmss');
-started_human    = char(batch_start_dt, 'Format', 'uuuu-MM-dd HH:mm:ss');
+log_ts           = char(batch_start_dt, 'uuuuMMdd''_''HHmmss');
+started_human    = char(batch_start_dt, 'uuuu-MM-dd HH:mm:ss');
 batch_snapshot_path = fullfile(out_root, sprintf('batch_config_snapshot_%s.json', log_ts));
 batch_snapshot_log  = '';
 cfg_snapshot = cfg;
@@ -469,7 +472,7 @@ if use_parallel
     fprintf('Launching parfor with %d workers...\n\n', parallel_info.n_pool);
 
     parfor k = 1:n_repeats
-        cfg_k                 = cfg;                                         %#ok<PFBNS>
+        cfg_k                 = cfg;                                         
         cfg_k.case_name       = fullfile(case_name_base, sprintf('%03d', k));
         cfg_k.brown_rng_seed  = seeds(k);
         cfg_k.preview_initial = false;
@@ -616,9 +619,27 @@ catch ME_batch
     batch_fatal_error = ME_batch;
     fprintf('\n%s\n', sep);
     fprintf('  [FATAL] Batch execution aborted: %s\n', ME_batch.message);
+    fprintf('          Identifier: %s\n', ME_batch.identifier);
     if ~isempty(ME_batch.stack)
         fprintf('          Location: %s (line %d)\n', ...
             ME_batch.stack(1).name, ME_batch.stack(1).line);
+    end
+    % SourceCodeNotAvailable often wraps the real worker-side failure in .cause
+    if ~isempty(ME_batch.cause)
+        for iCause = 1:numel(ME_batch.cause)
+            C = ME_batch.cause{iCause};
+            fprintf('          Caused by [%d]: [%s] %s\n', iCause, C.identifier, C.message);
+            if ~isempty(C.stack)
+                fprintf('                       at %s (line %d)\n', C.stack(1).name, C.stack(1).line);
+            end
+            if ~isempty(C.cause)
+                for jCause = 1:numel(C.cause)
+                    C2 = C.cause{jCause};
+                    fprintf('                       nested [%d]: [%s] %s\n', ...
+                        jCause, C2.identifier, C2.message);
+                end
+            end
+        end
     end
     fprintf('  Continuing to final report with partial results...\n');
     fprintf('%s\n', sep);
@@ -1003,40 +1024,6 @@ function write_resource_probe_summary(fid, info, mem_per_worker_gb, max_frac, bl
     fprintf(fid, 'mem_cap: %d\n',              info.mem_cap);
     fprintf(fid, 'binding: %s\n',              char(info.binding));
     fprintf(fid, 'worker_blas_threads: %d\n',  blas_threads);
-end
-
-
-function outdir_char = capture_partial_outdir(dir_k, expected_dir)
-%CAPTURE_PARTIAL_OUTDIR  Best-effort recovery of a failed run's output folder.
-%
-%  MATLAB does not propagate a function's output arguments back to the
-%  caller when that function throws an uncaught error -- even though
-%  run_simulation computes output_dir (and creates the folder, and may
-%  have written a partial simulation.log with a [FATAL] block) well
-%  before the point where the error is raised, [res_k, ~, dir_k] =
-%  run_simulation(cfg_k) leaves dir_k at whatever value it held before
-%  the call (verified empirically: a function erroring after assigning
-%  an output argument still returns nothing to the caller).  So dir_k
-%  here is always '' on failure and cannot recover the real path.
-%
-%  Instead, since cfg_k.case_name is deterministic per repeat
-%  (case_name_base/NNN) and run_simulation only appends a timestamp
-%  suffix when the target folder already contains prior run data (which
-%  a fresh repeat folder normally does not), the caller passes the
-%  expected path as expected_dir; we confirm it actually exists on disk
-%  before reporting it, so a batch_repeat_brownian bug or a genuinely
-%  never-created folder still correctly yields ''.
-    outdir_char = '';
-    if nargin >= 1 && ~isempty(dir_k)
-        dir_str = strtrim(char(string(dir_k)));
-        if ~isempty(dir_str)
-            outdir_char = dir_str;
-            return;
-        end
-    end
-    if nargin >= 2 && ~isempty(expected_dir) && isfolder(expected_dir)
-        outdir_char = expected_dir;
-    end
 end
 
 

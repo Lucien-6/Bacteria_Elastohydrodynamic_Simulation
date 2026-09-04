@@ -51,7 +51,8 @@ function Pili = pili_building(Pili_Matrix, seg_per_um, major_axis, minor_axis, d
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-01-23
-%  Updated: 2026-07-13
+%  Updated: 2026-09-04 (v8.3.0: attachment-site maps are proper rotations;
+%                       reflections at sites 1,2,5,7,10,11,14 removed)
 
 %% Input validation
 if nargin < 7
@@ -170,109 +171,99 @@ function [rxP, ryP, rzP, SPoint, PV] = pili_location_single( ...
 %  midpoint counterparts (11-14); only the X coordinate of the root
 %  differs.  This naming is preserved for backward compatibility with
 %  earlier Pili_Matrix configs.
+%
+%  Transformation (v8.3.0):
+%    The template pilus from pili_type_building is built along +x
+%    (tangent = +x, in-plane bending direction = +y, out-of-plane = +z).
+%    Each site applies a PROPER rotation R (det R = +1) followed by a
+%    translation to the root point:
+%        p_body = R * p_template + SPoint,   R = [c1, c2, c1 x c2]
+%    where c1 = PV (image of the template tangent +x) and c2 is the
+%    image of the template bending direction +y.  The third column is
+%    forced to c1 x c2 so that R is always a rotation.  The pre-v8.3.0
+%    table hard-coded coordinate swaps; for sites 1, 2, 5, 7, 10, 11 and
+%    14 those maps had det = -1 (reflections) and silently inverted the
+%    handedness of chiral templates (conical spiral, type 5) and of the
+%    deflection_x twist.  The rotations below agree with the legacy maps
+%    on the template's bending plane z = 0, so every planar template
+%    (types 1-4 with deflection_x = 0) is placed identically to before;
+%    only the out-of-plane component changes sign at the seven affected
+%    sites, which is exactly the chirality correction.
+
+ex = [1, 0, 0];
+ey = [0, 1, 0];
+ez = [0, 0, 1];
 
 switch NSite
+    % ---- Poles ------------------------------------------------------
     case 1   % Left pole
-        rxP(1:Ntail) = -major_axis - dis - hTail.rxtail;
-        ryP(1:Ntail) = hTail.rytail;
-        rzP(1:Ntail) = hTail.rztail;
-        SPoint = [-major_axis - dis, 0, 0];
-        PV     = [-1, 0, 0];
-
-    case 2   % Left hemisphere, y+
-        rxP(1:Ntail) = hTail.rytail + minor_axis - major_axis;
-        ryP(1:Ntail) = dis + hTail.rxtail + minor_axis;
-        rzP(1:Ntail) = hTail.rztail;
-        SPoint = [minor_axis - major_axis, minor_axis + dis, 0];
-        PV     = [0, 1, 0];
-
-    case 3   % Left hemisphere, z-
-        rxP(1:Ntail) = hTail.rztail + minor_axis - major_axis;
-        ryP(1:Ntail) = hTail.rytail;
-        rzP(1:Ntail) = -hTail.rxtail - dis - minor_axis;
-        SPoint = [minor_axis - major_axis, 0, -minor_axis - dis];
-        PV     = [0, 0, -1];
-
-    case 4   % Left hemisphere, y-
-        rxP(1:Ntail) = hTail.rytail + minor_axis - major_axis;
-        ryP(1:Ntail) = -dis - hTail.rxtail - minor_axis;
-        rzP(1:Ntail) = hTail.rztail;
-        SPoint = [minor_axis - major_axis, -minor_axis - dis, 0];
-        PV     = [0, -1, 0];
-
-    case 5   % Left hemisphere, z+
-        rxP(1:Ntail) = hTail.rztail + minor_axis - major_axis;
-        ryP(1:Ntail) = hTail.rytail;
-        rzP(1:Ntail) = hTail.rxtail + dis + minor_axis;
-        SPoint = [minor_axis - major_axis, 0, minor_axis + dis];
-        PV     = [0, 0, 1];
-
+        c1 = -ex;   c2 =  ey;
+        SPoint = -(major_axis + dis) * ex;
     case 6   % Right pole
-        rxP(1:Ntail) = major_axis + dis + hTail.rxtail;
-        ryP(1:Ntail) = hTail.rytail;
-        rzP(1:Ntail) = hTail.rztail;
-        SPoint = [major_axis + dis, 0, 0];
-        PV     = [1, 0, 0];
+        c1 =  ex;   c2 =  ey;
+        SPoint =  (major_axis + dis) * ex;
 
+    % ---- Left cap/cylinder junction (x = -(a-b)) --------------------
+    case 2   % Left hemisphere, y+
+        c1 =  ey;   c2 =  ex;
+        SPoint = -(major_axis - minor_axis) * ex + (minor_axis + dis) * c1;
+    case 3   % Left hemisphere, z-
+        c1 = -ez;   c2 =  ey;
+        SPoint = -(major_axis - minor_axis) * ex + (minor_axis + dis) * c1;
+    case 4   % Left hemisphere, y-
+        c1 = -ey;   c2 =  ex;
+        SPoint = -(major_axis - minor_axis) * ex + (minor_axis + dis) * c1;
+    case 5   % Left hemisphere, z+
+        c1 =  ez;   c2 =  ey;
+        SPoint = -(major_axis - minor_axis) * ex + (minor_axis + dis) * c1;
+
+    % ---- Right cap/cylinder junction (x = +(a-b)) -------------------
     case 7   % Right hemisphere, y+
-        rxP(1:Ntail) = hTail.rytail + major_axis - minor_axis;
-        ryP(1:Ntail) = dis + hTail.rxtail + minor_axis;
-        rzP(1:Ntail) = hTail.rztail;
-        SPoint = [major_axis - minor_axis, minor_axis + dis, 0];
-        PV     = [0, 1, 0];
-
+        c1 =  ey;   c2 =  ex;
+        SPoint =  (major_axis - minor_axis) * ex + (minor_axis + dis) * c1;
     case 8   % Right hemisphere, z-
-        rxP(1:Ntail) = hTail.rztail + major_axis - minor_axis;
-        ryP(1:Ntail) = hTail.rytail;
-        rzP(1:Ntail) = -hTail.rxtail - dis - minor_axis;
-        SPoint = [major_axis - minor_axis, 0, -minor_axis - dis];
-        PV     = [0, 0, -1];
-
+        c1 = -ez;   c2 =  ey;
+        SPoint =  (major_axis - minor_axis) * ex + (minor_axis + dis) * c1;
     case 9   % Right hemisphere, y-
-        rxP(1:Ntail) = hTail.rytail + major_axis - minor_axis;
-        ryP(1:Ntail) = -dis - hTail.rxtail - minor_axis;
-        rzP(1:Ntail) = hTail.rztail;
-        SPoint = [major_axis - minor_axis, -minor_axis - dis, 0];
-        PV     = [0, -1, 0];
-
+        c1 = -ey;   c2 =  ex;
+        SPoint =  (major_axis - minor_axis) * ex + (minor_axis + dis) * c1;
     case 10  % Right hemisphere, z+
-        rxP(1:Ntail) = hTail.rztail + major_axis - minor_axis;
-        ryP(1:Ntail) = hTail.rytail;
-        rzP(1:Ntail) = hTail.rxtail + dis + minor_axis;
-        SPoint = [major_axis - minor_axis, 0, minor_axis + dis];
-        PV     = [0, 0, 1];
+        c1 =  ez;   c2 =  ey;
+        SPoint =  (major_axis - minor_axis) * ex + (minor_axis + dis) * c1;
 
+    % ---- Cylinder midpoint (x = 0) ----------------------------------
     case 11  % Middle cylinder, y+
-        rxP(1:Ntail) = hTail.rytail;
-        ryP(1:Ntail) = dis + hTail.rxtail + minor_axis;
-        rzP(1:Ntail) = hTail.rztail;
-        SPoint = [0, minor_axis + dis, 0];
-        PV     = [0, 1, 0];
-
+        c1 =  ey;   c2 =  ex;
+        SPoint = (minor_axis + dis) * c1;
     case 12  % Middle cylinder, z-
-        rxP(1:Ntail) = hTail.rztail;
-        ryP(1:Ntail) = hTail.rytail;
-        rzP(1:Ntail) = -hTail.rxtail - dis - minor_axis;
-        SPoint = [0, 0, -minor_axis - dis];
-        PV     = [0, 0, -1];
-
+        c1 = -ez;   c2 =  ey;
+        SPoint = (minor_axis + dis) * c1;
     case 13  % Middle cylinder, y-
-        rxP(1:Ntail) = hTail.rytail;
-        ryP(1:Ntail) = -dis - hTail.rxtail - minor_axis;
-        rzP(1:Ntail) = hTail.rztail;
-        SPoint = [0, -minor_axis - dis, 0];
-        PV     = [0, -1, 0];
-
+        c1 = -ey;   c2 =  ex;
+        SPoint = (minor_axis + dis) * c1;
     case 14  % Middle cylinder, z+
-        rxP(1:Ntail) = hTail.rztail;
-        ryP(1:Ntail) = hTail.rytail;
-        rzP(1:Ntail) = hTail.rxtail + dis + minor_axis;
-        SPoint = [0, 0, minor_axis + dis];
-        PV     = [0, 0, 1];
+        c1 =  ez;   c2 =  ey;
+        SPoint = (minor_axis + dis) * c1;
 
     otherwise
         error('pili_location_single:InvalidSite', ...
               'Attachment position %d is not available.', NSite);
 end
+
+% Assemble the proper rotation and apply it to the template
+R  = [c1(:), c2(:), cross(c1(:), c2(:))];      % columns = images of ex, ey, ez
+if abs(det(R) - 1) > 1e-12
+    error('pili_location_single:NotARotation', ...
+          'Internal error: site %d transform has det = %.3g (expected +1).', ...
+          NSite, det(R));
+end
+
+P_template = [hTail.rxtail(:).'; hTail.rytail(:).'; hTail.rztail(:).'];  % [3 x Ntail]
+P_body     = R * P_template + SPoint(:);                                 % [3 x Ntail]
+
+rxP(1:Ntail) = P_body(1, :);
+ryP(1:Ntail) = P_body(2, :);
+rzP(1:Ntail) = P_body(3, :);
+PV = c1;
 
 end

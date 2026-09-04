@@ -56,7 +56,7 @@ function params = init_coupled_params(varargin)
 %      .kb0, .am_cfg, .root_coupling, .motor_cfg
 %      .q_0_init, .orientation_source, .alpha_0
 %      .Eg, .epsilon, .sigma, .g_hat, .delta, .eps_body
-%      .quad_weights, .bg_flow, .brown_enabled
+%      .quad_weights, .bg_flow, .brown_enabled, .brown_force_dimless
 %      .logf, .logf_file     caller-facing logging handles
 %
 %  Note:
@@ -71,7 +71,10 @@ function params = init_coupled_params(varargin)
 %  Created: 2026-02-06
 %  History: 2026-06-17 — v7.9.0 P8 motor_torque string acceptance and
 %           removal of the redundant no-pili assignment branch.
-%  Updated: 2026-07-13
+%           2026-09-04 — v8.3.0 kb0 evaluated through the shared
+%           compute_pili_curvature operator (node-collocated stencil).
+%           2026-09-04 — v8.5.0 brown_force_dimless field initialised.
+%  Updated: 2026-09-04
 
 %% Parse inputs
 p = inputParser;
@@ -123,6 +126,11 @@ params.dim.rho_bac    = p.Results.rho_bac;
 params.dim.rho_fluid  = p.Results.rho_fluid;
 params.dim.Temper     = p.Results.Temper;
 params.brown_enabled  = p.Results.enable_brown;
+% Thermal generalised body force held constant over the current Brownian
+% interval (v8.5.0, see sample_brownian_body_force.m).  Zero for
+% deterministic runs and between intervals; ode_coupled_rhs subtracts it
+% from R_global(1:6).  run_simulation overwrites it at every interval start.
+params.brown_force_dimless = zeros(6, 1);
 params.geometry_mode  = geometry_mode;
 
 % Store logger handles (injected by run_simulation; fallback to fprintf)
@@ -441,27 +449,14 @@ if M_pili > 0 && strcmp(geometry_mode, 'parametric')
         params.D_local{k} = [d1_0(1,:)', d2_0(1,:)', d3_0(1,:)'];
         params.d_local{k} = d3_0(1, :)';
 
-        % Compute intrinsic curvature at nodes.
-        % Use the SAME node-director operator (compute_node_directors:
-        % SVD-projected segment averaging) and the SAME finite-difference
-        % stencil as the run-time curvature in compute_pili_elastic_moments.m.
-        % This guarantees kappa_live - kb0 == 0 (bit-exact) in the reference
-        % configuration, so a 'frozen' pilus starts as an exact zero-moment
-        % equilibrium instead of carrying a spurious restoring moment.
-        [d1NC0, d2NC0, d3NC0] = compute_node_directors(d1_0, d2_0, d3_0, N_segments(k));
-
-        d1NCds0 = [d1NC0(2,:)-d1NC0(1,:); ...
-                   d1NC0(2:end,:)-d1NC0(1:end-1,:)] * N_segments(k);
-        d2NCds0 = [d2NC0(2,:)-d2NC0(1,:); ...
-                   d2NC0(2:end,:)-d2NC0(1:end-1,:)] * N_segments(k);
-        d3NCds0 = [d3NC0(2,:)-d3NC0(1,:); ...
-                   d3NC0(2:end,:)-d3NC0(1:end-1,:)] * N_segments(k);
-
-        kb0_k = zeros(N_segments(k)+1, 3);
-        kb0_k(:, 1) = dot(d3NC0, d2NCds0, 2);
-        kb0_k(:, 2) = dot(d1NC0, d3NCds0, 2);
-        kb0_k(:, 3) = dot(d2NC0, d1NCds0, 2);
-        params.kb0{k} = kb0_k;
+        % Compute intrinsic curvature at nodes with the SAME operator used
+        % by the run-time curvature in compute_pili_elastic_moments.m
+        % (compute_pili_curvature: SVD node directors + node-collocated
+        % segment-difference stencil).  This guarantees kappa_live - kb0 == 0
+        % (bit-exact) in the reference configuration, so a 'frozen' pilus
+        % starts as an exact zero-moment equilibrium instead of carrying a
+        % spurious restoring moment.
+        params.kb0{k} = compute_pili_curvature(d1_0, d2_0, d3_0, N_segments(k));
     end
 
     %% Apply intrinsic curvature overrides (per-pili, static)
@@ -661,27 +656,14 @@ else
             params.D_local{k} = [d1_0(1,:)', d2_0(1,:)', d3_0(1,:)'];
             params.d_local{k} = d3_0(1, :)';
 
-            % Compute intrinsic curvature at nodes.
-            % Use the SAME node-director operator (compute_node_directors:
-            % SVD-projected segment averaging) and the SAME finite-difference
-            % stencil as the run-time curvature in compute_pili_elastic_moments.m.
-            % This guarantees kappa_live - kb0 == 0 (bit-exact) in the reference
-            % configuration, so a 'frozen' pilus starts as an exact zero-moment
-            % equilibrium instead of carrying a spurious restoring moment.
-            [d1NC0, d2NC0, d3NC0] = compute_node_directors(d1_0, d2_0, d3_0, N_segments(k));
-
-            d1NCds0 = [d1NC0(2,:)-d1NC0(1,:); ...
-                       d1NC0(2:end,:)-d1NC0(1:end-1,:)] * N_segments(k);
-            d2NCds0 = [d2NC0(2,:)-d2NC0(1,:); ...
-                       d2NC0(2:end,:)-d2NC0(1:end-1,:)] * N_segments(k);
-            d3NCds0 = [d3NC0(2,:)-d3NC0(1,:); ...
-                       d3NC0(2:end,:)-d3NC0(1:end-1,:)] * N_segments(k);
-
-            kb0_k = zeros(N_segments(k)+1, 3);
-            kb0_k(:, 1) = dot(d3NC0, d2NCds0, 2);
-            kb0_k(:, 2) = dot(d1NC0, d3NCds0, 2);
-            kb0_k(:, 3) = dot(d2NC0, d1NCds0, 2);
-            params.kb0{k} = kb0_k;
+            % Compute intrinsic curvature at nodes with the SAME operator used
+            % by the run-time curvature in compute_pili_elastic_moments.m
+            % (compute_pili_curvature: SVD node directors + node-collocated
+            % segment-difference stencil).  This guarantees kappa_live - kb0 == 0
+            % (bit-exact) in the reference configuration, so a 'frozen' pilus
+            % starts as an exact zero-moment equilibrium instead of carrying a
+            % spurious restoring moment.
+            params.kb0{k} = compute_pili_curvature(d1_0, d2_0, d3_0, N_segments(k));
         end
 
         %% Apply intrinsic curvature overrides (per-pili, static) — custom mode
@@ -892,11 +874,13 @@ else
 end
 
 %% Brownian motion configuration
-%  The body-only diffusion tensor is computed dynamically at each Brownian
-%  step by probing the full deterministic coupled body-pili system.  Pilus
-%  internal modes receive no stochastic forcing.  Thermal drift is handled
-%  explicitly in the run entry points with the body-coordinate Ito
-%  finite-difference correction kB*T*div(M).
+%  The body-only diffusion tensor is computed dynamically at the start of
+%  each Brownian interval by probing the full deterministic coupled
+%  body-pili system.  Pilus internal modes receive no stochastic forcing of
+%  their own.  The increment is realised as a constant thermal generalised
+%  force (params.brown_force_dimless, see sample_brownian_body_force.m)
+%  acting through the coupled ODE, which reproduces the Ito drift
+%  kB*T*div(M) implicitly (v8.5.0).
 
 %% Run token for run-scoped diagnostics and future cache isolation
 %  A high-resolution monotonic token distinguishes independent simulations

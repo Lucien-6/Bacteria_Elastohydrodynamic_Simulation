@@ -4,8 +4,8 @@
 [返回中文 README](../README.zh-CN.md)
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **更新日期:** 2026-07-25
-> **版本:** 8.1.0
+> **更新日期:** 2026-09-04
+> **版本:** 8.5.0
 
 本文档承接原长版 README 中的理论、模型和数值方法说明。仓库首页现在保持精简；实际运行步骤见 [`../USER_GUIDE.md`](../USER_GUIDE.md)，版本历史见 [`../CHANGELOG.md`](../CHANGELOG.md)。
 
@@ -21,6 +21,8 @@
 默认参数化胞体由两个半球端盖和一个圆柱中段组成。自定义几何模式下，胞体与纤毛必须同时来自用户导入的点云；当混用字段进入校验器时（内联/程序化 `cfg`，或经 `run_simulation.m` 传入的 JSON `cfg`），`validate_simulation_params.m` 会拒绝“自定义 + 参数化”的双向混用。注意：JSON 参数化模式下，`load_sim_config.m` **不会**将顶层 `custom_geometry` 读入 `cfg`，因此 JSON 中残留的该字段会在加载阶段被**静默忽略**而非触发校验——应从 JSON 中删除该块，或改用 `geometry_mode: "custom"`。
 
 导入的纤毛曲线只转换一次为 canonical 等弦长折线：先去除连续重复点并建立 PCHIP 参数曲线，再用嵌套标量根求解获得参数单调、端点保持且每段弦长相同的节点。参考节点、全部材料 directors 和内禀曲率都来自同一折线。初始胞体姿态对全部参考 directors 施加同一个刚体旋转后再恢复 Euler 角，从而保证弯曲无应力杆的客观性。所有纤毛统一使用全局 \(E\) 与 \(r_{\mathrm{pili}}\)，不存在逐纤毛刚度参数。
+
+参数化纤毛由 `pili_type_building.m` 生成沿 \(+x\) 的模板（弯曲平面为 \(xy\)），再由 `pili_building.m` 放置到胞体 14 个附着位点之一。自 v8.3.0 起，每个位点变换都是真旋转 \(R=[\mathbf{c}_1,\mathbf{c}_2,\mathbf{c}_1\times\mathbf{c}_2]\)（\(\mathbf{c}_1\) 为外法向、\(\mathbf{c}_2\) 为弯曲方向）加平移，可选的偏转矩阵 \(R_z(\theta)\)、\(R_x(\gamma)\) 均为右手约定。旧版在位点 1、2、5、7、10、11、14 采用 \(\det=-1\) 的坐标交换并使用左手 \(R_x\)，会镜像手性模板（锥形螺旋）及 `deflection_x` 的扭转方向；不带 `deflection_x` 的平面模板在两版中放置完全一致。
 
 ## 2. 主要方法
 
@@ -305,6 +307,18 @@ director 演化关系为：
 
 每根纤毛的内禀曲率可配置为 `frozen`、`zero`、`constant` 或 `helix`。主动力矩可关闭、设为行波形式，或由自定义配置提供。
 
+### 离散曲率差分模板（v8.3.0）
+
+Directors 按分段存储（第 \(i\) 段覆盖 \(s\in[(i-1)\Delta s,\ i\Delta s]\)，\(\Delta s=1/N\)），而力矩平衡写在节点上。共享算子 [`compute_pili_curvature.m`](../src/physics/compute_pili_curvature.m) 在节点 \(i\) 处按
+
+```math
+\kappa_1(s_i) = \mathbf{d}_3^{(i)}\cdot\frac{\mathbf{d}_{2,i}-\mathbf{d}_{2,i-1}}{\Delta s},\qquad
+\kappa_2(s_i) = \mathbf{d}_1^{(i)}\cdot\frac{\mathbf{d}_{3,i}-\mathbf{d}_{3,i-1}}{\Delta s},\qquad
+\kappa_3(s_i) = \mathbf{d}_2^{(i)}\cdot\frac{\mathbf{d}_{1,i}-\mathbf{d}_{1,i-1}}{\Delta s}
+```
+
+计算三个分量，其中 \(\mathbf{d}_{\alpha,i}\) 为**分段** directors，\(\mathbf{d}_\alpha^{(i)}\) 为由节点两侧分段坐标架经 SVD 极分解平均得到的**节点** director（[`compute_node_directors.m`](../src/physics/compute_node_directors.m)）。第 \(i-1\)、\(i\) 段的中心位于 \(s_i\mp\Delta s/2\)，因此该差商是 \(\mathbf{d}_\alpha'(s_i)\) 的中心估计，且与其投影所用的节点 director 共位，格式为 \(O(\Delta s^2)\)。8.3.0 之前的实现对节点 directors 本身做后向差分，导数中心落在 \(s_i-\Delta s/2\)，使投影退化为 \(O(\Delta s)\)（在解析的常 Darboux 矢量坐标架上数值验证：观测收敛阶 2.00 对 0.98）。节点 1 借用节点 2 的模板并随后被根部边界条件覆盖；节点 \(N+1\) 无力矩、不参与计算。`init_coupled_params.m` 中的内禀曲率 `kb0` 由同一算子生成，因此 `frozen` 纤毛在 \(t=0\) 处为精确的零力矩平衡（残差 \(\sim 10^{-13}\)）。
+
 ## 8. 根部耦合与马达力矩
 
 每根纤毛根部支持两类边界条件：
@@ -312,7 +326,28 @@ director 演化关系为：
 - `clamped`: 根部弯曲角和扭转角均锁定到胞体坐标系。
 - `free_torsion`: 根部弯曲角仍受约束，但根部扭转角 `psi_1` 自由演化。
 
-在 `free_torsion` 模式下，根部 `d3` 力矩平衡行可以接受弹性扭转、主动 `d3` 力矩和恒定马达力矩。自 v7.3.0 起，代码不再向 `R_global(4:6)` 显式加入马达反力矩。原因是这些行表示整个“胞体 + 纤毛”耦合系统的角动量平衡，马达在胞体与纤毛之间交换的力矩属于系统内部力矩，在整体求和中相互抵消。胞体角响应仍然存在，但它由全局 Stokes 耦合求解和根部运动学约束隐式给出。
+在 `free_torsion` 模式下，根部 `d3` 力矩平衡行是整根鞭毛关于根部的轴向力矩平衡，其右端为胞体经根部传递的边界扭矩（马达扭矩；无摩擦轴承时为零），见下文“根部扭转行”。自 v7.3.0 起，代码不再向 `R_global(4:6)` 显式加入马达反力矩。原因是这些行表示整个“胞体 + 纤毛”耦合系统的角动量平衡，马达在胞体与纤毛之间交换的力矩属于系统内部力矩，在整体求和中相互抵消。胞体角响应仍然存在，但它由全局 Stokes 耦合求解和根部运动学约束隐式给出。
+
+### 马达扭矩–转速关系（v8.2.0）
+
+有效马达扭矩采用细菌鞭毛马达的线性扭矩–转速关系（Berg & Turner 1993；Berg 2003），以转子相对胞体的转速表述：
+
+$$\tau_{\mathrm{eff}} = \tau_{\mathrm{motor}}\left(1 - \frac{\omega_{\mathrm{rel}}}{\omega_{\max}}\right),\qquad
+\omega_{\mathrm{rel}} = \operatorname{sign}(\tau_{\mathrm{motor}})\,\Big[\big(\dot\psi_1 + \cos\theta_1\,\dot\phi_1\big) - \boldsymbol{\Omega}_{\mathrm{body}}\cdot\mathbf{d}_3^{(1)}\Big].$$
+
+$\dot\psi_1 + \cos\theta_1\dot\phi_1$ 是 Walker Euler 角运动学中第 1 段的完整轴向角速度（与线性系统扭转率行所用表达式相同）；减去 $\boldsymbol{\Omega}_{\mathrm{body}}\cdot\mathbf{d}_3^{(1)}$ 后该速度与参考系无关，等于马达实际感受到的转子–定子相对转动。符号因子使转速沿驱动方向度量，因此同一公式适用于 CW 与 CCW 马达。该关系是非对称的：被迫反转（$\omega_{\mathrm{rel}}<0$）时扭矩高于失速值，$\omega_{\mathrm{rel}}>\omega_{\max}$ 时马达变为制动。由于 $\dot{z}$ 关于马达扭矩是仿射的，$\omega_{\mathrm{rel}} = a + B\tau$（$a$ 为无马达解，$B$ 为单位扭矩响应，二者来自 `lin_sys` 的同一次分解），自洽扭矩由小型线性系统 $(I + \operatorname{diag}(|\tau_{\mathrm{motor}}|/\omega_{\max})B)\,\tau = \tau_{\mathrm{motor}} - \operatorname{diag}(|\tau_{\mathrm{motor}}|/\omega_{\max})\,a$ 精确求得。
+
+符号约定：`R_global` 存储的是所施加广义力的负值，因此马达扭矩以 $-\tau$ 进入其 $\psi_1$ 行；正的 `torque_pN_nm` 使转子绕向外根部切向量 $\mathbf{d}_3$ 做右手旋转（从鞭毛末端朝胞体看为逆时针）。
+
+### `free_torsion` 的根部扭转行（v8.4.0）
+
+纤毛力矩平衡的第 $i$ 行是杆段 $[s_i,1]$ 关于节点 $i$ 的平衡：
+
+```math
+\mathbf{M}(s_i) + \int_{s_i}^{1}\big(\mathbf{x}-\mathbf{x}_i\big)\times\mathbf{f}\,\mathrm{d}s + \int_{s_i}^{1}\mathbf{m}\,\mathrm{d}s = \mathbf{0},
+```
+
+其中 $\mathbf{M}(s_i)$ 是 $[0,s_i)$ 作用于 $[s_i,1]$ 的内力矩。对内部节点它是 Kirchhoff 力矩 $EI(\kappa_1\mathbf{d}_1+\kappa_2\mathbf{d}_2)+GJ\kappa_3\mathbf{d}_3$ 加上积分后的主动力矩。在根部节点，$[0,s_1)$ 就是胞体，故 $\mathbf{M}(0)$ 是胞体施加于杆的扭矩：`clamped` 时为未知反力（三行改为运动学约束）；`free_torsion` 时 $\mathbf{M}(0)\cdot\mathbf{d}_3=\tau_{\mathrm{eff}}$（无摩擦轴承时为零）。节点 1 处可用的离散 $\kappa_3$ 实际是在第 1、2 段之间求值的，它已经是节点 2 平衡所用的内力矩。8.4.0 之前它仍被加入根部行；将根部行与节点 2 行相减可见，马达扭矩当时只由第 1 段的水动力扭矩平衡，因而直杆的稳态转速被放大为物理值的 $N$ 倍（验证：$N=10$ 时修复前后分别为 $8.47\times10^4$ 与 $8.84\times10^3$ rad/s；扭转分布自节点 2 到末端线性递减，$GJ\kappa_3(s_2)=\tau_{\mathrm{eff}}(1-1/N)$）。现在 `compute_pili_elastic_moments.m` 与 `coupled_active_moment.m` 的根部行在两种耦合模式下均为零，`free_torsion` 的 $\psi_1$ 行只携带边界扭矩。由此：无马达的自由轴承要求鞭毛所受净轴向水动力扭矩为零（纯内部扭转波无法使其整体旋转）；有马达时直杆稳态转速为 $\omega=\tau_{\mathrm{eff}}/(\xi_t L)$，其中对 Cortez (2018) 7/2 blob 的正则化 rotlet 线段 $\xi_t=2\pi\mu\epsilon^2$（为 $a=\epsilon$ 的无滑移圆柱值 $4\pi\mu a^2$ 的一半；模拟器复现该系数的误差 $<10^{-3}$）。
 
 ## 9. 背景流
 
@@ -338,11 +373,13 @@ director 演化关系为：
 
 ## 10. 布朗动力学
 
-启用布朗运动时，确定性弹性流体动力学与随机胞体运动采用算符分裂：
+启用布朗运动时，观测窗口被划分为长度为 `dt_B` 的 Brownian 区间（最后一个区间使用实际剩余时长）。自 v8.5.0 起，body-only 热运动以**在整个区间内恒定的广义热力**作用于胞体来实现（"力实现"方案），而不再在确定性段之间施加位移 kick：
 
-1. 使用 `ode15s` 积分确定性耦合系统。
-2. 在每个 Brownian 时间节点，通过探测完整确定性胞体-纤毛系统计算有效胞体迁移率。
-3. 只对胞体姿态施加 6 维平移-转动相关增量，随后重新满足纤毛根部约束。
+1. 在每个区间起点，通过探测完整确定性胞体-纤毛系统计算有效胞体迁移率（§10.1）。
+2. 抽取冻结迁移率下的 Euler–Maruyama 增量 \(\delta\mathbf{U}\)，并将其换算为在冻结系统上恰好产生该增量的广义力 \(\mathbf{f}_{\mathrm{th}}\)（§10.2）。
+3. 将 \(\mathbf{f}_{\mathrm{th}}\) 加到右端项的六个胞体行（`ode_coupled_rhs` 第 8a 步），用 `ode15s` 在该区间内积分耦合系统；纤毛通过与重力、马达扭矩相同的水动力与弹性耦合响应胞体的热运动。
+
+### 10.1 有效胞体迁移率
 
 有效迁移率通过 6 个单位广义胞体载荷探测耦合线性系统得到：
 
@@ -378,9 +415,52 @@ k_B T\,\mathbf{M}_{\mathrm{eff,dim}},
 \boldsymbol{\eta}\sim\mathcal{N}(\mathbf{0},\mathbf{I}_6).
 ```
 
-Ito 漂移项通过对 SPD 投影后的六维胞体迁移率做有限差分显式计算。当观测时间不能被 `dt_B` 整除时，最后一步使用实际剩余时间。Brownian 抽样来自本次运行独立的随机流，不受几何缓存创建影响。
+Brownian 抽样来自本次运行独立的随机流，不受几何缓存创建影响；每个区间恰好消耗 6 个正态随机数。
 
-**Brownian 近似的适用范围。** 所有纤毛的水动力拖曳都会影响探测得到的 6 x 6 胞体迁移率，但纤毛内部 Euler 角自由度不接受随机驱动，只在确定性弹性、水动力、主动力矩和马达力矩作用下演化。因此，该模型适合在忽略纤毛内部热涨落时研究胞体质心和取向扩散；它不是完整耦合热平衡过程，也不能再现纤毛内部模态的能量均分。
+### 10.2 增量的力实现（v8.5.0）
+
+以区间起点冻结的有效迁移率为准，在 \(\Delta t_B\) 内恰好产生 \(\delta\mathbf{U}\) 的广义力为
+
+```math
+\mathbf{f}_{\mathrm{th}}
+=
+\mathbf{M}_{\mathrm{eff}}^{-1}\,
+\frac{\delta\mathbf{U}}{\Delta t_B},
+```
+
+在耦合系统的无量纲广义单位中求值（第 1–3 行以 \(F_0\) 计，第 4–6 行以 \(F_0 L_0\) 计；`sample_brownian_body_force`）。它以与重力相同的符号约定进入右端项，\(\mathbf{R}(1{:}6) \leftarrow \mathbf{R}(1{:}6) - \mathbf{f}_{\mathrm{th}}\)，并在 `ode15s` 积分该区间期间保持恒定。因此实际的胞体增量是沿真实耦合轨迹的 \(\int \mathbf{M}_{\mathrm{eff}}(t)\,\mathbf{f}_{\mathrm{th}}\,dt\)，而非冻结迁移率下的值。
+
+**根部不再出现折点的原因。** v8.5.0 之前，胞体姿态在每个节点被瞬时移动，随后第 1 段纤毛被重新投影到移动后的胞体上，而第 \(2\ldots N\) 段保持原取向。因此每次 kick 都在第 1、2 段之间注入一个幅值与 \(|\delta\boldsymbol{\Theta}|/\ell\) 同阶的曲率间断；当 \(\ell \ll 1\) 时这会激发高波数弹性模态，其松弛时间尺度为 \(\ell^4\)，迫使 `ode15s` 采用极小步长。改为力实现后，胞体连续运动，纤毛通过耦合求解跟随；根部约束从未被破坏，也就不会激发伪模态。
+
+**隐式 Ito 漂移。** 迁移率依赖于构型的过阻尼 SDE 在 Ito 约定下需要漂移项 \(k_B T\,\nabla\!\cdot\!\mathbf{M}\)。在一个区间内展开耦合 ODE，
+
+```math
+\delta\mathbf{U}_{\mathrm{real}}
+=
+\mathbf{M}_n\mathbf{f}_{\mathrm{th}}\Delta t_B
++ \tfrac12\,(\partial_j\mathbf{M})\,(\mathbf{M}_n\mathbf{f}_{\mathrm{th}})_j\,\mathbf{f}_{\mathrm{th}}\,\Delta t_B^2
++ \mathcal{O}(\Delta t_B^{3/2}),
+```
+
+并利用 \(\mathbb{E}[\mathbf{f}_{\mathrm{th}}\mathbf{f}_{\mathrm{th}}^{\mathsf T}]\,\Delta t_B = 2k_BT\,\mathbf{M}_n^{-1}\)，得到
+
+```math
+\mathbb{E}\big[\delta\mathbf{U}_{\mathrm{real}}\big]
+=
+k_B T\,\nabla\!\cdot\!\mathbf{M}\,\Delta t_B
++ \mathcal{O}(\Delta t_B^{3/2}),
+\qquad
+\operatorname{Cov}\big[\delta\mathbf{U}_{\mathrm{real}}\big]
+=
+2k_BT\,\mathbf{M}_n\,\Delta t_B
++ \mathcal{O}(\Delta t_B^{3/2}).
+```
+
+沿轨迹采样到的迁移率梯度自动生成了 Ito 漂移：该方案是 body-only Ito SDE 的一致弱一阶积分器，v7.5.0–v8.4.0 使用的显式有限差分 \(k_B T\,\nabla\!\cdot\!\mathbf{M}\) 修正（每个节点额外 12 次耦合求解）不再施加——若再加入将导致漂移被重复计入。
+
+对当前无壁面模型，这一点主要具有形式意义：在无界流体中，有效迁移率仅通过取向依赖于胞体姿态，\(\mathbf{M}_{\mathrm{eff}} = \mathbf{R}\,\mathbf{M}_{\mathrm{shape}}\,\mathbf{R}^{\mathsf T}\)，该张量对六个胞体姿态坐标的散度恒为零（平动坐标不出现；对对称 \(\mathbf{M}\)，转动散度 \(\partial_{\theta_k}(\mathbf{R}\mathbf{M}\mathbf{R}^{\mathsf T})_{ik}\) 相互抵消）。因此无论旧方案还是新方案，胞体姿态的 Ito 漂移都为零；隐式漂移性质只有在引入壁面或其他依赖姿态的迁移率时才具有定量意义。区间内纤毛在热力作用下变形导致的 \(\mathbf{M}_{\mathrm{eff}}\) 变化属于耦合动力学本身，而非漂移修正。
+
+**Brownian 近似的适用范围。** 所有纤毛的水动力拖曳都会影响探测得到的 6 x 6 胞体迁移率，但纤毛内部 Euler 角自由度不接受随机驱动，只在确定性弹性、水动力、主动力矩、马达力矩以及由胞体传递而来的热力作用下演化。因此，该模型适合在忽略纤毛内部热涨落时研究胞体质心和取向扩散；它不是完整耦合热平衡过程，也不能再现纤毛内部模态的能量均分。
 
 **已知近似 —— 确定性算子与随机算子的一致性。**
 

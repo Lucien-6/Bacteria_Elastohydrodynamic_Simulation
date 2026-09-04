@@ -548,7 +548,10 @@ for k = 1:M
         % Free-torsion BC: replace only 2 rows (theta_1, phi_1 locked; psi_1 free)
         lin_sys(r1, :) = 0;
         lin_sys(r2, :) = 0;
-        % r3 row is kept: elastic moment balance equation drives psi_1 dynamics
+        % r3 row is kept: it is the d3 moment balance of the whole rod about
+        % the root.  Its RHS (ode_coupled_rhs) is the body->rod boundary
+        % torque (motor torque, or zero for a free bearing); the interior
+        % Kirchhoff twist moment does not enter this row (v8.4.0).
 
         lin_sys(r1, theta1_col) = 1;   lin_sys(r1, omega_cols) = -J_euler(1,:);
         lin_sys(r2, phi1_col)   = 1;   lin_sys(r2, omega_cols) = -J_euler(2,:);

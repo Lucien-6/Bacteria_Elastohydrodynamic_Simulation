@@ -35,8 +35,8 @@
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-07-21
-%  Documentation release: 8.1.0 (2026-07-25) - see README.md / CHANGELOG.md
+%  Updated: 2026-09-04
+%  Documentation release: 8.5.0 (2026-09-04) - see README.md / CHANGELOG.md
 
 close all force;
 clear; clc;
@@ -255,8 +255,9 @@ else
     cfg.enable_brown     = false;          % true = enable Brownian motion
     cfg.Temper           = 293.15;        % [K]   Fluid temperature (20 deg C)
     cfg.dt_B             = cfg.dt / 2;    % [s]   Brownian time step
-    % Brownian thermal drift is handled by the strict Ito finite-difference
-    % correction in run_simulation.m.
+    % The Brownian increment of each dt_B interval is realised as a constant
+    % thermal generalised body force in the coupled ODE (v8.5.0); the Ito
+    % drift is implicit, so no drift option exists here.
     % Optional: cfg.brown_rng_seed = positive integer for fixed twister seed; omit = MMddHHmmss at run start
 
     % -------- Preview & Animation --------

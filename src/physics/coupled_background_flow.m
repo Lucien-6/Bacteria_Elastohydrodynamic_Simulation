@@ -43,8 +43,12 @@ function u_bg = coupled_background_flow(X_all, geom, params)
 %    [1] Walker et al. (2020), Physical Review E.
 %    [2] 3D-Flexible-Filaments/background_flow.m (single-filament version)
 %
+%  See also: background_flow_velocity
+%
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-03
+%  Updated: 2026-09-04 — translational profile delegated to
+%           background_flow_velocity (shared with compute_plot_flowfield)
 
 N_total = size(X_all, 1);
 N_segs  = params.N_segments;
@@ -59,32 +63,10 @@ if strcmp(bg.type, 'off')
     return
 end
 
-U_max  = bg.U_max_dimless;
-d_flow = bg.direction(:)';
-
-switch bg.type
-    case 'uniform'
-        u_vec = U_max * d_flow;
-        u_trans = repmat(u_vec, N_total, 1);
-        omega_lab = [0, 0, 0];
-
-    case 'shear_z'
-        s_axis = bg.shear_axis(:)';
-        H      = bg.shear_height_dimless;
-
-        h_proj = X_all * s_axis';
-        profile = U_max * max(0, min(h_proj / H, 1));
-
-        u_trans = profile .* d_flow;
-
-        omega_lab_dir = cross(s_axis, d_flow);
-        omega_lab_mag = U_max / H;
-        omega_lab = omega_lab_mag * omega_lab_dir;
-
-    otherwise
-        error('coupled_background_flow:UnknownType', ...
-            'Unknown background_flow type: ''%s''.', bg.type);
-end
+% Translational profile and fluid angular velocity (0.5 * vorticity) come
+% from the shared evaluator so RHS assembly and flow-field post-processing
+% use one definition (see background_flow_velocity.m).
+[u_trans, omega_fluid] = background_flow_velocity(X_all, params);
 
 u_bg = zeros(n_total_dof, 1);
 
@@ -97,7 +79,7 @@ seg_count    = 0;
 pt_offset    = params.N_body;
 
 % Hoist invariant fields once.
-omega_half = 0.5 * omega_lab(:)';        % [1 x 3]
+omega_half = omega_fluid(:)';            % [1 x 3] fluid angular velocity
 is_shear   = strcmp(bg.type, 'shear_z');
 if is_shear
     s_axis_row = bg.shear_axis(:)';

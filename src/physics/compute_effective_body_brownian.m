@@ -1,4 +1,4 @@
-function [L_eff, D_eff, M_eff_dim] = compute_effective_body_brownian(Z, params)
+function [L_eff, D_eff, M_eff_dim, M_eff_dimless] = compute_effective_body_brownian(Z, params)
 %COMPUTE_EFFECTIVE_BODY_BROWNIAN  Effective 6x6 body-only Brownian parameters
 %
 %  Description:
@@ -46,7 +46,7 @@ function [L_eff, D_eff, M_eff_dim] = compute_effective_body_brownian(Z, params)
 %    indefinite mobility raises compute_effective_body_brownian:Indefinite.
 %
 %  Syntax:
-%    [L_eff, D_eff, M_eff_dim] = compute_effective_body_brownian(Z, params)
+%    [L_eff, D_eff, M_eff_dim, M_eff_dimless] = compute_effective_body_brownian(Z, params)
 %
 %  Inputs:
 %    Z      - [(7 + 3*sum(N_segments)) x 1] Global state vector
@@ -61,6 +61,12 @@ function [L_eff, D_eff, M_eff_dim] = compute_effective_body_brownian(Z, params)
 %                Units: [m^2/s (TT), m*rad/s (TR), rad^2/s (RR)]
 %    M_eff_dim - [6x6] Dimensional effective mobility matrix
 %                Units: [m/(s*N) (TT), 1/(s*N) (TR), rad/(s*N*m) (RR)]
+%    M_eff_dimless - [6x6] Symmetrised, SPD-repaired DIMENSIONLESS
+%                effective mobility in the generalised units of the
+%                coupled linear system (velocity in U_0 / rate in 1/T_0
+%                per force in F_0 / torque in F_0*L_0).  Used by
+%                sample_brownian_body_force to convert a target body
+%                increment into a generalised thermal force.
 %
 %  References:
 %    [1] Walker et al. (2020), Physical Review E.
@@ -71,6 +77,7 @@ function [L_eff, D_eff, M_eff_dim] = compute_effective_body_brownian(Z, params)
 %  History: 2026-05-06 — rcond diagnostic moved to M_eff_dimless
 %           (project v7.4.1; see CHANGELOG.md).
 %  Updated: 2026-07-13
+%  Updated: 2026-09-04 — v8.5.0: expose M_eff_dimless as a fourth output
 
 %% Step 1: Assemble coupled linear system
 [lin_sys, ~] = build_coupled_lin_sys(Z, params);
