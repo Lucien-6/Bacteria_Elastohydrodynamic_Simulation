@@ -4,8 +4,8 @@ English | [中文](theory.zh-CN.md)
 [Back to README](../README.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Updated:** 2026-09-04
-> **Version:** 8.5.0
+> **Updated:** 2026-10-10
+> **Version:** 8.5.1
 
 This document contains the model details that were formerly embedded in the long README. The repository entry page is now intentionally short; practical run instructions are in [`../USER_GUIDE.md`](../USER_GUIDE.md), and release history is in [`../CHANGELOG.md`](../CHANGELOG.md).
 
@@ -554,6 +554,32 @@ process and cannot reproduce pilus-mode equipartition.
 The deterministic solve uses the raw hydrodynamic mobility `M_weighted`, which is structurally non-symmetric when `eps_body != eps_pili`: the body RSM block (source `eps = eps_body`) and the pili RSS block (source `eps = eps_pili`) apply different regularisation lengths to the same body–pili pair of entries, so Lorentz reciprocity is not exactly satisfied in the off-diagonal body↔pili coupling blocks. The Brownian covariance path, by contrast, uses the symmetrised effective body mobility `M_eff = 0.5*(M + M')` to satisfy the fluctuation-dissipation requirement of a symmetric diffusion tensor.
 
 This operator splitting therefore relies on the approximation that the non-reciprocal component is small. The implementation measures the relative asymmetry `rel_asym = ||M_eff - M_eff^T||_F / ||M_eff||_F` at every Brownian step and emits a warning when `rel_asym > 1e-3`. For typical mixed-epsilon configurations `rel_asym ~ 1e-5..1e-3`; for pure-RSM (no pili) systems it drops to `<1e-10` (LU round-off only). The Schur-complement extraction from the full `M_weighted` to the 6×6 body block further attenuates the non-symmetry, so the practical impact on the equilibrium distribution is bounded by `rel_asym` itself. For configurations where `eps_body ≈ eps_pili` the approximation becomes exact. Users seeking the strictest statistical fidelity should monitor the `[BROWN]` asymmetry log lines and, if `rel_asym > 1e-2`, consider tightening `eps_body` toward `eps_pili` (or vice versa) provided the body-surface resolution `N_body` is adjusted to keep the RSM leak within tolerance (see §5.1).
+
+### 10.3 Lagged Jacobian in the Brownian ODE restarts (v8.5.1)
+
+This subsection concerns the time integrator only; the model of §10.1–10.2 is
+unchanged.  Every Brownian interval restarts `ode15s`.  For the implicit
+BDF/NDF step \(\mathbf{y}_{n+1}-\gamma h\,\mathbf{f}(\mathbf{y}_{n+1})=\boldsymbol{\psi}\)
+the solver uses a modified-Newton iteration with the matrix
+\(\mathbf{W}=\mathbf{I}-\gamma h\,\tilde{\mathbf{J}}\), where \(\tilde{\mathbf{J}}\)
+is any approximation of \(\partial\mathbf{f}/\partial\mathbf{y}\).  The iteration
+converges iff \(\rho\big(\mathbf{I}-\mathbf{W}^{-1}\mathbf{W}_\text{true}\big)<1\) and,
+once converged, solves the same implicit equation whatever \(\tilde{\mathbf{J}}\)
+is; the local error estimate and the step/order selection are computed from the
+converged solution.  A stale \(\tilde{\mathbf{J}}\) therefore changes only the
+convergence rate, not the discretisation.  Re-evaluating the dense
+finite-difference Jacobian at every restart costs \(n_\text{ode}\) right-hand-side
+evaluations and dominated the cost of a Brownian node
+(70–85 % for four pili), so the last exact Jacobian is re-used
+(`LaggedJacobian.m`): refreshed when `ode15s` asks for \(\mathbf{J}\) a second time
+inside the same call (Newton failure), after an Euler-basis rotation, and when it
+is `cfg.jacobian_max_age` nodes old.  For the four-pilus validation case
+(N_body = 200, 5 segments/µm, stiffness \(|\lambda|_\max\approx9\times10^{7}\) in
+units of \(T_0^{-1}\)) the spectral radius of the contraction matrix stayed
+\(\le0.17\) for a Jacobian up to 64 nodes old at the actual step sizes
+(\(h\le1.7\times10^{-3}\)); same-seed trajectories agree with the fresh-Jacobian
+solution to \(\sim10^{-5}\) relative.  `cfg.jacobian_reuse=false` restores the
+8.5.0 behaviour bit-for-bit.
 
 ## 11. Flow-Field Visualization
 

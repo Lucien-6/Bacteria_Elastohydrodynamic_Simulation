@@ -4,8 +4,8 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-09-04
-> **版本:** 8.5.0
+> **更新日期:** 2026-10-10
+> **版本:** 8.5.1
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -95,6 +95,7 @@ cfg.auto_confirm = true;
 | [`src/config/init_coupled_params.m`](src/config/init_coupled_params.m) | 几何、无量纲化、布朗参数和模型参数初始化。 |
 | [`src/config/init_coupled_state.m`](src/config/init_coupled_state.m) | 初始状态向量构建。 |
 | [`src/core/ode_coupled_rhs.m`](src/core/ode_coupled_rhs.m) | 耦合弹性流体动力学 ODE 右端项。 |
+| [`src/core/LaggedJacobian.m`](src/core/LaggedJacobian.m) | Brownian `ode15s` 重启所用的滞后有限差分 Jacobian 句柄（v8.5.1）。 |
 | [`src/core/build_coupled_lin_sys.m`](src/core/build_coupled_lin_sys.m) | 耦合线性系统组装。 |
 | [`src/physics/compute_pili_curvature.m`](src/physics/compute_pili_curvature.m) | 共享的节点共位二阶曲率/扭转算子（用于力矩与 `kb0`）。 |
 | [`src/physics/compute_pili_elastic_moments.m`](src/physics/compute_pili_elastic_moments.m) | Kirchhoff 弹性恢复力矩及根部边界规则。 |
@@ -115,7 +116,7 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **8.5.0 (2026-09-04)**，改变 body-only 布朗运动的施加方式：每个 Brownian 区间的热增量以恒定广义力 `f_th = M_eff \ (dU/dt_B)` 经耦合 ODE 作用于胞体（`sample_brownian_body_force.m`、`ode_coupled_rhs` 第 8a 步），取代“瞬时位移 kick + 根部重投影”。纤毛现在连续跟随胞体的热运动，因此每次 kick 在第 1、2 段之间注入的伪曲率折点——以及它强加给 `ode15s` 的刚性高波数松弛——不再出现；Ito 漂移 `kBT div(M)` 由沿轨迹的迁移率梯度隐式生成，显式有限差分漂移（每个节点额外 12 次耦合求解）已移除。即使随机种子相同，Brownian 轨迹也与旧版本不同；确定性算例不受影响。2 型抛物线菌毛模板亦精确锚定于原点。**8.4.0 (2026-09-04)** 修正 `free_torsion` 根部扭转方程：根部 $\psi_1$ 行是整根鞭毛的轴向力矩平衡，现在只携带边界（马达）扭矩；此前内部 Kirchhoff 扭转力矩也被加入该行，导致马达扭矩仅与第 1 段的阻力平衡，稳态转子转速被放大为分段数 $N$ 倍。**8.3.0 (2026-09-04)** 为离散精度与几何一致性更新：Kirchhoff 曲率差分模板改为节点共位的二阶格式（共享算子 `compute_pili_curvature.m`，同时用于 `kb0`）；`pili_building.m` 的 14 个附着位点变换全部改为真旋转（此前位点 1、2、5、7、10、11、14 会镜像手性菌毛），`deflection_x` 改为右手约定；平面菌毛的放置与旧版完全一致。上一版本 **8.2.0 (2026-09-04)** 为全面数理审查后的物理正确性更新：鞭毛马达改用以转子**相对胞体**转速（完整轴向速率 `dpsi_1 + cos(theta_1) dphi_1 - Omega_body . d3`）表述的带符号（非对称）线性扭矩–转速关系，并明确符号约定（正扭矩 = 绕向外根部切向量右手旋转）；流场后处理改为由相对环境流的速度求解力密度，并将背景流叠加到绘制的流场；`validate_simulation_params` 对 2–5 型菌毛缺失/非法的 `shape_params` 给出明确报错；用户指南补充了全部曲率与力矩输入的 `1/L_pili`、`EI/L_pili` 单位说明。
+当前版本为 **8.5.1 (2026-10-10)**，为数值性能与维护更新：Brownian 运行在 `ode15s` 重启之间复用上一次的精确有限差分 Jacobian（`src/core/LaggedJacobian.m`，运行时选项 `cfg.jacobian_reuse`，默认开启），使多菌毛算例每个 Brownian 节点的 ODE 成本降低约 2–3.7 倍（单菌毛约 1.4 倍），轨迹与 v8.5.0 的差异保持在积分容差以内（`cfg.jacobian_reuse = false` 与 v8.5.0 逐位一致；确定性算例不变）。本版本同时清理 `run_simulation.m` / `run_simulation_HPC_Linux.m` 的 MATLAB 代码分析器提示、修复 `verify_migration.m`（现已列入 `LaggedJacobian.m` 并改用 `datetime`）、新增 Markdown 检查配置（`.markdownlint.json`、`.markdownlint-cli2.jsonc`）并修复 CHANGELOG 结构。**8.5.0 (2026-09-04)** 改变 body-only 布朗运动的施加方式：每个 Brownian 区间的热增量以恒定广义力 `f_th = M_eff \ (dU/dt_B)` 经耦合 ODE 作用于胞体（`sample_brownian_body_force.m`、`ode_coupled_rhs` 第 8a 步），取代“瞬时位移 kick + 根部重投影”。纤毛现在连续跟随胞体的热运动，因此每次 kick 在第 1、2 段之间注入的伪曲率折点——以及它强加给 `ode15s` 的刚性高波数松弛——不再出现；Ito 漂移 `kBT div(M)` 由沿轨迹的迁移率梯度隐式生成，显式有限差分漂移（每个节点额外 12 次耦合求解）已移除。即使随机种子相同，Brownian 轨迹也与旧版本不同；确定性算例不受影响。2 型抛物线菌毛模板亦精确锚定于原点。**8.4.0 (2026-09-04)** 修正 `free_torsion` 根部扭转方程：根部 $\psi_1$ 行是整根鞭毛的轴向力矩平衡，现在只携带边界（马达）扭矩；此前内部 Kirchhoff 扭转力矩也被加入该行，导致马达扭矩仅与第 1 段的阻力平衡，稳态转子转速被放大为分段数 $N$ 倍。**8.3.0 (2026-09-04)** 为离散精度与几何一致性更新：Kirchhoff 曲率差分模板改为节点共位的二阶格式（共享算子 `compute_pili_curvature.m`，同时用于 `kb0`）；`pili_building.m` 的 14 个附着位点变换全部改为真旋转（此前位点 1、2、5、7、10、11、14 会镜像手性菌毛），`deflection_x` 改为右手约定；平面菌毛的放置与旧版完全一致。上一版本 **8.2.0 (2026-09-04)** 为全面数理审查后的物理正确性更新：鞭毛马达改用以转子**相对胞体**转速（完整轴向速率 `dpsi_1 + cos(theta_1) dphi_1 - Omega_body . d3`）表述的带符号（非对称）线性扭矩–转速关系，并明确符号约定（正扭矩 = 绕向外根部切向量右手旋转）；流场后处理改为由相对环境流的速度求解力密度，并将背景流叠加到绘制的流场；`validate_simulation_params` 对 2–5 型菌毛缺失/非法的 `shape_params` 给出明确报错；用户指南补充了全部曲率与力矩输入的 `1/L_pili`、`EI/L_pili` 单位说明。
 
 **8.1.0 (2026-07-25)** 为批量后处理运动学功能更新：[`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m) 在 \(0<\tau\le T/2\) 上拟合三维平移扩散，并新增 XZ 平面转动扩散 \(D_\mathrm{rot}\)（优先体四元数，回退 `tilt_rad`）。流体/弹性/布朗仿真核心相对 8.0.1 **未改**。
 

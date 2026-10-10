@@ -10,6 +10,130 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [8.5.1] — 2026-10-10
+
+Numerical-performance and maintenance release.  **No physical or
+discretisation change**: the discrete equations, error control, tolerances and
+Brownian model are those of 8.5.0.  Deterministic runs are bit-for-bit
+unchanged.
+
+### Changed
+
+- **Lagged Jacobian for Brownian runs (`src/core/LaggedJacobian.m`,
+  `run_simulation.m`, `run_simulation_HPC_Linux.m`).**  A Brownian run restarts
+  `ode15s` at every `dt_B` node, and every restart paid a dense
+  finite-difference Jacobian (`n_ode` extra RHS evaluations — 70–85 % of the
+  ODE time of a four-pilus case, measured).  The Jacobian only enters the
+  modified-Newton iteration matrix `I - gamma*h*J`; a stale `J` changes the
+  convergence rate of that iteration, not the implicit equations it solves
+  nor the local error estimate.  The last exact finite-difference Jacobian is
+  therefore handed back to `ode15s` at the start of the next segments.  A
+  fresh exact Jacobian is computed (i) when `ode15s` requests `J` a second
+  time inside the same call (Newton failure), (ii) after an Euler-basis
+  rotation (`adaptive_basis_check`), (iii) when the cache is
+  `cfg.jacobian_max_age` Brownian nodes old (default 50, so a cached Jacobian
+  serves at most the 49 following nodes; invalid values raise
+  `LaggedJacobian:InvalidMaxAge`).  A segment whose lagged
+  integration throws an error, or stops prematurely without an event or
+  timeout, is re-run from the same state with the default Jacobian.
+- New runtime-only options (not stored in JSON, like `cfg.silent`):
+  `cfg.jacobian_reuse` (default `true`; `false` reproduces 8.5.0
+  bit-for-bit) and `cfg.jacobian_max_age`.  The counters are written to
+  `simulation.log` (`[JAC]` lines) and `results.jacobian_reuse`
+  (`n_fresh`, `n_lagged`, `n_on_demand`, `n_age_refresh`, `n_invalidated`,
+  `n_fallback`, `n_fd_rhs`).  Only Brownian runs use the cache.
+- `src/utils/verify_migration.m` lists `src/core/LaggedJacobian.m` in the
+  expected core files (it reported the new file as `UNEXPECTED` before) and
+  uses `datetime` instead of `datestr(now)`.
+- MATLAB code-analyzer clean-up in `run_simulation.m` and
+  `run_simulation_HPC_Linux.m` (no behavioural change): obsolete
+  `%#ok<NASGU>` / `%#ok<AGROW>` suppressions removed, two dead assignments
+  (`anim_fig_w/h = new_log_w/h` after the codec-limit resize, never read
+  again) removed, and the documented `output_dir = ''` default marked with
+  `%#ok<NASGU>`.  `checkcode` reports 0 messages for both files,
+  `LaggedJacobian.m` and `verify_migration.m`.
+
+### Fixed
+
+- `CHANGELOG.md` structure: the missing `## [7.9.1] — 2026-06-22` heading
+  (date taken from the 7.9.1 commit) was restored, which also removes a
+  duplicated `### Documentation` heading inside the 7.9.2 entry; nested-list
+  indentation of the 5.5.5 entry and two multiple-blank-line spots were
+  corrected.
+
+### Added
+
+- Markdown lint configuration: `.markdownlint.json` (`MD024` checked among
+  sibling headings only, as required by the Keep-a-Changelog layout; `MD013`
+  line length off) and `.markdownlint-cli2.jsonc` (third-party
+  `MATLAB Add-On/` documentation and generated `output*/` folders are not
+  linted).  `markdownlint-cli2` reports 0 issues for the project documents.
+
+### Documentation
+
+- `project_version.m` bumped to 8.5.1 (2026-10-10); README, USER_GUIDE and
+  theory (EN/ZH; new `docs/theory.md` §10.3), `requirements.txt`, the project
+  website and presentation version strings, and the `run_simulation*.m` /
+  `main_coupled_simulation.m` headers updated.
+
+### Validation (Windows, MATLAB R2026a, i9-13900KF, 1 BLAS thread per worker)
+
+- **Deterministic regression** (sinking 1 and 4 pili, traveling-wave active
+  moment, free-torsion motor, shear flow): outputs of 8.5.0 (git `HEAD`),
+  8.5.1 with `jacobian_reuse=false` and `true` are bit-for-bit identical.
+- **Brownian, same seed, 100 nodes (5 s)**: `jacobian_reuse=false` is
+  bit-for-bit identical to 8.5.0 (1 and 4 pili).  `true` vs `false`:
+  max centre-of-mass difference 0.007–0.14 nm (relative to path length
+  ≤ 2e-5), body rotation ≤ 2.1e-4 rad, pilus-node position ≤ 0.72 nm — far
+  below the Brownian displacement and well inside `RelTol = 1e-4`.  Cases:
+  1 pilus, 4 pili (N_body 200/5 seg·µm⁻¹ and 300/10), motor + Brownian,
+  active moment + Brownian, shear flow + Brownian, soft pili (E = 1e5, 1e6 Pa).
+- **ODE wall-time speed-up** (same workload, `false` / `true`): 4 pili
+  3.16× (N200/S5) and 3.66× (N300/S10), motor 2.8×, active moment 1.95×,
+  soft pili 1.9–2.0×, 1 pilus 1.4×, shear 1.4×.  Soft pili (E = 1e5 Pa)
+  trigger 24 basis rotations in 100 nodes; the cache is invalidated each
+  time and the run still completes with no fallback.
+- **Long runs** with the lagged Jacobian: 1 pilus, 200 s (4000 nodes) and
+  4 pili, 60 s (1200 nodes) completed with 4 and 3 basis rotations and
+  0 fallbacks.
+- **Statistical equivalence**: 20 seeds, 1 pilus, 10 s — paired differences of
+  the MSD-fitted D and of V_z between the two modes are ≤ 4e-5 (relative) and
+  1.5e-5 µm/s, i.e. ~5e-5 of the between-seed spread.  Bootstrap 95 % CIs
+  (20000 resamples) of the group means coincide: D = 0.2655 [0.2265, 0.3095]
+  vs 0.2655 [0.2265, 0.3092] µm²/s; the CI of the paired mean difference of D
+  is [-2.1e-6, 2.3e-6] µm²/s.  Only the one-pilus configuration was tested
+  statistically; the four-pilus case is covered by the same-seed comparisons.
+- **Fault injection** (patched copy): an error thrown from every 7th Jacobian
+  request triggers the fallback branch 16 times in 100 nodes and the run
+  completes with deviation of the same size as above; replacing every lagged
+  Jacobian by a random garbage matrix (entry-wise ×(1+2·randn)) still gives
+  the same trajectory (on-demand refresh every node).
+- After the maintenance edits, with single-thread BLAS the deterministic
+  sinking (1 pilus), motor and shear cases and the 100-node Brownian
+  one-pilus case reproduce the validated results bit-for-bit, and animated
+  runs of `run_simulation.m` and `run_simulation_HPC_Linux.m` complete and
+  write the video.  Results are bit-reproducible only for the same BLAS
+  thread count.
+- A non-silent run (progress bar and console output enabled) was smoke-tested
+  with the lagged Jacobian; all other validation runs used `cfg.silent=true`.
+  Failed-step rates were measured only in the stand-alone integrator study
+  (0.06 failed steps per node, 0 for the default Jacobian), not in the
+  `run_simulation` validation runs.
+- Newton-contraction analysis of the drift of `J` (4 pili, 20 s): spectral
+  radius of `I - W_old^{-1} W_true` ≤ 0.17 for cached Jacobians up to 64 nodes
+  old and ≤ 0.34 for `h` up to 1e-2 (dimensionless), versus actual `ode15s`
+  steps of median 1.7e-4 and p99 1.7e-3.
+
+### Compatibility
+
+- Brownian trajectories are not bit-for-bit identical to 8.5.0 unless
+  `cfg.jacobian_reuse = false` (differences ≈ 1e-5 relative, see above).
+- `run_simulation_HPC_Linux.m` carries the identical patch; its Linux
+  execution was not re-run here (a Windows smoke test of the fork passed).
+- No new MATLAB toolbox dependency.
+
+---
+
 ## [8.5.0] — 2026-09-04
 
 Physics/algorithm release for the second "major" finding of the full
@@ -678,17 +802,16 @@ Numerical-robustness and documentation-accuracy release. A front-to-back critica
 ### Documentation
 
 - **`docs/theory.md`, `docs/theory.zh-CN.md` — new "Known approximation" subsection in §10 (Brownian Dynamics)**: declares that the deterministic solve uses the raw (structurally non-symmetric when `eps_body != eps_pili`) hydrodynamic mobility `M_weighted`, while the Brownian covariance path uses the symmetrised effective body mobility `M_eff = 0.5*(M + M')` to satisfy the FDT requirement of a symmetric diffusion tensor. Documents the `rel_asym` diagnostic, its typical magnitude (`~1e-5..1e-3` for mixed-epsilon configurations, `<1e-10` for pure RSM), the Schur-complement attenuation, and user guidance for `rel_asym > 1e-2`.
+- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**, **`docs/presentation.html`**: version **7.9.2**, date **2026-06-30**.
 
 ### Compatibility
 
 - **NOT bitwise-identical to v7.9.1** only in pathological cases where `ode15s` produced a non-unit quaternion that was previously passed through to `quat_to_rotmat` unnormalised. For all well-behaved runs the quaternion guard is a no-op (the quaternion is already unit to machine precision after the RHS projection in `ode_coupled_rhs.m`), and the symmetrisation removal is algebraically exact, so outputs are identical to v7.9.1.
 - The Euler-angle convention correction and Brownian documentation are comment/doc-only; no numerical change.
 
-### Documentation
+---
 
-- **`README.md`**, **`README.zh-CN.md`**, **`USER_GUIDE.md`**, **`USER_GUIDE.zh-CN.md`**, **`requirements.txt`**, **`run_simulation.m`**, **`main_coupled_simulation.m`**, **`docs/theory.md`**, **`docs/theory.zh-CN.md`**, **`docs/index.html`**, **`docs/presentation.html`**: version **7.9.2**, date **2026-06-30**.
-
-
+## [7.9.1] — 2026-06-22
 
 Post-review bug fixes — addresses two issues found in a front-to-back data-flow review: a non-physical negative diffusion coefficient in the batch post-processor, and missing error stack traces in three batch sweep scripts. **No simulation outputs change**; this release only fixes post-processing and batch error reporting.
 
@@ -1363,13 +1486,13 @@ Comprehensive hardening pass on the custom-geometry feature, covering correctnes
 ### Performance
 
 - **Direction 1 — `M_weighted` factorisation reuse (explicit LU via `decomposition`)**: The coupled mobility matrix `M_weighted` is now factorised **once per RHS call** via `decomposition(M_weighted, 'lu', 'CheckCondition', false)` and handed down to `ode_coupled_rhs.apply_Ainv_u` through `hydro.dM_weighted`. Rationale and effect:
-    - `M_weighted` mixes **RSM** (body point-Stokeslets) and **RSS** (pili segment-integral Stokeslets) kernels, so the block matrix is **non-symmetric by construction** (empirically: $\lVert M-M^{\mathsf{T}}\rVert_F/\lVert M\rVert_F\approx0.56$). LU — not Cholesky — is the correct factorisation.
-    - Before: every RHS call did **two independent** full-pivot LU factorisations of the same matrix (one inside `build_coupled_lin_sys` for `AQ_trans`, one inside `apply_Ainv_u` for the background-flow solve). Direction 1 reuses a single factorisation for both.
-    - `'CheckCondition' = false` disables MATLAB's per-solve automatic `rcond` estimate (`O(N²)` saved per invocation); overall condition health is validated via runtime conditioning diagnostics.
-    - Even in the default **`bg = off`** workflow (no reuse), the explicit LU dispatch is marginally faster than generic backslash because it bypasses per-call symmetry / triangular heuristics.
-    - **Measured on the reference benchmark (`benchmark_direction1.m`, DOFs = 1807)**:
-        - `bg = off` (neutral path):  `ode_coupled_rhs` **767.5 ms → 731.6 ms (−4.7 %)** median.
-        - `bg = uniform` (D1 hot path): `ode_coupled_rhs` **868.2 ms → 731.7 ms (−15.7 %)** median.
+  - `M_weighted` mixes **RSM** (body point-Stokeslets) and **RSS** (pili segment-integral Stokeslets) kernels, so the block matrix is **non-symmetric by construction** (empirically: $\lVert M-M^{\mathsf{T}}\rVert_F/\lVert M\rVert_F\approx0.56$). LU — not Cholesky — is the correct factorisation.
+  - Before: every RHS call did **two independent** full-pivot LU factorisations of the same matrix (one inside `build_coupled_lin_sys` for `AQ_trans`, one inside `apply_Ainv_u` for the background-flow solve). Direction 1 reuses a single factorisation for both.
+  - `'CheckCondition' = false` disables MATLAB's per-solve automatic `rcond` estimate (`O(N²)` saved per invocation); overall condition health is validated via runtime conditioning diagnostics.
+  - Even in the default **`bg = off`** workflow (no reuse), the explicit LU dispatch is marginally faster than generic backslash because it bypasses per-call symmetry / triangular heuristics.
+  - **Measured on the reference benchmark (`benchmark_direction1.m`, DOFs = 1807)**:
+    - `bg = off` (neutral path):  `ode_coupled_rhs` **767.5 ms → 731.6 ms (−4.7 %)** median.
+    - `bg = uniform` (D1 hot path): `ode_coupled_rhs` **868.2 ms → 731.7 ms (−15.7 %)** median.
 
 ### Added
 
@@ -1382,9 +1505,9 @@ Comprehensive hardening pass on the custom-geometry feature, covering correctnes
 - **`build_coupled_lin_sys.m`**: Replaced the single `AQ_trans = M_weighted \ Q_trans_corr` solve with an explicit two-step pattern — `dM_weighted = decomposition(M_weighted, 'lu', 'CheckCondition', false)` followed by `AQ_trans = dM_weighted \ Q_trans_corr`. The decomposition object is also exported as `hydro.dM_weighted`.
 - **`ode_coupled_rhs.m::apply_Ainv_u`**: Now preferentially consumes `hydro.dM_weighted` (the reusable LU); falls back to the raw `hydro.M_weighted \` solve if the field is absent (backward compatibility).
 - **`test_optimization_invariance.m`**: Extended with three new case groups:
-    - **Case 1b / 2b (`AQ_trans`)**: bit-exactness of the optimised `dM \ Q` vs the legacy `M \ Q` at `Z0` and `Zp`.
-    - **Case 3 (background-flow `apply_Ainv_u`)**: bit-exactness of `B_global · Ainv · u_bg` at `Z0` and `Zp` when `bg = uniform`.
-    - **Case 4 (end-to-end `dZ`)**: `ode_coupled_rhs` vs `ode_coupled_rhs_v0` at `Z0` and `Zp`, for both `bg = off` and `bg = uniform`. `Zp` uses a condition-number-aware tolerance `DZ_TOL = 1e-9` (justified: `cond(lin_sys) ~ 1e9` at the perturbed state amplifies sub-ULP assembly noise inherited from the prior vectorisation round; the amplification is **not** introduced by Direction 1, which is bit-exact at all D1-owned checkpoints).
+  - **Case 1b / 2b (`AQ_trans`)**: bit-exactness of the optimised `dM \ Q` vs the legacy `M \ Q` at `Z0` and `Zp`.
+  - **Case 3 (background-flow `apply_Ainv_u`)**: bit-exactness of `B_global · Ainv · u_bg` at `Z0` and `Zp` when `bg = uniform`.
+  - **Case 4 (end-to-end `dZ`)**: `ode_coupled_rhs` vs `ode_coupled_rhs_v0` at `Z0` and `Zp`, for both `bg = off` and `bg = uniform`. `Zp` uses a condition-number-aware tolerance `DZ_TOL = 1e-9` (justified: `cond(lin_sys) ~ 1e9` at the perturbed state amplifies sub-ULP assembly noise inherited from the prior vectorisation round; the amplification is **not** introduced by Direction 1, which is bit-exact at all D1-owned checkpoints).
 
 ### Numerical equivalence
 
@@ -1393,10 +1516,10 @@ Comprehensive hardening pass on the custom-geometry feature, covering correctnes
 ### Removed (post-optimisation cleanup, 2026-04-21)
 
 - **One-shot developer harnesses** — purged from the live tree after the optimisation was validated and the results archived into this changelog:
-    - `test_optimization_invariance.m` (equivalence regression; Cases 1/2/1b/2b/3/4).
-    - `benchmark_direction1.m` (Direction-1 A/B wall-clock benchmark).
-    - `profile_short_run.m` (short profiler-driver harness).
-    - `compare_profiles.m` (profile A vs B comparator).
+  - `test_optimization_invariance.m` (equivalence regression; Cases 1/2/1b/2b/3/4).
+  - `benchmark_direction1.m` (Direction-1 A/B wall-clock benchmark).
+  - `profile_short_run.m` (short profiler-driver harness).
+  - `compare_profiles.m` (profile A vs B comparator).
 - **Retained**: `_legacy/ode_coupled_rhs_v0.m`, `_legacy/build_coupled_lin_sys_v0.m`, `_legacy/build_global_resistance_v0.m` — kept under `_legacy/` as frozen historical references; they are no longer referenced by any live or tool code and are **not** on the simulation run path.
 
 ### Documentation

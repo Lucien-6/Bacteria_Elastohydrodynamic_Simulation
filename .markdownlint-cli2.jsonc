@@ -1,0 +1,10 @@
+{
+    // Third-party File Exchange documentation and generated run output are
+    // not linted; project documentation is configured in .markdownlint.json.
+    "ignores": [
+        "MATLAB Add-On/**",
+        "output/**",
+        "output_old/**",
+        ".understand-anything/**"
+    ]
+}

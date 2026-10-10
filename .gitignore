@@ -1,4 +1,5 @@
 output/
+output_old/
 test/
 .ruff_cache/
 .mypy_cache/

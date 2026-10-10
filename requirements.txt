@@ -1,6 +1,14 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 8.5.0 (2026-09-04)
+# Release: 8.5.1 (2026-10-10)
+#
+# v8.5.1: Numerical-performance and maintenance release. Brownian runs
+#   re-use the last exact finite-difference Jacobian across the dt_B ode15s
+#   restarts (new src/core/LaggedJacobian.m, runtime option
+#   cfg.jacobian_reuse, default on); MATLAB code-analyzer clean-up,
+#   verify_migration.m fixes, Markdown lint configuration. No physical or
+#   discretisation change, deterministic runs bit-for-bit unchanged. No new
+#   dependency.
 #
 # v8.5.0: Brownian force-realisation release. Each dt_B interval's body-only
 #   thermal increment is realised as a constant generalised force

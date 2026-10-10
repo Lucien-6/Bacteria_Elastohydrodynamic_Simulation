@@ -3,11 +3,11 @@
 English | [中文](USER_GUIDE.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Version:** 8.5.0
-> **Updated:** 2026-09-04
+> **Version:** 8.5.1
+> **Updated:** 2026-10-10
 This guide is for running simulations, choosing the right configuration path, finding outputs, and post-processing completed cases. For model equations and derivations, see [`docs/theory.md`](docs/theory.md). For release history, see [`CHANGELOG.md`](CHANGELOG.md).
 
-Release note: v8.5.0 changes how body-only Brownian motion is applied — each interval's thermal increment is realised as a constant generalised force acting through the coupled ODE instead of a displacement kick followed by root re-projection, which removes the spurious pilus root kink at every Brownian node and makes the Ito drift implicit (see §8). Brownian trajectories therefore differ from earlier versions even for the same seed; deterministic runs are unchanged. The type-2 parabolic pilus template is now anchored exactly at the origin (its first node was previously offset by ~4 nm/K). v8.4.0 corrects the `free_torsion` root twist equation — the motor torque is now balanced by the torsional drag of the whole filament instead of the first segment only, so steady rotor speeds of motor-driven runs drop by roughly the segment count $N$ relative to earlier versions (see §7); the pre-flight stall diagnostic uses the matching drag coefficient. v8.3.0 makes the pilus curvature stencil node-collocated and second-order accurate, and turns all 14 parametric attachment-site maps into proper rotations with a right-handed `deflection_x`. Planar pili (types 1-4, `deflection_x = 0`) are placed exactly as before; conical-spiral pili at sites 1, 2, 5, 7, 10, 11, 14 and any pilus with non-zero `deflection_x` now have the intended (previously mirrored) handedness — flip the sign of spiral parameter `c` or of `deflection_x` if a configuration was tuned against the old geometry. v8.2.0 was a physics-correctness update. The flagellar motor uses a signed linear torque-speed law in the rotor speed relative to the body with a documented sign convention (see §7); the flow-field post-processor accounts for the background flow; `shape_params` of pilus types 2-5 are validated up front; and the units of curvature/moment inputs are documented (§4). v8.1.0 extended batch post-processing (`postprocess_cases`): 3-D translational MSD fit on \(0<\tau\le T/2\), plus XZ-plane rotational diffusion \(D_\mathrm{rot}\) from MSAD.
+Release note: v8.5.1 re-uses the last exact finite-difference Jacobian across the `ode15s` restarts of Brownian runs, making a Brownian node about 2–3.7× cheaper for multi-pilus cases (about 1.4× for one pilus) within the integration tolerance (see §8; `cfg.jacobian_reuse = false` restores v8.5.0 bit-for-bit); it also cleans up the code-analyzer messages of the run scripts, fixes `verify_migration.m` and adds Markdown lint configuration. v8.5.0 changes how body-only Brownian motion is applied — each interval's thermal increment is realised as a constant generalised force acting through the coupled ODE instead of a displacement kick followed by root re-projection, which removes the spurious pilus root kink at every Brownian node and makes the Ito drift implicit (see §8). Brownian trajectories therefore differ from earlier versions even for the same seed; deterministic runs are unchanged. The type-2 parabolic pilus template is now anchored exactly at the origin (its first node was previously offset by ~4 nm/K). v8.4.0 corrects the `free_torsion` root twist equation — the motor torque is now balanced by the torsional drag of the whole filament instead of the first segment only, so steady rotor speeds of motor-driven runs drop by roughly the segment count $N$ relative to earlier versions (see §7); the pre-flight stall diagnostic uses the matching drag coefficient. v8.3.0 makes the pilus curvature stencil node-collocated and second-order accurate, and turns all 14 parametric attachment-site maps into proper rotations with a right-handed `deflection_x`. Planar pili (types 1-4, `deflection_x = 0`) are placed exactly as before; conical-spiral pili at sites 1, 2, 5, 7, 10, 11, 14 and any pilus with non-zero `deflection_x` now have the intended (previously mirrored) handedness — flip the sign of spiral parameter `c` or of `deflection_x` if a configuration was tuned against the old geometry. v8.2.0 was a physics-correctness update. The flagellar motor uses a signed linear torque-speed law in the rotor speed relative to the body with a documented sign convention (see §7); the flow-field post-processor accounts for the background flow; `shape_params` of pilus types 2-5 are validated up front; and the units of curvature/moment inputs are documented (§4). v8.1.0 extended batch post-processing (`postprocess_cases`): 3-D translational MSD fit on \(0<\tau\le T/2\), plus XZ-plane rotational diffusion \(D_\mathrm{rot}\) from MSAD.
 
 v8.0.1 hardened runtime numerical diagnostics: dense dissipation checks use full `eig`; isolated near-singularity (`rcond < 1e-14`) warns as `NearSingularMatrix`; `SingularMatrix` aborts only under the joint gate of a large backward residual (`> 1e-6`) and near-singular `rcond`. Diagnostic snapshots store `rcond_near_singular_threshold`.
 
@@ -286,6 +286,23 @@ Important options:
 - `brownian.temperature`: positive fluid temperature in Kelvin; required when Brownian dynamics are enabled.
 - `brownian.rng_seed`: fixed positive seed for reproducible runs.
 - `brownian.dt_B_ratio`: Brownian time step relative to output step.
+
+**Lagged Jacobian (v8.5.1).**  Brownian runs restart `ode15s` at every
+`dt_B` node, and every restart used to pay a dense finite-difference
+Jacobian (`n_ode` extra right-hand-side evaluations, 70–85 % of the run time
+of a four-pilus case).  Since v8.5.1 the last exact Jacobian is re-used
+([`src/core/LaggedJacobian.m`](src/core/LaggedJacobian.m)): it enters only the
+Newton iteration matrix of the implicit step, so the solution stays within the
+integration tolerance of the previous result while a Brownian node costs about
+2–3.7× less (1 pilus ≈ 1.4×).  A fresh exact Jacobian is computed when
+`ode15s` asks for one again within the same call (Newton failure), after an
+Euler-basis rotation, and when the cache is 50 nodes old.  If a lagged
+segment errors or stops prematurely it is re-run with the default Jacobian.
+The `[JAC]` lines of `simulation.log` and `results.jacobian_reuse` report the
+counters (`n_fresh`, `n_lagged`, `n_on_demand`, `n_invalidated`,
+`n_fallback`).  Runtime-only options (not in JSON): `cfg.jacobian_reuse`
+(default `true`; `false` reproduces v8.5.0 bit-for-bit) and
+`cfg.jacobian_max_age` (default 50 nodes).  Deterministic runs are unaffected.
 
 When Brownian dynamics are enabled, the realized seed is saved in `config.json`, `brownian_rng_seed.txt`, `simulation.log`, and `simulation_results.mat`.  It seeds a run-local stream, so cache creation and unrelated calls to MATLAB's global random stream cannot change the trajectory.
 

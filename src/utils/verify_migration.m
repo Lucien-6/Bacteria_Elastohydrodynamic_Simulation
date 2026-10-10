@@ -25,13 +25,15 @@
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-05-15
 %  Updated: 2026-07-21
+%  Updated: 2026-10-10 — v8.5.1: src/core/LaggedJacobian.m added to the
+%           expected core file list; datetime instead of datestr(now).
 
 close all force;
 clear; clc;
 
 fprintf('========================================\n');
 fprintf('  Migration Verification Script v1.0\n');
-fprintf('  Date: %s\n', datestr(now, 'yyyy-mm-dd HH:MM:ss'));
+fprintf('  Date: %s\n', char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')));
 fprintf('========================================\n\n');
 
 %% Define expected file locations
@@ -53,6 +55,7 @@ expected_structure.core = {
     'check_linear_solve.m'
     'check_matrix_condition.m'
     'check_weighted_mobility_health.m'
+    'LaggedJacobian.m'
     'numerical_diagnostics_state.m'
     'ode_coupled_rhs.m'
     'solve_motor_self_consistent.m'

@@ -30,6 +30,16 @@ function [results, params, output_dir] = run_simulation_HPC_Linux(cfg_or_path)
 %                      or errors.  silent + preview_initial requires
 %                      auto_confirm = true; otherwise the function throws
 %                      run_simulation_HPC_Linux:SilentPreviewDeadlock.
+%                    cfg.jacobian_reuse - runtime-only logical (default true).
+%                      With Brownian motion enabled, ode15s re-uses the last
+%                      exact finite-difference Jacobian across the dt_B
+%                      restarts (LaggedJacobian.m; v8.5.1).  Only the Newton
+%                      iteration matrix is affected, not the discrete
+%                      equations or the error control.  false reproduces
+%                      v8.5.0 bit-for-bit.  Ignored for deterministic runs.
+%                    cfg.jacobian_max_age - runtime-only positive number of
+%                      Brownian nodes (default 50); a fresh exact Jacobian is
+%                      computed when the cached one is this many nodes old.
 %                    cfg.progress_queue - optional parallel.pool.DataQueue
 %                      receiving heartbeat structs; empty means no heartbeat.
 %                    cfg.progress_tag - caller-defined value copied into each
@@ -49,6 +59,10 @@ function [results, params, output_dir] = run_simulation_HPC_Linux(cfg_or_path)
 %                 tilt_angle [rad], F_sink_pN [pN], units, and the
 %                 corresponding dimensionless state histories, completed,
 %                 termination_reason, target_time_s, and achieved_time_s.
+%                 jacobian_reuse is a struct of lagged-Jacobian counters
+%                 (enabled, n_fresh, n_lagged, n_on_demand, n_age_refresh,
+%                 n_invalidated, n_fallback, n_fd_rhs); only .enabled = false
+%                 when the cache is not used.
 %    params     - Model parameters and dimensional scale factors; [] if aborted.
 %    output_dir - Created run directory; '' if aborted before allocation.
 %
@@ -68,7 +82,9 @@ function [results, params, output_dir] = run_simulation_HPC_Linux(cfg_or_path)
 %  Created: 2026-03-17
 %  Updated: 2026-07-21
 %  Updated: 2026-09-04 — v8.5.0 Brownian force-realisation scheme
-%  Log banner version: 8.5.0 (2026-09-04) - emitted via project_version(); keep README / CHANGELOG in sync
+%  Updated: 2026-10-10 — v8.5.1 lagged Jacobian for Brownian ode15s restarts
+%           and static-analysis clean-up (no behavioural change)
+%  Log banner version: 8.5.1 (2026-10-10) - emitted via project_version(); keep README / CHANGELOG in sync
 %
 %  Path policy: defensive addpath calls here allow
 %  run_simulation_HPC_Linux(cfg) without main_coupled_simulation.m.
@@ -88,7 +104,7 @@ end
 
 results    = [];
 params     = [];
-output_dir = '';
+output_dir = '';   %#ok<NASGU> documented default if aborted before allocation
 
 %% ---- Unpack cfg to local variables ----
 case_name              = cfg.case_name;
@@ -120,7 +136,7 @@ progress_tag           = get_cfg_field(cfg, 'progress_tag', []);
 % (normal return, error, or Ctrl-C).  Errors are NOT suppressed.
 if silent
     warn_state_orig = warning('off', 'all');
-    cleanup_warn = onCleanup(@() warning(warn_state_orig));   %#ok<NASGU>
+    cleanup_warn = onCleanup(@() warning(warn_state_orig));
 end
 
 % Body geometry (parametric mode)
@@ -315,7 +331,7 @@ end
 % unlike try/catch which cannot intercept Ctrl-C.  safe_fclose() is a
 % no-op if the fid has already been closed by the normal-path fclose()
 % near the end of this function, so registering it here is harmless.
-cleanup_log_fid = onCleanup(@() safe_fclose(log_fid));  %#ok<NASGU>
+cleanup_log_fid = onCleanup(@() safe_fclose(log_fid));
 
 % Bugfix: the trailing flag forwarded to dual_log must be the
 % "echo to console" flag, i.e. ~silent (echo unless silent), not silent
@@ -853,6 +869,23 @@ seg_dtstar       = [];          % Dimensionless time advanced per segment
 termination_reason = 'completed';
 timed_out          = false;
 
+% ---- Lagged Jacobian for ode15s (v8.5.1; Brownian runs only) ----
+%  Brownian runs restart ode15s at every dt_B node and each restart pays a
+%  dense finite-difference Jacobian (n_ode extra RHS calls).  The lagged
+%  Jacobian re-uses the last exact FD Jacobian (see LaggedJacobian.m); it
+%  affects only the Newton iteration matrix, not the discrete equations or
+%  the error control.  Runtime option cfg.jacobian_reuse (default true);
+%  set false to reproduce the previous behaviour bit-for-bit.
+%  cfg.jacobian_max_age (default 50) caps the cache age in Brownian nodes.
+jac_reuse_enabled = params.brown_enabled && ...
+    logical(get_cfg_field(cfg, 'jacobian_reuse', true));
+jac_cache = [];
+if jac_reuse_enabled
+    jac_cache = LaggedJacobian(get_cfg_field(cfg, 'jacobian_max_age', 50));
+    logf('[JAC] Lagged Jacobian enabled (max age = %d Brownian nodes)\n', ...
+        jac_cache.max_age);
+end
+
 % Segment-level [ODE] announcements are throttled to avoid flooding
 % simulation.log / console when Brownian dynamics splits the run into
 % many short segments (one per dt_B node -- e.g. T_obs/dt_B ~= 4000 for
@@ -909,6 +942,9 @@ while T_achieved < T_obs_dimless
     % Adaptive basis check for all pili
     [Z, params, rotated_flags] = adaptive_basis_check(Z, params);
     if any(rotated_flags)
+        if jac_reuse_enabled
+            jac_cache.invalidate();   % Euler angles re-parameterised
+        end
         basis_changes = basis_changes + sum(rotated_flags);
         for kk = 1:length(rotated_flags)
             if rotated_flags(kk)
@@ -936,6 +972,9 @@ while T_achieved < T_obs_dimless
             Z, params, dt_B_step, brown_rng_stream);
         params.brown_force_dimless = f_th_dimless;
         brown_force_active = true;
+        if jac_reuse_enabled
+            jac_cache.tick();         % one more Brownian node since last FD J
+        end
 
         if brown_kick_count < 5 || mod(brown_kick_count + 1, brown_log_interval) == 0
             logf(['[BROWN] Interval #%d start at t* = %.4e | dt = %.4e s | ', ...
@@ -969,7 +1008,31 @@ while T_achieved < T_obs_dimless
             segment_count, T_achieved, T_seg_target);
     end
 
-    sol      = ode15s(dZ_func, [T_achieved, T_seg_target], Z, ode_ops);
+    if jac_reuse_enabled
+        % Lagged Jacobian.  Any solver error, or a premature stop that is
+        % neither an event nor a timeout, re-runs the segment from the same
+        % initial state with ode15s' default Jacobian (safety net).
+        jac_cache.beginSegment(dZ_func);
+        ode_ops_jac = odeset(ode_ops, 'Jacobian', ...
+            @(t_j, Z_j) jac_cache.evaluate(t_j, Z_j));
+        try
+            sol = ode15s(dZ_func, [T_achieved, T_seg_target], Z, ode_ops_jac);
+            jac_fallback = isempty(sol.xe) && ...
+                sol.x(end) < T_seg_target - 1e-12 && toc(tstart_ode) < tlim;
+        catch ME_jac
+            jac_fallback = true;
+            logf('[JAC] WARNING: ode15s with lagged Jacobian failed (%s); re-running the segment with the default Jacobian.\n', ...
+                ME_jac.message);
+        end
+        if jac_fallback
+            jac_cache.noteFallback();
+            logf('[JAC] Segment %d re-run with default finite-difference Jacobian.\n', ...
+                segment_count);
+            sol = ode15s(dZ_func, [T_achieved, T_seg_target], Z, ode_ops);
+        end
+    else
+        sol  = ode15s(dZ_func, [T_achieved, T_seg_target], Z, ode_ops);
+    end
     seg_wall = toc(tstart_ode);
     if log_this_segment
         logf('[ODE] Segment %d completed (%.1f s, %d steps)\n', ...
@@ -1161,6 +1224,18 @@ results.achieved_time_s    = T_achieved * params.scales.T_0;
 results.segment_count      = segment_count;
 results.brownian_step_sizes_s = brown_step_sizes_s;
 results.diagnostics = numerical_diagnostics_state('snapshot');
+if jac_reuse_enabled
+    results.jacobian_reuse = jac_cache.stats();
+    logf(['[JAC] Lagged Jacobian summary: fresh = %d (on-demand %d, age %d) | ', ...
+          'lagged = %d | basis invalidations = %d | fallbacks = %d | ', ...
+          'FD RHS calls = %d\n'], ...
+        results.jacobian_reuse.n_fresh, results.jacobian_reuse.n_on_demand, ...
+        results.jacobian_reuse.n_age_refresh, results.jacobian_reuse.n_lagged, ...
+        results.jacobian_reuse.n_invalidated, results.jacobian_reuse.n_fallback, ...
+        results.jacobian_reuse.n_fd_rhs);
+else
+    results.jacobian_reuse = struct('enabled', false);
+end
 diag = results.diagnostics;
 logf(['[DIAG] Max backward residual = %.3e (warn %.1e, err %.1e) | ', ...
       'min rcond = %.3e (warn %.1e, near-sing %.1e; joint-abort with resid err) | ', ...
@@ -1656,7 +1731,7 @@ if generate_animation
     % Determine frame indices
     frame_indices = 1 : animation_skip : NT;
     if frame_indices(end) ~= NT
-        frame_indices(end+1) = NT;      %#ok<AGROW> Always include last frame
+        frame_indices(end+1) = NT;      % Always include last frame
     end
     n_frames = length(frame_indices);
     logf('[ANIM] Frames: %d (skip = %d from %d total time points)\n', ...
@@ -1832,8 +1907,6 @@ if generate_animation
         logf('[ANIM] Physical size exceeds codec limit [%d x %d] -shrinking figure to %d x %d logical.\n', ...
             anim_max_w, anim_max_h, new_log_w, new_log_h);
         set(fig_anim, 'Position', [50, 50, new_log_w, new_log_h]);
-        anim_fig_w = new_log_w;
-        anim_fig_h = new_log_h;
         drawnow;
         probe_frame = getframe(fig_anim);
         [phys_h, phys_w, ~] = size(probe_frame.cdata);

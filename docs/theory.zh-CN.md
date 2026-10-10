@@ -4,8 +4,8 @@
 [返回中文 README](../README.zh-CN.md)
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **更新日期:** 2026-09-04
-> **版本:** 8.5.0
+> **更新日期:** 2026-10-10
+> **版本:** 8.5.1
 
 本文档承接原长版 README 中的理论、模型和数值方法说明。仓库首页现在保持精简；实际运行步骤见 [`../USER_GUIDE.md`](../USER_GUIDE.md)，版本历史见 [`../CHANGELOG.md`](../CHANGELOG.md)。
 
@@ -467,6 +467,10 @@ k_B T\,\nabla\!\cdot\!\mathbf{M}\,\Delta t_B
 确定性求解使用原始水动力迁移率矩阵 `M_weighted`，当 `eps_body != eps_pili` 时该矩阵在结构上非对称：胞体 RSM 块（源正则化长度 `eps = eps_body`）与纤毛 RSS 块（源正则化长度 `eps = eps_pili`）对同一对胞体-纤毛点对施加了不同的正则化长度，因此 Lorentz 互易定理在非对角的胞体↔纤毛耦合块上不严格成立。相反，布朗协方差路径使用对称化后的有效胞体迁移率 `M_eff = 0.5*(M + M')`，以满足涨落耗散定理对对称扩散张量的要求。
 
 因此该算符分裂依赖"非互易分量足够小"这一近似。实现在每个布朗步测量相对不对称度 `rel_asym = ||M_eff - M_eff^T||_F / ||M_eff||_F`，当 `rel_asym > 1e-3` 时发出警告。典型混合正则化配置下 `rel_asym ~ 1e-5..1e-3`；纯 RSM（无纤毛）系统降至 `<1e-10`（仅 LU 舍入误差）。从完整 `M_weighted` 经 Schur 互补提取到 6×6 胞体块的过程会进一步衰减非对称性，故对平衡分布的实际影响以 `rel_asym` 本身为上界。当 `eps_body ≈ eps_pili` 时该近似成为精确。追求最严格统计保真度的用户应监控 `[BROWN]` 不对称度日志，若 `rel_asym > 1e-2`，可考虑在保证胞体表面分辨率 `N_body` 足以将 RSM 泄漏控制在容差内（见 §5.1）的前提下，将 `eps_body` 调向 `eps_pili`（或反向调整）。
+
+### 10.3 Brownian ODE 重启中的滞后 Jacobian（v8.5.1）
+
+本小节只涉及时间积分器，§10.1–10.2 的模型不变。每个 Brownian 区间都会重启 `ode15s`。对隐式 BDF/NDF 步 \(\mathbf{y}_{n+1}-\gamma h\,\mathbf{f}(\mathbf{y}_{n+1})=\boldsymbol{\psi}\)，求解器用修正牛顿迭代，迭代矩阵为 \(\mathbf{W}=\mathbf{I}-\gamma h\,\tilde{\mathbf{J}}\)，其中 \(\tilde{\mathbf{J}}\) 是 \(\partial\mathbf{f}/\partial\mathbf{y}\) 的任意近似。迭代收敛当且仅当 \(\rho\big(\mathbf{I}-\mathbf{W}^{-1}\mathbf{W}_\text{true}\big)<1\)；收敛后无论 \(\tilde{\mathbf{J}}\) 取何值，求解的都是同一个隐式方程，局部误差估计与步长/阶数选择均基于收敛后的解。因此陈旧的 \(\tilde{\mathbf{J}}\) 只改变收敛速度，不改变离散格式。每次重启重新做稠密有限差分 Jacobian 需要 \(n_\text{ode}\) 次右端项计算，是 Brownian 节点耗时的主要部分（4 菌毛约 70–85%），因此复用上一次的精确 Jacobian（`LaggedJacobian.m`）：当 `ode15s` 在同一次调用中第二次索要 \(\mathbf{J}\)（牛顿失败）、Euler 基旋转之后、以及缓存达到 `cfg.jacobian_max_age` 个节点时刷新。在 4 菌毛验证算例（N_body = 200，5 段/µm，刚性 \(|\lambda|_\max\approx9\times10^{7}\)，单位 \(T_0^{-1}\)）中，实际步长（\(h\le1.7\times10^{-3}\)）下，缓存至多 64 个节点的 Jacobian 对应的收缩矩阵谱半径 \(\le0.17\)；同种子轨迹与新鲜 Jacobian 的解相差约 \(10^{-5}\) 相对量。`cfg.jacobian_reuse=false` 与 8.5.0 逐位一致。
 
 ## 11. 流场可视化
 

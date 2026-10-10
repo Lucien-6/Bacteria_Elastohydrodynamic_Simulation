@@ -3,11 +3,11 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 8.5.0
-> **更新日期:** 2026-09-04
+> **版本:** 8.5.1
+> **更新日期:** 2026-10-10
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-版本提示：v8.5.0 改变 body-only 布朗运动的施加方式——每个区间的热增量以恒定广义力经耦合 ODE 实现，取代“位移 kick + 根部重投影”，从而消除每个 Brownian 节点处的纤毛根部伪折点，并使 Ito 漂移隐式生成（见 §8）。即使随机种子相同，Brownian 轨迹也与旧版本不同；确定性算例不受影响。2 型抛物线菌毛模板现在精确锚定于原点（此前首节点偏移约 4 nm/K）。v8.4.0 修正 `free_torsion` 根部扭转方程——马达扭矩现在由整根鞭毛的扭转阻力平衡，而不再只由第 1 段平衡，因此马达驱动算例的稳态转子转速相对旧版约下降为 1/N（N 为分段数，见 §7）；运行前失速诊断改用一致的阻力系数。v8.3.0 将菌毛曲率差分模板改为节点共位的二阶格式，并将 14 个参数化附着位点变换全部改为真旋转、`deflection_x` 改为右手约定。平面菌毛（1–4 型、`deflection_x = 0`）的放置与旧版完全一致；位点 1、2、5、7、10、11、14 上的锥形螺旋菌毛以及任何 `deflection_x` 非零的菌毛现在具有正确（旧版为镜像）的手性——若配置是针对旧几何调参的，请将螺旋参数 `c` 或 `deflection_x` 取反。v8.2.0 为物理正确性更新。鞭毛马达改用以转子相对胞体转速表述的带符号线性扭矩–转速关系并明确符号约定（见 §7）；流场后处理计入背景流；2–5 型菌毛的 `shape_params` 在运行前校验；曲率/力矩输入的单位已写入文档（§4）。v8.1.0 扩展批量后处理（`postprocess_cases`）：在 \(0<\tau\le T/2\) 上拟合三维平移 MSD，并新增 XZ 平面转动扩散 \(D_\mathrm{rot}\)（MSAD）。
+版本提示：v8.5.1 在 Brownian 运行的 `ode15s` 重启之间复用上一次的精确有限差分 Jacobian，多菌毛算例每个 Brownian 节点的耗时降低约 2–3.7 倍（单菌毛约 1.4 倍），差异保持在积分容差以内（见 §8；`cfg.jacobian_reuse = false` 与 v8.5.0 逐位一致）；同时清理运行脚本的代码分析器提示、修复 `verify_migration.m` 并新增 Markdown 检查配置。v8.5.0 改变 body-only 布朗运动的施加方式——每个区间的热增量以恒定广义力经耦合 ODE 实现，取代“位移 kick + 根部重投影”，从而消除每个 Brownian 节点处的纤毛根部伪折点，并使 Ito 漂移隐式生成（见 §8）。即使随机种子相同，Brownian 轨迹也与旧版本不同；确定性算例不受影响。2 型抛物线菌毛模板现在精确锚定于原点（此前首节点偏移约 4 nm/K）。v8.4.0 修正 `free_torsion` 根部扭转方程——马达扭矩现在由整根鞭毛的扭转阻力平衡，而不再只由第 1 段平衡，因此马达驱动算例的稳态转子转速相对旧版约下降为 1/N（N 为分段数，见 §7）；运行前失速诊断改用一致的阻力系数。v8.3.0 将菌毛曲率差分模板改为节点共位的二阶格式，并将 14 个参数化附着位点变换全部改为真旋转、`deflection_x` 改为右手约定。平面菌毛（1–4 型、`deflection_x = 0`）的放置与旧版完全一致；位点 1、2、5、7、10、11、14 上的锥形螺旋菌毛以及任何 `deflection_x` 非零的菌毛现在具有正确（旧版为镜像）的手性——若配置是针对旧几何调参的，请将螺旋参数 `c` 或 `deflection_x` 取反。v8.2.0 为物理正确性更新。鞭毛马达改用以转子相对胞体转速表述的带符号线性扭矩–转速关系并明确符号约定（见 §7）；流场后处理计入背景流；2–5 型菌毛的 `shape_params` 在运行前校验；曲率/力矩输入的单位已写入文档（§4）。v8.1.0 扩展批量后处理（`postprocess_cases`）：在 \(0<\tau\le T/2\) 上拟合三维平移 MSD，并新增 XZ 平面转动扩散 \(D_\mathrm{rot}\)（MSAD）。
 
 v8.0.1 在 v8.0.0 之上加固运行期数值诊断。稠密耗散检验改用全谱 `eig`；孤立近奇异（`rcond < 1e-14`）以 `NearSingularMatrix` 告警；`SingularMatrix` 仅在大后向残差（`> 1e-6`）与近奇异 `rcond` 同时成立时中止。诊断快照字段为 `rcond_near_singular_threshold`。
 
@@ -243,6 +243,8 @@ SPD 修复和 Cholesky 分解在无量纲广义坐标中完成，再转换到 SI
 - `brownian.temperature`: 正的流体绝对温度，单位 K；启用布朗运动时必需。
 - `brownian.rng_seed`: 固定正整数种子，用于可复现运行。
 - `brownian.dt_B_ratio`: 布朗时间步相对于输出时间步的比例。
+
+**滞后 Jacobian（v8.5.1）。** Brownian 运行在每个 `dt_B` 节点重启 `ode15s`，而每次重启过去都要做一次稠密有限差分 Jacobian（额外 `n_ode` 次右端项计算，占 4 菌毛算例耗时的 70–85%）。自 v8.5.1 起复用上一次的精确 Jacobian（[`src/core/LaggedJacobian.m`](src/core/LaggedJacobian.m)）：它只进入隐式步的牛顿迭代矩阵，因此解与此前结果的差异保持在积分容差以内，而每个 Brownian 节点的耗时降低约 2–3.7 倍（1 根菌毛约 1.4 倍）。当 `ode15s` 在同一次调用中再次索要 Jacobian（牛顿失败）、发生 Euler 基旋转，或缓存已达 50 个节点时，会重新计算精确 Jacobian；若某个滞后段报错或异常提前停止，则以默认 Jacobian 重算该段。`simulation.log` 的 `[JAC]` 行和 `results.jacobian_reuse` 给出计数（`n_fresh`、`n_lagged`、`n_on_demand`、`n_invalidated`、`n_fallback`）。仅运行时选项（不写入 JSON）：`cfg.jacobian_reuse`（默认 `true`；`false` 与 v8.5.0 逐位一致）和 `cfg.jacobian_max_age`（默认 50 个节点）。确定性算例不受影响。
 
 启用布朗运动后，实际使用的随机种子会保存到 `config.json`、`brownian_rng_seed.txt`、`simulation.log` 和 `simulation_results.mat`。该种子只控制本次运行的独立随机流，因此几何缓存是否命中以及 MATLAB 全局随机流中的其他调用都不会改变 Brownian 轨迹。
 
