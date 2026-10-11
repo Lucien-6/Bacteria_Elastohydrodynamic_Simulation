@@ -28,7 +28,8 @@ function [M_weighted, M_twist, M_rotlet, D_twist] = build_global_resistance(X_al
 %    Adaptive epsilon strategy:
 %      Body points  :  eps_body = h_mean / 2.6667 (default; batch sweep optimum;
 %                      see init_coupled_params.m)
-%      Pili points  :  eps_pili = r_pili / L_0
+%      Pili points  :  eps_pili = hydro_radius_factor * r_pili / L_0
+%                      (params.epsilon; default factor sqrt(2), see init_coupled_params.m)
 %      Pair rule    :  eps_ij = eps_j  (force-point-determined)
 %
 %    Matrix layout (block view):

@@ -8,6 +8,73 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [8.5.2] — 2026-10-11
+
+Calibration of the pilus hydrodynamic radius.  **Changes default results**
+(see Compatibility).
+
+### Fixed
+
+- **The pilus regularisation length was `eps = r_pili` with no calibration.**
+  For the Cortez (2018) 7/2 blob a straight rotlet-segment line has the axial
+  twist drag `xi_t = 2*pi*mu*eps^2` per unit length, i.e. **half** the no-slip
+  cylinder value `4*pi*mu*r^2`; the translational mobility of the Stokeslet
+  line was 7.9 % (perpendicular) and 9.4 % (parallel) above the slender-body
+  theory of a cylinder of radius `r` (mid-filament, `r/L = 3e-3`, 100
+  segments; the reference is the RPY line with `a_hat = r*e^(3/2)/4` of Maxian
+  et al.).  Both numbers were measured with `build_global_resistance` in
+  `output/benchmark_v850/radius_check.m`.
+- The pilus regularisation length is now `eps_pili = beta*r_pili` with the new
+  calibration factor `beta = hydro_radius_factor`, default `sqrt(2)`: the twist
+  drag equals the cylinder value exactly and the translational mobility is
+  2.4 % / 2.9 % above the reference.  `beta = sqrt(e)` reproduces the
+  translation exactly (twist drag then 36 % above the cylinder), `beta = 1`
+  reproduces 8.5.1.
+
+### Changed
+
+- `init_coupled_params.m`: new name-value pair `hydro_radius_factor` (default
+  `sqrt(2)`); `params.epsilon` is now the pilus regularisation length
+  `beta*r_pili/L_0`; new fields `params.slenderness = r_pili/L_0` and
+  `params.hydro_radius_factor`.  The bending stiffness `EI` and the body-pilus
+  root gap `dis` still use the physical `r_pili`, so the geometry is unchanged.
+- New optional JSON key `material.hydro_radius_factor` (also written to
+  `config.json`) and `cfg.hydro_radius_factor`; validated as a positive finite
+  scalar (a warning outside [1, 3]).  `configs/config_example.json` lists it.
+- The pre-flight motor stall diagnostic in `validate_simulation_params.m` uses
+  the calibrated twist drag; the `[PARAMS]`/`[INIT]` log lines report the factor.
+- `init_coupled_params.m`: removed an unused assignment (`ic_input = {}` in the
+  no-pili branch; code-analyzer NASGU, no behavioural change).
+
+### Validation
+
+- With `hydro_radius_factor = 1` the one-pilus sinking case (`D1`) and the motor case
+  (`D4`) are bit-for-bit identical to 8.5.1 (single-thread BLAS); the HPC fork
+  `run_simulation_HPC_Linux.m` reproduces `run_simulation.m` bit-for-bit for `D1`
+  with the default factor (run on Windows).
+- With the default factor the one-pilus sink distance changes by 0.13 %
+  (`-0.0210405` to `-0.0210139` in the case's dimensionless units); in the motor
+  example case (`D4`) the body counter-rotation angle over the run changes by a
+  factor of 1.95 (0.0976 to 0.190 rad).
+- The numerical check reproduces `xi_t/(2*pi*mu*eps^2) = 1.0000` and the
+  analytic result `eps = sqrt(e)*r` for matching the translational mobility
+  of the RPY line (perpendicular and parallel).
+
+### Documentation
+
+- `project_version.m` bumped to 8.5.2 (2026-10-11); README, USER_GUIDE, theory
+  (EN/ZH), `requirements.txt`, the project website and presentation version
+  strings, and the headers of `run_simulation*.m` and
+  `main_coupled_simulation.m` updated.  The USER_GUIDE gains a note on the
+  optional `material.hydro_radius_factor` key.
+
+### Compatibility
+
+- **Default results change** for pili-bearing cases: pili hydrodynamics changes
+  by a few per cent, and the axial twist drag doubles.  Set
+  `hydro_radius_factor = 1` to reproduce 8.5.1.  Pilus-free runs are unaffected.
+- Previous Brownian and sinking batches were computed with `beta = 1`.
+
 ---
 
 ## [8.5.1] — 2026-10-10

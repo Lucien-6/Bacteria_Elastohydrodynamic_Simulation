@@ -38,6 +38,12 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %                    cfg.jacobian_max_age - runtime-only positive number of
 %                      Brownian nodes (default 50); a fresh exact Jacobian is
 %                      computed when the cached one is this many nodes old.
+%                    cfg.hydro_radius_factor - positive number (default sqrt(2);
+%                      also JSON material.hydro_radius_factor).  Pilus
+%                      hydrodynamic regularisation length eps_pili = factor *
+%                      r_pili (v8.5.2).  sqrt(2) gives the exact no-slip
+%                      cylinder twist drag and translation within ~3 %;
+%                      sqrt(e) gives exact translation; 1 reproduces <= 8.5.1.
 %
 %  Errors raised while running are captured by a top-level try/catch and
 %  logged to simulation.log as a [FATAL] block (identifier, message, full
@@ -88,7 +94,8 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %  Updated: 2026-09-04 — v8.5.0 Brownian force-realisation scheme
 %  Updated: 2026-10-10 — v8.5.1 lagged Jacobian for Brownian ode15s restarts
 %           and static-analysis clean-up (no behavioural change)
-%  Log banner version: 8.5.1 (2026-10-10) - emitted via project_version(); keep README / CHANGELOG in sync
+%  Updated: 2026-10-11 — v8.5.2 pilus hydrodynamic radius factor (hydro_radius_factor)
+%  Log banner version: 8.5.2 (2026-10-11) - emitted via project_version(); keep README / CHANGELOG in sync
 %
 %  Path policy: defensive addpath calls here allow run_simulation(cfg) without
 %  main_coupled_simulation.m.  Standalone drivers in batch_sweep/ and
@@ -144,6 +151,7 @@ Pili_Matrix            = cfg.Pili_Matrix;
 seg_per_um             = cfg.seg_per_um;
 E                      = cfg.E;
 r_pili                 = cfg.r_pili;
+hydro_radius_factor    = get_cfg_field(cfg, 'hydro_radius_factor', sqrt(2));
 sigma_p                = cfg.sigma_p;
 mu                     = cfg.mu;
 rho_bac                = cfg.rho_bac;
@@ -441,6 +449,8 @@ switch lower(bg_type)
 end
 logf('[PARAMS] Material: E = %.2e Pa, r_pili = %.1f nm, sigma = %.1f\n', ...
     E, r_pili*1e9, sigma_p);
+logf('[PARAMS] Pilus hydrodynamic radius: eps_pili = %.4f * r_pili = %.2f nm\n', ...
+    hydro_radius_factor, hydro_radius_factor*r_pili*1e9);
 logf('[PARAMS] Fluid: mu = %.2e Pa*s, rho_bac = %.1f kg/m^3, rho_fluid = %.3f kg/m^3\n', ...
     mu, rho_bac, rho_fluid);
 logf('[PARAMS] Simulation: T_obs = %.1f s, dt = %.2e s, NT = %d, AbsTol = %.0e, RelTol = %.0e\n', ...
@@ -495,6 +505,7 @@ params = init_coupled_params( ...
     'mu',           mu, ...
     'E',            E, ...
     'r_pili',       r_pili, ...
+    'hydro_radius_factor', hydro_radius_factor, ...
     'sigma',        sigma_p, ...
     'rho_bac',      rho_bac, ...
     'rho_fluid',    rho_fluid, ...
@@ -545,7 +556,8 @@ logf('[INIT]   F_0 = %.4e N  (force)\n',            params.scales.F_0);
 logf('[INIT]   EI  = %.4e N*m^2  (bending stiffness)\n', params.scales.EI);
 logf('[INIT] Dimensionless parameters:\n');
 logf('[INIT]   Eg      = %.6f  (elastogravitational number)\n', params.Eg);
-logf('[INIT]   epsilon = %.4e  (slenderness r_pili / L_0)\n',  params.epsilon);
+logf('[INIT]   epsilon = %.4e  (pilus regularisation length = %.4f * r_pili / L_0)\n', ...
+    params.epsilon, params.hydro_radius_factor);
 if ~isempty(eps_body_cfg)
     logf('[INIT]   eps_body (RSM override, L0): %.6f  (h_mean = %.6f)\n', ...
         params.eps_body, params.body_h_mean);
@@ -572,15 +584,15 @@ if params.M_pili > 0
         eps_nm  = params.epsilon * L_0_dim * 1e9;
         logf('[INIT]   Pili %d: ell = %.4f L_0, N_seg = %d, ds = %.4f L_0 (%.2f nm)\n', ...
             kk, params.ell(kk), params.N_segments(kk), ds_k, ds_nm);
-        logf('[INIT]          eps_pili = %.4f L0 (%.1f nm = r_pili), ds/eps = %.1f\n', ...
-            params.epsilon, eps_nm, ds_nm / eps_nm);
+        logf('[INIT]          eps_pili = %.4f L0 (%.1f nm = %.4f r_pili), ds/eps = %.1f\n', ...
+            params.epsilon, eps_nm, params.hydro_radius_factor, ds_nm / eps_nm);
     end
     dis_dim_nm = params.dim.dis * 1e9;
-    logf('[INIT]   Gap : dis = 1.1*(eps_body + eps_pili) = %.1f nm\n', dis_dim_nm);
+    logf('[INIT]   Gap : dis = 1.1*(eps_body + r_pili/L0) = %.1f nm\n', dis_dim_nm);
     logf('[INIT]   Note: eps_ij = eps_j (determined by force point j)\n');
     logf('[INIT]     Body force -> any point: eps = %.1f nm\n', ...
         params.eps_body * L_0_dim * 1e9);
-    logf('[INIT]     Pili force -> any point: eps = %.1f nm (physical radius)\n', ...
+    logf('[INIT]     Pili force -> any point: eps = %.1f nm (hydrodynamic radius)\n', ...
         params.epsilon * L_0_dim * 1e9);
 end
 logf('[INIT] -------------------------------------------------------------\n');

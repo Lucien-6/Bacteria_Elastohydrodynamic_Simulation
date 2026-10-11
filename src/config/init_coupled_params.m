@@ -19,6 +19,9 @@ function params = init_coupled_params(varargin)
 %    'mu'                 Dynamic viscosity [Pa*s] (default: 1e-3)
 %    'E'                  Young's modulus [Pa] (default: 3.279e8)
 %    'r_pili'             Pilus radius [m] (default: 3e-9)
+%    'hydro_radius_factor' Ratio eps_pili / r_pili of the pilus hydrodynamic
+%                         regularisation length (Cortez 7/2 blob) to the
+%                         physical radius (default: sqrt(2); see Note)
 %    'sigma'              Poisson ratio (default: 0.2)
 %    'rho_bac'            Bacterium density [kg/m^3] (default: 1180)
 %    'rho_fluid'          Fluid density [kg/m^3] (default: 998.232)
@@ -55,13 +58,28 @@ function params = init_coupled_params(varargin)
 %      .r_local, .d_local, .D_local, .directors_ref, .ell, .rot, .pili_x0
 %      .kb0, .am_cfg, .root_coupling, .motor_cfg
 %      .q_0_init, .orientation_source, .alpha_0
-%      .Eg, .epsilon, .sigma, .g_hat, .delta, .eps_body
+%      .Eg, .epsilon, .slenderness, .hydro_radius_factor, .sigma, .g_hat,
+%      .delta, .eps_body
 %      .quad_weights, .bg_flow, .brown_enabled, .brown_force_dimless
 %      .logf, .logf_file     caller-facing logging handles
 %
 %  Note:
 %    'dis' (gap between body and pili root) is computed automatically
-%    as dis = 1.1 * (eps_body + eps_pili) to ensure proper separation.
+%    as dis = 1.1 * (eps_body + r_pili/L_0) to ensure proper separation
+%    (it uses the physical radius, so the geometry does not depend on the
+%    hydrodynamic radius factor).
+%
+%    Pilus hydrodynamic radius: the regularisation length of a centreline
+%    line of regularised singularities is not the physical radius.  With the
+%    Cortez 7/2 blob, a straight line has an axial-twist drag
+%    xi_t = 2*pi*mu*eps^2 per unit length, versus 4*pi*mu*r^2 for a no-slip
+%    cylinder, so eps = r gives half of the cylinder value; eps = sqrt(2)*r
+%    reproduces it exactly.  Translational mobility, matched to slender-body
+%    theory of a cylinder of radius r (Maxian et al. 2021-2023: RPY radius
+%    a_hat = r*e^(3/2)/4, equivalent to eps = sqrt(e)*r for this blob), is then
+%    within about 2.5 % (mid-filament, a/L = 3e-3).  hydro_radius_factor = 1
+%    reproduces versions up to 8.5.1; sqrt(e) matches translation exactly.
+%    The bending stiffness EI always uses the physical r_pili.
 %
 %    Pili use the RSS (Regularized Stokeslet Segments) method
 %    (Cortez 2018) with exact segment integrals + rotlet coupling.
@@ -74,7 +92,8 @@ function params = init_coupled_params(varargin)
 %           2026-09-04 — v8.3.0 kb0 evaluated through the shared
 %           compute_pili_curvature operator (node-collocated stencil).
 %           2026-09-04 — v8.5.0 brown_force_dimless field initialised.
-%  Updated: 2026-09-04
+%           2026-10-11 — pilus hydrodynamic radius factor (default sqrt(2)).
+%  Updated: 2026-10-11
 
 %% Parse inputs
 p = inputParser;
@@ -86,6 +105,8 @@ addParameter(p, 'major_axis',  1.25e-6, @isnumeric);
 addParameter(p, 'mu',          1e-3,   @isnumeric);
 addParameter(p, 'E',           3.279e8, @isnumeric);
 addParameter(p, 'r_pili',      3e-9,   @isnumeric);
+addParameter(p, 'hydro_radius_factor', sqrt(2), ...
+    @(x) isnumeric(x) && isscalar(x) && isfinite(x) && x > 0);
 addParameter(p, 'sigma',       0.2,    @isnumeric);
 addParameter(p, 'rho_bac',     1180.0, @isnumeric);
 addParameter(p, 'rho_fluid',   998.232, @isnumeric);
@@ -251,7 +272,9 @@ g         = 9.81;
 F_sink    = Delta_rho * V_body * g;             % Sinking force [N]
 
 params.Eg      = F_sink * L_0^2 / EI;             % Elastogravitational number
-params.epsilon = p.Results.r_pili / L_0;           % Global slenderness
+params.slenderness         = p.Results.r_pili / L_0;       % Physical slenderness r_pili/L_0
+params.hydro_radius_factor = p.Results.hydro_radius_factor; % eps_pili / r_pili
+params.epsilon = params.hydro_radius_factor * params.slenderness; % Pilus regularisation length [L_0]
 params.sigma   = p.Results.sigma;
 params.g_hat   = [0; 0; -1];                       % Gravity direction
 params.delta   = p.Results.delta;
@@ -334,7 +357,7 @@ params.body_h_min  = h_min;
 params.body_h_mean = h_mean;
 
 %% Compute adaptive gap distance
-eps_pili_dimless = params.epsilon;
+eps_pili_dimless = params.slenderness;   % physical radius: geometry independent of the hydrodynamic factor
 eps_body_dim     = params.eps_body * L_0;
 eps_pili_dim     = eps_pili_dimless * L_0;
 dis              = 1.1 * (eps_body_dim + eps_pili_dim);
@@ -792,7 +815,6 @@ else
         params.am_cfg     = {};
         params.root_coupling = {};
         params.motor_cfg  = {};
-        ic_input          = {};
     end
 end
 

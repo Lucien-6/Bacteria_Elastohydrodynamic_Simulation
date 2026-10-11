@@ -166,6 +166,8 @@ jm = get_json(j, 'material', struct());
 cfg.E       = get_json(jm, 'E',       3.279e8);
 cfg.r_pili  = get_json(jm, 'r_pili',  3e-9);
 cfg.sigma_p = get_json(jm, 'sigma_p', 0.2);
+% Pilus hydrodynamic regularisation length / physical radius (default sqrt(2))
+cfg.hydro_radius_factor = get_json(jm, 'hydro_radius_factor', sqrt(2));
 
 % Fluid
 jf = get_json(j, 'fluid', struct());

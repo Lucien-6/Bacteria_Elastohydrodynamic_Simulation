@@ -4,8 +4,8 @@ English | [中文](theory.zh-CN.md)
 [Back to README](../README.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Updated:** 2026-10-10
-> **Version:** 8.5.1
+> **Updated:** 2026-10-11
+> **Version:** 8.5.2
 
 This document contains the model details that were formerly embedded in the long README. The repository entry page is now intentionally short; practical run instructions are in [`../USER_GUIDE.md`](../USER_GUIDE.md), and release history is in [`../CHANGELOG.md`](../CHANGELOG.md).
 
@@ -167,13 +167,19 @@ For a straight segment from $\mathbf{y}_0$ to $\mathbf{y}_1$, RSS evaluates the 
 
 The matrices `M1` and `M2` include exact segment integration weights. No additional trapezoidal length factor is applied to the RSS segment columns. The required `T_{n,q}` integrals are evaluated by the Cortez (2018) recurrence.
 
-For pili, the regularization length is physical:
+For pili, the regularization length is tied to the physical radius by a calibration factor $\beta$ (`hydro_radius_factor`):
 
 ```math
-\varepsilon_{\mathrm{pili}} = r_{\mathrm{pili}}/L_0.
+\varepsilon_{\mathrm{pili}} = \beta\, r_{\mathrm{pili}}/L_0,
+\qquad \beta = \sqrt{2}\ \text{(default)}.
 ```
 
-Unlike body RSM regularization, this value represents the finite radius of the pilus and is not a numerical parameter to send toward zero.
+Unlike body RSM regularization, this length is not a numerical parameter to send toward zero: it sets the hydrodynamic radius of the pilus.  A centreline line of regularized singularities is not a no-slip cylinder, and its effective radius differs between translation and axial rotation, so $\beta=1$ (used up to 8.5.1) is not a calibrated choice.  The bending stiffness always uses the physical $r_{\mathrm{pili}}$, and the root gap `dis` is computed from it as well.  For the Cortez (2018) 7/2 blob, tested on a straight filament at its mid-point ($r_{\mathrm{pili}}/L_{\mathrm{pili}}=3\times10^{-3}$, 100 segments):
+
+- **Axial twist.**  The regularised-rotlet-segment line has the drag $\xi_t=2\pi\mu\varepsilon^2$ per unit length (checked numerically, ratio $1.0000$), whereas a no-slip cylinder has $4\pi\mu r^2$ (Walker et al. 2020, Eq. 24; Maxian et al. 2022, Sec. II A 3).  They agree for $\varepsilon=\sqrt2\,r$; with $\beta=1$ the twist drag was half of the cylinder value.
+- **Translation.**  The regularization radius of the Rotne–Prager–Yamakawa line, $\hat a=r\,e^{3/2}/4\approx1.12\,r$, reproduces the slender-body theory of a cylinder of radius $r$ (Maxian et al. 2021–2023).  For the present blob the same translational mobility, perpendicular and parallel, is obtained for $\varepsilon=\sqrt{e}\,r\approx1.649\,r$ (analytic and numerical).  With $\beta=\sqrt2$ the mid-filament mobility is $2.4\,\%$ (perpendicular) and $2.9\,\%$ (parallel) above that reference, with $\beta=1$ it was $7.9\,\%$ and $9.4\,\%$ above.
+
+$\beta=\sqrt2$ is therefore the default compromise: exact cylinder twist drag and translation within about $3\,\%$.  Use $\beta=\sqrt e$ for exact translation (twist drag then $36\,\%$ above the cylinder value), or $\beta=1$ to reproduce versions up to 8.5.1.  For pure sedimentation of a single pilus the sink distance changed by $0.13\,\%$ between $\beta=1$ and $\beta=\sqrt2$; in the motor example case (`D4`) the body counter-rotation angle over the run changed by a factor of $1.95$ ($0.0976\to0.190$ rad).
 
 ### 5.3 Rotlet Segments
 
@@ -372,7 +378,7 @@ Row $i$ of the pilus moment balance is the balance of the rod portion $[s_i, 1]$
 \mathbf{M}(s_i) + \int_{s_i}^{1}\big(\mathbf{x}-\mathbf{x}_i\big)\times\mathbf{f}\,\mathrm{d}s + \int_{s_i}^{1}\mathbf{m}\,\mathrm{d}s = \mathbf{0},
 ```
 
-where $\mathbf{M}(s_i)$ is the internal moment exerted by $[0,s_i)$ on $[s_i,1]$. For an interior node this is the Kirchhoff moment $EI(\kappa_1\mathbf{d}_1+\kappa_2\mathbf{d}_2)+GJ\kappa_3\mathbf{d}_3$ plus the integrated active moment. At the root node, $[0,s_1)$ is the cell body, so $\mathbf{M}(0)$ is the torque the body applies to the rod: an unknown reaction for `clamped` (the three rows become kinematic constraints) and, for `free_torsion`, $\mathbf{M}(0)\cdot\mathbf{d}_3 = \tau_{\mathrm{eff}}$ (zero for a frictionless bearing). The discrete $\kappa_3$ available at node 1 is evaluated between segments 1 and 2 and is already the internal moment used by the node-2 balance. Before v8.4.0 it was nevertheless also added to the root row; subtracting the node-2 row shows that the motor torque was then balanced by the hydrodynamic torque on segment 1 alone, so the steady rotor speed of a straight filament scaled as $N$ times the physical value (verified: $N=10$ gives $8.47\times10^4$ vs. $8.84\times10^3$ rad/s after the fix; the twist profile is linear from node 2 to the tip with $GJ\kappa_3(s_2)=\tau_{\mathrm{eff}}(1-1/N)$). The root rows of `compute_pili_elastic_moments.m` and `coupled_active_moment.m` are now zero for both coupling modes, and the `free_torsion` $\psi_1$ row carries only the boundary torque. Consequences: a free bearing without a motor enforces zero net axial hydrodynamic torque on the filament (a purely internal twist wave cannot spin it), and with a motor the steady speed of a straight filament is $\omega=\tau_{\mathrm{eff}}/(\xi_t L)$ with $\xi_t = 2\pi\mu\epsilon^2$ for the regularised-rotlet-segment line of the Cortez (2018) 7/2 blob (half the no-slip-cylinder value $4\pi\mu a^2$ at $a=\epsilon$; the simulator reproduces this coefficient to $<10^{-3}$).
+where $\mathbf{M}(s_i)$ is the internal moment exerted by $[0,s_i)$ on $[s_i,1]$. For an interior node this is the Kirchhoff moment $EI(\kappa_1\mathbf{d}_1+\kappa_2\mathbf{d}_2)+GJ\kappa_3\mathbf{d}_3$ plus the integrated active moment. At the root node, $[0,s_1)$ is the cell body, so $\mathbf{M}(0)$ is the torque the body applies to the rod: an unknown reaction for `clamped` (the three rows become kinematic constraints) and, for `free_torsion`, $\mathbf{M}(0)\cdot\mathbf{d}_3 = \tau_{\mathrm{eff}}$ (zero for a frictionless bearing). The discrete $\kappa_3$ available at node 1 is evaluated between segments 1 and 2 and is already the internal moment used by the node-2 balance. Before v8.4.0 it was nevertheless also added to the root row; subtracting the node-2 row shows that the motor torque was then balanced by the hydrodynamic torque on segment 1 alone, so the steady rotor speed of a straight filament scaled as $N$ times the physical value (verified: $N=10$ gives $8.47\times10^4$ vs. $8.84\times10^3$ rad/s after the fix; the twist profile is linear from node 2 to the tip with $GJ\kappa_3(s_2)=\tau_{\mathrm{eff}}(1-1/N)$). The root rows of `compute_pili_elastic_moments.m` and `coupled_active_moment.m` are now zero for both coupling modes, and the `free_torsion` $\psi_1$ row carries only the boundary torque. Consequences: a free bearing without a motor enforces zero net axial hydrodynamic torque on the filament (a purely internal twist wave cannot spin it), and with a motor the steady speed of a straight filament is $\omega=\tau_{\mathrm{eff}}/(\xi_t L)$ with $\xi_t = 2\pi\mu\epsilon_{\mathrm{pili}}^2$ for the regularised-rotlet-segment line of the Cortez (2018) 7/2 blob; with the default $\epsilon_{\mathrm{pili}}=\sqrt2\,r_{\mathrm{pili}}$ (section 5.2) this equals the no-slip-cylinder value $4\pi\mu r_{\mathrm{pili}}^2$, whereas $\epsilon_{\mathrm{pili}}=r_{\mathrm{pili}}$ (versions up to 8.5.1) gave half of it; the simulator reproduces the coefficient $2\pi\mu\epsilon^2$ to $<10^{-3}$.
 
 ## 9. Background Flow
 

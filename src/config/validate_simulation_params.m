@@ -199,6 +199,12 @@ else
             % pili lengths sit in row 2 of Pili_Matrix in microns.
             aux.pili_lengths_m = PM(2, 1:M_pili) * 1e-6;       % [1 x M_pili] in m
             aux.r_pili         = cfg.r_pili;
+            aux.hydro_radius_factor = sqrt(2);
+            if isfield(cfg, 'hydro_radius_factor') && isnumeric(cfg.hydro_radius_factor) ...
+                    && isscalar(cfg.hydro_radius_factor) && isfinite(cfg.hydro_radius_factor) ...
+                    && cfg.hydro_radius_factor > 0
+                aux.hydro_radius_factor = cfg.hydro_radius_factor;
+            end
             aux.mu             = cfg.mu;
             [errs, warns] = validate_pili_ext(cfg.pili_ext, M_pili, errs, warns, aux);
         end
@@ -252,6 +258,16 @@ if isfield(cfg, 'E') && isnumeric(cfg.E) && ~isempty(cfg.E) && cfg.E <= 0
 end
 if isfield(cfg, 'r_pili') && isnumeric(cfg.r_pili) && ~isempty(cfg.r_pili) && cfg.r_pili <= 0
     errs{end+1} = 'Pili radius r_pili must be > 0.';
+end
+if isfield(cfg, 'hydro_radius_factor') && ~isempty(cfg.hydro_radius_factor)
+    hrf = cfg.hydro_radius_factor;
+    if ~(isnumeric(hrf) && isscalar(hrf) && isfinite(hrf) && hrf > 0)
+        errs{end+1} = 'hydro_radius_factor (eps_pili / r_pili) must be a positive finite scalar.';
+    elseif hrf < 1 || hrf > 3
+        warns{end+1} = sprintf(['hydro_radius_factor = %g is outside [1, 3]; the physically ', ...
+            'motivated values are sqrt(2) = 1.414 (exact cylinder twist drag, default) and ', ...
+            'sqrt(e) = 1.649 (exact translation vs slender-body theory).'], hrf);
+    end
 end
 if isfield(cfg, 'sigma_p') && isnumeric(cfg.sigma_p) && ~isempty(cfg.sigma_p)
     if cfg.sigma_p < 0 || cfg.sigma_p >= 0.5
@@ -525,6 +541,8 @@ function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
 %  stall-curve diagnostic on free_torsion + constant motors.  Fields:
 %    .pili_lengths_m  - [1 x M_pili] pili total lengths [m]
 %    .r_pili          - pili radius [m]
+%    .hydro_radius_factor - eps_pili / r_pili of the hydrodynamic regularisation
+%                      (optional; default sqrt(2))
 %    .mu              - dynamic viscosity [Pa*s]
 %  An empty aux disables the stall-curve check (used by the custom-mode
 %  call where centreline lengths require reading the user files).
@@ -698,9 +716,10 @@ function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
                     %     tau_motor*(1 - omega/omega_max) = xi_t * omega
                     % with xi_t = 2*pi*mu*eps^2*L_pilus, the axial rotational
                     % drag of a straight regularised-rotlet-segment line with
-                    % the Cortez (2018) 7/2 blob (eps = r_pili in this code).
-                    % This is half the no-slip-cylinder value 4*pi*mu*r^2*L and
-                    % matches the simulator's own steady state to <1e-3.
+                    % the Cortez (2018) 7/2 blob with eps = hydro_radius_factor*r_pili
+                    % (default sqrt(2), which makes xi_t equal to the no-slip-cylinder
+                    % value 4*pi*mu*r^2*L; with eps = r_pili it would be half of it).
+                    % The simulator's own steady state agrees with this to <1e-3.
                     % Solving: omega_steady = tau_motor / (xi_t + tau_motor/omega_max)
                     % => omega_steady/omega_max = tau_motor / (xi_t*omega_max + tau_motor)
                     %
@@ -724,7 +743,9 @@ function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
                         L_k         = aux.pili_lengths_m(kk);            % [m]
                         tau_motor_N = abs(mt_val.torque_pN_nm) * 1e-21;  % pN*nm -> N*m
                         omega_max   = 2*pi * mt_val.max_omega_Hz;        % Hz -> rad/s
-                        xi_t        = 2*pi*aux.mu*aux.r_pili^2*L_k;      % N*m*s/rad (RSS line, eps = r_pili)
+                        hrf_k       = sqrt(2);
+                        if isfield(aux, 'hydro_radius_factor'), hrf_k = aux.hydro_radius_factor; end
+                        xi_t        = 2*pi*aux.mu*(hrf_k*aux.r_pili)^2*L_k;   % N*m*s/rad (RSS line, eps = hrf*r_pili)
                         ratio       = tau_motor_N / (xi_t*omega_max + tau_motor_N);
                         if ratio >= 0.7
                             warns{end+1} = sprintf(['Pili %d: motor is operating ', ...

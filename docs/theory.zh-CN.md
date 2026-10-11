@@ -4,8 +4,8 @@
 [返回中文 README](../README.zh-CN.md)
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **更新日期:** 2026-10-10
-> **版本:** 8.5.1
+> **更新日期:** 2026-10-11
+> **版本:** 8.5.2
 
 本文档承接原长版 README 中的理论、模型和数值方法说明。仓库首页现在保持精简；实际运行步骤见 [`../USER_GUIDE.md`](../USER_GUIDE.md)，版本历史见 [`../CHANGELOG.md`](../CHANGELOG.md)。
 
@@ -150,13 +150,19 @@ F_{\mathrm{sink}} = (\rho_{\mathrm{bac}} - \rho_{\mathrm{fluid}})\, V_{\mathrm{b
 
 矩阵 `M1` 和 `M2` 已包含线段精确积分权重，因此 RSS 线段列不再额外乘梯形长度权重。所需的 `T_{n,q}` 积分量通过 Cortez (2018) 递推公式计算。
 
-纤毛正则化长度是物理参数：
+纤毛正则化长度通过标定因子 $\beta$（`hydro_radius_factor`）与物理半径相联系：
 
 ```math
-\varepsilon_{\mathrm{pili}} = r_{\mathrm{pili}}/L_0.
+\varepsilon_{\mathrm{pili}} = \beta\, r_{\mathrm{pili}}/L_0,
+\qquad \beta = \sqrt{2}\ \text{（默认）}.
 ```
 
-它代表纤毛有限半径，而不是应趋近于零的纯数值参数。
+与胞体 RSM 正则化不同，该长度不是应趋近于零的纯数值参数，它决定纤毛的水动力半径。中心线上的正则化奇点线不是无滑移圆柱，其平动与轴向转动的等效半径并不相同，因此 8.5.1 及以前使用的 $\beta=1$ 并没有经过标定。弯曲刚度始终使用物理半径 $r_{\mathrm{pili}}$，根部间隙 `dis` 也由它计算。对 Cortez (2018) 7/2 blob，在直丝中点处的检验结果（$r_{\mathrm{pili}}/L_{\mathrm{pili}}=3\times10^{-3}$，100 段）：
+
+- **轴向扭转。** 正则化 rotlet 线段的单位长度阻力为 $\xi_t=2\pi\mu\varepsilon^2$（数值核对，比值 $1.0000$），而无滑移圆柱为 $4\pi\mu r^2$（Walker 等 2020 式 24；Maxian 等 2022 §II A 3）。两者在 $\varepsilon=\sqrt2\,r$ 时一致；$\beta=1$ 时扭转阻力只有圆柱值的一半。
+- **平动。** Rotne–Prager–Yamakawa 线的正则化半径 $\hat a=r\,e^{3/2}/4\approx1.12\,r$ 与半径 $r$ 的圆柱的细长体理论一致（Maxian 等 2021–2023）。对本 blob，取 $\varepsilon=\sqrt{e}\,r\approx1.649\,r$ 时垂直与平行平动迁移率都与之相同（解析与数值）。$\beta=\sqrt2$ 时丝中点的迁移率比该参考高 $2.4\,\%$（垂直）和 $2.9\,\%$（平行），$\beta=1$ 时分别高 $7.9\,\%$ 和 $9.4\,\%$。
+
+因此 $\beta=\sqrt2$ 是默认折中：扭转阻力与圆柱完全一致，平动偏差约 $3\,\%$。要平动精确可取 $\beta=\sqrt e$（此时扭转阻力比圆柱值高 $36\,\%$）；取 $\beta=1$ 可复现 8.5.1 及以前的版本。单根菌毛的纯沉降算例中，$\beta=1$ 与 $\beta=\sqrt2$ 的沉降距离相差 $0.13\,\%$；在马达算例（`D4`）中，整个运行期间胞体的反向转动角相差 $1.95$ 倍（$0.0976\to0.190$ rad）。
 
 ### 5.3 Rotlet 线段
 
@@ -347,7 +353,7 @@ $\dot\psi_1 + \cos\theta_1\dot\phi_1$ 是 Walker Euler 角运动学中第 1 段�
 \mathbf{M}(s_i) + \int_{s_i}^{1}\big(\mathbf{x}-\mathbf{x}_i\big)\times\mathbf{f}\,\mathrm{d}s + \int_{s_i}^{1}\mathbf{m}\,\mathrm{d}s = \mathbf{0},
 ```
 
-其中 $\mathbf{M}(s_i)$ 是 $[0,s_i)$ 作用于 $[s_i,1]$ 的内力矩。对内部节点它是 Kirchhoff 力矩 $EI(\kappa_1\mathbf{d}_1+\kappa_2\mathbf{d}_2)+GJ\kappa_3\mathbf{d}_3$ 加上积分后的主动力矩。在根部节点，$[0,s_1)$ 就是胞体，故 $\mathbf{M}(0)$ 是胞体施加于杆的扭矩：`clamped` 时为未知反力（三行改为运动学约束）；`free_torsion` 时 $\mathbf{M}(0)\cdot\mathbf{d}_3=\tau_{\mathrm{eff}}$（无摩擦轴承时为零）。节点 1 处可用的离散 $\kappa_3$ 实际是在第 1、2 段之间求值的，它已经是节点 2 平衡所用的内力矩。8.4.0 之前它仍被加入根部行；将根部行与节点 2 行相减可见，马达扭矩当时只由第 1 段的水动力扭矩平衡，因而直杆的稳态转速被放大为物理值的 $N$ 倍（验证：$N=10$ 时修复前后分别为 $8.47\times10^4$ 与 $8.84\times10^3$ rad/s；扭转分布自节点 2 到末端线性递减，$GJ\kappa_3(s_2)=\tau_{\mathrm{eff}}(1-1/N)$）。现在 `compute_pili_elastic_moments.m` 与 `coupled_active_moment.m` 的根部行在两种耦合模式下均为零，`free_torsion` 的 $\psi_1$ 行只携带边界扭矩。由此：无马达的自由轴承要求鞭毛所受净轴向水动力扭矩为零（纯内部扭转波无法使其整体旋转）；有马达时直杆稳态转速为 $\omega=\tau_{\mathrm{eff}}/(\xi_t L)$，其中对 Cortez (2018) 7/2 blob 的正则化 rotlet 线段 $\xi_t=2\pi\mu\epsilon^2$（为 $a=\epsilon$ 的无滑移圆柱值 $4\pi\mu a^2$ 的一半；模拟器复现该系数的误差 $<10^{-3}$）。
+其中 $\mathbf{M}(s_i)$ 是 $[0,s_i)$ 作用于 $[s_i,1]$ 的内力矩。对内部节点它是 Kirchhoff 力矩 $EI(\kappa_1\mathbf{d}_1+\kappa_2\mathbf{d}_2)+GJ\kappa_3\mathbf{d}_3$ 加上积分后的主动力矩。在根部节点，$[0,s_1)$ 就是胞体，故 $\mathbf{M}(0)$ 是胞体施加于杆的扭矩：`clamped` 时为未知反力（三行改为运动学约束）；`free_torsion` 时 $\mathbf{M}(0)\cdot\mathbf{d}_3=\tau_{\mathrm{eff}}$（无摩擦轴承时为零）。节点 1 处可用的离散 $\kappa_3$ 实际是在第 1、2 段之间求值的，它已经是节点 2 平衡所用的内力矩。8.4.0 之前它仍被加入根部行；将根部行与节点 2 行相减可见，马达扭矩当时只由第 1 段的水动力扭矩平衡，因而直杆的稳态转速被放大为物理值的 $N$ 倍（验证：$N=10$ 时修复前后分别为 $8.47\times10^4$ 与 $8.84\times10^3$ rad/s；扭转分布自节点 2 到末端线性递减，$GJ\kappa_3(s_2)=\tau_{\mathrm{eff}}(1-1/N)$）。现在 `compute_pili_elastic_moments.m` 与 `coupled_active_moment.m` 的根部行在两种耦合模式下均为零，`free_torsion` 的 $\psi_1$ 行只携带边界扭矩。由此：无马达的自由轴承要求鞭毛所受净轴向水动力扭矩为零（纯内部扭转波无法使其整体旋转）；有马达时直杆稳态转速为 $\omega=\tau_{\mathrm{eff}}/(\xi_t L)$，其中对 Cortez (2018) 7/2 blob 的正则化 rotlet 线段 $\xi_t=2\pi\mu\epsilon_{\mathrm{pili}}^2$；默认 $\epsilon_{\mathrm{pili}}=\sqrt2\,r_{\mathrm{pili}}$（§5.2）时它等于无滑移圆柱值 $4\pi\mu r_{\mathrm{pili}}^2$，而 $\epsilon_{\mathrm{pili}}=r_{\mathrm{pili}}$（8.5.1 及以前）只有其一半；模拟器复现系数 $2\pi\mu\epsilon^2$ 的误差 $<10^{-3}$。
 
 ## 9. 背景流
 

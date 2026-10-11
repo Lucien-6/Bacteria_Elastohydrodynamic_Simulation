@@ -151,6 +151,11 @@ end
 j.material.E       = cfg.E;
 j.material.r_pili  = cfg.r_pili;
 j.material.sigma_p = cfg.sigma_p;
+if isfield(cfg, 'hydro_radius_factor') && ~isempty(cfg.hydro_radius_factor)
+    j.material.hydro_radius_factor = cfg.hydro_radius_factor;
+else
+    j.material.hydro_radius_factor = sqrt(2);   % default used by init_coupled_params
+end
 
 j.fluid.mu        = cfg.mu;
 j.fluid.rho_bac   = cfg.rho_bac;

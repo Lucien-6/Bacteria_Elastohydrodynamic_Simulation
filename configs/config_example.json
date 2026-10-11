@@ -43,7 +43,8 @@
     "material": {
         "E": 3.279e8,
         "r_pili": 3e-9,
-        "sigma_p": 0.2
+        "sigma_p": 0.2,
+        "hydro_radius_factor": 1.4142135623730951
     },
 
     "fluid": {

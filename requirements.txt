@@ -1,6 +1,15 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 8.5.1 (2026-10-10)
+# Release: 8.5.2 (2026-10-11)
+#
+# v8.5.2: Hydrodynamic-calibration release. New pilus hydrodynamic radius
+#   factor (material.hydro_radius_factor / cfg.hydro_radius_factor, default
+#   sqrt(2)): eps_pili = factor * r_pili. The rotlet-segment twist drag
+#   2*pi*mu*eps^2 equals the no-slip-cylinder value 4*pi*mu*r^2 and the
+#   translational mobility is within ~3 % of slender-body theory (eps = r
+#   gave half the twist drag and +8-9 % translation). Default results of
+#   pili-bearing cases change; factor 1 reproduces 8.5.1. Bending stiffness
+#   and root gap use the physical radius. No new dependency.
 #
 # v8.5.1: Numerical-performance and maintenance release. Brownian runs
 #   re-use the last exact finite-difference Jacobian across the dt_B ode15s
