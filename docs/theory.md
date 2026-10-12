@@ -533,18 +533,41 @@ of the body-only Ito SDE, and the explicit finite-difference
 additional coupled solves per node) is no longer applied — adding it again
 would double count the drift.
 
-For the present wall-free model the point is largely formal: in an unbounded
+For the present wall-free model the drift has a closed form.  In an unbounded
 fluid the effective mobility depends on the body pose only through the
-orientation, \(\mathbf{M}_{\mathrm{eff}} = \mathbf{R}\,\mathbf{M}_{\mathrm{shape}}\,\mathbf{R}^{\mathsf T}\),
-and the divergence of such a tensor with respect to the six body pose
-coordinates vanishes identically (translations do not enter; the rotational
-divergence \(\partial_{\theta_k}(\mathbf{R}\mathbf{M}\mathbf{R}^{\mathsf T})_{ik}\)
-cancels for symmetric \(\mathbf{M}\)).  The body-pose Ito drift is therefore
-zero for both the old and the new scheme, and the implicit-drift property
-only becomes quantitatively relevant if boundaries or other pose-dependent
-mobilities are added.  The change of \(\mathbf{M}_{\mathrm{eff}}\) through
-the pili deforming under the thermal force during an interval is part of
-the coupled dynamics, not a drift correction.
+orientation, \(\mathbf{M}_{\mathrm{eff}} = \mathbf{T}\,\mathbf{M}_{\mathrm{shape}}\,\mathbf{T}^{\mathsf T}\)
+with \(\mathbf{T}=\mathrm{blkdiag}(\mathbf{R},\mathbf{R})\), so translations do not
+enter the divergence.  For an infinitesimal rotation about the lab axis
+\(\mathbf{e}_j\) every block changes as
+\(\mathbf{A}\to\mathbf{A}+\varepsilon([\mathbf{e}_j]_\times\mathbf{A}-\mathbf{A}[\mathbf{e}_j]_\times)\),
+and the drift of row \(i\) is
+\(k_BT\sum_j\partial M_{i,R_j}/\partial\theta_j\).  The **rotational rows** vanish
+(for symmetric \(\mathbf{M}\)).  The **translational rows** do not vanish in general:
+
+```math
+\big(k_BT\,\nabla\!\cdot\!\mathbf{M}\big)_{T,i}
+= k_BT\sum_{j,n}\epsilon_{ijn}\,(\mathbf{M}_{TR})_{nj},
+```
+
+i.e. \(k_BT\) times the axial vector of the antisymmetric part of the
+translation-rotation block.  It is zero when \(\mathbf{M}_{TR}\) is symmetric, in
+particular for bodies with a centre of symmetry at the tracking point (the
+pilus-free capsule, or symmetric pili arrangements), and non-zero when
+\(\mathbf{X}_{cm}\) is not the hydrodynamic centre of the cell: the tracking
+point then relaxes towards that centre while the cell rotates.  Its size is of
+the order of \(2D_R\) times the offset; for the default capsule with one 3 um
+pilus it is about 0.02 um/s (roughly 15 % of the sedimentation speed).  The vector
+is fixed in the body frame, so it averages to zero over orientations and gives
+no net long-time drift.  The force-realisation scheme generates this term
+automatically, because it integrates the actual \(\mathbf{M}(\theta(t))\)
+along the interval; a Monte-Carlo test of the scheme as coded on a
+two-dimensional rigid body with \(\mathbf{M}_{TR}\neq0\) reproduced
+\(k_BT\,\mathbf{R}\mathbf{J}\mathbf{b}\) within 1.3 standard errors, and gave
+zero for \(\mathbf{M}_{TR}=0\).  Hence nothing has to be added, and, as above, an
+explicit \(k_BT\,\nabla\!\cdot\!\mathbf{M}\) correction would be double counted.
+The change of \(\mathbf{M}_{\mathrm{eff}}\) through the pili deforming under the
+thermal force during an interval is part of the coupled dynamics, not a drift
+correction.
 
 **Scope of the Brownian approximation.**  The hydrodynamic drag of every
 pilus affects the probed 6 x 6 body mobility, but pilus internal Euler-angle

@@ -464,7 +464,14 @@ k_B T\,\nabla\!\cdot\!\mathbf{M}\,\Delta t_B
 
 沿轨迹采样到的迁移率梯度自动生成了 Ito 漂移：该方案是 body-only Ito SDE 的一致弱一阶积分器，v7.5.0–v8.4.0 使用的显式有限差分 \(k_B T\,\nabla\!\cdot\!\mathbf{M}\) 修正（每个节点额外 12 次耦合求解）不再施加——若再加入将导致漂移被重复计入。
 
-对当前无壁面模型，这一点主要具有形式意义：在无界流体中，有效迁移率仅通过取向依赖于胞体姿态，\(\mathbf{M}_{\mathrm{eff}} = \mathbf{R}\,\mathbf{M}_{\mathrm{shape}}\,\mathbf{R}^{\mathsf T}\)，该张量对六个胞体姿态坐标的散度恒为零（平动坐标不出现；对对称 \(\mathbf{M}\)，转动散度 \(\partial_{\theta_k}(\mathbf{R}\mathbf{M}\mathbf{R}^{\mathsf T})_{ik}\) 相互抵消）。因此无论旧方案还是新方案，胞体姿态的 Ito 漂移都为零；隐式漂移性质只有在引入壁面或其他依赖姿态的迁移率时才具有定量意义。区间内纤毛在热力作用下变形导致的 \(\mathbf{M}_{\mathrm{eff}}\) 变化属于耦合动力学本身，而非漂移修正。
+对当前无壁面模型，漂移有闭式表达。在无界流体中，有效迁移率仅通过取向依赖于胞体姿态，\(\mathbf{M}_{\mathrm{eff}} = \mathbf{T}\,\mathbf{M}_{\mathrm{shape}}\,\mathbf{T}^{\mathsf T}\)，\(\mathbf{T}=\mathrm{blkdiag}(\mathbf{R},\mathbf{R})\)，所以平动坐标不进入散度。对绕实验室系轴 \(\mathbf{e}_j\) 的无穷小转动，每个分块按 \(\mathbf{A}\to\mathbf{A}+\varepsilon([\mathbf{e}_j]_\times\mathbf{A}-\mathbf{A}[\mathbf{e}_j]_\times)\) 变化，第 \(i\) 行的漂移为 \(k_BT\sum_j\partial M_{i,R_j}/\partial\theta_j\)。**转动行**为零（\(\mathbf{M}\) 对称时）；**平动行一般不为零**：
+
+```math
+\big(k_BT\,\nabla\!\cdot\!\mathbf{M}\big)_{T,i}
+= k_BT\sum_{j,n}\epsilon_{ijn}\,(\mathbf{M}_{TR})_{nj},
+```
+
+即 \(k_BT\) 乘以平动–转动耦合块反对称部分的轴向量。当 \(\mathbf{M}_{TR}\) 对称时为零，特别是跟踪点处有对称中心的物体（无菌毛的胶囊体、对称布置的菌毛）；当 \(\mathbf{X}_{cm}\) 不是细胞的流体力学中心时不为零：此时胞体转动，跟踪点向该中心松弛。其量级约为 \(2D_R\) 乘以偏移量；对默认胶囊体加一根 3 um 菌毛，约为 0.02 um/s（约为沉降速度的 15%）。该矢量固定在体坐标系中，对取向平均为零，不产生长时间净漂移。力实现格式会自动产生这一项，因为它沿区间积分的是实际的 \(\mathbf{M}(\theta(t))\)；对 \(\mathbf{M}_{TR}\neq0\) 的二维刚体，按代码实现做的蒙特卡洛检验在 1.3 个标准误内复现了 \(k_BT\,\mathbf{R}\mathbf{J}\mathbf{b}\)，\(\mathbf{M}_{TR}=0\) 时为零。因此无需额外添加，如前所述，再加显式的 \(k_BT\,\nabla\!\cdot\!\mathbf{M}\) 会重复计入。区间内纤毛在热力作用下变形导致的 \(\mathbf{M}_{\mathrm{eff}}\) 变化属于耦合动力学本身，而非漂移修正。
 
 **Brownian 近似的适用范围。** 所有纤毛的水动力拖曳都会影响探测得到的 6 x 6 胞体迁移率，但纤毛内部 Euler 角自由度不接受随机驱动，只在确定性弹性、水动力、主动力矩、马达力矩以及由胞体传递而来的热力作用下演化。因此，该模型适合在忽略纤毛内部热涨落时研究胞体质心和取向扩散；它不是完整耦合热平衡过程，也不能再现纤毛内部模态的能量均分。
 

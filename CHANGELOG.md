@@ -8,6 +8,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [Unreleased]
+
+### Fixed (documentation)
+
+- **The Ito drift of the body-only Brownian scheme is not "identically zero in an
+  unbounded fluid".**  The statement in `docs/theory.md` / `docs/theory.zh-CN.md`
+  section 10.2, the project website, the presentation and the v8.5.0 notes
+  (`CHANGELOG.md`, `requirements.txt`) only holds for the rotational rows.  The
+  translational rows equal `kBT * sum_{j,n} eps_ijn (M_TR)_nj`, which is non-zero
+  when the tracking point `X_cm` is not the hydrodynamic centre (about 0.02 um/s
+  for the default capsule with one 3 um pilus; zero for the pilus-free capsule
+  and for symmetric pili arrangements).  It averages to zero over orientations.
+- The code is unchanged: the force-realisation scheme integrates the actual
+  `M(theta(t))` and therefore reproduces this term (Monte-Carlo test of the
+  scheme as coded on a 2-D rigid body with `M_TR != 0`: mean displacement
+  rate within 1.3 standard errors of `kBT R J b`; zero for `M_TR = 0`).  Only the
+  documentation is corrected.
+
+---
+
 ## [8.5.2] — 2026-10-11
 
 Calibration of the pilus hydrodynamic radius.  **Changes default results**

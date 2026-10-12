@@ -938,8 +938,8 @@
         <p class="small lang-en">Since v8.5.0 it is <em>realised as a force</em>: \(\mathbf{f}_{\text{th}} = \mathbf{M}_{\text{eff}}^{-1}\,\delta\mathbf{U}/\Delta t_B\) is added to the body rows of the ODE right-hand side and held constant over the interval, so the body moves continuously and the pili follow through the coupled solve (no root kink).</p>
         <p class="small lang-zh">自 v8.5.0 起该增量<em>以力实现</em>：\(\mathbf{f}_{\text{th}} = \mathbf{M}_{\text{eff}}^{-1}\,\delta\mathbf{U}/\Delta t_B\) 加入 ODE 右端项的胞体行并在区间内保持恒定，胞体连续运动，纤毛经耦合求解跟随（无根部折点）。</p>
         <div class="card alt">
-          <p class="tiny lang-en" style="margin:0;">The Itô drift \(k_B T\,\nabla\!\cdot\!\mathbf{M}_{\text{eff}}\) is generated implicitly by the mobility gradient along the trajectory (and vanishes identically in an unbounded fluid), so no explicit finite-difference drift is added. A logged RNG seed makes every stochastic run reproducible.</p>
-          <p class="tiny lang-zh" style="margin:0;">Itô 漂移 \(k_B T\,\nabla\!\cdot\!\mathbf{M}_{\text{eff}}\) 由沿轨迹的迁移率梯度隐式生成（无界流体中恒为零），不再显式添加有限差分漂移。记录的随机种子使每次随机运行可复现。</p>
+          <p class="tiny lang-en" style="margin:0;">The Itô drift \(k_B T\,\nabla\!\cdot\!\mathbf{M}_{\text{eff}}\) is generated implicitly by the mobility gradient along the trajectory (in an unbounded fluid it is non-zero only through the antisymmetric part of the translation-rotation coupling), so no explicit finite-difference drift is added. A logged RNG seed makes every stochastic run reproducible.</p>
+          <p class="tiny lang-zh" style="margin:0;">Itô 漂移 \(k_B T\,\nabla\!\cdot\!\mathbf{M}_{\text{eff}}\) 由沿轨迹的迁移率梯度隐式生成（无界流体中仅来自平动-转动耦合的反对称部分），不再显式添加有限差分漂移。记录的随机种子使每次随机运行可复现。</p>
         </div>
       </div>
     </div>

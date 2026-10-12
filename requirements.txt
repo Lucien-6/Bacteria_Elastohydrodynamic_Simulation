@@ -25,7 +25,8 @@
 #   (new src/physics/sample_brownian_body_force.m, ode_coupled_rhs Step 8a)
 #   instead of a displacement kick + root re-projection; removes the spurious
 #   pilus root kink and the explicit finite-difference Ito drift (implicit
-#   now; identically zero in an unbounded fluid). Type-2 parabolic template
+#   now).  [Correction, see theory.md 10.2: in an unbounded fluid it is non-zero
+#   only through the antisymmetric part of M_TR.] Type-2 parabolic template
 #   anchored at the origin. No new dependency.
 # v8.4.0: free_torsion root twist row carries only the boundary (motor)
 #   torque; interior Kirchhoff twist and integrated active moments no longer

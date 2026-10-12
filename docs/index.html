@@ -549,7 +549,7 @@ tailwind.config = {
         <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
           <li><span class="en">Each Brownian interval's body-only increment becomes a constant generalised force \(\mathbf{f}_{\rm th}=\mathbf{M}_{\rm eff}^{-1}\,\delta\mathbf{U}/\Delta t_B\) applied to the body rows of the ODE right-hand side (<code>sample_brownian_body_force.m</code>, <code>ode_coupled_rhs</code> Step 8a); pili follow the body through the coupled solve.</span><span class="zh">每个 Brownian 区间的 body-only 增量改为恒定广义力 \(\mathbf{f}_{\rm th}=\mathbf{M}_{\rm eff}^{-1}\,\delta\mathbf{U}/\Delta t_B\)，加到 ODE 右端项的胞体行（<code>sample_brownian_body_force.m</code>、<code>ode_coupled_rhs</code> 第 8a 步）；纤毛经耦合求解跟随胞体。</span></li>
           <li><span class="en">Removes the spurious segment-1/2 curvature kink injected by the former displacement kick + root re-projection, and the stiff \(\ell^4\) relaxation it forced onto <code>ode15s</code>.</span><span class="zh">消除旧“位移 kick + 根部重投影”在第 1、2 段之间注入的伪曲率折点及其强加给 <code>ode15s</code> 的刚性 \(\ell^4\) 松弛。</span></li>
-          <li><span class="en">The It&ocirc; drift \(k_BT\,\nabla\!\cdot\!\mathbf{M}\) is generated implicitly by the mobility gradient along the trajectory (identically zero in an unbounded fluid); the explicit finite-difference drift (12 probes per node) is removed. Same seed, different trajectories; deterministic runs unchanged. Type-2 parabolic template anchored at the origin.</span><span class="zh">It&ocirc; 漂移 \(k_BT\,\nabla\!\cdot\!\mathbf{M}\) 由沿轨迹的迁移率梯度隐式生成（无界流体中恒为零），显式有限差分漂移（每节点 12 次探测）已移除。种子相同但轨迹不同；确定性算例不变。2 型抛物线模板锚定于原点。</span></li>
+          <li><span class="en">The It&ocirc; drift \(k_BT\,\nabla\!\cdot\!\mathbf{M}\) is generated implicitly by the mobility gradient along the trajectory (in an unbounded fluid it is non-zero only through the antisymmetric part of the translation&ndash;rotation coupling); the explicit finite-difference drift (12 probes per node) is removed. Same seed, different trajectories; deterministic runs unchanged. Type-2 parabolic template anchored at the origin.</span><span class="zh">It&ocirc; 漂移 \(k_BT\,\nabla\!\cdot\!\mathbf{M}\) 由沿轨迹的迁移率梯度隐式生成（无界流体中仅来自平动&ndash;转动耦合的反对称部分），显式有限差分漂移（每节点 12 次探测）已移除。种子相同但轨迹不同；确定性算例不变。2 型抛物线模板锚定于原点。</span></li>
         </ul>
       </div>
       <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50/50 dark:bg-navy-950/20 p-6">
@@ -1092,11 +1092,11 @@ M_eff_dimless = z_dot_probe(1:6, :);  % 6x6 effective mobility</code></pre>
           <span class="en">The It&ocirc; drift is therefore generated implicitly by the mobility gradient along the trajectory (the scheme is a
           consistent weak first-order integrator), so the explicit finite-difference $k_BT\,\nabla\!\cdot\!\mathbf{M}_\text{eff}$
           of v7.5.0&ndash;v8.4.0 (12 extra coupled solves per node) is no longer applied. In an unbounded fluid
-          $\mathbf{M}_\text{eff}=\mathbf{R}\,\mathbf{M}_\text{shape}\mathbf{R}^{\top}$ and this divergence vanishes identically.
+          $\mathbf{M}_\text{eff}=\mathbf{T}\mathbf{M}_\text{shape}\mathbf{T}^{\top}$; the divergence vanishes for the rotational rows and reduces to $k_BT\sum\epsilon_{ijn}(\mathbf{M}_{TR})_{nj}$ for the translational rows (zero for bodies with a centre of symmetry, see theory&nbsp;&sect;10.2).
           Cost: one effective-mobility probe per interval.</span>
           <span class="zh">因此 It&ocirc; 漂移由沿轨迹的迁移率梯度隐式生成（该方案为一致的弱一阶积分器），v7.5.0&ndash;v8.4.0 的显式有限差分
           $k_BT\,\nabla\!\cdot\!\mathbf{M}_\text{eff}$（每节点额外 12 次耦合求解）不再施加。无界流体中
-          $\mathbf{M}_\text{eff}=\mathbf{R}\,\mathbf{M}_\text{shape}\mathbf{R}^{\top}$，该散度恒为零。代价：每区间一次有效迁移率探测。</span>
+          $\mathbf{M}_\text{eff}=\mathbf{T}\mathbf{M}_\text{shape}\mathbf{T}^{\top}$，转动行的散度为零，平动行化为 $k_BT\sum\epsilon_{ijn}(\mathbf{M}_{TR})_{nj}$（有对称中心的物体为零，见理论文档&nbsp;&sect;10.2）。代价：每区间一次有效迁移率探测。</span>
         </p>
       </div>
     </div>
