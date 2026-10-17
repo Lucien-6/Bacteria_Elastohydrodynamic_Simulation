@@ -4,8 +4,8 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-10-11
-> **版本:** 8.5.2
+> **更新日期:** 2026-10-17
+> **版本:** 8.6.0
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -63,7 +63,7 @@ cfg.auto_confirm = true;
 [results, params, output_dir] = run_simulation(cfg);
 ```
 
-批量扫描**驱动脚本**位于 [`batch_sweep/`](batch_sweep/)；运行后 CSV/MAT 等汇总输出写入 `batch sweep/`（带空格，由脚本自动创建）。对文件夹内全部 `*.json` 进行批跑（可选并行、非空 `case_name` 去重、实时 `batch_summary_*.log`）请使用 [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m)。多工况后处理入口为 [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m)：三维平移 MSD 拟合（\(\mathrm{MSD}=6D\tau+V^2\tau^2\)，拟合窗 \(0<\tau\le T/2\)）与 XZ 平面转动扩散 MSAD（\(\mathrm{MSAD}=2D_\mathrm{rot}\tau\)），导出 Excel 及 PNG/PDF/（可选 HTML）汇总图。
+批量扫描**驱动脚本**位于 [`batch_sweep/`](batch_sweep/)；运行后 CSV/MAT 等汇总输出写入 `batch sweep/`（带空格，由脚本自动创建）。对文件夹内全部 `*.json` 进行批跑（可选并行、非空 `case_name` 去重、实时 `batch_summary_*.log`）请使用 [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m)。多工况后处理入口为 [`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m)：三维平移 MSD 拟合（\(\mathrm{MSD}=6D\tau+V^2\tau^2\)，拟合窗 \(0<\tau\le T/2\)）与 XZ 平面转动扩散 MSAD（\(\mathrm{MSAD}=2D_\mathrm{rot}\tau\)），导出 Excel 及 PNG/PDF/（可选 HTML）汇总图。若只想根据已保存的 `simulation_results.mat` 重新渲染运动动画（更换抽帧间隔或帧率）而不重跑 ODE，请使用 [`post_processing/render_animation_from_results.m`](post_processing/render_animation_from_results.m)。
 
 ## 主要输出
 
@@ -77,7 +77,8 @@ cfg.auto_confirm = true;
 | `summary_plot.png` / `.pdf` / 可选 `.html` | 轨迹与汇总图。 |
 | `flowfield_panels.png` / `.pdf` / 可选 `.html` | XZ / YZ 双平面流场图。 |
 | `initial_pose.png` / `.pdf` / 可选 `.html` | 初始姿态预览图，开启预览时生成。 |
-| `bacteria_3d_motion.mp4` | 可选三维动画。 |
+| `bacteria_3d_motion.mp4` | 可选三维动画（Linux 上为 `bacteria_3d_motion.avi`）。 |
+| `bacteria_3d_motion_rerender.mp4` | 可选；由 `render_animation_from_results` 根据已保存结果重新渲染的动画。 |
 | `simulation.log` | 控制台与文件双通道运行日志。 |
 | `brownian_rng_seed.txt` | 仅在启用布朗运动时写出随机种子。 |
 
@@ -103,6 +104,8 @@ cfg.auto_confirm = true;
 | [`src/physics/sample_brownian_body_force.m`](src/physics/sample_brownian_body_force.m) | 每个 Brownian 区间的广义热力（布朗增量的力实现）。 |
 | [`src/physics/background_flow_velocity.m`](src/physics/background_flow_velocity.m) | 共享背景流速度求值器（求解器与流场绘图共用）。 |
 | [`src/visualization/compute_plot_flowfield.m`](src/visualization/compute_plot_flowfield.m) | 在实际达到的终止时间进行末状态流场计算与图像导出。 |
+| [`src/visualization/render_motion_animation.m`](src/visualization/render_motion_animation.m) | 共用的三面板（3D + XZ + YZ）运动动画渲染器：图形对象只创建一次，逐帧仅更新数据；输出分阶段耗时日志。 |
+| [`src/visualization/add_gravity_indicator_outside.m`](src/visualization/add_gravity_indicator_outside.m) | 预览图、汇总图和动画图共用的重力箭头标注。 |
 
 ## 文档导航
 
@@ -116,7 +119,9 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **8.5.2 (2026-10-11)**，为水动力标定更新。菌毛正则化长度此前取 `eps = r_pili` 而未经标定：对 Cortez 7/2 blob，直 rotlet 线段的轴向扭转阻力为 `2*pi*mu*eps^2`，只有无滑移圆柱值 `4*pi*mu*r^2` 的一半，平动迁移率则比圆柱细长体理论高 8–9%。新增因子 `material.hydro_radius_factor`（`cfg.hydro_radius_factor`，默认 `sqrt(2)`）令 `eps_pili = 因子 * r_pili`：默认值给出精确的圆柱扭转阻力和约 3% 以内的平动偏差，`sqrt(e)` 使平动精确，取 `1` 则复现 8.5.1。弯曲刚度和根部间隙仍使用物理半径。**带菌毛算例的默认结果会改变**（菌毛水动力改变几个百分点，扭转阻力加倍；单根菌毛沉降距离变化 0.13%）；无菌毛算例不受影响。本版本还删除了 `init_coupled_params.m` 中一处未使用的赋值。**8.5.1 (2026-10-10)** 为数值性能与维护更新：Brownian 运行在 `ode15s` 重启之间复用上一次的精确有限差分 Jacobian（`src/core/LaggedJacobian.m`，运行时选项 `cfg.jacobian_reuse`，默认开启），使多菌毛算例每个 Brownian 节点的 ODE 成本降低约 2–3.7 倍（单菌毛约 1.4 倍），轨迹与 v8.5.0 的差异保持在积分容差以内（`cfg.jacobian_reuse = false` 与 v8.5.0 逐位一致；确定性算例不变）。本版本同时清理 `run_simulation.m` / `run_simulation_HPC_Linux.m` 的 MATLAB 代码分析器提示、修复 `verify_migration.m`（现已列入 `LaggedJacobian.m` 并改用 `datetime`）、新增 Markdown 检查配置（`.markdownlint.json`、`.markdownlint-cli2.jsonc`）并修复 CHANGELOG 结构。**8.5.0 (2026-09-04)** 改变 body-only 布朗运动的施加方式：每个 Brownian 区间的热增量以恒定广义力 `f_th = M_eff \ (dU/dt_B)` 经耦合 ODE 作用于胞体（`sample_brownian_body_force.m`、`ode_coupled_rhs` 第 8a 步），取代“瞬时位移 kick + 根部重投影”。纤毛现在连续跟随胞体的热运动，因此每次 kick 在第 1、2 段之间注入的伪曲率折点——以及它强加给 `ode15s` 的刚性高波数松弛——不再出现；Ito 漂移 `kBT div(M)` 由沿轨迹的迁移率梯度隐式生成，显式有限差分漂移（每个节点额外 12 次耦合求解）已移除。即使随机种子相同，Brownian 轨迹也与旧版本不同；确定性算例不受影响。2 型抛物线菌毛模板亦精确锚定于原点。**8.4.0 (2026-09-04)** 修正 `free_torsion` 根部扭转方程：根部 $\psi_1$ 行是整根鞭毛的轴向力矩平衡，现在只携带边界（马达）扭矩；此前内部 Kirchhoff 扭转力矩也被加入该行，导致马达扭矩仅与第 1 段的阻力平衡，稳态转子转速被放大为分段数 $N$ 倍。**8.3.0 (2026-09-04)** 为离散精度与几何一致性更新：Kirchhoff 曲率差分模板改为节点共位的二阶格式（共享算子 `compute_pili_curvature.m`，同时用于 `kb0`）；`pili_building.m` 的 14 个附着位点变换全部改为真旋转（此前位点 1、2、5、7、10、11、14 会镜像手性菌毛），`deflection_x` 改为右手约定；平面菌毛的放置与旧版完全一致。上一版本 **8.2.0 (2026-09-04)** 为全面数理审查后的物理正确性更新：鞭毛马达改用以转子**相对胞体**转速（完整轴向速率 `dpsi_1 + cos(theta_1) dphi_1 - Omega_body . d3`）表述的带符号（非对称）线性扭矩–转速关系，并明确符号约定（正扭矩 = 绕向外根部切向量右手旋转）；流场后处理改为由相对环境流的速度求解力密度，并将背景流叠加到绘制的流场；`validate_simulation_params` 对 2–5 型菌毛缺失/非法的 `shape_params` 给出明确报错；用户指南补充了全部曲率与力矩输入的 `1/L_pili`、`EI/L_pili` 单位说明。
+当前版本为 **8.6.0 (2026-10-17)**，为动画渲染性能更新。三面板（3D + XZ + YZ）运动动画现由共用的 [`src/visualization/render_motion_animation.m`](src/visualization/render_motion_animation.m) 渲染：所有图形对象只创建一次，逐帧仅更新数据（此前每帧都执行 `cla` 并重建整个场景）；101 帧测试的渲染时间由约 28 s 降至约 13 s，视频内容、分辨率和画质不变。`run_simulation.m` 与 `run_simulation_HPC_Linux.m` 现共用该实现（按平台选择 `MPEG-4` / `Motion JPEG AVI` 档位），`simulation.log` 新增分阶段耗时表，[`post_processing/render_animation_from_results.m`](post_processing/render_animation_from_results.m) 可根据已保存的 `simulation_results.mat` 重新渲染动画而无需重跑 ODE。同时修复了 XZ/YZ 面板边框线逐帧累积隐藏重复对象的缺陷。**仿真结果不变。**
+
+**8.5.2 (2026-10-11)** 为水动力标定更新。菌毛正则化长度此前取 `eps = r_pili` 而未经标定：对 Cortez 7/2 blob，直 rotlet 线段的轴向扭转阻力为 `2*pi*mu*eps^2`，只有无滑移圆柱值 `4*pi*mu*r^2` 的一半，平动迁移率则比圆柱细长体理论高 8–9%。新增因子 `material.hydro_radius_factor`（`cfg.hydro_radius_factor`，默认 `sqrt(2)`）令 `eps_pili = 因子 * r_pili`：默认值给出精确的圆柱扭转阻力和约 3% 以内的平动偏差，`sqrt(e)` 使平动精确，取 `1` 则复现 8.5.1。弯曲刚度和根部间隙仍使用物理半径。**带菌毛算例的默认结果会改变**（菌毛水动力改变几个百分点，扭转阻力加倍；单根菌毛沉降距离变化 0.13%）；无菌毛算例不受影响。本版本还删除了 `init_coupled_params.m` 中一处未使用的赋值。**8.5.1 (2026-10-10)** 为数值性能与维护更新：Brownian 运行在 `ode15s` 重启之间复用上一次的精确有限差分 Jacobian（`src/core/LaggedJacobian.m`，运行时选项 `cfg.jacobian_reuse`，默认开启），使多菌毛算例每个 Brownian 节点的 ODE 成本降低约 2–3.7 倍（单菌毛约 1.4 倍），轨迹与 v8.5.0 的差异保持在积分容差以内（`cfg.jacobian_reuse = false` 与 v8.5.0 逐位一致；确定性算例不变）。本版本同时清理 `run_simulation.m` / `run_simulation_HPC_Linux.m` 的 MATLAB 代码分析器提示、修复 `verify_migration.m`（现已列入 `LaggedJacobian.m` 并改用 `datetime`）、新增 Markdown 检查配置（`.markdownlint.json`、`.markdownlint-cli2.jsonc`）并修复 CHANGELOG 结构。**8.5.0 (2026-09-04)** 改变 body-only 布朗运动的施加方式：每个 Brownian 区间的热增量以恒定广义力 `f_th = M_eff \ (dU/dt_B)` 经耦合 ODE 作用于胞体（`sample_brownian_body_force.m`、`ode_coupled_rhs` 第 8a 步），取代“瞬时位移 kick + 根部重投影”。纤毛现在连续跟随胞体的热运动，因此每次 kick 在第 1、2 段之间注入的伪曲率折点——以及它强加给 `ode15s` 的刚性高波数松弛——不再出现；Ito 漂移 `kBT div(M)` 由沿轨迹的迁移率梯度隐式生成，显式有限差分漂移（每个节点额外 12 次耦合求解）已移除。即使随机种子相同，Brownian 轨迹也与旧版本不同；确定性算例不受影响。2 型抛物线菌毛模板亦精确锚定于原点。**8.4.0 (2026-09-04)** 修正 `free_torsion` 根部扭转方程：根部 $\psi_1$ 行是整根鞭毛的轴向力矩平衡，现在只携带边界（马达）扭矩；此前内部 Kirchhoff 扭转力矩也被加入该行，导致马达扭矩仅与第 1 段的阻力平衡，稳态转子转速被放大为分段数 $N$ 倍。**8.3.0 (2026-09-04)** 为离散精度与几何一致性更新：Kirchhoff 曲率差分模板改为节点共位的二阶格式（共享算子 `compute_pili_curvature.m`，同时用于 `kb0`）；`pili_building.m` 的 14 个附着位点变换全部改为真旋转（此前位点 1、2、5、7、10、11、14 会镜像手性菌毛），`deflection_x` 改为右手约定；平面菌毛的放置与旧版完全一致。上一版本 **8.2.0 (2026-09-04)** 为全面数理审查后的物理正确性更新：鞭毛马达改用以转子**相对胞体**转速（完整轴向速率 `dpsi_1 + cos(theta_1) dphi_1 - Omega_body . d3`）表述的带符号（非对称）线性扭矩–转速关系，并明确符号约定（正扭矩 = 绕向外根部切向量右手旋转）；流场后处理改为由相对环境流的速度求解力密度，并将背景流叠加到绘制的流场；`validate_simulation_params` 对 2–5 型菌毛缺失/非法的 `shape_params` 给出明确报错；用户指南补充了全部曲率与力矩输入的 `1/L_pili`、`EI/L_pili` 单位说明。
 
 **8.1.0 (2026-07-25)** 为批量后处理运动学功能更新：[`post_processing/postprocess_cases.m`](post_processing/postprocess_cases.m) 在 \(0<\tau\le T/2\) 上拟合三维平移扩散，并新增 XZ 平面转动扩散 \(D_\mathrm{rot}\)（优先体四元数，回退 `tilt_rad`）。流体/弹性/布朗仿真核心相对 8.0.1 **未改**。
 

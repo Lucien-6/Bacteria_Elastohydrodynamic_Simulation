@@ -1,6 +1,17 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 8.5.2 (2026-10-11)
+# Release: 8.6.0 (2026-10-17)
+#
+# v8.6.0: Animation-rendering performance release. The 3-panel (3D + XZ + YZ)
+#   motion animation is rendered by the shared
+#   src/visualization/render_motion_animation.m: graphics objects are created
+#   once and only their data are updated per frame (about 2x faster, identical
+#   video content, resolution and quality).  Used by run_simulation.m and
+#   run_simulation_HPC_Linux.m (platform-aware MPEG-4 / Motion JPEG AVI
+#   profile); simulation.log gains a per-stage timing table; new
+#   post_processing/render_animation_from_results.m re-renders the animation
+#   from simulation_results.mat without re-running the ODE.  Simulation results
+#   unchanged.  No new dependency.
 #
 # v8.5.2: Hydrodynamic-calibration release. New pilus hydrodynamic radius
 #   factor (material.hydro_radius_factor / cfg.hydro_radius_factor, default

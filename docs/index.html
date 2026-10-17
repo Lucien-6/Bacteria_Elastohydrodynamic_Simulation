@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v8.5.2 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, second-order Kirchhoff curvature stencil, proper-rotation attachment sites, signed motor torque-speed law, whole-filament free-torsion root balance, body-only Brownian dynamics realised as a thermal force through the coupled ODE, batch post-processing with 3-D MSD and XZ MSAD diffusion fits, hardened numerical diagnostics, JSON config, and Linux HPC execution.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v8.6.0 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, second-order Kirchhoff curvature stencil, proper-rotation attachment sites, signed motor torque-speed law, whole-filament free-torsion root balance, body-only Brownian dynamics realised as a thermal force through the coupled ODE, batch post-processing with 3-D MSD and XZ MSAD diffusion fits, hardened numerical diagnostics, JSON config, and Linux HPC execution.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v8.5.2 &middot; 2026-10-11</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v8.6.0 &middot; 2026-10-17</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 8.5.2 &bull; 2026-10-11
+      Version 8.6.0 &bull; 2026-10-17
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -1468,8 +1468,10 @@ graph TD
 │   │   ├── unpack_state.m                   % Z → body + pili components
 │   │   └── verify_migration.m               % Migration verification helper
 │   └── visualization/
+│       ├── add_gravity_indicator_outside.m  % Gravity arrow annotation (shared)
 │       ├── compute_plot_flowfield.m         % Flow field visualisation
 │       ├── export_figure_png_pdf_html.m     % Figure export: PNG + PDF + HTML (R2026a+)
+│       ├── render_motion_animation.m        % Shared 3-panel motion animation renderer
 │       └── render_progress_bar.m            % Console progress bar
 ├── batch_sweep/
 │   ├── batch_sweep_alpha.m
@@ -1483,7 +1485,8 @@ graph TD
 │   ├── batch_run_from_json.m
 │   └── batch_repeat_brownian.m
 ├── post_processing/
-│   └── postprocess_cases.m                % Batch post-processing → Excel
+│   ├── postprocess_cases.m                % Batch post-processing → Excel
+│   └── render_animation_from_results.m    % Re-render animation from saved results
 ├── _legacy/                               % Frozen pre-optimisation references
 │   ├── build_coupled_lin_sys_v0.m
 │   ├── build_global_resistance_v0.m
@@ -2014,7 +2017,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v8.5.2 &middot; 2026-10-11</li>
+        <li>v8.6.0 &middot; 2026-10-17</li>
       </ul>
     </div>
   </div>

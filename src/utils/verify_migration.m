@@ -27,6 +27,8 @@
 %  Updated: 2026-07-21
 %  Updated: 2026-10-10 — v8.5.1: src/core/LaggedJacobian.m added to the
 %           expected core file list; datetime instead of datestr(now).
+%  Updated: 2026-10-17 - src/visualization/ expected list gains
+%           add_gravity_indicator_outside.m and render_motion_animation.m
 
 close all force;
 clear; clc;
@@ -120,8 +122,10 @@ expected_structure.config = {
 
 % Visualization and export
 expected_structure.visualization = {
+    'add_gravity_indicator_outside.m'
     'compute_plot_flowfield.m'
     'export_figure_png_pdf_html.m'
+    'render_motion_animation.m'
     'render_progress_bar.m'
     };
 

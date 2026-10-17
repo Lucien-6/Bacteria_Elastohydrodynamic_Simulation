@@ -10,6 +10,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+---
+
+## [8.6.0] — 2026-10-17
+
+Animation-rendering performance release.  **No change to simulation results or
+to the video content** (resolution, frame count, frame rate and quality are
+unchanged).
+
+### Changed (performance)
+
+- **Motion-animation rendering no longer rebuilds the scene on every frame.**  The
+  3-panel animation (3D + XZ + YZ) used to call `cla` and re-create the body
+  surface, every pilus, the centre-of-mass marker, the trajectory, four lights,
+  the labels, titles, limits and border lines on all three axes for each frame.
+  The new `src/visualization/render_motion_animation.m` creates all graphics
+  objects once and only updates their `XData`/`YData`/`ZData` (or `Vertices`) and
+  the 3-D title string per frame.  Measured on a 101-frame test run (capsule, two
+  pili, 3840 x 1524 px video): 28.3 s -> about 13 s total, i.e. about 280 ms ->
+  about 100 ms per frame; the per-frame cost no longer grows with the frame index.
+  The remaining cost is dominated by `getframe` and `writeVideo`.
+- The axis-limit pre-scan keeps running minima/maxima instead of growing
+  concatenated coordinate arrays (identical limits).
+
+### Added
+
+- `src/visualization/render_motion_animation.m`: single shared implementation of the
+  animation, now used by both `run_simulation.m` and `run_simulation_HPC_Linux.m`
+  (previously two copies).  Releases its figure and `VideoWriter` itself on error.
+- Animation phase of `simulation.log` now ends with a per-stage timing table
+  (axis-limit pre-scan, figure setup, data update, `drawnow`, `getframe`, frame
+  resize, `writeVideo`).
+- `post_processing/render_animation_from_results.m`: re-renders the animation from a
+  saved `simulation_results.mat` without re-running the ODE (optional `fps` / `skip`,
+  defaults from the case folder's `config.json`); writes
+  `bacteria_3d_motion_rerender.mp4` (`.avi` on Linux) and never overwrites the
+  original video.
+- `src/visualization/add_gravity_indicator_outside.m`: the gravity-arrow helper, moved
+  out of the two run scripts (the local copies were identical).  `verify_migration.m`
+  lists both new visualization files.
+
+### Fixed
+
+- The XZ and YZ animation panels re-drew their two black border lines every frame with
+  `HandleVisibility = 'off'`, so `cla` never removed them and N duplicate lines
+  accumulated by frame N.  They are now drawn once.
+
 ### Fixed (documentation)
 
 - **The Ito drift of the body-only Brownian scheme is not "identically zero in an
@@ -25,6 +71,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   scheme as coded on a 2-D rigid body with `M_TR != 0`: mean displacement
   rate within 1.3 standard errors of `kBT R J b`; zero for `M_TR = 0`).  Only the
   documentation is corrected.
+
+### Documentation
+
+- `project_version.m` bumped to 8.6.0 (2026-10-17); README (EN/ZH), USER_GUIDE
+  (EN/ZH), theory (EN/ZH), `requirements.txt`, the project website and
+  presentation version strings, and the headers of `run_simulation*.m` and
+  `main_coupled_simulation.m` updated.  README and USER_GUIDE gain notes on
+  `render_animation_from_results`, the shared animation renderer and the
+  per-stage timing log; `docs/index.html` lists the new files.
+
+### Compatibility
+
+- Video content, resolution, frame count, frame rate and `Quality = 100` are unchanged.
+  Decoded frames of the new and the old renderer were compared for a capsule case with
+  two pili, a pili-free capsule and a custom-mesh case: identical or within 4 grey
+  levels (PSNR >= 92 dB over all 101 frames; first and last frame pixel-identical).
+- `run_simulation.m` now selects the video profile by platform like the HPC script
+  (`MPEG-4` .mp4 on Windows/macOS, `Motion JPEG AVI` .avi on Linux); previously it
+  failed on Linux.  The final `Video  :` log line reports the actual file name.
+- The Linux AVI branch could not be exercised on the Windows development machine.
 
 ---
 

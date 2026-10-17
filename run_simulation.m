@@ -95,7 +95,10 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %  Updated: 2026-10-10 — v8.5.1 lagged Jacobian for Brownian ode15s restarts
 %           and static-analysis clean-up (no behavioural change)
 %  Updated: 2026-10-11 — v8.5.2 pilus hydrodynamic radius factor (hydro_radius_factor)
-%  Log banner version: 8.5.2 (2026-10-11) - emitted via project_version(); keep README / CHANGELOG in sync
+%  Updated: 2026-10-17 — v8.6.0 animation rendering moved to the shared
+%           src/visualization/render_motion_animation.m (graphics objects created once,
+%           only data updated per frame; video content unchanged)
+%  Log banner version: 8.6.0 (2026-10-17) - emitted via project_version(); keep README / CHANGELOG in sync
 %
 %  Path policy: defensive addpath calls here allow run_simulation(cfg) without
 %  main_coupled_simulation.m.  Standalone drivers in batch_sweep/ and
@@ -1455,10 +1458,6 @@ else
 end
 
 % --- Colour palette (journal style) ---
-body_color    = [0.20 0.65 0.33];    % Forest green
-body_alpha    = 0.35;                 % Body transparency
-traj_color    = [0.85 0.25 0.25 0.45];  % Deeper red, 45 % opacity
-                                         % without occluding pili under OpenGL depth testing
 
 % Per-pili distinguishable colours (up to 10; cycles if M_pili > 10)
 pili_palette = [0.20 0.40 0.80;      % Medium blue
@@ -1714,350 +1713,11 @@ end
 %  =====================================================================
 
 if generate_animation
-    logf('\n[ANIM] Generating 3D motion animation...\n');
-    t_anim_start = tic;
-
-    % Determine frame indices
-    frame_indices = 1 : animation_skip : NT;
-    if frame_indices(end) ~= NT
-        frame_indices(end+1) = NT;      % Always include last frame
-    end
-    n_frames = length(frame_indices);
-    logf('[ANIM] Frames: %d (skip = %d from %d total time points)\n', ...
-        n_frames, animation_skip, NT);
-
-    % Pre-extract CM trajectory for all animation frames [3 x n_frames]
-    cm_traj_um = results.X_cm_um(:, frame_indices);
-
-    % Full-resolution CM trajectory for smooth rendering (all NT points)
-    cm_traj_full_um = results.X_cm_um;
-
-    % Compute global axis limits from ALL frames (body + pili + CM)
-    all_x = cm_traj_um(1,:)';
-    all_y = cm_traj_um(2,:)';
-    all_z = cm_traj_um(3,:)';
-    for idx = 1:n_frames
-        ti   = frame_indices(idx);
-        R_fi = quat_to_rotmat(results.q(:, ti));
-        if strcmp(body_mesh_type, 'parametric_surf')
-            pts  = R_fi * capsule_flat + results.X_cm_um(:, ti);  % [3 x N_mesh]
-        else
-            pts  = R_fi * custom_verts_um' + results.X_cm_um(:, ti); % [3 x N_verts]
-        end
-        all_x = [all_x; pts(1,:)']; %#ok<AGROW>
-        all_y = [all_y; pts(2,:)']; %#ok<AGROW>
-        all_z = [all_z; pts(3,:)']; %#ok<AGROW>
-        for k = 1:M_pili
-            Xp = results.X_pili_um{k}(:,:,ti);
-            all_x = [all_x; Xp(:,1)]; %#ok<AGROW>
-            all_y = [all_y; Xp(:,2)]; %#ok<AGROW>
-            all_z = [all_z; Xp(:,3)]; %#ok<AGROW>
-        end
-    end
-
-    % Build per-axis fixed limits with independent margins
-    x_span = max(all_x) - min(all_x);
-    y_span = max(all_y) - min(all_y);
-    z_span = max(all_z) - min(all_z);
-    margin_x = max(0.10 * x_span, 0.15);
-    margin_y = max(0.10 * y_span, 0.15);
-    margin_z = max(0.10 * z_span, 0.15);
-    ax_lim_x = [min(all_x) - margin_x, max(all_x) + margin_x];
-    ax_lim_y = [min(all_y) - margin_y, max(all_y) + margin_y];
-    ax_lim_z = [min(all_z) - margin_z, max(all_z) + margin_z];
-
-    % Enforce minimum axis range
-    if strcmp(body_mesh_type, 'parametric_surf')
-        min_ax_range = 4 * 2 * a_um;
-    else
-        body_extents = max(custom_verts_um) - min(custom_verts_um);
-        min_ax_range = 4 * max(body_extents);
-    end
-    if diff(ax_lim_x) < min_ax_range
-        cx = mean(ax_lim_x); ax_lim_x = cx + [-1, 1] * min_ax_range / 2;
-    end
-    if diff(ax_lim_y) < min_ax_range
-        cy = mean(ax_lim_y); ax_lim_y = cy + [-1, 1] * min_ax_range / 2;
-    end
-    if diff(ax_lim_z) < min_ax_range
-        cz = mean(ax_lim_z); ax_lim_z = cz + [-1, 1] * min_ax_range / 2;
-    end
-
-    logf('[ANIM] Global axis limits (per-axis): X=[%.2f, %.2f], Y=[%.2f, %.2f], Z=[%.2f, %.2f] um\n', ...
-        ax_lim_x(1), ax_lim_x(2), ax_lim_y(1), ax_lim_y(2), ax_lim_z(1), ax_lim_z(2));
-
-    % --- Compute figure dimensions to minimise left/right whitespace ----------
-    % With DataAspectRatio=[1 1 1], MATLAB centres the equal-aspect data box
-    % inside the axes Position rectangle.  When the projected data content is
-    % taller than wide (e.g. a sinking bacterium with large Z range), a fixed
-    % landscape figure leaves large blank bands on the sides.
-    %
-    % Fix: project the 3D bounding box onto the screen at view(45,25), derive
-    % the natural content aspect ratio, and size the figure accordingly so the
-    % data box fills it without padding.
-    %
-    % The axes inner area occupies approximately 70 % (width) x 78 % (height)
-    % of the figure in a single-axes 3-D plot with title + axis labels.
-    % Inverting these fractions converts projected data dimensions to figure px.
-    az_v = 45;  el_v = 25;
-    proj_w_data = diff(ax_lim_x) * abs(cosd(az_v)) + diff(ax_lim_y) * abs(sind(az_v));
-    proj_h_data = (diff(ax_lim_x) * abs(sind(az_v)) + diff(ax_lim_y) * abs(cosd(az_v))) ...
-                  * abs(sind(el_v)) + diff(ax_lim_z) * abs(cosd(el_v));
-    axes_fill_w = 0.70;   % approx fraction of figure width used by axes
-    axes_fill_h = 0.78;   % approx fraction of figure height used by axes
-    % Ideal figure size from data projection (single-panel reference)
-    anim_fig_h_ref = 1440;
-    fig_w_single   = round(anim_fig_h_ref * (proj_w_data / proj_h_data) ...
-                           * (axes_fill_h / axes_fill_w));
-    % 1×3 panel layout: triple the single-panel width; enforce minimum and H.264 even
-    anim_fig_w = 2 * ceil(max(round(fig_w_single * 2), 1800) / 2);
-    anim_fig_h = 1200;
-
-    % --- Fit within codec-safe bounding box while preserving aspect ratio ----
-    anim_max_w = 3840;   % safe upper bound for H.264 width  (even)
-    anim_max_h = 2160;   % safe upper bound for H.264 height (even)
-    ideal_ar   = anim_fig_w / anim_fig_h;   % target aspect ratio
-    if anim_fig_w > anim_max_w || anim_fig_h > anim_max_h
-        scale = min(anim_max_w / anim_fig_w, anim_max_h / anim_fig_h);
-        anim_fig_w_new = 2 * ceil(max(round(anim_fig_w * scale), 1800) / 2);
-        anim_fig_h_new = 2 * round(anim_fig_w_new / ideal_ar / 2);
-        anim_fig_h_new = max(anim_fig_h_new, 480);
-        logf('[ANIM] Ideal size %d x %d exceeds codec limit [%d x %d] -rescaled to %d x %d.\n', ...
-            anim_fig_w, anim_fig_h, anim_max_w, anim_max_h, anim_fig_w_new, anim_fig_h_new);
-        anim_fig_w = anim_fig_w_new;
-        anim_fig_h = anim_fig_h_new;
-    end
-    logf('[ANIM] Figure size (logical): %d x %d px  (1x3 layout: 3D + XZ + YZ)\n', ...
-        anim_fig_w, anim_fig_h);
-
-    % Create (invisible) animation figure -3-panel layout
-    fig_anim = figure('Units', 'pixels', 'Position', [50, 50, anim_fig_w, anim_fig_h], ...
-                      'Color', 'w', 'Visible', 'off');
-    set(fig_anim, 'DefaultAxesFontName',  'Arial', ...
-                  'DefaultAxesFontSize',  11, ...
-                  'DefaultAxesLineWidth', 0.8);
-
-    % Three axes in a single row: 3D (left), XZ (centre), YZ (right)
-    ax_3d = axes(fig_anim, 'Position', [0.03, 0.08, 0.30, 0.84]);
-    ax_xz = axes(fig_anim, 'Position', [0.36, 0.08, 0.30, 0.84]);
-    ax_yz = axes(fig_anim, 'Position', [0.69, 0.08, 0.30, 0.84]);
-
-    % Pre-configure 3D axes so Position is settled before gravity indicator
-    xlim(ax_3d, ax_lim_x);  ylim(ax_3d, ax_lim_y);  zlim(ax_3d, ax_lim_z);
-    set(ax_3d, 'DataAspectRatio', [1 1 1], 'TickDir', 'out');
-    grid(ax_3d, 'on');  box(ax_3d, 'on');
-    view(ax_3d, 45, 25);
-    xlabel(ax_3d, 'X (μm)', 'FontName', 'Arial', 'FontSize', 12);
-    ylabel(ax_3d, 'Y (μm)', 'FontName', 'Arial', 'FontSize', 12);
-    zlabel(ax_3d, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 12);
-    title(ax_3d, sprintf('Time = %.4f s  (frame %d/%d)', 0.0, 1, n_frames), ...
-        'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
-
-    % Pre-configure XZ projection axes (view along Y axis)
-    xlim(ax_xz, ax_lim_x);  ylim(ax_xz, ax_lim_y);  zlim(ax_xz, ax_lim_z);
-    set(ax_xz, 'DataAspectRatio', [1 1 1], 'TickDir', 'out', ...
-        'Projection', 'orthographic');
-    grid(ax_xz, 'on');  box(ax_xz, 'off');
-    view(ax_xz, 0, 0);
-    xlabel(ax_xz, 'X (μm)', 'FontName', 'Arial', 'FontSize', 11);
-    zlabel(ax_xz, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 11);
-    title(ax_xz, 'XZ Projection', ...
-        'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold');
-
-    % Pre-configure YZ projection axes (view along X axis)
-    xlim(ax_yz, ax_lim_x);  ylim(ax_yz, ax_lim_y);  zlim(ax_yz, ax_lim_z);
-    set(ax_yz, 'DataAspectRatio', [1 1 1], 'TickDir', 'out', ...
-        'Projection', 'orthographic');
-    grid(ax_yz, 'on');  box(ax_yz, 'off');
-    view(ax_yz, 90, 0);
-    ylabel(ax_yz, 'Y (μm)', 'FontName', 'Arial', 'FontSize', 11);
-    zlabel(ax_yz, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 11);
-    title(ax_yz, 'YZ Projection', ...
-        'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold');
-
-    drawnow;
-    add_gravity_indicator_outside(fig_anim, ax_3d, 13, 2.5);
-
-    % --- Probe actual physical pixel size and enforce codec limits --------
-    % On HiDPI / display scaling (e.g. 125%), getframe returns physical pixels
-    % larger than the logical Position (e.g. 2250×1366 vs 1800×1200).  The codec
-    % limit must be checked against the PHYSICAL size, not the logical one.
-    probe_frame = getframe(fig_anim);
-    [phys_h, phys_w, ~] = size(probe_frame.cdata);
-    logf('[ANIM] Probe frame: %d x %d physical px (logical %d x %d)\n', ...
-        phys_w, phys_h, anim_fig_w, anim_fig_h);
-
-    if phys_w > anim_max_w || phys_h > anim_max_h
-        shrink = min(anim_max_w / phys_w, anim_max_h / phys_h);
-        new_log_w = 2 * floor(anim_fig_w * shrink / 2);
-        new_log_h = 2 * floor(anim_fig_h * shrink / 2);
-        new_log_w = max(new_log_w, 400);
-        new_log_h = max(new_log_h, 300);
-        logf('[ANIM] Physical size exceeds codec limit [%d x %d] -shrinking figure to %d x %d logical.\n', ...
-            anim_max_w, anim_max_h, new_log_w, new_log_h);
-        set(fig_anim, 'Position', [50, 50, new_log_w, new_log_h]);
-        drawnow;
-        probe_frame = getframe(fig_anim);
-        [phys_h, phys_w, ~] = size(probe_frame.cdata);
-        logf('[ANIM] Re-probe: %d x %d physical px\n', phys_w, phys_h);
-    end
-
-    % Hi-DPI scaling can keep the captured physical frame larger than the logical
-    % figure even after resizing. Clamp the encoded frame size to a codec-safe,
-    % even-valued box and resize captured frames on the fly if needed.
-    [vid_h, vid_w] = fit_anim_frame_size(phys_h, phys_w, anim_max_h, anim_max_w);
-    if vid_w ~= phys_w || vid_h ~= phys_h
-        logf(['[ANIM] Captured frame still exceeds MPEG-4 constraints; ', ...
-              'encoding will use %d x %d px and resize frames as needed.\n'], ...
-              vid_w, vid_h);
-    end
-
-    % Now open VideoWriter -frame size is known
-    mp4_file = fullfile(output_dir, 'bacteria_3d_motion.mp4');
-    vid = VideoWriter(mp4_file, 'MPEG-4');
-    vid.FrameRate = animation_fps;
-    vid.Quality   = 100;
-    open(vid);
-
-    ax_all = [ax_3d, ax_xz, ax_yz];
-
-    for fi = 1:n_frames
-        ti = frame_indices(fi);
-
-        % --- Compute geometry once per frame ---
-        R_fi  = quat_to_rotmat(results.q(:, ti));
-        cm_um = results.X_cm_um(:, ti);
-
-        % --- Draw bacterium on all three axes ---
-        for ai = 1:3
-            ax = ax_all(ai);
-            cla(ax);
-            hold(ax, 'on');
-
-            % Body surface rendering (dispatch by mesh type)
-            if strcmp(body_mesh_type, 'parametric_surf')
-                pts   = R_fi * capsule_flat + cm_um;       % [3 x N_mesh]
-                Xsurf_f = reshape(pts(1,:), mesh_size);
-                Ysurf_f = reshape(pts(2,:), mesh_size);
-                Zsurf_f = reshape(pts(3,:), mesh_size);
-                surf(ax, Xsurf_f, Ysurf_f, Zsurf_f, ...
-                     'FaceColor', body_color, 'FaceAlpha', body_alpha, ...
-                     'EdgeColor', 'none', 'FaceLighting', 'gouraud');
-            else
-                rotated_verts = (R_fi * custom_verts_um' + cm_um)';  % [V x 3]
-                % See the STATIC VISUALISATION section above for why
-                % 'Parent' is used instead of trisurf(ax, ...).
-                trisurf(params.body_faces, ...
-                    rotated_verts(:,1), rotated_verts(:,2), rotated_verts(:,3), ...
-                    'FaceColor', body_color, 'FaceAlpha', body_alpha, ...
-                    'EdgeColor', 'none', 'FaceLighting', 'gouraud', 'Parent', ax);
-            end
-
-            for k = 1:M_pili
-                Xp   = results.X_pili_um{k}(:,:,ti);
-                pk_c = pili_colors(k, :);
-                plot3(ax, Xp(:,1), Xp(:,2), Xp(:,3), ...
-                      '-', 'Color', pk_c, 'LineWidth', 1.25);
-            end
-
-            plot3(ax, cm_um(1), cm_um(2), cm_um(3), ...
-                  'r+', 'MarkerSize', 5, 'LineWidth', 1);
-
-            if fi > 1
-                plot3(ax, cm_traj_full_um(1,1:ti), ...
-                          cm_traj_full_um(2,1:ti), ...
-                          cm_traj_full_um(3,1:ti), ...
-                          '-', 'Color', traj_color, 'LineWidth', 1.0);
-            end
-
-            hold(ax, 'off');
-        end
-
-        % --- Format 3D view ---
-        camlight(ax_3d, 'headlight');
-        camlight(ax_3d, 'left');
-        lighting(ax_3d, 'gouraud');
-        material(ax_3d, 'dull');
-        xlim(ax_3d, ax_lim_x);  ylim(ax_3d, ax_lim_y);  zlim(ax_3d, ax_lim_z);
-        set(ax_3d, 'DataAspectRatio', [1 1 1]);
-        grid(ax_3d, 'on');  box(ax_3d, 'on');
-        set(ax_3d, 'TickDir', 'out');
-        view(ax_3d, 45, 25);
-        xlabel(ax_3d, 'X (μm)', 'FontName', 'Arial', 'FontSize', 12);
-        ylabel(ax_3d, 'Y (μm)', 'FontName', 'Arial', 'FontSize', 12);
-        zlabel(ax_3d, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 12);
-        title(ax_3d, sprintf('Time = %.4f s  (frame %d/%d)', ...
-            results.t(ti), fi, n_frames), ...
-            'FontName', 'Arial', 'FontSize', 13, 'FontWeight', 'bold');
-
-        % --- Format XZ projection ---
-        camlight(ax_xz, 'headlight');
-        lighting(ax_xz, 'gouraud');
-        material(ax_xz, 'dull');
-        xlim(ax_xz, ax_lim_x);  ylim(ax_xz, ax_lim_y);  zlim(ax_xz, ax_lim_z);
-        set(ax_xz, 'DataAspectRatio', [1 1 1], 'Projection', 'orthographic');
-        grid(ax_xz, 'on');  box(ax_xz, 'off');
-        set(ax_xz, 'TickDir', 'out');
-        view(ax_xz, 0, 0);
-        hold(ax_xz, 'on');
-        plot3(ax_xz, [ax_lim_x(2) ax_lim_x(2)], ax_lim_y([1 1]), ax_lim_z, ...
-            'k-', 'LineWidth', 0.8, 'HandleVisibility', 'off');
-        plot3(ax_xz, ax_lim_x, ax_lim_y([1 1]), [ax_lim_z(2) ax_lim_z(2)], ...
-            'k-', 'LineWidth', 0.8, 'HandleVisibility', 'off');
-        hold(ax_xz, 'off');
-        xlabel(ax_xz, 'X (μm)', 'FontName', 'Arial', 'FontSize', 11);
-        zlabel(ax_xz, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 11);
-        title(ax_xz, 'XZ Projection', ...
-            'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold');
-
-        % --- Format YZ projection ---
-        camlight(ax_yz, 'headlight');
-        lighting(ax_yz, 'gouraud');
-        material(ax_yz, 'dull');
-        xlim(ax_yz, ax_lim_x);  ylim(ax_yz, ax_lim_y);  zlim(ax_yz, ax_lim_z);
-        set(ax_yz, 'DataAspectRatio', [1 1 1], 'Projection', 'orthographic');
-        grid(ax_yz, 'on');  box(ax_yz, 'off');
-        set(ax_yz, 'TickDir', 'out');
-        view(ax_yz, 90, 0);
-        hold(ax_yz, 'on');
-        plot3(ax_yz, ax_lim_x([1 1]), [ax_lim_y(2) ax_lim_y(2)], ax_lim_z, ...
-            'k-', 'LineWidth', 0.8, 'HandleVisibility', 'off');
-        plot3(ax_yz, ax_lim_x([1 1]), ax_lim_y, [ax_lim_z(2) ax_lim_z(2)], ...
-            'k-', 'LineWidth', 0.8, 'HandleVisibility', 'off');
-        hold(ax_yz, 'off');
-        ylabel(ax_yz, 'Y (μm)', 'FontName', 'Arial', 'FontSize', 11);
-        zlabel(ax_yz, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 11);
-        title(ax_yz, 'YZ Projection', ...
-            'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold');
-
-        drawnow;
-
-        % Capture frame (no rect -let MATLAB return natural physical pixels)
-        frame = getframe(fig_anim);
-        [fh, fw, ~] = size(frame.cdata);
-        if fh ~= vid_h || fw ~= vid_w
-            frame.cdata = normalize_anim_frame_cdata(frame.cdata, vid_h, vid_w);
-        end
-        writeVideo(vid, frame);
-
-        % In-place progress bar (console only) — suppressed in silent mode
-        if ~silent
-            render_progress_bar('[ANIM]   ', fi, n_frames, t_anim_start);
-        end
-
-        % Log animation progress to file every 10% (file-only, no console echo)
-        if mod(fi, max(1, floor(n_frames / 10))) == 0 || fi == n_frames
-            logf_file('[ANIM] Frame %d / %d rendered\n', fi, n_frames);
-        end
-    end
-
-    close(vid);
-    close(fig_anim);
-
-    t_anim_elapsed = toc(t_anim_start);
-    vid_info = dir(mp4_file);
-    logf('[ANIM] Animation saved: %s (%.2f MB, %d frames, %.1f s render)\n', ...
-        mp4_file, vid_info.bytes/1e6, n_frames, t_anim_elapsed);
+    anim_opts = struct('fps', animation_fps, 'skip', animation_skip, ...
+                       'silent', silent, 'logf', logf, 'logf_file', logf_file);
+    anim_info = render_motion_animation(results, params, output_dir, anim_opts);
+    t_anim_elapsed = anim_info.elapsed_s;
+    anim_filename  = anim_info.filename;
 elseif timed_out && requested_generate_animation
     t_anim_elapsed = 0;
     logf('\n[ANIM] Skipped (integration timeout).\n\n');
@@ -2139,7 +1799,7 @@ if preview_initial
     end
 end
 if generate_animation
-    logf('    Video  : bacteria_3d_motion.mp4\n');
+    logf('    Video  : %s\n', anim_filename);
 end
 if compute_flowfield
     logf('    Flow   : flowfield_panels.png, flowfield_panels.pdf');
@@ -2195,10 +1855,6 @@ catch ME_run
     try
         if exist('fig_preview', 'var') && isgraphics(fig_preview), close(fig_preview); end
         if exist('fig_summary', 'var') && isgraphics(fig_summary), close(fig_summary); end
-        if exist('fig_anim',    'var') && isgraphics(fig_anim),    close(fig_anim);    end
-        if exist('vid', 'var') && isa(vid, 'VideoWriter')
-            close(vid);
-        end
     catch
         % Ignore cleanup failures; the original error is what matters.
     end
@@ -2298,54 +1954,6 @@ function v = get_field_default(S, fname, default_val)
     end
 end
 
-function cdata = normalize_anim_frame_cdata(cdata, nh, nw)
-%NORMALIZE_ANIM_FRAME_CDATA  Resize RGB(A) frame to exact [nh x nw] for VideoWriter.
-%  On Windows Hi-DPI, getframe often returns physical pixels larger than figure Position;
-%  without this, writeVideo fails ("frames must be WxH").
-    if isempty(cdata)
-        error('run_simulation:EmptyAnimFrame', 'getframe returned empty cdata');
-    end
-    [h0, w0, ~] = size(cdata);
-    if h0 == nh && w0 == nw
-        return;
-    end
-    if exist('imresize', 'file') == 2
-        cdata = imresize(cdata, [nh, nw]);
-        return;
-    end
-    nc = size(cdata, 3);
-    x = single(1:w0);
-    y = single(1:h0);
-    [Xi, Yi] = meshgrid(linspace(1, w0, nw), linspace(1, h0, nh));
-    out = zeros(nh, nw, nc, 'uint8');
-    for k = 1:nc
-        Zi = interp2(x, y, single(cdata(:, :, k)), Xi, Yi, 'linear', 0);
-        out(:, :, k) = im2uint8_mat(Zi);
-    end
-    cdata = out;
-end
-
-function [out_h, out_w] = fit_anim_frame_size(h0, w0, max_h, max_w)
-%FIT_ANIM_FRAME_SIZE  Return an even-sized frame within codec limits.
-    if h0 <= 0 || w0 <= 0
-        error('run_simulation:InvalidAnimFrameSize', ...
-              'Invalid animation frame size [%d x %d].', w0, h0);
-    end
-
-    scale = min([1, max_w / w0, max_h / h0]);
-    out_w = max(2, 2 * floor((w0 * scale) / 2));
-    out_h = max(2, 2 * floor((h0 * scale) / 2));
-
-    % Enforce bounds again after even rounding.
-    out_w = min(out_w, 2 * floor(max_w / 2));
-    out_h = min(out_h, 2 * floor(max_h / 2));
-end
-
-function u8 = im2uint8_mat(Z)
-    Z = max(0, min(255, round(Z)));
-    u8 = uint8(Z);
-end
-
 function str = format_duration(seconds)
 %FORMAT_DURATION  Convert elapsed seconds to human-readable string
 %  Examples:
@@ -2366,109 +1974,6 @@ function str = format_duration(seconds)
     else
         str = sprintf('%.1f s', s);
     end
-end
-
-function add_gravity_indicator_outside(fig_handle, ax_handle, font_size, line_width)
-%ADD_GRAVITY_INDICATOR_OUTSIDE  Draw gravity arrow flush outside axis right edge.
-%  Uses figure-normalised annotation coordinates so marker location is
-%  stable across views and axis limits.
-%
-%  Root-cause fix (v2.4):
-%    With DataAspectRatio=[1 1 1] and a strongly elongated data range
-%    (e.g. Z >> X,Y for a sinking bacterium), MATLAB renders a very narrow
-%    axis box CENTRED inside the Position rectangle.  Using the Position
-%    right edge (the old approach) places the arrow hundreds of pixels to
-%    the right of the actual box edge.
-%
-%    This function instead computes the TRUE rendered right edge by:
-%      1. Obtaining the figure size in pixels (aspect ratio).
-%      2. Projecting the data bounding box (xlim x ylim x zlim) onto the
-%         screen-horizontal direction via the orthographic approximation:
-%           right   = [cos(az), sin(az), 0]
-%           data_w  = dx|cos az| + dy|sin az|
-%           data_h  = (dx|sin az|+dy|cos az|)|sin el| + dz|cos el|
-%      3. Applying the equal-aspect scale:
-%           px_per_unit = min(ax_w_px/data_w, ax_h_px/data_h)
-%      4. Computing the centred right edge:
-%           actual_right = ax_pos(1) + ax_pos(3)/2
-%                        + data_w*px_per_unit / (2*fig_w_px)
-%
-%  IMPORTANT:
-%    1. Must be called AFTER any sgtitle() on the parent figure.
-%    2. Must be called AFTER the axes is fully configured (xlim/ylim/zlim,
-%       DataAspectRatio, view, labels, title) so ax.Position is settled.
-
-    drawnow;   % Flush pending layout so ax.Position is up-to-date
-
-    ax_pos = get(ax_handle, 'Position');   % [left bottom width height] normalised
-
-    % ---- Figure size in pixels (needed for aspect-ratio computation) ----
-    old_units = get(fig_handle, 'Units');
-    set(fig_handle, 'Units', 'pixels');
-    fig_pos_px = get(fig_handle, 'Position');   % [x y w h] in screen pixels
-    set(fig_handle, 'Units', old_units);
-    fig_w_px = fig_pos_px(3);
-    fig_h_px = fig_pos_px(4);
-
-    % ---- Axis Position in pixels ----------------------------------------
-    ax_w_px = ax_pos(3) * fig_w_px;
-    ax_h_px = ax_pos(4) * fig_h_px;
-
-    % ---- Data bounding-box ranges (equal physical units on all axes) ----
-    dx = abs(diff(xlim(ax_handle)));
-    dy = abs(diff(ylim(ax_handle)));
-    dz = abs(diff(zlim(ax_handle)));
-
-    % ---- Orthographic projection of the data box onto screen axes -------
-    %  Screen right-vector:  r = [cos(az), sin(az), 0]
-    %  Screen up-vector:     u = [-sin(az)*sin(el), cos(az)*sin(el), cos(el)]
-    %
-    %  Projected extents of the axis-aligned bounding box:
-    %    data_w = dx|cos az| + dy|sin az|
-    %    data_h = (dx|sin az|+dy|cos az|)*|sin el| + dz*|cos el|
-    [az_deg, el_deg] = view(ax_handle);
-    ca = abs(cos(az_deg * pi/180));   sa = abs(sin(az_deg * pi/180));
-    ce = abs(cos(el_deg * pi/180));   se = abs(sin(el_deg * pi/180));
-
-    data_w = dx * ca + dy * sa;
-    data_h = (dx * sa + dy * ca) * se + dz * ce;
-    data_w = max(data_w, 1e-12);   % guard against degenerate limits
-    data_h = max(data_h, 1e-12);
-
-    % ---- Equal-aspect scale factor: whichever axis fills first ----------
-    px_per_unit = min(ax_w_px / data_w,  ax_h_px / data_h);
-
-    % ---- Actual rendered half-width in normalised figure coords ---------
-    % MATLAB centres the equal-aspect box inside the Position rectangle.
-    actual_half_w = (data_w * px_per_unit) / (2 * fig_w_px);
-    actual_right  = ax_pos(1) + ax_pos(3) / 2 + actual_half_w;
-
-    % Place arrow 1 % of figure width to the right of the rendered box edge
-    x_arrow = actual_right + 0.010;
-    y_mid   = ax_pos(2) + 0.50 * ax_pos(4);
-    y_top   = y_mid + 0.055;
-    y_bot   = y_mid - 0.055;
-
-    % Keep annotation within figure bounds
-    x_arrow = min(max(x_arrow, 0.02), 0.98);
-    y_top   = min(max(y_top,   0.05), 0.98);
-    y_bot   = min(max(y_bot,   0.02), 0.95);
-    if y_top <= y_bot
-        y_top = min(0.98, y_bot + 0.06);
-    end
-
-    annotation(fig_handle, 'arrow', [x_arrow, x_arrow], [y_top, y_bot], ...
-        'Color', [0.25 0.25 0.25], 'LineWidth', line_width, 'HeadLength', 12, ...
-        'HeadWidth', 10);
-    % "G" label centred directly below the arrow shaft
-    lbl_w = 0.030;
-    lbl_h = 0.030;
-    annotation(fig_handle, 'textbox', ...
-        [x_arrow - lbl_w/2, y_bot - lbl_h - 0.004, lbl_w, lbl_h], ...
-        'String', '{\itG}', 'Interpreter', 'tex', 'FontName', 'Arial', ...
-        'FontSize', font_size, 'FontWeight', 'bold', 'EdgeColor', 'none', ...
-        'Color', [0.25 0.25 0.25], 'HorizontalAlignment', 'center', ...
-        'VerticalAlignment', 'top');
 end
 
 function status = timeout_output(t, y, flag, tstart, tlim, silent)

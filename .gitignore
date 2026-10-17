@@ -1,6 +1,7 @@
 output/
 output_old/
 test/
+paper_cases/
 .ruff_cache/
 .mypy_cache/
 .understand-anything/
