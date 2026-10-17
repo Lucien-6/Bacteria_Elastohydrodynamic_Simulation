@@ -1,6 +1,13 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 8.6.0 (2026-10-17)
+# Release: 8.6.2 (2026-10-18)
+#
+# v8.6.2: Animation-layout release. The motion animation has four panels on a
+#   fixed 16:9 canvas (3-D and XZ overviews plus co-moving 3-D and XZ windows
+#   with ticks and grid; the YZ panel is removed), a legend, 2-um scale bars and
+#   a global time stamp with the playback speed relative to real time.
+#   Simulation results unchanged.  The animation code uses vecnorm and
+#   max(..., 'all'), i.e. MATLAB R2018b or newer.  No new dependency.
 #
 # v8.6.0: Animation-rendering performance release. The 3-panel (3D + XZ + YZ)
 #   motion animation is rendered by the shared

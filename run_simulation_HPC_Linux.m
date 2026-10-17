@@ -95,7 +95,9 @@ function [results, params, output_dir] = run_simulation_HPC_Linux(cfg_or_path)
 %  Updated: 2026-10-17 — v8.6.0 animation rendering moved to the shared
 %           src/visualization/render_motion_animation.m (graphics objects created once,
 %           only data updated per frame; video content unchanged)
-%  Log banner version: 8.6.0 (2026-10-17) - emitted via project_version(); keep README / CHANGELOG in sync
+%  Updated: 2026-10-18 — v8.6.2 animation layout: 4 panels (overviews + co-moving
+%           windows), legend, scale bars, time stamp with playback speed
+%  Log banner version: 8.6.2 (2026-10-18) - emitted via project_version(); keep README / CHANGELOG in sync
 %
 %  Path policy: defensive addpath calls here allow
 %  run_simulation_HPC_Linux(cfg) without main_coupled_simulation.m.

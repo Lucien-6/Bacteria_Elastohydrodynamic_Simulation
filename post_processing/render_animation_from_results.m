@@ -2,8 +2,9 @@ function info = render_animation_from_results(mat_file, fps, skip)
 %RENDER_ANIMATION_FROM_RESULTS  Re-render the motion animation from saved results
 %
 %  Description:
-%    Re-creates the 3-panel motion animation (3D + XZ + YZ) of a finished
-%    simulation from its simulation_results.mat, without re-running the ODE
+%    Re-creates the 4-panel motion animation (3D and XZ overviews plus
+%    co-moving 3D and XZ windows) of a finished simulation from its
+%    simulation_results.mat, without re-running the ODE
 %    integration.  Useful for changing the frame stride or frame rate, or for
 %    regenerating a lost / corrupted video.
 %
@@ -32,8 +33,8 @@ function info = render_animation_from_results(mat_file, fps, skip)
 %
 %  Outputs:
 %    info - Structure returned by render_motion_animation (fields: file,
-%           filename, n_frames, elapsed_s, stage_s); empty when the file
-%           selection is cancelled.
+%           filename, n_frames, elapsed_s, stage_s, window_half_um,
+%           playback_speed); empty when the file selection is cancelled.
 %
 %  Platform and requirements:
 %    MATLAB R2018b+ (min/max over multiple dimensions); the MPEG-4 profile
@@ -41,7 +42,7 @@ function info = render_animation_from_results(mat_file, fps, skip)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-10-17
-%  Updated: 2026-10-17
+%  Updated: 2026-10-18 — header follows the 4-panel layout of the renderer
 
 info = [];
 

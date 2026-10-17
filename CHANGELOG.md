@@ -12,6 +12,70 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [8.6.2] — 2026-10-18
+
+Publication-oriented animation layout.  **No change to simulation results.**  The
+animation video itself changes (layout, size, content of the panels), so videos
+rendered by 8.6.2 are not pixel-comparable with those of 8.6.0.
+
+### Changed
+
+- **Four-panel animation on a fixed 16:9 canvas** (2560 x 1440 logical px) in
+  `src/visualization/render_motion_animation.m`: **a** 3-D overview (now
+  orthographic; the axes rectangle is sized to the projected data box), **b** XZ
+  overview, **c** co-moving 3-D window and **d** co-moving XZ window.  The YZ panel
+  is removed.  Previously the video size depended on the data (for example
+  3840 x 1524 px).
+- **Co-moving windows (c, d)** follow the centre of mass with constant magnification.
+  Panel d has a fixed half-width of 1.15 x the largest distance from the centre of
+  mass to any body or pilus point over all frames (at least 1.1 x the scale-bar
+  length); panel c is an orthographic cube of half-width 1.05 x that distance around
+  the centre of mass, zoomed to fill its axes (manual camera).  Both have an axes
+  box with ticks, tick labels, a grid and axis labels in lab-frame coordinates, so
+  the grid slides past the bacterium.  The centre-of-mass trajectory is drawn in
+  panels a and b only; the gravity arrow only in panel a.
+- Panel titles **a–d** (bold letter plus short descriptor) sit flush on the
+  upper-left corner of each image; the time stamp, playback note and legend are
+  horizontally centred on the canvas.
+- Typography and line widths for the larger canvas: ticks 16 pt, axis labels 18 pt,
+  legend and notes 16 pt, time stamp and panel titles 24 pt; pilus lines 2.0 pt,
+  trajectory 1.5 pt, scale bars 4 pt.
+
+### Added
+
+- **Legend** (body, every pilus, centre of mass, trajectory), drawn manually on the
+  canvas (90 px between entries, rows centred, automatic wrapping).
+- **2-μm scale bars** in panels b, c and d (`opts.scale_bar_um`, default 2).
+- **Global time stamp** *t* = ... s and the **playback speed** relative to real time
+  (simulated seconds per video second = frame interval x `animation_fps`; labelled
+  "slow motion" or "accelerated").
+- `render_motion_animation` returns `info.window_half_um` and `info.playback_speed`;
+  the log reports the co-moving window size and the playback speed.
+- `add_gravity_indicator_outside` accepts an optional `head_scale` argument
+  (default 1, unchanged behaviour).
+
+### Documentation
+
+- `project_version.m` bumped to 8.6.2 (2026-10-18); README (EN/ZH), USER_GUIDE
+  (EN/ZH), theory (EN/ZH), `requirements.txt`, the project website and presentation
+  version strings, and the headers of `run_simulation*.m` and
+  `main_coupled_simulation.m` updated.  The animation descriptions (three panels
+  with a YZ view) in README, USER_GUIDE and the website are replaced by the
+  four-panel layout; USER_GUIDE gains a description of the panels, the playback
+  speed and `opts.scale_bar_um`.
+
+### Compatibility
+
+- Simulation results, `simulation_results.mat`, CSV and all figures other than the
+  motion animation are unchanged.
+- The animation code now needs MATLAB R2018b or newer (`vecnorm`, `max(..., 'all')`); no new toolbox.
+- The encoded frame size follows the display scaling (for example 3840 x 2160 at
+  150 % scaling for the 2560 x 1440 canvas); the codec-limit clamp is unchanged.
+- The Linux `Motion JPEG AVI` branch could not be exercised on the Windows
+  development machine.
+
+---
+
 ## [8.6.0] — 2026-10-17
 
 Animation-rendering performance release.  **No change to simulation results or

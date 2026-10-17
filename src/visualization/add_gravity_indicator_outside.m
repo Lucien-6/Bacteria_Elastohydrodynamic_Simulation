@@ -1,4 +1,4 @@
-function add_gravity_indicator_outside(fig_handle, ax_handle, font_size, line_width)
+function add_gravity_indicator_outside(fig_handle, ax_handle, font_size, line_width, head_scale)
 %ADD_GRAVITY_INDICATOR_OUTSIDE  Draw gravity arrow flush outside axis right edge.
 %  Uses figure-normalised annotation coordinates so marker location is
 %  stable across views and axis limits.
@@ -33,6 +33,8 @@ function add_gravity_indicator_outside(fig_handle, ax_handle, font_size, line_wi
 %    ax_handle  - 3-D axes handle whose rendered right edge is the anchor
 %    font_size  - Font size of the "G" label [pt]
 %    line_width - Line width of the arrow shaft [pt]
+%    head_scale - (Optional) Scale factor of the arrow head size (default: 1;
+%                 the unscaled head is 12 pt long and 10 pt wide)
 %
 %  Outputs:
 %    None.  Two annotation objects (arrow and "G" label) are added to the figure.
@@ -40,7 +42,11 @@ function add_gravity_indicator_outside(fig_handle, ax_handle, font_size, line_wi
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-10-17  (extracted verbatim from the local function of the same
 %           name in run_simulation.m / run_simulation_HPC_Linux.m)
-%  Updated: 2026-10-17
+%  Updated: 2026-10-18 — optional head_scale argument
+
+    if nargin < 5 || isempty(head_scale)
+        head_scale = 1;
+    end
 
     drawnow;   % Flush pending layout so ax.Position is up-to-date
 
@@ -102,8 +108,8 @@ function add_gravity_indicator_outside(fig_handle, ax_handle, font_size, line_wi
     end
 
     annotation(fig_handle, 'arrow', [x_arrow, x_arrow], [y_top, y_bot], ...
-        'Color', [0.25 0.25 0.25], 'LineWidth', line_width, 'HeadLength', 12, ...
-        'HeadWidth', 10);
+        'Color', [0.25 0.25 0.25], 'LineWidth', line_width, 'HeadLength', 12 * head_scale, ...
+        'HeadWidth', 10 * head_scale);
     % "G" label centred directly below the arrow shaft
     lbl_w = 0.030;
     lbl_h = 0.030;
