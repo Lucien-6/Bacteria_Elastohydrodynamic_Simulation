@@ -5,24 +5,43 @@ function info = render_motion_animation(results, params, output_dir, opts)
 %    Renders the bacterium motion animation from a finished simulation and
 %    writes it to a video file in output_dir.  Fixed 16:9 canvas
 %    (2560 x 1440 logical px) with four panels:
-%      a (left)         : 3-D overview (orthographic, azimuth 45 deg, elevation
-%                         25 deg), fixed limits, gravity arrow
-%      b (centre)       : XZ projection (view along Y), fixed limits,
-%                         2-um scale bar
-%      c (right, top)   : co-moving 3-D window (orthographic, same view
-%                         direction as panel a), centred on the centre of mass,
-%                         with ticks, tick labels and grid (lab-frame coordinates)
-%      d (right, bottom): co-moving XZ window (orthographic), centred on the
-%                         centre of mass, with ticks, tick labels and grid
-%                         (lab-frame coordinates)
-%    The axes of panels a and b are sized to the rendered data box and every
-%    panel title sits flush on the upper-left corner of its image.  Panel d has a
-%    fixed half-width of 1.15 x the largest distance from the centre of mass to
-%    any body / pilus point over all frames (at least 1.1 x the scale-bar
-%    length); panel c shows a cube of half-width 1.05 x that distance, zoomed to
-%    fill its axes.  Each window keeps constant magnification and carries a
-%    2-um scale bar.  Ticks and grid of c and d follow the lab frame, so the grid
-%    slides past the bacterium.  Gravity arrow: panel a only.
+%      a : 3-D overview (orthographic, azimuth 45 deg, elevation 25 deg),
+%          fixed limits, gravity arrow
+%      b : XZ projection (view along Y), fixed limits, 2-um scale bar
+%      c : co-moving 3-D window (orthographic, same view direction as panel a),
+%          centred on the centre of mass, with ticks, tick labels and grid
+%          (lab-frame coordinates)
+%      d : co-moving XZ window (orthographic), centred on the centre of mass,
+%          with ticks, tick labels and grid (lab-frame coordinates)
+%    The arrangement of the four panels on the canvas is chosen automatically
+%    (see below), so the canvas is used as completely as possible.
+%    Adaptive layout: every axes rectangle has the aspect ratio of its data box
+%    (equal scale on all axes) and a natural size (panels a, b: 810 x 1076 px,
+%    panels c, d: 440 x 478 px).  All guillotine arrangements (nested
+%    side-by-side / stacked splits) of the panels in the reading orders a-b-c-d,
+%    a-c-b-d and a-c-d-b are tried; the one that fits the largest COMMON scale
+%    factor of the four rectangles into the free canvas region wins, so the
+%    relative sizes of the panels never change.  The slack is spread over the
+%    gaps (up to 120 px) and the group is centred.  The chosen arrangement is
+%    logged, e.g. H(a,H(b,V(c,d))).  Every panel title sits flush on the
+%    upper-left corner of its image.  The
+%    co-moving windows c and d are NOT cubes / squares: along every lab axis
+%    their extent is the reach of the body and all pili over all frames
+%    (relative to the centre of mass) plus a margin of 8 % (at least 0.1 um),
+%    so the bacterium fills the window and its shape stays visible; the scale
+%    is equal on the X, Y and Z axes (nothing is stretched), the axes rectangle
+%    of each window has the aspect ratio of its box, and the box is centred on
+%    the middle of the occupied range (constant offset from the centre of mass).
+%    Each window keeps constant magnification (no scale bar; panel b carries
+%    the 2-um scale bar).  Ticks and grid
+%    of c and d follow the lab frame, so the grid slides past the bacterium.
+%    Gravity arrow: panel a only.
+%
+%    The body carries two dark longitudinal stripes (a wide and a narrow one on
+%    opposite sides, smooth profile, faded towards the end caps) stored as
+%    per-vertex colour / opacity; they rotate with the body, so a roll about the
+%    long axis is visible in every panel (custom bodies: long axis = principal
+%    axis of the vertex cloud).
 %
 %    Every panel shows the semi-transparent body surface, every pilus, the
 %    centre-of-mass marker and (panels a and b only) the full-resolution
@@ -66,7 +85,7 @@ function info = render_motion_animation(results, params, output_dir, opts)
 %                   .logf_file      Logging handle, file only (default: no-op)
 %                   .file_basename  Video base name without extension
 %                                   (default: 'bacteria_3d_motion')
-%                   .scale_bar_um   Length of the scale bars [um]
+%                   .scale_bar_um   Length of the scale bar of panel b [um]
 %                                   (default: 2)
 %
 %  Outputs:
@@ -78,7 +97,9 @@ function info = render_motion_animation(results, params, output_dir, opts)
 %             .stage_s        Structure of per-stage wall times [s]:
 %                               prepass, setup, update, drawnow, getframe,
 %                               resize, write
-%             .window_half_um Half-width of the co-moving windows [um]
+%             .window_half_um Half-extents [hx hy hz] of the co-moving box [um]
+%             .window_offset_um Offset of the box centre from the centre of
+%                             mass [1 x 3, um]
 %             .playback_speed Simulated seconds per video second (NaN when
 %                             only one frame is rendered)
 %
@@ -103,6 +124,11 @@ function info = render_motion_animation(results, params, output_dir, opts)
 %           corners, centred time stamp / legend, manually drawn legend;
 %           co-moving windows with ticks, tick labels, grid and axis labels,
 %           no gravity arrows in panels c and d
+%  Updated: 2026-10-19 — v8.6.3: co-moving windows sized per axis from the
+%           reach of the bacterium (non-cubic box, equal scale on all axes);
+%           no scale bar in panels c and d; two dark body stripes make the
+%           roll visible; adaptive panel layout (best of all guillotine
+%           arrangements, common scale factor)
 
 %% ---- Options ----
 if nargin < 4 || ~isstruct(opts)
@@ -138,13 +164,11 @@ if is_capsule
     b_um = params.dim.minor_axis * 1e6;   % Semi-minor axis (cap radius) [um]
     [capsule_flat, mesh_size] = build_capsule_mesh(a_um, b_um);
     custom_verts_um = [];
-    r_body_um = max(vecnorm(capsule_flat, 2, 1));   % Max distance body point - CM [um]
 else
     custom_verts_um = params.body_verts * 1e6;   % [V x 3] in um
     capsule_flat = [];
     mesh_size    = [];
     a_um         = [];
-    r_body_um = max(vecnorm(custom_verts_um, 2, 2));
 end
 
 % --- Colour palette (per-pilus palette mirrors the static visualisation section) ---
@@ -163,6 +187,44 @@ pili_palette = [0.20 0.40 0.80;
                 0.85 0.47 0.66];
 pili_colors = pili_palette(mod((1:M_pili)-1, size(pili_palette,1)) + 1, :);
 ink_color   = [0.15 0.15 0.15];          % Scale bars, gravity arrows, frames
+
+% --- Roll marker: two dark stripes along the long axis of the body ---
+% The body is otherwise uniform, so a rotation about the long axis would be
+% invisible.  Two stripes at fixed azimuths about the long axis (smooth cosine
+% profile, faded out towards the end caps) are stored as per-vertex colour /
+% opacity and rotate with the body: a wide one (+-30 deg) at azimuth 0 and a
+% narrow one (+-15 deg) at 180 deg.  Two stripes of different width keep a
+% marker on the visible side at (almost) every orientation and still tell the
+% two sides apart.  Only the vertex positions are updated in the frame loop.
+stripe_color = [0.03 0.25 0.10];         % Dark green
+stripe_alpha = 0.90;                     % Opacity of the stripe core
+stripe_half  = 30 * pi / 180;            % Half-width of the wide stripe [rad]
+stripe_half2 = 15 * pi / 180;            % Half-width of the narrow stripe [rad]
+if is_capsule
+    v_body = capsule_flat.';             % [N x 3], body frame; long axis = body X
+    e_a = [0 1 0];  e_b = [0 0 1];
+else
+    v_body = custom_verts_um - mean(custom_verts_um, 1);
+    [Vp, Dp] = eig(cov(v_body));         % Long axis = principal axis of largest variance
+    [~, i_long] = max(diag(Dp));
+    e_long = Vp(:, i_long).';
+    e_tmp  = [1 0 0];
+    if abs(e_tmp * e_long.') > 0.9, e_tmp = [0 1 0]; end
+    e_a = e_tmp - (e_tmp * e_long.') * e_long;   e_a = e_a / norm(e_a);
+    e_b = cross(e_long, e_a);
+end
+r_a    = v_body * e_a.';
+r_b    = v_body * e_b.';
+theta  = atan2(r_b, r_a);                % Azimuth about the long axis, (-pi, pi]
+rho_n  = hypot(r_a, r_b) / max(hypot(r_a, r_b));
+t_f    = min(max((rho_n - 0.2) / 0.4, 0), 1);
+fade   = t_f.^2 .* (3 - 2 * t_f);        % Smoothstep: no stripe on the end caps' axis
+prof1  = 0.5 * (1 + cos(pi * min(abs(theta) / stripe_half, 1)));           % Wide stripe at azimuth 0
+prof2  = 0.5 * (1 + cos(pi * min((pi - abs(theta)) / stripe_half2, 1)));   % Narrow stripe at 180 deg
+s_str  = max(prof1, prof2) .* fade;                                        % [N x 1] in [0, 1]
+body_vcolor = (1 - s_str) * body_color + s_str * stripe_color;             % [N x 3]
+body_valpha = body_alpha + s_str * (stripe_alpha - body_alpha);            % [N x 1]
+clear v_body e_long e_a e_b r_a r_b theta rho_n t_f fade prof1 prof2
 
 % --- Typography and line widths (tuned for the 2560 x 1440 canvas) ---
 fs_tick   = 16;    % Tick labels [pt]
@@ -207,19 +269,23 @@ t_stage = tic;
 x_min = min(cm_traj_um(1,:));  x_max = max(cm_traj_um(1,:));
 y_min = min(cm_traj_um(2,:));  y_max = max(cm_traj_um(2,:));
 z_min = min(cm_traj_um(3,:));  z_max = max(cm_traj_um(3,:));
+rel_min = [0 0 0];    % Reach of body + pili relative to the CM per lab axis over all frames [um]
+rel_max = [0 0 0];    % (the CM itself is included, so the CM marker is always inside)
 for idx = 1:n_frames
     ti   = frame_indices(idx);
     R_fi = quat_to_rotmat(results.q(:, ti));
     if is_capsule
-        pts = R_fi * capsule_flat + results.X_cm_um(:, ti);          % [3 x N_mesh]
+        pts_rel = R_fi * capsule_flat;                               % [3 x N_mesh], relative to CM
     else
-        pts = R_fi * custom_verts_um' + results.X_cm_um(:, ti);      % [3 x N_verts]
+        pts_rel = R_fi * custom_verts_um';                           % [3 x N_verts], relative to CM
     end
+    rel_min = min(rel_min, min(pts_rel, [], 2).');
+    rel_max = max(rel_max, max(pts_rel, [], 2).');
+    pts = pts_rel + results.X_cm_um(:, ti);
     x_min = min(x_min, min(pts(1,:)));  x_max = max(x_max, max(pts(1,:)));
     y_min = min(y_min, min(pts(2,:)));  y_max = max(y_max, max(pts(2,:)));
     z_min = min(z_min, min(pts(3,:)));  z_max = max(z_max, max(pts(3,:)));
 end
-r_pili_um = 0;    % Max distance pilus node - CM over all frames [um]
 for k = 1:M_pili
     Xp_all = results.X_pili_um{k}(:, :, frame_indices);               % [Nn x 3 x n_frames]
     mn = min(Xp_all, [], [1 3]);
@@ -228,7 +294,8 @@ for k = 1:M_pili
     y_min = min(y_min, mn(2));  y_max = max(y_max, mx(2));
     z_min = min(z_min, mn(3));  z_max = max(z_max, mx(3));
     rel_k = Xp_all - permute(cm_traj_um, [3 1 2]);                   % Relative to CM [Nn x 3 x n_frames]
-    r_pili_um = max(r_pili_um, sqrt(max(sum(rel_k.^2, 2), [], 'all')));
+    rel_min = min(rel_min, min(rel_k, [], [1 3]));
+    rel_max = max(rel_max, max(rel_k, [], [1 3]));
 end
 clear Xp_all rel_k
 
@@ -263,11 +330,18 @@ end
 logf('[ANIM] Global axis limits (per-axis): X=[%.2f, %.2f], Y=[%.2f, %.2f], Z=[%.2f, %.2f] um\n', ...
     ax_lim_x(1), ax_lim_x(2), ax_lim_y(1), ax_lim_y(2), ax_lim_z(1), ax_lim_z(2));
 
-% Co-moving windows: fixed half-width around the centre of mass
-% (minimum: 1.1 x scale-bar length, so the scale bar always fits inside)
-win_half_um = max(1.15 * max(r_body_um, r_pili_um), 1.1 * scale_bar_um);
-logf('[ANIM] Co-moving windows: half-width %.2f um (max CM distance %.2f um)\n', ...
-    win_half_um, max(r_body_um, r_pili_um));
+% Co-moving windows: a fixed, generally NON-cubic box that follows the centre
+% of mass.  Its extent along every lab axis is the reach of the body + pili
+% over all frames (rel_min / rel_max) plus a small margin, so the bacterium
+% fills the box and its shape stays visible; the unit scale is equal on all
+% three axes (no stretching).  The box is centred on win_off_um (constant
+% offset from the CM) so that it is symmetric about the occupied range.
+rel_span = rel_max - rel_min;
+win_pad  = max(0.08 * rel_span, 0.10);                  % Margin per axis [um]
+win_half_um = rel_span / 2 + win_pad;                   % [hx hy hz] half-extents [um]
+win_off_um  = (rel_min + rel_max) / 2;                  % Box centre relative to the CM [um]
+logf(['[ANIM] Co-moving windows (box, equal scale): half-extents X=%.2f, Y=%.2f, Z=%.2f um; ', ...
+      'centre offset from CM (%.2f, %.2f, %.2f) um\n'], win_half_um, win_off_um);
 stage_s.prepass = toc(t_stage);
 
 %% ---- Canvas layout (logical pixels, origin bottom-left) ----
@@ -286,8 +360,12 @@ set(fig_anim, 'DefaultAxesFontName',  'Arial', ...
               'DefaultAxesFontSize',  fs_tick, ...
               'DefaultAxesLineWidth', lw_axes);
 
+% Panel titles (also needed here to measure their widths for the layout)
+panel_str = {'{\bf a}  3-D view', '{\bf b}  XZ view', ...
+             '{\bf c}  Co-moving 3-D view', '{\bf d}  Co-moving XZ view'};
+
 % --- Legend geometry (drawn manually on the canvas for full spacing control) ---
-leg_labels = [{'Body'}, arrayfun(@(k) sprintf('Pilus %d', k), 1:M_pili, ...
+leg_labels = [{'Body (dark stripes mark roll)'}, arrayfun(@(k) sprintf('Pilus %d', k), 1:M_pili, ...
               'UniformOutput', false), {'Centre of mass', 'Trajectory'}];
 n_leg         = numel(leg_labels);
 leg_key_w     = 46;      % Width of the key symbol [px]
@@ -304,6 +382,13 @@ for ie = 1:n_leg
     ext = get(h_tmp, 'Extent');
     leg_w(ie) = leg_key_w + leg_key_gap + ext(3);
 end
+title_w = zeros(1, 4);                     % Rendered widths of the panel titles [px]
+for ip = 1:4
+    h_tmp = text(ax_tmp, 0, 0, panel_str{ip}, 'Interpreter', 'tex', 'FontName', 'Arial', ...
+                 'FontSize', fs_letter);
+    ext = get(h_tmp, 'Extent');
+    title_w(ip) = ext(3);
+end
 delete(ax_tmp);
 leg_row_of = ones(1, n_leg);               % Row index of every entry (greedy wrap)
 cur_w = 0;
@@ -319,35 +404,81 @@ end
 leg_rows = max(leg_row_of);
 leg_h_px = leg_rows * leg_row_h + 24;
 
-top_strip  = 190;                          % Time stamp, playback note, panel letters
-ax_bot     = 110 + leg_h_px;               % Tick labels + axis label + legend strip
-ax_top     = anim_fig_h - top_strip;
-ax_h       = ax_top - ax_bot;
-gap_win    = 120;                          % Gap between the two co-moving windows
-win_side   = floor((ax_h - gap_win) / 2);  % Square co-moving windows
-win_x      = anim_fig_w - 40 - win_side;   % Left edge of the right column
-win_y_top  = ax_top - win_side;            % Bottom of the upper window
-win_y_bot  = ax_bot;                       % Bottom of the lower window
-% Panels a and b: the axes rectangle is sized to the rendered data box
-% (equal aspect, orthographic projection), top-aligned and centred in its
-% slot, so the box fills the axes exactly and the panel title can sit flush on
-% its upper-left corner.
-slot_w     = 810;                          % Width of the slots of panels a and b [px]
-slot_a_x   = 100;                          % Left edge of the slot of panel a
-slot_b_x   = 1090;                         % Left edge of the slot of panel b
+% ---- Panel geometry (natural sizes) ----
 az_v = 45;  el_v = 25;                     % View of panel a and c
 dx_l = diff(ax_lim_x);  dy_l = diff(ax_lim_y);  dz_l = diff(ax_lim_z);
-proj_w = dx_l * abs(cosd(az_v)) + dy_l * abs(sind(az_v));
+proj_w = dx_l * abs(cosd(az_v)) + dy_l * abs(sind(az_v));            % Projected box, panel a [um]
 proj_h = (dx_l * abs(sind(az_v)) + dy_l * abs(cosd(az_v))) * abs(sind(el_v)) ...
          + dz_l * abs(cosd(el_v));
-ppu_a  = min(slot_w / proj_w, ax_h / proj_h);   % Pixels per um, panel a
-w_a    = proj_w * ppu_a;   h_a = proj_h * ppu_a;
-ppu_b  = min(slot_w / dx_l, ax_h / dz_l);       % Pixels per um, panel b
-w_b    = dx_l * ppu_b;     h_b = dz_l * ppu_b;
-pos_3d_px  = [slot_a_x + (slot_w - w_a) / 2, ax_top - h_a, w_a, h_a];   % Panel a
-pos_xz_px  = [slot_b_x + (slot_w - w_b) / 2, ax_top - h_b, w_b, h_b];   % Panel b
-pos_3df_px = [win_x, win_y_top, win_side, win_side];   % Panel c
-pos_xzf_px = [win_x, win_y_bot, win_side, win_side];   % Panel d
+dx_w = 2 * win_half_um(1);  dy_w = 2 * win_half_um(2);  dz_w = 2 * win_half_um(3);
+proj_w_c = dx_w * abs(cosd(az_v)) + dy_w * abs(sind(az_v));          % Projected box, panel c [um]
+proj_h_c = (dx_w * abs(sind(az_v)) + dy_w * abs(cosd(az_v))) * abs(sind(el_v)) ...
+           + dz_w * abs(cosd(el_v));
+% Natural size of every axes rectangle (equal scale on all axes): panels a and b
+% fitted into 810 x 1076 px, panels c and d into 440 x 478 px.  Only the
+% aspect ratios and these relative sizes matter: the layout below multiplies
+% all four rectangles by ONE common factor, so their relative sizes are kept.
+ref_ab = [810, 1076];
+ref_cd = [440, 478];
+ppu_a = min(ref_ab(1) / proj_w,   ref_ab(2) / proj_h);     % Pixels per um, panel a
+ppu_b = min(ref_ab(1) / dx_l,     ref_ab(2) / dz_l);       % Pixels per um, panel b
+ppu_c = min(ref_cd(1) / proj_w_c, ref_cd(2) / proj_h_c);   % Pixels per um, panel c
+ppu_d = min(ref_cd(1) / dx_w,     ref_cd(2) / dz_w);       % Pixels per um, panel d
+lay.rect = [proj_w * ppu_a,   proj_h * ppu_a;
+            dx_l * ppu_b,     dz_l * ppu_b;
+            proj_w_c * ppu_c, proj_h_c * ppu_c;
+            dx_w * ppu_d,     dz_w * ppu_d];                % [w h] of the rectangles a-d [px]
+% Space reserved around each rectangle for tick labels, axis labels and the
+% title: [left right bottom top] [px].  Panels a and c are 3-D (Y labels on the
+% right); panel a also keeps room for the gravity arrow.
+lay.marg = [110  90 100 60;
+            110  30  90 60;
+            110 110 100 60;
+            110  30  90 60];
+lay.title_w = title_w(:);
+
+% ---- Adaptive layout: choose the arrangement that allows the largest panels ----
+% Candidates are all guillotine layouts (nested horizontal / vertical splits)
+% of the four panels in the reading orders a-b-c-d, a-c-b-d and a-c-d-b.  For
+% every candidate the largest common scale factor s of the four rectangles that
+% still fits into the free canvas region is found by bisection; the candidate
+% with the largest s wins (ties: smallest bounding box).  The remaining slack is
+% spread over the gaps between the panels (up to 120 px) and the whole group is
+% centred in the region.
+region_x0  = 30;                                 % Free canvas region [px]
+region_w   = anim_fig_w - 60;
+region_y0  = leg_h_px + 4;                       % Above the legend
+region_top = anim_fig_h - 125;                   % Below the time stamp and the playback note
+region_h   = region_top - region_y0;
+gap_min    = 10;                                 % Gap between neighbouring boxes [px]
+gap_max    = 120;
+best_s = -Inf;  best_area = Inf;  best_tree = [];
+orders = [1 2 3 4; 1 3 2 4; 1 3 4 2];
+for io = 1:size(orders, 1)
+    cand = enum_layout_trees(orders(io, :));
+    for ic = 1:numel(cand)
+        s_c = round(max_layout_scale(cand{ic}, gap_min, region_w, region_h, lay), 3);
+        [w_c0, h_c0] = layout_size(cand{ic}, s_c, gap_min, lay);
+        if s_c > best_s || (s_c == best_s && w_c0 * h_c0 < best_area)
+            best_s = s_c;  best_area = w_c0 * h_c0;  best_tree = cand{ic};
+        end
+    end
+end
+lay_gap = gap_min;                               % Spread the slack over the gaps
+for it = 1:20
+    g_mid = (lay_gap + gap_max) / 2;
+    [w_t, h_t] = layout_size(best_tree, best_s, g_mid, lay);
+    if w_t <= region_w && h_t <= region_h, lay_gap = g_mid; else, gap_max = g_mid; end
+end
+[w_t, h_t] = layout_size(best_tree, best_s, lay_gap, lay);
+rects = place_layout(best_tree, region_x0 + (region_w - w_t) / 2, ...
+                     region_top - (region_h - h_t) / 2, w_t, best_s, lay_gap, lay, zeros(4, 4));
+pos_3d_px  = rects(1, :);   % Panel a
+pos_xz_px  = rects(2, :);   % Panel b
+pos_3df_px = rects(3, :);   % Panel c
+pos_xzf_px = rects(4, :);   % Panel d
+logf('[ANIM] Layout %s: scale %.2f, gap %.0f px (panel a %.0f x %.0f px, c %.0f x %.0f px)\n', ...
+    layout_desc(best_tree), best_s, lay_gap, rects(1, 3), rects(1, 4), rects(3, 3), rects(3, 4));
 px2n = @(p) [p(1)/anim_fig_w, p(2)/anim_fig_h, p(3)/anim_fig_w, p(4)/anim_fig_h];
 
 logf('[ANIM] Figure size (logical): %d x %d px  (a: 3D, b: XZ, c/d: co-moving 3D/XZ windows)\n', ...
@@ -379,17 +510,16 @@ set(ax_xz, 'FontSize', fs_tick);
 xlabel(ax_xz, 'X (μm)', 'FontName', 'Arial', 'FontSize', fs_label);
 zlabel(ax_xz, 'Z (μm)', 'FontName', 'Arial', 'FontSize', fs_label);
 
-% Panel c: co-moving 3-D window (orthographic; manual camera follows the CM;
-% axes box without ticks).  The cube half-width cube_half_um contains every
-% body / pilus point; the camera zoom makes the projected cube fill the axes.
-cube_half_um = max(1.05 * max(r_body_um, r_pili_um), 0.85 * scale_bar_um);
-cam_dist = 10 * cube_half_um;
-[cam_dir, ~, cam_right, cam_up_s, view_half_um] = ...
-    setup_follow_3d(ax_3df, cm_1(:).', cube_half_um, az_v, el_v, cam_dist, lw_axes, ...
-                    fs_tick, fs_label);
+% Panel c: co-moving 3-D window (orthographic; manual camera follows the box
+% centre).  The box has half-extents win_half_um (per axis) around CM + win_off_um;
+% the camera zoom makes the projected box fill the axes rectangle exactly.
+cam_dist = 10 * norm(2 * win_half_um);
+[cam_dir, ~, ~, ~] = ...
+    setup_follow_3d(ax_3df, cm_1(:).' + win_off_um, win_half_um, az_v, el_v, cam_dist, ...
+                    min(proj_w_c, proj_h_c), lw_axes, fs_tick, fs_label);
 
-% Panel d: co-moving XZ window (orthographic, view along Y; axes box without ticks)
-setup_follow_xz(ax_xzf, cm_1(:).', win_half_um, ax_lim_y, lw_axes, fs_tick, fs_label);
+% Panel d: co-moving XZ window (orthographic, view along Y)
+setup_follow_xz(ax_xzf, cm_1(:).' + win_off_um, win_half_um, ax_lim_y, lw_axes, fs_tick, fs_label);
 
 drawnow;
 add_gravity_indicator_outside(fig_anim, ax_3d, 20, 3.5, 1.5);
@@ -449,7 +579,7 @@ open(vid);
 
 %% ---- Create all graphics objects ONCE (child order identical per axis) ----
 % Per axis: body, pili, centre-of-mass marker, trajectory (panels a, b only),
-% [XZ border lines / scale bars], then lights.  Only their data are updated
+% [panel b: XZ border lines / scale bar], then lights.  Only their data are updated
 % inside the frame loop.
 n_ax   = numel(ax_all);
 h_body = gobjects(1, n_ax);
@@ -469,7 +599,12 @@ for ai = 1:n_ax
         h_body(ai) = surf(ax, reshape(pts_1(1,:), mesh_size), ...
                               reshape(pts_1(2,:), mesh_size), ...
                               reshape(pts_1(3,:), mesh_size), ...
-                          'FaceColor', body_color, 'FaceAlpha', body_alpha, ...
+                          cat(3, reshape(body_vcolor(:,1), mesh_size), ...
+                                 reshape(body_vcolor(:,2), mesh_size), ...
+                                 reshape(body_vcolor(:,3), mesh_size)), ...
+                          'FaceColor', 'interp', 'FaceAlpha', 'interp', ...
+                          'AlphaData', reshape(body_valpha, mesh_size), ...
+                          'AlphaDataMapping', 'none', ...
                           'EdgeColor', 'none', 'FaceLighting', 'gouraud');
     else
         verts_1 = (R_1 * custom_verts_um' + cm_1)';   % [V x 3]
@@ -477,8 +612,10 @@ for ai = 1:n_ax
         % VISUALISATION section of run_simulation.m.
         h_body(ai) = trisurf(params.body_faces, ...
                              verts_1(:,1), verts_1(:,2), verts_1(:,3), ...
-                             'FaceColor', body_color, 'FaceAlpha', body_alpha, ...
+                             'FaceColor', 'interp', 'FaceAlpha', 'interp', ...
                              'EdgeColor', 'none', 'FaceLighting', 'gouraud', 'Parent', ax);
+        set(h_body(ai), 'FaceVertexCData', body_vcolor, ...
+                        'FaceVertexAlphaData', body_valpha, 'AlphaDataMapping', 'none');
     end
 
     for k = 1:M_pili
@@ -531,34 +668,16 @@ text(ax_xz, sb_x0 + scale_bar_um / 2, ax_lim_y(1), sb_z0 + 0.012 * diff(ax_lim_z
     'BackgroundColor', 'w', 'Margin', 1);
 hold(ax_xz, 'off');
 
-% --- Panel c: light, material, scale bar (co-moving 3-D window) ---
+% --- Panel c: lights and material (co-moving 3-D window; no scale bar) ---
 camlight(ax_3df, 'headlight');
 camlight(ax_3df, 'left');
 lighting(ax_3df, 'gouraud');
 material(ax_3df, 'dull');
-hold(ax_3df, 'on');
-h_sb_3df = plot3(ax_3df, NaN, NaN, NaN, '-', 'Color', ink_color, 'LineWidth', lw_bar, ...
-                 'Clipping', 'off', 'HandleVisibility', 'off');
-h_sbt_3df = text(ax_3df, 0, 0, 0, sprintf('%g μm', scale_bar_um), ...
-                 'FontName', 'Arial', 'FontSize', fs_note, 'Color', ink_color, ...
-                 'HorizontalAlignment', 'center', 'VerticalAlignment', 'top', ...
-                 'Clipping', 'off', 'HandleVisibility', 'off', ...
-                 'BackgroundColor', 'w', 'Margin', 1);
-hold(ax_3df, 'off');
 
-% --- Panel d: light, material, scale bar (co-moving XZ window) ---
+% --- Panel d: light and material (co-moving XZ window; no scale bar) ---
 camlight(ax_xzf, 'headlight');
 lighting(ax_xzf, 'gouraud');
 material(ax_xzf, 'dull');
-hold(ax_xzf, 'on');
-h_sb_xzf = plot3(ax_xzf, NaN, NaN, NaN, '-', 'Color', ink_color, 'LineWidth', lw_bar, ...
-                 'Clipping', 'off', 'HandleVisibility', 'off');
-h_sbt_xzf = text(ax_xzf, 0, 0, 0, sprintf('%g μm', scale_bar_um), ...
-                 'FontName', 'Arial', 'FontSize', fs_note, 'Color', ink_color, ...
-                 'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', ...
-                 'Clipping', 'off', 'HandleVisibility', 'off', ...
-                 'BackgroundColor', 'w', 'Margin', 1);
-hold(ax_xzf, 'off');
 
 %% ---- Canvas overlay (pixel coordinates): letters, time, legend ----
 ax_ov = axes(fig_anim, 'Units', 'normalized', 'Position', [0 0 1 1], ...
@@ -569,8 +688,6 @@ hold(ax_ov, 'on');
 % Panel titles: flush on the upper-left corner of the corresponding image
 title_gap = 10;                            % Gap above the image [px]
 panel_pos = {pos_3d_px, pos_xz_px, pos_3df_px, pos_xzf_px};
-panel_str = {'{\bf a}  3-D view', '{\bf b}  XZ view', ...
-             '{\bf c}  Co-moving 3-D view', '{\bf d}  Co-moving XZ view'};
 for ip = 1:4
     pp = panel_pos{ip};
     text(ax_ov, pp(1), pp(2) + pp(4) + title_gap, panel_str{ip}, ...
@@ -610,6 +727,8 @@ for ir = 1:leg_rows
         if ie == 1                                     % Body
             patch(ax_ov, x_c + [0 leg_key_w leg_key_w 0], y_c + [-8 -8 8 8], body_color, ...
                   'FaceAlpha', 0.55, 'EdgeColor', 'none');
+            patch(ax_ov, x_c + [0 leg_key_w leg_key_w 0], y_c + [-2.5 -2.5 2.5 2.5], stripe_color, ...
+                  'FaceAlpha', stripe_alpha, 'EdgeColor', 'none');
         elseif ie <= 1 + M_pili                        % Pilus k
             line(ax_ov, x_c + [0 leg_key_w], y_c * [1 1], ...
                  'Color', pili_colors(ie - 1, :), 'LineWidth', lw_pilus);
@@ -631,8 +750,6 @@ hold(ax_ov, 'off');
 stage_s.setup = toc(t_stage);
 
 %% ---- Frame loop: update data only ----
-sb_off    = 0.86 * win_half_um;    % Scale-bar corner offset from window centre, panel d [um]
-sb_off_3d = 0.88 * view_half_um;   % Same for panel c (screen coordinates) [um]
 for fi = 1:n_frames
     ti = frame_indices(fi);
 
@@ -678,26 +795,17 @@ for fi = 1:n_frames
     end
 
     % --- Co-moving windows follow the centre of mass ---
-    cm_row = cm_um(:).';
-    % Panel c: limits + manual orthographic camera (target = CM)
-    set(ax_3df, 'XLim', cm_row(1) + cube_half_um * [-1 1], ...
-                'YLim', cm_row(2) + cube_half_um * [-1 1], ...
-                'ZLim', cm_row(3) + cube_half_um * [-1 1], ...
-                'CameraTarget', cm_row, ...
-                'CameraPosition', cm_row + cam_dist * cam_dir);
-    p0 = cm_row - sb_off_3d * cam_right + sb_off_3d * cam_up_s;   % Scale-bar start (screen upper-left)
-    p1 = p0 + scale_bar_um * cam_right;
-    set(h_sb_3df, 'XData', [p0(1) p1(1)], 'YData', [p0(2) p1(2)], 'ZData', [p0(3) p1(3)]);
-    pt = (p0 + p1) / 2 - 0.03 * view_half_um * cam_up_s;          % Label below the bar
-    set(h_sbt_3df, 'Position', pt);
+    cm_row  = cm_um(:).';
+    box_ctr = cm_row + win_off_um;                % Centre of the co-moving box
+    % Panel c: limits + manual orthographic camera (target = box centre)
+    set(ax_3df, 'XLim', box_ctr(1) + win_half_um(1) * [-1 1], ...
+                'YLim', box_ctr(2) + win_half_um(2) * [-1 1], ...
+                'ZLim', box_ctr(3) + win_half_um(3) * [-1 1], ...
+                'CameraTarget', box_ctr, ...
+                'CameraPosition', box_ctr + cam_dist * cam_dir);
     % Panel d: limits only (view along Y, orthographic)
-    set(ax_xzf, 'XLim', cm_row(1) + win_half_um * [-1 1], ...
-                'ZLim', cm_row(3) + win_half_um * [-1 1]);
-    set(h_sb_xzf, 'XData', cm_row(1) - sb_off + [0 scale_bar_um], ...
-                  'YData', ax_lim_y([1 1]), ...
-                  'ZData', (cm_row(3) - sb_off) * [1 1]);
-    set(h_sbt_xzf, 'Position', [cm_row(1) - sb_off + scale_bar_um / 2, ax_lim_y(1), ...
-                                cm_row(3) - sb_off + 0.03 * win_half_um]);
+    set(ax_xzf, 'XLim', box_ctr(1) + win_half_um(1) * [-1 1], ...
+                'ZLim', box_ctr(3) + win_half_um(3) * [-1 1]);
 
     set(h_time, 'String', sprintf('{\\itt} = %.4f s', results.t(ti)));
     stage_s.update = stage_s.update + toc(t_stage);
@@ -760,12 +868,103 @@ end
 info = struct('file', anim_file, 'filename', anim_filename, ...
               'n_frames', n_frames, 'elapsed_s', t_anim_elapsed, ...
               'stage_s', stage_s, 'window_half_um', win_half_um, ...
+              'window_offset_um', win_off_um, ...
               'playback_speed', playback_speed);
 
 end
 
 
 %% ==================== Local Functions ====================
+
+function trees = enum_layout_trees(order)
+%ENUM_LAYOUT_TREES  All binary guillotine layouts of the panels in the given order
+%  A leaf is a panel index; an inner node is a struct with the split
+%  orientation o ('H': side by side, 'V': stacked) and the two sub-layouts.
+    n = numel(order);
+    if n == 1
+        trees = {order};
+        return
+    end
+    trees = {};
+    for k = 1:n - 1
+        L = enum_layout_trees(order(1:k));
+        R = enum_layout_trees(order(k+1:end));
+        for il = 1:numel(L)
+            for ir = 1:numel(R)
+                for o = 'HV'
+                    trees{end+1} = struct('o', o, 'l', L(il), 'r', R(ir)); %#ok<AGROW>
+                end
+            end
+        end
+    end
+end
+
+function [w, h] = layout_size(t, s, g, lay)
+%LAYOUT_SIZE  Size [px] of the box of a (sub-)layout at scale s and gap g
+%  The box of a panel is its rectangle (scaled by s) plus the label margins;
+%  it is at least as wide as the panel title.
+    if ~isstruct(t)
+        w = max(s * lay.rect(t, 1) + lay.marg(t, 1) + lay.marg(t, 2), ...
+                lay.marg(t, 1) + lay.title_w(t) + 10);
+        h = s * lay.rect(t, 2) + lay.marg(t, 3) + lay.marg(t, 4);
+        return
+    end
+    [w1, h1] = layout_size(t.l, s, g, lay);
+    [w2, h2] = layout_size(t.r, s, g, lay);
+    if t.o == 'H'
+        w = w1 + w2 + g;   h = max(h1, h2);
+    else
+        w = max(w1, w2);   h = h1 + h2 + g;
+    end
+end
+
+function s = max_layout_scale(t, g, reg_w, reg_h, lay)
+%MAX_LAYOUT_SCALE  Largest common scale (<= 2) at which the layout fits the region
+    s_lo = 0.2;  s_hi = 2;
+    [w, h] = layout_size(t, s_hi, g, lay);
+    if w <= reg_w && h <= reg_h
+        s = s_hi;
+        return
+    end
+    for it = 1:22
+        s_mid = (s_lo + s_hi) / 2;
+        [w, h] = layout_size(t, s_mid, g, lay);
+        if w <= reg_w && h <= reg_h, s_lo = s_mid; else, s_hi = s_mid; end
+    end
+    s = s_lo;
+end
+
+function rects = place_layout(t, x, ytop, wa, s, g, lay, rects)
+%PLACE_LAYOUT  Axes rectangles [x y w h] (origin bottom-left) of all panels
+%  (x, ytop) is the top-left corner and wa the allocated width of the box of
+%  the sub-layout.  Side by side boxes are top-aligned, stacked boxes centred.
+    if ~isstruct(t)
+        [wo, ~] = layout_size(t, s, g, lay);
+        bx = x + (wa - wo) / 2;
+        rw = s * lay.rect(t, 1);   rh = s * lay.rect(t, 2);
+        rects(t, :) = [bx + lay.marg(t, 1), ytop - lay.marg(t, 4) - rh, rw, rh];
+        return
+    end
+    [w1, h1] = layout_size(t.l, s, g, lay);
+    [w2, ~]  = layout_size(t.r, s, g, lay);
+    if t.o == 'H'
+        rects = place_layout(t.l, x, ytop, w1, s, g, lay, rects);
+        rects = place_layout(t.r, x + w1 + g, ytop, w2, s, g, lay, rects);
+    else
+        wn = max(w1, w2);
+        rects = place_layout(t.l, x, ytop, wn, s, g, lay, rects);
+        rects = place_layout(t.r, x, ytop - h1 - g, wn, s, g, lay, rects);
+    end
+end
+
+function str = layout_desc(t)
+%LAYOUT_DESC  Text form of a layout, e.g. H(a,V(b,H(c,d)))
+    if ~isstruct(t)
+        str = char('a' + t - 1);
+    else
+        str = sprintf('%s(%s,%s)', t.o, layout_desc(t.l), layout_desc(t.r));
+    end
+end
 
 function v = get_opt(S, fname, default_val)
 %GET_OPT  Return S.(fname) if present and non-empty, else default_val
@@ -809,19 +1008,21 @@ function configure_overview_3d(ax, lim_x, lim_y, lim_z, az, el, proj_short)
             'CameraViewAngle', 2 * atand(proj_short / 2 / cam_dist));
 end
 
-function [cam_dir, cam_up, cam_right, cam_up_s, view_half] = ...
-        setup_follow_3d(ax, cm_row, cube_half, az, el, cam_dist, lw, fs_tick, fs_label)
-%SETUP_FOLLOW_3D  Orthographic co-moving 3-D window centred on cm_row
-%  The axes box is a cube of half-width cube_half [um] around cm_row, with
-%  ticks, tick labels, grid and axis labels (lab-frame coordinates).  The
-%  camera is placed manually and zoomed so that the projected cube just fills
-%  the square axes.
-%  Outputs: unit vector target -> camera and camera up vector (as defined by
-%  view(ax, az, el)), the screen right / up unit vectors in data space, and the
-%  half-width of the visible square [um] (orthographic scale).
-    xlim(ax, cm_row(1) + cube_half * [-1 1]);
-    ylim(ax, cm_row(2) + cube_half * [-1 1]);
-    zlim(ax, cm_row(3) + cube_half * [-1 1]);
+function [cam_dir, cam_up, cam_right, cam_up_s] = ...
+        setup_follow_3d(ax, ctr, half_um, az, el, cam_dist, proj_short, lw, fs_tick, fs_label)
+%SETUP_FOLLOW_3D  Orthographic co-moving 3-D window around the box centre ctr
+%  The axes box has the half-extents half_um = [hx hy hz] [um] around ctr (not
+%  necessarily a cube; equal scale on all axes), with ticks, tick labels, grid
+%  and axis labels (lab-frame coordinates).  The camera is placed manually and
+%  zoomed so that the projected box fills the axes rectangle, whose aspect ratio
+%  equals that of the projected box: MATLAB maps CameraViewAngle to the SHORTER
+%  side of the axes, so the field of view is set to proj_short [um], the shorter
+%  side of the projected box.
+%  Outputs: unit vector target -> camera, camera up vector (as defined by
+%  view(ax, az, el)), and the screen right / up unit vectors in data space.
+    xlim(ax, ctr(1) + half_um(1) * [-1 1]);
+    ylim(ax, ctr(2) + half_um(2) * [-1 1]);
+    zlim(ax, ctr(3) + half_um(3) * [-1 1]);
     set(ax, 'DataAspectRatio', [1 1 1], 'Projection', 'orthographic');
     view(ax, az, el);
     pos0 = get(ax, 'CameraPosition');
@@ -832,23 +1033,22 @@ function [cam_dir, cam_up, cam_right, cam_up_s, view_half] = ...
     cam_fwd   = -cam_dir;
     cam_right = cross(cam_fwd, cam_up);    cam_right = cam_right / norm(cam_right);
     cam_up_s  = cross(cam_right, cam_fwd); cam_up_s  = cam_up_s / norm(cam_up_s);
-    % Half-extent of the projected cube along screen right / up (+2 % margin)
-    view_half = 1.02 * cube_half * max(sum(abs(cam_right)), sum(abs(cam_up_s)));
-    set(ax, 'CameraTarget', cm_row, ...
-            'CameraPosition', cm_row + cam_dist * cam_dir, ...
+    set(ax, 'CameraTarget', ctr, ...
+            'CameraPosition', ctr + cam_dist * cam_dir, ...
             'CameraUpVector', cam_up, ...
-            'CameraViewAngle', 2 * atand(view_half / cam_dist));
+            'CameraViewAngle', 2 * atand(proj_short / 2 / cam_dist));
     set_window_axes(ax, lw, fs_tick, fs_label, true);
 end
 
-function setup_follow_xz(ax, cm_row, half_um, lim_y, lw, fs_tick, fs_label)
-%SETUP_FOLLOW_XZ  Orthographic co-moving XZ window (view along Y) centred on cm_row
-%  Axes box with ticks, tick labels, grid and axis labels (lab-frame
+function setup_follow_xz(ax, ctr, half_um, lim_y, lw, fs_tick, fs_label)
+%SETUP_FOLLOW_XZ  Orthographic co-moving XZ window (view along Y) around the box centre ctr
+%  Axes box with half-extents half_um(1) (X) and half_um(3) (Z), equal scale on
+%  both axes, with ticks, tick labels, grid and axis labels (lab-frame
 %  coordinates).  The Y range stays fixed to the global range so that nothing is
 %  clipped along the viewing direction.
-    xlim(ax, cm_row(1) + half_um * [-1 1]);
+    xlim(ax, ctr(1) + half_um(1) * [-1 1]);
     ylim(ax, lim_y);
-    zlim(ax, cm_row(3) + half_um * [-1 1]);
+    zlim(ax, ctr(3) + half_um(3) * [-1 1]);
     set(ax, 'DataAspectRatio', [1 1 1], 'Projection', 'orthographic');
     view(ax, 0, 0);
     set_window_axes(ax, lw, fs_tick, fs_label, false);

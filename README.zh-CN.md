@@ -4,8 +4,8 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-10-18
-> **版本:** 8.6.2
+> **更新日期:** 2026-10-19
+> **版本:** 8.6.3
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -104,7 +104,7 @@ cfg.auto_confirm = true;
 | [`src/physics/sample_brownian_body_force.m`](src/physics/sample_brownian_body_force.m) | 每个 Brownian 区间的广义热力（布朗增量的力实现）。 |
 | [`src/physics/background_flow_velocity.m`](src/physics/background_flow_velocity.m) | 共享背景流速度求值器（求解器与流场绘图共用）。 |
 | [`src/visualization/compute_plot_flowfield.m`](src/visualization/compute_plot_flowfield.m) | 在实际达到的终止时间进行末状态流场计算与图像导出。 |
-| [`src/visualization/render_motion_animation.m`](src/visualization/render_motion_animation.m) | 共用的四面板运动动画渲染器（3D 与 XZ 总览，加上跟随质心的 3D 与 XZ 窗口，含图例、比例尺、带播放速度的时间戳）：图形对象只创建一次，逐帧仅更新数据；输出分阶段耗时日志。 |
+| [`src/visualization/render_motion_animation.m`](src/visualization/render_motion_animation.m) | 共用的四面板运动动画渲染器（3D 与 XZ 总览，加上跟随质心的 3D 与 XZ 窗口，含图例、比例尺、胞体滚转标记条纹、带播放速度的时间戳）：图形对象只创建一次，逐帧仅更新数据；输出分阶段耗时日志。 |
 | [`src/visualization/add_gravity_indicator_outside.m`](src/visualization/add_gravity_indicator_outside.m) | 预览图、汇总图和动画图共用的重力箭头标注（可选参数 `head_scale`）。 |
 
 ## 文档导航
@@ -119,7 +119,9 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **8.6.2 (2026-10-18)**，为面向论文的动画版面更新。运动动画现为固定 16:9 画布（2560 x 1440 逻辑像素）上的四个面板：**a** 3D 总览，**b** 带 2 μm 比例尺的 XZ 总览，**c** 跟随质心的 3D 窗口，**d** 跟随质心的 XZ 窗口（c、d 以恒定放大倍数居中于质心）；YZ 面板已移除。窗口 c、d 带实验室坐标系下的刻度、刻度标签和网格，因此网格会从细菌旁边滑过。新增图例（胞体、每根菌毛、质心、轨迹）、带模拟时间和相对真实时间播放速度的全局时间戳、紧贴各图像左上角的面板标题、比例尺，并加大了字号和线宽；重力箭头仅保留在面板 a，轨迹仅在 a、b 中绘制。视频尺寸改为固定的 16:9 画布，不再随数据变化。**仿真结果不变。**
+当前版本为 **8.6.3 (2026-10-19)**，为动画版面精修更新。跟随质心的窗口 c、d 不再是立方体/正方形：沿每个实验室坐标轴，窗口范围取所有帧中胞体和全部菌毛触及的范围再加余量，X、Y、Z 三轴比例相同（不拉伸、不压缩），细菌占据窗口主体；窗口不再带比例尺（面板 b 仍保留 2 μm 比例尺）。胞体上新增两条随胞体转动的深色纵向条纹，因此可以看出绕长轴的转动。四个面板的排版自动选取：程序尝试所有 guillotine 排列，选出能使公共缩放系数最大的一种（日志中记为如 `Layout H(a,H(b,V(c,d)))`），因此细长、扁平或紧凑的细菌都不会在画面上留下大片空白。`render_motion_animation` 返回的 `info.window_half_um` 现为 `[hx hy hz]` 向量，并新增 `info.window_offset_um`。**仿真结果不变。**
+
+**8.6.2 (2026-10-18)** 为面向论文的动画版面更新。运动动画为固定 16:9 画布（2560 x 1440 逻辑像素）上的四个面板：**a** 3D 总览，**b** 带 2 μm 比例尺的 XZ 总览，**c** 跟随质心的 3D 窗口，**d** 跟随质心的 XZ 窗口（c、d 以恒定放大倍数居中于质心）；YZ 面板已移除。窗口 c、d 带实验室坐标系下的刻度、刻度标签和网格，因此网格会从细菌旁边滑过。新增图例（胞体、每根菌毛、质心、轨迹）、带模拟时间和相对真实时间播放速度的全局时间戳、紧贴各图像左上角的面板标题、比例尺，并加大了字号和线宽；重力箭头仅保留在面板 a，轨迹仅在 a、b 中绘制。视频尺寸改为固定的 16:9 画布，不再随数据变化。**仿真结果不变。**
 
 **8.6.0 (2026-10-17)** 为动画渲染性能更新。其三面板（3D + XZ + YZ）运动动画由共用的 [`src/visualization/render_motion_animation.m`](src/visualization/render_motion_animation.m) 渲染：所有图形对象只创建一次，逐帧仅更新数据（此前每帧都执行 `cla` 并重建整个场景）；101 帧测试的渲染时间由约 28 s 降至约 13 s，视频内容、分辨率和画质不变。`run_simulation.m` 与 `run_simulation_HPC_Linux.m` 现共用该实现（按平台选择 `MPEG-4` / `Motion JPEG AVI` 档位），`simulation.log` 新增分阶段耗时表，[`post_processing/render_animation_from_results.m`](post_processing/render_animation_from_results.m) 可根据已保存的 `simulation_results.mat` 重新渲染动画而无需重跑 ODE。同时修复了 XZ/YZ 面板边框线逐帧累积隐藏重复对象的缺陷。**仿真结果不变。**
 

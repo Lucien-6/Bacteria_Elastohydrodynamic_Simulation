@@ -1,6 +1,13 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 8.6.2 (2026-10-18)
+# Release: 8.6.3 (2026-10-19)
+#
+# v8.6.3: Animation-layout refinement release. The co-moving windows of the
+#   motion animation are sized per axis from the reach of the body and pili
+#   (equal scale on all axes, no longer cubes) and carry no scale bar; two dark
+#   stripes on the body show a roll about the long axis; the four panels are
+#   arranged automatically (largest common scale over all guillotine layouts).
+#   Simulation results unchanged.  No new dependency.
 #
 # v8.6.2: Animation-layout release. The motion animation has four panels on a
 #   fixed 16:9 canvas (3-D and XZ overviews plus co-moving 3-D and XZ windows

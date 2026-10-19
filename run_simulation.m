@@ -99,8 +99,10 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %           src/visualization/render_motion_animation.m (graphics objects created once,
 %           only data updated per frame; video content unchanged)
 %  Updated: 2026-10-18 — v8.6.2 animation layout: 4 panels (overviews + co-moving
-%           windows), legend, scale bars, time stamp with playback speed
-%  Log banner version: 8.6.2 (2026-10-18) - emitted via project_version(); keep README / CHANGELOG in sync
+%           windows), legend, scale bar, time stamp with playback speed
+%  Updated: 2026-10-19 — v8.6.3 animation: windows sized per axis from the reach of the
+%           bacterium, roll-marker stripes on the body, adaptive panel layout
+%  Log banner version: 8.6.3 (2026-10-19) - emitted via project_version(); keep README / CHANGELOG in sync
 %
 %  Path policy: defensive addpath calls here allow run_simulation(cfg) without
 %  main_coupled_simulation.m.  Standalone drivers in batch_sweep/ and

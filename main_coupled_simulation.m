@@ -36,7 +36,7 @@
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
 %  Updated: 2026-09-04
-%  Documentation release: 8.6.2 (2026-10-18) - see README.md / CHANGELOG.md
+%  Documentation release: 8.6.3 (2026-10-19) - see README.md / CHANGELOG.md
 
 close all force;
 clear; clc;
@@ -139,7 +139,7 @@ else
         % pili_config(1).root_coupling = 'clamped';
         pili_config(1).root_coupling = 'free_torsion';
         pili_config(1).motor_torque  = struct('type','constant', ...
-            'torque_pN_nm', -1, 'max_omega_Hz', 500);
+            'torque_pN_nm', -100, 'max_omega_Hz', 500);
 
         [cfg.Pili_Matrix, cfg.pili_ext] = parse_pili_config(pili_config);
 
@@ -244,12 +244,13 @@ else
     % -------- Simulation Time & Numerics --------
     % NOTE: T_obs / dt below are tuned for the high-frequency motor demo;
     % the JSON loader fallback defaults are T_obs = 30 s, dt = 0.1 s for sinking studies.
-    cfg.T_obs  = 5;                    % [s]   Total observation time
+    cfg.T_obs  = 3;                    % [s]   Total observation time
     cfg.AbsTol = 1e-4;                    % ODE absolute tolerance
     cfg.RelTol = 1e-4;                    % ODE relative tolerance
     cfg.delta  = pi / 20;                 % [rad] Euler angle singularity threshold
-    cfg.tlim   = 3600;                    % [s]   ODE timeout limit
-    cfg.dt     = 1e-2;                    % [s]   Output time step
+    cfg.tlim   = 3600*72;                    % [s]   ODE timeout limit
+    cfg.dt     = 1e-3;                    %
+    % [s]   Output time step
 
     % -------- Brownian Motion --------
     cfg.enable_brown     = false;          % true = enable Brownian motion

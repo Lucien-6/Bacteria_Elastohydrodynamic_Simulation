@@ -34,7 +34,7 @@ function info = render_animation_from_results(mat_file, fps, skip)
 %  Outputs:
 %    info - Structure returned by render_motion_animation (fields: file,
 %           filename, n_frames, elapsed_s, stage_s, window_half_um,
-%           playback_speed); empty when the file selection is cancelled.
+%           window_offset_um, playback_speed); empty when the file selection is cancelled.
 %
 %  Platform and requirements:
 %    MATLAB R2018b+ (min/max over multiple dimensions); the MPEG-4 profile
@@ -43,6 +43,7 @@ function info = render_animation_from_results(mat_file, fps, skip)
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-10-17
 %  Updated: 2026-10-18 — header follows the 4-panel layout of the renderer
+%  Updated: 2026-10-19 — info gains window_offset_um (v8.6.3)
 
 info = [];
 

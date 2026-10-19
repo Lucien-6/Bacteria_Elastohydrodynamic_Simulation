@@ -12,6 +12,74 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [8.6.3] — 2026-10-19
+
+Animation-layout refinement.  **No change to simulation results.**  The animation
+video changes (window ranges, body colouring, arrangement of the panels), so videos
+rendered by 8.6.3 are not pixel-comparable with those of 8.6.2.
+
+### Changed
+
+- **Co-moving windows (c, d) are no longer cubes / squares.**  Along each lab axis
+  the box extent is the reach of the body and all pili over all frames (relative
+  to the centre of mass) plus an 8 % margin (at least 0.1 μm), centred on the
+  occupied range (constant offset from the centre of mass), so the bacterium fills
+  the window and its shape is visible.  The scale is equal on X, Y and Z (nothing
+  is stretched or compressed); the axes rectangle of each window has the aspect
+  ratio of its box (panel c: orthographic projection with a manual camera whose
+  field of view is the shorter side of the projected box; panel d: XZ).
+  Previously panel d was a square of half-width 1.15 x the largest distance from
+  the centre of mass and panel c a cube of half-width 1.05 x that distance.
+- **No scale bar in panels c and d** (panel b keeps its 2-μm scale bar,
+  `opts.scale_bar_um`).
+- **Adaptive panel layout.**  The four axes rectangles keep their natural aspect
+  ratios and relative sizes (panels a, b: 810 x 1076 px; panels c, d: 440 x 478 px
+  at scale 1), but their arrangement on the canvas is chosen automatically: all
+  guillotine arrangements (nested side-by-side / stacked splits) of the panels in
+  the reading orders a-b-c-d, a-c-b-d and a-c-d-b are evaluated; the one that fits
+  the largest common scale factor (at most 2) of the four rectangles into the free
+  canvas region, including the space for tick labels, titles and the gravity arrow,
+  wins.  The slack is spread over the gaps (up to 120 px) and the group is centred.
+  This removes the large empty areas that the former fixed "a | b | c over d"
+  template left for elongated, flat or very wide / tall trajectories.  The chosen
+  arrangement and scale are written to the log, for example
+  `Layout H(a,H(b,V(c,d))): scale 0.98` (H: side by side, V: stacked).
+
+### Added
+
+- **Roll marker**: two dark longitudinal stripes on the body (a wide one, ±30°,
+  and a narrow one, ±15°, on opposite sides; smooth profile, faded towards the
+  end caps), stored as per-vertex colour and opacity of the body surface, so a
+  rotation about the long axis is visible in every panel at no extra cost per
+  frame (custom bodies: long axis = principal axis of the vertex cloud).  The
+  legend entry reads "Body (dark stripes mark roll)".
+- `render_motion_animation` returns `info.window_offset_um` (centre of the
+  co-moving box relative to the centre of mass, 1 x 3, μm); the log reports the box
+  half-extents and the offset.
+
+### Compatibility
+
+- `info.window_half_um` is now a 1 x 3 vector `[hx hy hz]` (half-extents of the
+  co-moving box, μm) instead of a scalar.
+- Simulation results, `simulation_results.mat`, CSV and all figures other than the
+  motion animation are unchanged.  The static preview and summary figures keep the
+  uniform body colour.
+- No new dependency; the animation still needs MATLAB R2018b or newer.
+- The Linux `Motion JPEG AVI` branch could not be exercised on the Windows
+  development machine.
+
+### Documentation
+
+- `project_version.m` bumped to 8.6.3 (2026-10-19); README (EN/ZH), USER_GUIDE
+  (EN/ZH), theory (EN/ZH), `requirements.txt`, the project website and presentation
+  version strings, and the headers of `run_simulation*.m`,
+  `main_coupled_simulation.m`, `render_motion_animation.m` and
+  `render_animation_from_results.m` updated.  The animation descriptions now
+  cover the per-axis window ranges, the roll-marker stripes, the missing scale bar
+  in c and d and the automatic arrangement.
+
+---
+
 ## [8.6.2] — 2026-10-18
 
 Publication-oriented animation layout.  **No change to simulation results.**  The
