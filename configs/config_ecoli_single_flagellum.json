@@ -1,0 +1,118 @@
+{
+    "case_name": "Ecoli-Single-Polar-Flagellum",
+
+    "geometry_mode": "custom",
+
+    "_comment_case": [
+        "Realistic E. coli swimming case: one left-handed helical filament at the tail",
+        "pole, driven by a rotary motor (free_torsion root + constant stall torque with",
+        "linear speed limit).  The cell swims in +X with the flagellum trailing behind.",
+        "Regenerate the CSV files with geometry/generate_ecoli_geometry.m.",
+        "Run: set config_file = 'configs/config_ecoli_single_flagellum.json' in",
+        "main_coupled_simulation.m (or call load_sim_config + run_simulation)."
+    ],
+
+    "custom_geometry": {
+        "_comment_body": "Sphero-cylinder 2.5 um long x 0.88 um diameter (Berg 2004); N_body = 300 requested, laid out by capsule_body_building (326 points actually generated).",
+        "body_points_file": "geometry/ecoli_body_capsule.csv",
+        "L_0_override": null,
+        "L_0_suggest_mode": "volume",
+        "eps_body": null,
+
+        "initial_orientation": {
+            "euler_zyx": [0.0, 0.0, 0.0]
+        },
+
+        "attachment_sites": [
+            {
+                "position": [-1.25e-6, 0, 0],
+                "direction": [-1, 0, 0],
+                "label": "tail_pole"
+            }
+        ],
+
+        "pili": [
+            {
+                "_comment": "Flagellar filament: left-handed helix, pitch 2.22 um, diameter 0.41 um, ~7.6 um contour (Turner et al. 2000).",
+                "points_file": "geometry/ecoli_flagellum_helix.csv",
+                "site_index": 1,
+                "deflection_z": 0,
+                "deflection_x": 0,
+                "intrinsic_curvature": "frozen",
+                "active_moment": { "type": "off" },
+                "root_coupling": "free_torsion",
+                "motor_torque": {
+                    "_comment": "Stall torque ~1300 pN nm, zero-load speed ~300 Hz (Berg 2003; Chen & Berg 2000); linear torque-speed curve.",
+                    "type": "constant",
+                    "torque_pN_nm": 1300,
+                    "max_omega_Hz": 300
+                }
+            }
+        ]
+    },
+
+    "_comment_material": [
+        "Filament radius 10 nm (20 nm diameter).  E is chosen so that the bending",
+        "stiffness EI = E*pi*r^4/4 = 3.5e-24 N m^2 (3.5 pN um^2; Darnton & Berg 2007).",
+        "sigma_p = 0.2 gives GJ = EI/(1+sigma) ~ 2.9e-24 N m^2, within the measured range."
+    ],
+    "material": {
+        "E": 4.46e8,
+        "r_pili": 1e-8,
+        "sigma_p": 0.2
+    },
+
+    "_comment_fluid": "Water at ~20 C.  rho_bac = rho_fluid (neutrally buoyant cell): gravity / sedimentation is switched off.",
+    "fluid": {
+        "mu": 1e-3,
+        "rho_bac": 998.232,
+        "rho_fluid": 998.232
+    },
+
+    "simulation": {
+        "_comment_cost": [
+            "The filament turns at ~150 Hz, so ode15s needs ~70 internal steps per rotation.",
+            "Reference cost (this PC, earlier 205-point body, seg_per_um = 5): ~29 min of wall",
+            "time for 0.2 s of simulated time.  T_obs = 1 s with the 326-point body is not yet",
+            "timed; expect several hours (roughly 5x the simulated time and a larger system)."
+        ],
+        "_comment_dt": "dt sets only the output sampling stride (1 ms = ~7 frames per filament rotation); ode15s adapts its internal step.",
+        "T_obs": 1.0,
+        "AbsTol": 1e-4,
+        "RelTol": 1e-4,
+        "delta_frac": 20,
+        "tlim": 3600,
+        "dt": 0.001,
+        "seg_per_um": 5
+    },
+
+    "brownian": {
+        "enable": false,
+        "temperature": 293.15,
+        "dt_B_ratio": 0.5
+    },
+
+    "output": {
+        "preview_initial": true,
+        "generate_animation": true,
+        "animation_fps": 30,
+        "animation_skip": 1,
+        "auto_confirm": false,
+        "compute_flowfield": false
+    },
+
+    "flowfield": {
+        "grid_spacing_um": 0.05,
+        "grid_range_um": 10.0,
+        "quiver_skip": 5,
+        "chunk_size": 2000
+    },
+
+    "background_flow": {
+        "type": "off",
+        "U_max": 0,
+        "direction": [1, 0, 0],
+        "shear_axis": [0, 0, 1],
+        "shear_height_m": 0
+    }
+}

@@ -12,6 +12,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [8.6.5] — 2026-10-20
+
+Example-case release.  **No change to the solver, and no change to the results of
+existing cases.**
+
+### Added
+
+- **Realistic *E. coli* single-flagellum case** (`configs/config_ecoli_single_flagellum.json`, `geometry/generate_ecoli_geometry.m`, `geometry/ecoli_body_capsule.csv`, `geometry/ecoli_flagellum_helix.csv`).  Custom-geometry case with a 2.5 µm × 0.88 µm sphero-cylinder body (`N_body = 300` requested, laid out by `capsule_body_building`, 326 points generated; neutrally buoyant, `T_obs = 1 s`) and one left-handed helical filament at the tail pole (pitch 2.22 µm, helix diameter 0.41 µm, 3 turns, ≈ 7.6 µm contour, filament radius 10 nm, EI = 3.5 pN·µm²), driven by a `free_torsion` root with a 1300 pN·nm / 300 Hz linear torque-speed motor.  The helix amplitude is ramped over the first half turn so the root leaves the pole along the cell axis.
+
+### Compatibility
+
+- No source file under `src/` changed.  Configurations from 8.6.3 run unchanged.
+
+### Documentation
+
+- `project_version.m` bumped to 8.6.5 (2026-10-20); README (EN/ZH), USER_GUIDE
+  (EN/ZH), theory (EN/ZH), `requirements.txt`, the project website and presentation
+  version strings, and the headers of `run_simulation*.m` and
+  `main_coupled_simulation.m` updated.  The guides now point at the E. coli case.
+
+---
+
 ## [8.6.3] — 2026-10-19
 
 Animation-layout refinement.  **No change to simulation results.**  The animation

@@ -102,7 +102,9 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %           windows), legend, scale bar, time stamp with playback speed
 %  Updated: 2026-10-19 — v8.6.3 animation: windows sized per axis from the reach of the
 %           bacterium, roll-marker stripes on the body, adaptive panel layout
-%  Log banner version: 8.6.3 (2026-10-19) - emitted via project_version(); keep README / CHANGELOG in sync
+%  Updated: 2026-10-20 — v8.6.5 realistic single-flagellum E. coli example case
+%           (no solver or animation change)
+%  Log banner version: 8.6.5 (2026-10-20) - emitted via project_version(); keep README / CHANGELOG in sync
 %
 %  Path policy: defensive addpath calls here allow run_simulation(cfg) without
 %  main_coupled_simulation.m.  Standalone drivers in batch_sweep/ and

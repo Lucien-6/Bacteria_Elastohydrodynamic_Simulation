@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-10-19
-> **Version:** 8.6.3
+> **Updated:** 2026-10-20
+> **Version:** 8.6.5
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -57,7 +57,7 @@ config_file = 'configs/my_case.json';
 main_coupled_simulation
 ```
 
-Use [`configs/config_custom_example.json`](configs/config_custom_example.json) for imported body and pili geometry, and [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json) for free-torsion motor examples.
+Use [`configs/config_custom_example.json`](configs/config_custom_example.json) for imported body and pili geometry, and [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json) for free-torsion motor examples.  A realistic single-flagellum *E. coli* swimmer (2.5 µm × 0.88 µm body, left-handed helical filament with pitch 2.22 µm, motor torque 1300 pN·nm) is provided in [`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json).
 
 For machine-specific cases, keep copied JSON files under a local `configs/` path (for example `configs/my_case.json`). The repository tracks example JSON files under `configs/`; only `output/` is listed in `.gitignore`.
 
@@ -128,7 +128,9 @@ drivers exclude that partial trajectory from steady-state statistics.
 
 ## Version Notes
 
-The current release is **8.6.3 (2026-10-19)**, an animation-layout refinement release. The co-moving windows c and d are no longer cubes / squares: along every lab axis their extent is the reach of the body and all pili over all frames plus a margin, at equal scale on X, Y and Z (nothing is stretched), so the bacterium fills the window; they no longer carry a scale bar (panel b keeps its 2-μm scale bar). The body now carries two dark longitudinal stripes that rotate with it, so a roll about the long axis can be seen. The four panels are arranged automatically: all guillotine arrangements are tried and the one that allows the largest common scale of the panels is chosen (logged as, for example, `Layout H(a,H(b,V(c,d)))`), so the canvas stays compact for elongated, flat and compact bacteria alike. `info.window_half_um` of `render_motion_animation` is now a `[hx hy hz]` vector and `info.window_offset_um` is new. **Simulation results are unchanged.**
+The current release is **8.6.5 (2026-10-20)**, an example-case release. It adds a realistic single-polar-flagellum *E. coli* swimmer as a custom-geometry configuration ([`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json), geometry from [`geometry/generate_ecoli_geometry.m`](geometry/generate_ecoli_geometry.m)): a 2.5 µm × 0.88 µm sphero-cylinder (`N_body = 300` requested, 326 points from `capsule_body_building`), one left-handed helical filament at the tail pole (pitch 2.22 µm, helix diameter 0.41 µm, contour about 7.6 µm, filament radius 10 nm, EI = 3.5 pN·µm²) driven by a free-torsion motor (1300 pN·nm, 300 Hz), neutrally buoyant, with `T_obs = 1 s`. **The solver is unchanged, so the results of existing cases are unchanged.**
+
+**8.6.3 (2026-10-19)** was an animation-layout refinement release. The co-moving windows c and d ceased to be cubes / squares: along every lab axis their extent became the reach of the body and all pili over all frames plus a margin, at equal scale on X, Y and Z, so the bacterium filled the window; they carried no scale bar (panel b kept its 2-μm scale bar). The body carried two dark longitudinal stripes that rotated with it, so a roll about the long axis could be seen. The four panels were arranged automatically: all guillotine arrangements were tried and the one that allowed the largest common scale of the panels was chosen (logged as, for example, `Layout H(a,H(b,V(c,d)))`), so the canvas stayed compact for elongated, flat and compact bacteria alike. `info.window_half_um` of `render_motion_animation` became a `[hx hy hz]` vector and `info.window_offset_um` was added. **Simulation results were unchanged.**
 
 **8.6.2 (2026-10-18)** was a publication-oriented animation-layout release. Its motion animation had four panels on a fixed 16:9 canvas (2560 x 1440 logical px): **a** 3-D overview, **b** XZ overview with a 2-μm scale bar, **c** a co-moving 3-D window and **d** a co-moving XZ window, both centred on the centre of mass at constant magnification; the YZ panel is gone. Windows c and d carry ticks, tick labels and a grid in lab-frame coordinates, so the grid slides past the bacterium. A legend (body, every pilus, centre of mass, trajectory), a global time stamp with the playback speed relative to real time, panel titles flush on the upper-left corner of each image, scale bars and larger fonts / line widths were added; the gravity arrow is kept in panel a and the trajectory is drawn in panels a and b only. The video size became the fixed 16:9 canvas instead of a data-dependent size. **Simulation results are unchanged.**
 

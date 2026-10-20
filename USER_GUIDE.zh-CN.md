@@ -3,11 +3,11 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 8.6.3
-> **更新日期:** 2026-10-19
+> **版本:** 8.6.5
+> **更新日期:** 2026-10-20
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-版本提示：v8.6.3 精修了动画：跟随质心的窗口按细菌在各方向上触及的范围分别确定（不再是立方体）且不带比例尺，胞体上的两条深色条纹使绕长轴的转动可见，四个面板在画布上自动排版；仿真结果不变。v8.6.2 将运动动画改为面向论文的四面板版面（3D 与 XZ 总览，加上带刻度和网格的跟随质心 3D 与 XZ 窗口、图例、2 μm 比例尺、带播放速度的时间戳；YZ 面板已移除），仿真结果不变。v8.6.0 加速了运动动画的渲染（图形对象只创建一次、逐帧仅更新数据），并新增 `render_animation_from_results` 以根据已保存结果重新渲染动画；仿真结果和视频内容不变。v8.5.2 标定了菌毛的水动力半径（`material.hydro_radius_factor`，默认 `sqrt(2)`；见 §4、§7 和 `docs/theory.zh-CN.md` §5.2）：直菌毛的轴向扭转阻力现在等于无滑移圆柱值，而不是它的一半，菌毛平动迁移率与细长体理论相差约 3% 以内，因此带菌毛算例的默认结果略有改变（设 `hydro_radius_factor = 1` 可复现 8.5.1）；无菌毛算例不受影响。v8.5.1 在 Brownian 运行的 `ode15s` 重启之间复用上一次的精确有限差分 Jacobian，多菌毛算例每个 Brownian 节点的耗时降低约 2–3.7 倍（单菌毛约 1.4 倍），差异保持在积分容差以内（见 §8；`cfg.jacobian_reuse = false` 与 v8.5.0 逐位一致）；同时清理运行脚本的代码分析器提示、修复 `verify_migration.m` 并新增 Markdown 检查配置。v8.5.0 改变 body-only 布朗运动的施加方式——每个区间的热增量以恒定广义力经耦合 ODE 实现，取代“位移 kick + 根部重投影”，从而消除每个 Brownian 节点处的纤毛根部伪折点，并使 Ito 漂移隐式生成（见 §8）。即使随机种子相同，Brownian 轨迹也与旧版本不同；确定性算例不受影响。2 型抛物线菌毛模板现在精确锚定于原点（此前首节点偏移约 4 nm/K）。v8.4.0 修正 `free_torsion` 根部扭转方程——马达扭矩现在由整根鞭毛的扭转阻力平衡，而不再只由第 1 段平衡，因此马达驱动算例的稳态转子转速相对旧版约下降为 1/N（N 为分段数，见 §7）；运行前失速诊断改用一致的阻力系数。v8.3.0 将菌毛曲率差分模板改为节点共位的二阶格式，并将 14 个参数化附着位点变换全部改为真旋转、`deflection_x` 改为右手约定。平面菌毛（1–4 型、`deflection_x = 0`）的放置与旧版完全一致；位点 1、2、5、7、10、11、14 上的锥形螺旋菌毛以及任何 `deflection_x` 非零的菌毛现在具有正确（旧版为镜像）的手性——若配置是针对旧几何调参的，请将螺旋参数 `c` 或 `deflection_x` 取反。v8.2.0 为物理正确性更新。鞭毛马达改用以转子相对胞体转速表述的带符号线性扭矩–转速关系并明确符号约定（见 §7）；流场后处理计入背景流；2–5 型菌毛的 `shape_params` 在运行前校验；曲率/力矩输入的单位已写入文档（§4）。v8.1.0 扩展批量后处理（`postprocess_cases`）：在 \(0<\tau\le T/2\) 上拟合三维平移 MSD，并新增 XZ 平面转动扩散 \(D_\mathrm{rot}\)（MSAD）。
+版本提示：v8.6.5 新增接近真实的单根尾部鞭毛大肠杆菌示例（自定义几何、中性浮力、`T_obs = 1 s`）；求解器未改，已有算例的结果不变。v8.6.3 精修了动画：跟随质心的窗口按细菌在各方向上触及的范围分别确定（不再是立方体）且不带比例尺，胞体上的两条深色条纹使绕长轴的转动可见，四个面板在画布上自动排版；仿真结果不变。v8.6.2 将运动动画改为面向论文的四面板版面（3D 与 XZ 总览，加上带刻度和网格的跟随质心 3D 与 XZ 窗口、图例、2 μm 比例尺、带播放速度的时间戳；YZ 面板已移除），仿真结果不变。v8.6.0 加速了运动动画的渲染（图形对象只创建一次、逐帧仅更新数据），并新增 `render_animation_from_results` 以根据已保存结果重新渲染动画；仿真结果和视频内容不变。v8.5.2 标定了菌毛的水动力半径（`material.hydro_radius_factor`，默认 `sqrt(2)`；见 §4、§7 和 `docs/theory.zh-CN.md` §5.2）：直菌毛的轴向扭转阻力现在等于无滑移圆柱值，而不是它的一半，菌毛平动迁移率与细长体理论相差约 3% 以内，因此带菌毛算例的默认结果略有改变（设 `hydro_radius_factor = 1` 可复现 8.5.1）；无菌毛算例不受影响。v8.5.1 在 Brownian 运行的 `ode15s` 重启之间复用上一次的精确有限差分 Jacobian，多菌毛算例每个 Brownian 节点的耗时降低约 2–3.7 倍（单菌毛约 1.4 倍），差异保持在积分容差以内（见 §8；`cfg.jacobian_reuse = false` 与 v8.5.0 逐位一致）；同时清理运行脚本的代码分析器提示、修复 `verify_migration.m` 并新增 Markdown 检查配置。v8.5.0 改变 body-only 布朗运动的施加方式——每个区间的热增量以恒定广义力经耦合 ODE 实现，取代“位移 kick + 根部重投影”，从而消除每个 Brownian 节点处的纤毛根部伪折点，并使 Ito 漂移隐式生成（见 §8）。即使随机种子相同，Brownian 轨迹也与旧版本不同；确定性算例不受影响。2 型抛物线菌毛模板现在精确锚定于原点（此前首节点偏移约 4 nm/K）。v8.4.0 修正 `free_torsion` 根部扭转方程——马达扭矩现在由整根鞭毛的扭转阻力平衡，而不再只由第 1 段平衡，因此马达驱动算例的稳态转子转速相对旧版约下降为 1/N（N 为分段数，见 §7）；运行前失速诊断改用一致的阻力系数。v8.3.0 将菌毛曲率差分模板改为节点共位的二阶格式，并将 14 个参数化附着位点变换全部改为真旋转、`deflection_x` 改为右手约定。平面菌毛（1–4 型、`deflection_x = 0`）的放置与旧版完全一致；位点 1、2、5、7、10、11、14 上的锥形螺旋菌毛以及任何 `deflection_x` 非零的菌毛现在具有正确（旧版为镜像）的手性——若配置是针对旧几何调参的，请将螺旋参数 `c` 或 `deflection_x` 取反。v8.2.0 为物理正确性更新。鞭毛马达改用以转子相对胞体转速表述的带符号线性扭矩–转速关系并明确符号约定（见 §7）；流场后处理计入背景流；2–5 型菌毛的 `shape_params` 在运行前校验；曲率/力矩输入的单位已写入文档（§4）。v8.1.0 扩展批量后处理（`postprocess_cases`）：在 \(0<\tau\le T/2\) 上拟合三维平移 MSD，并新增 XZ 平面转动扩散 \(D_\mathrm{rot}\)（MSAD）。
 
 v8.0.1 在 v8.0.0 之上加固运行期数值诊断。稠密耗散检验改用全谱 `eig`；孤立近奇异（`rcond < 1e-14`）以 `NearSingularMatrix` 告警；`SingularMatrix` 仅在大后向残差（`> 1e-6`）与近奇异 `rcond` 同时成立时中止。诊断快照字段为 `rcond_near_singular_threshold`。
 
@@ -42,6 +42,7 @@ cd('path/to/Coupled_Body_Pili')
 | --- | --- |
 | 快速测试或修改默认示例 | 编辑 [`main_coupled_simulation.m`](main_coupled_simulation.m)。 |
 | 复现或分享一个工况 | 从 [`configs/config_example.json`](configs/config_example.json) 复制 JSON 配置。 |
+| 模拟接近真实的大肠杆菌（单根尾部鞭毛、马达驱动） | 使用 [`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json)；几何文件由 [`geometry/generate_ecoli_geometry.m`](geometry/generate_ecoli_geometry.m) 生成。 |
 | 导入自定义胞体和纤毛几何 | 使用 [`configs/config_custom_example.json`](configs/config_custom_example.json)。 |
 | 测试自由扭转马达鞭毛 | 使用 [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json)。 |
 | 无人值守运行多个工况 | 调用 [`run_simulation.m`](run_simulation.m)，并设置 `cfg.auto_confirm = true`。 |

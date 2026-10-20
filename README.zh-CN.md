@@ -4,8 +4,8 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-10-19
-> **版本:** 8.6.3
+> **更新日期:** 2026-10-20
+> **版本:** 8.6.5
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -53,7 +53,7 @@ config_file = 'configs/my_case.json';
 main_coupled_simulation
 ```
 
-自定义胞体和纤毛几何可参考 [`configs/config_custom_example.json`](configs/config_custom_example.json)；自由扭转马达鞭毛可参考 [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json)。
+自定义胞体和纤毛几何可参考 [`configs/config_custom_example.json`](configs/config_custom_example.json)；自由扭转马达鞭毛可参考 [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json)。接近真实的单根尾部鞭毛大肠杆菌游动案例（胞体 2.5 µm × 0.88 µm，左手螺旋鞭毛丝、螺距 2.22 µm，马达扭矩 1300 pN·nm）见 [`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json)。
 
 ### 方式 C：程序化调用
 
@@ -119,7 +119,9 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **8.6.3 (2026-10-19)**，为动画版面精修更新。跟随质心的窗口 c、d 不再是立方体/正方形：沿每个实验室坐标轴，窗口范围取所有帧中胞体和全部菌毛触及的范围再加余量，X、Y、Z 三轴比例相同（不拉伸、不压缩），细菌占据窗口主体；窗口不再带比例尺（面板 b 仍保留 2 μm 比例尺）。胞体上新增两条随胞体转动的深色纵向条纹，因此可以看出绕长轴的转动。四个面板的排版自动选取：程序尝试所有 guillotine 排列，选出能使公共缩放系数最大的一种（日志中记为如 `Layout H(a,H(b,V(c,d)))`），因此细长、扁平或紧凑的细菌都不会在画面上留下大片空白。`render_motion_animation` 返回的 `info.window_half_um` 现为 `[hx hy hz]` 向量，并新增 `info.window_offset_um`。**仿真结果不变。**
+当前版本为 **8.6.5 (2026-10-20)**，为示例案例更新。新增接近真实的单根尾部鞭毛大肠杆菌游动配置（[`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json)，几何由 [`geometry/generate_ecoli_geometry.m`](geometry/generate_ecoli_geometry.m) 生成）：胞体为 2.5 µm × 0.88 µm 球柱形（请求 `N_body = 300`，`capsule_body_building` 实际生成 326 点），尾极一根左手螺旋鞭毛丝（螺距 2.22 µm，螺旋直径 0.41 µm，弧长约 7.6 µm，丝半径 10 nm，EI = 3.5 pN·µm²），由自由扭转马达驱动（1300 pN·nm、300 Hz），中性浮力，`T_obs = 1 s`。**求解器未改，已有算例的结果不变。**
+
+**8.6.3 (2026-10-19)** 为动画版面精修更新。跟随质心的窗口 c、d 改为按各轴触及范围确定，不再是立方体/正方形：沿每个实验室坐标轴，窗口范围取所有帧中胞体和全部菌毛触及的范围再加余量，X、Y、Z 三轴比例相同，细菌占据窗口主体；窗口不带比例尺（面板 b 仍保留 2 μm 比例尺）。胞体上有两条随胞体转动的深色纵向条纹，因此可以看出绕长轴的转动。四个面板的排版自动选取：程序尝试所有 guillotine 排列，选出能使公共缩放系数最大的一种（日志中记为如 `Layout H(a,H(b,V(c,d)))`）。`render_motion_animation` 返回的 `info.window_half_um` 为 `[hx hy hz]` 向量，并新增 `info.window_offset_um`。**仿真结果不变。**
 
 **8.6.2 (2026-10-18)** 为面向论文的动画版面更新。运动动画为固定 16:9 画布（2560 x 1440 逻辑像素）上的四个面板：**a** 3D 总览，**b** 带 2 μm 比例尺的 XZ 总览，**c** 跟随质心的 3D 窗口，**d** 跟随质心的 XZ 窗口（c、d 以恒定放大倍数居中于质心）；YZ 面板已移除。窗口 c、d 带实验室坐标系下的刻度、刻度标签和网格，因此网格会从细菌旁边滑过。新增图例（胞体、每根菌毛、质心、轨迹）、带模拟时间和相对真实时间播放速度的全局时间戳、紧贴各图像左上角的面板标题、比例尺，并加大了字号和线宽；重力箭头仅保留在面板 a，轨迹仅在 a、b 中绘制。视频尺寸改为固定的 16:9 画布，不再随数据变化。**仿真结果不变。**
 

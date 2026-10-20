@@ -1,6 +1,12 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 8.6.3 (2026-10-19)
+# Release: 8.6.5 (2026-10-20)
+#
+# v8.6.5: Example-case release. Adds a realistic single-polar-flagellum E. coli
+#   swimmer (configs/config_ecoli_single_flagellum.json, geometry from
+#   geometry/generate_ecoli_geometry.m): 2.5 um x 0.88 um body, left-handed
+#   helical filament, free-torsion motor, neutrally buoyant, T_obs = 1 s.
+#   No solver change and no new dependency; results of existing cases unchanged.
 #
 # v8.6.3: Animation-layout refinement release. The co-moving windows of the
 #   motion animation are sized per axis from the reach of the body and pili
