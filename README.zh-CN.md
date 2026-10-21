@@ -4,8 +4,8 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-10-20
-> **版本:** 8.6.5
+> **更新日期:** 2026-10-21
+> **版本:** 8.6.6
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -104,7 +104,7 @@ cfg.auto_confirm = true;
 | [`src/physics/sample_brownian_body_force.m`](src/physics/sample_brownian_body_force.m) | 每个 Brownian 区间的广义热力（布朗增量的力实现）。 |
 | [`src/physics/background_flow_velocity.m`](src/physics/background_flow_velocity.m) | 共享背景流速度求值器（求解器与流场绘图共用）。 |
 | [`src/visualization/compute_plot_flowfield.m`](src/visualization/compute_plot_flowfield.m) | 在实际达到的终止时间进行末状态流场计算与图像导出。 |
-| [`src/visualization/render_motion_animation.m`](src/visualization/render_motion_animation.m) | 共用的四面板运动动画渲染器（3D 与 XZ 总览，加上跟随质心的 3D 与 XZ 窗口，含图例、比例尺、胞体滚转标记条纹、带播放速度的时间戳）：图形对象只创建一次，逐帧仅更新数据；输出分阶段耗时日志。 |
+| [`src/visualization/render_motion_animation.m`](src/visualization/render_motion_animation.m) | 共用的四面板运动动画渲染器（3D 与 XZ 总览，加上跟随质心的 3D 与 XZ 窗口，含图例、比例尺、腰部一侧的深绿色短标记、带播放速度的时间戳）：图形对象只创建一次，逐帧仅更新数据；输出分阶段耗时日志。跟随窗口的刻度间隔不细于 0.5 μm。 |
 | [`src/visualization/add_gravity_indicator_outside.m`](src/visualization/add_gravity_indicator_outside.m) | 预览图、汇总图和动画图共用的重力箭头标注（可选参数 `head_scale`）。 |
 
 ## 文档导航
@@ -119,7 +119,9 @@ cfg.auto_confirm = true;
 
 ## 版本说明
 
-当前版本为 **8.6.5 (2026-10-20)**，为示例案例更新。新增接近真实的单根尾部鞭毛大肠杆菌游动配置（[`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json)，几何由 [`geometry/generate_ecoli_geometry.m`](geometry/generate_ecoli_geometry.m) 生成）：胞体为 2.5 µm × 0.88 µm 球柱形（请求 `N_body = 300`，`capsule_body_building` 实际生成 326 点），尾极一根左手螺旋鞭毛丝（螺距 2.22 µm，螺旋直径 0.41 µm，弧长约 7.6 µm，丝半径 10 nm，EI = 3.5 pN·µm²），由自由扭转马达驱动（1300 pN·nm、300 Hz），中性浮力，`T_obs = 1 s`。**求解器未改，已有算例的结果不变。**
+当前版本为 **8.6.6 (2026-10-21)**，为可视化修正。自定义胞体的 alpha shape 现在保留穿过点云的封闭表面，汇总图和动画不再退化成单个面片；大肠杆菌胞体为 326 个顶点、648 个面。跟随窗口 c、d 的刻度间隔不细于 0.5 μm。两条深色条纹改为腰部一侧的一小块深绿色（约占体长 18%，方位角 ±32°），其余胞体仍是均匀浅绿。**求解器未改。参数化算例的结果不变。** 表面网格发生变化的自定义胞体，其包围体积、按体积选取的长度尺度，以及非中性浮力时的沉降力，都会改变。
+
+**8.6.5 (2026-10-20)** 为示例案例更新。新增接近真实的单根尾部鞭毛大肠杆菌游动配置（[`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json)，几何由 [`geometry/generate_ecoli_geometry.m`](geometry/generate_ecoli_geometry.m) 生成）：胞体为 2.5 µm × 0.88 µm 球柱形（请求 `N_body = 300`，`capsule_body_building` 实际生成 326 点），尾极一根左手螺旋鞭毛丝（螺距 2.22 µm，螺旋直径 0.41 µm，弧长约 7.6 µm，丝半径 10 nm，EI = 3.5 pN·µm²），由自由扭转马达驱动（1300 pN·nm、300 Hz），中性浮力，`T_obs = 1 s`。**求解器未改；相对 8.6.3 已有算例的结果不变。**
 
 **8.6.3 (2026-10-19)** 为动画版面精修更新。跟随质心的窗口 c、d 改为按各轴触及范围确定，不再是立方体/正方形：沿每个实验室坐标轴，窗口范围取所有帧中胞体和全部菌毛触及的范围再加余量，X、Y、Z 三轴比例相同，细菌占据窗口主体；窗口不带比例尺（面板 b 仍保留 2 μm 比例尺）。胞体上有两条随胞体转动的深色纵向条纹，因此可以看出绕长轴的转动。四个面板的排版自动选取：程序尝试所有 guillotine 排列，选出能使公共缩放系数最大的一种（日志中记为如 `Layout H(a,H(b,V(c,d)))`）。`render_motion_animation` 返回的 `info.window_half_um` 为 `[hx hy hz]` 向量，并新增 `info.window_offset_um`。**仿真结果不变。**
 

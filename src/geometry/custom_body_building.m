@@ -69,6 +69,7 @@ function [Body_str, body_meta] = custom_body_building(custom_cfg, logf_h)
 %                        alpha scan, cell/struct-array compatible sites.
 %  Updated: 2026-07-03 — Optional logf_h for run_simulation silent mode.
 %  Updated: 2026-07-12
+%  Updated: 2026-10-21 — Alpha scan keeps a closed surface of the whole cloud.
 
 if nargin < 2 || isempty(logf_h)
     logf_h = @(varargin) fprintf(varargin{:});
@@ -131,8 +132,13 @@ logf_h('  [Custom Body] Spacing: h_min = %.4e m, h_mean = %.4e m\n', ...
 %% Automatically triangulate surface (for visualisation + volume)
 [faces, vertices, volume, tri_method, shp] = auto_triangulate_surface(pts, logf_h);
 
-logf_h('  [Custom Body] Triangulation (%s): %d vertices, %d faces\n', ...
-    tri_method, size(vertices, 1), size(faces, 1));
+if strcmp(tri_method, 'alphaShape') && ~isempty(shp)
+    logf_h('  [Custom Body] Triangulation (%s): %d vertices, %d faces, alpha = %.4e m\n', ...
+        tri_method, size(vertices, 1), size(faces, 1), shp.Alpha);
+else
+    logf_h('  [Custom Body] Triangulation (%s): %d vertices, %d faces\n', ...
+        tri_method, size(vertices, 1), size(faces, 1));
+end
 logf_h('  [Custom Body] Enclosed volume: %.4e m^3\n', volume);
 
 % Euler characteristic / closed-surface diagnostic
@@ -248,9 +254,10 @@ end
 function [faces, vertices, volume, method, shp] = auto_triangulate_surface(pts, logf_h)
 %AUTO_TRIANGULATE_SURFACE  Reconstruct triangulated surface from scattered points
 %
-%  Uses alphaShape with a wide logarithmic alpha search.  Falls back to
-%  convhulln if alphaShape fails or produces a non-manifold result.
-%  Computes enclosed volume via the divergence theorem.
+%  Uses alphaShape, scanning upward from the one-region critical alpha for
+%  the tightest closed surface that still contains the point cloud.  Falls
+%  back to convhulln if no such surface is found.  Computes the enclosed
+%  volume via the divergence theorem.
 
     shp    = [];
     method = 'convhulln';
@@ -258,7 +265,7 @@ function [faces, vertices, volume, method, shp] = auto_triangulate_surface(pts, 
         logf_h = @(varargin) fprintf(varargin{:});
     end
 
-    % --- Try alphaShape with expanded logarithmic alpha scan (m12) ---
+    % --- Closed alpha-shape surface (whole cloud, not a local simplex) ---
     [faces, vertices, alpha_ok, shp_try] = try_alpha_shape(pts);
     if alpha_ok
         method = 'alphaShape';
@@ -293,39 +300,55 @@ end
 
 
 function [faces, vertices, ok, shp] = try_alpha_shape(pts)
-%TRY_ALPHA_SHAPE  Attempt alphaShape surface reconstruction with expanded scan
+%TRY_ALPHA_SHAPE  Closed alpha-shape surface through the whole point cloud
+%
+%  The scan starts at the smallest alpha that places every point in one
+%  region and increases from there.  The first candidate kept is a closed
+%  genus-0 triangulation that still uses essentially all input points.
+%  A downward scan is not used: below this alpha the first closed piece can
+%  be a single tetrahedron, which passes a local manifold test and drops
+%  the rest of the body.
 
     ok       = false;
     faces    = zeros(0, 3);
     vertices = pts;
     shp      = [];
+    n_pts    = size(pts, 1);
 
     try
         shp = alphaShape(pts);
-
-        % Try the default alpha first
-        [faces, vertices] = boundaryFacets(shp);
-        if ~isempty(faces) && is_manifold_tri(faces, size(vertices, 1))
-            ok = true;
+        alpha_crit = criticalAlpha(shp, 'one-region');
+        if ~(isfinite(alpha_crit) && alpha_crit > 0)
+            alpha_crit = criticalAlpha(shp, 'all-points');
+        end
+        if ~(isfinite(alpha_crit) && alpha_crit > 0)
             return;
         end
 
-        % Widened logarithmic scan: two orders of magnitude around alpha_crit
-        alpha_crit = criticalAlpha(shp, 'all-points');
-        if isfinite(alpha_crit) && alpha_crit > 0
-            alpha_vals = logspace(log10(0.1 * alpha_crit), ...
-                                   log10(10   * alpha_crit), 15);
-            for ai = 1:numel(alpha_vals)
-                shp.Alpha = alpha_vals(ai);
-                [faces, vertices] = boundaryFacets(shp);
-                if ~isempty(faces) && size(faces, 2) == 3 && ...
-                        is_manifold_tri(faces, size(vertices, 1))
-                    ok = true;
-                    return;
-                end
+        % 1x is the critical alpha; 30x is convex-hull-like for this cloud.
+        multipliers = logspace(0, log10(30), 40);
+        min_vertices = max(12, ceil(0.9 * n_pts));
+        for ai = 1:numel(multipliers)
+            shp.Alpha = alpha_crit * multipliers(ai);
+            if numRegions(shp) ~= 1
+                continue;
             end
+            [bf, bv] = boundaryFacets(shp);
+            if size(bf, 2) ~= 3 || isempty(bf)
+                continue;
+            end
+            n_used = numel(unique(bf(:)));
+            if n_used < min_vertices || size(bv, 1) < min_vertices
+                continue;
+            end
+            if ~is_closed_surface_tri(bf, size(bv, 1))
+                continue;
+            end
+            faces    = bf;
+            vertices = bv;
+            ok       = true;
+            return;
         end
-
     catch
         ok = false;
     end
@@ -333,23 +356,32 @@ function [faces, vertices, ok, shp] = try_alpha_shape(pts)
 end
 
 
-function ok = is_manifold_tri(faces, n_verts)
-%IS_MANIFOLD_TRI  Basic manifold check: each edge shared by at most 2 faces
+function ok = is_closed_surface_tri(faces, n_verts)
+%IS_CLOSED_SURFACE_TRI  Closed genus-0 triangulation, every edge in two faces
 
     if isempty(faces) || size(faces, 2) ~= 3
+        ok = false;
+        return;
+    end
+    if any(faces(:) < 1) || any(faces(:) > n_verts)
         ok = false;
         return;
     end
 
     edges = [faces(:, [1,2]); faces(:, [1,3]); faces(:, [2,3])];
     edges = sort(edges, 2);
-
-    [unique_edges, ~, ic] = unique(edges, 'rows');
+    [~, ~, ic] = unique(edges, 'rows');
     counts = accumarray(ic, 1);
+    if any(counts ~= 2)
+        ok = false;
+        return;
+    end
 
-    ok = max(counts) <= 2 && ...
-         all(unique_edges(:) >= 1) && ...
-         all(unique_edges(:) <= n_verts);
+    n_edges = numel(counts);
+    n_faces = size(faces, 1);
+    n_used  = numel(unique(faces(:)));
+    chi = n_used - n_edges + n_faces;
+    ok = chi == 2;
 
 end
 

@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-10-20
-> **Version:** 8.6.5
+> **Updated:** 2026-10-21
+> **Version:** 8.6.6
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -113,7 +113,7 @@ drivers exclude that partial trajectory from steady-state statistics.
 | [`src/physics/sample_brownian_body_force.m`](src/physics/sample_brownian_body_force.m) | Per-interval thermal generalised body force (force realisation of the Brownian increment). |
 | [`src/physics/background_flow_velocity.m`](src/physics/background_flow_velocity.m) | Shared background-flow velocity evaluator (solver and flow-field plots). |
 | [`src/visualization/compute_plot_flowfield.m`](src/visualization/compute_plot_flowfield.m) | End-state flow-field evaluation at the achieved final time and figure export. |
-| [`src/visualization/render_motion_animation.m`](src/visualization/render_motion_animation.m) | Shared 4-panel motion-animation renderer (3-D and XZ overviews plus co-moving 3-D and XZ windows, legend, scale bar, roll-marker stripes on the body, time stamp with playback speed): graphics objects are created once and only their data are updated per frame; logs per-stage timing. |
+| [`src/visualization/render_motion_animation.m`](src/visualization/render_motion_animation.m) | Shared 4-panel motion-animation renderer (3-D and XZ overviews plus co-moving 3-D and XZ windows, legend, scale bar, a short dark-green waist patch as the roll mark, time stamp with playback speed): graphics objects are created once and only their data are updated per frame; logs per-stage timing. Co-moving ticks are never finer than 0.5 μm. |
 | [`src/visualization/add_gravity_indicator_outside.m`](src/visualization/add_gravity_indicator_outside.m) | Gravity-arrow annotation shared by the preview, summary and animation figures (optional `head_scale` argument). |
 
 ## Documentation
@@ -128,7 +128,9 @@ drivers exclude that partial trajectory from steady-state statistics.
 
 ## Version Notes
 
-The current release is **8.6.5 (2026-10-20)**, an example-case release. It adds a realistic single-polar-flagellum *E. coli* swimmer as a custom-geometry configuration ([`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json), geometry from [`geometry/generate_ecoli_geometry.m`](geometry/generate_ecoli_geometry.m)): a 2.5 µm × 0.88 µm sphero-cylinder (`N_body = 300` requested, 326 points from `capsule_body_building`), one left-handed helical filament at the tail pole (pitch 2.22 µm, helix diameter 0.41 µm, contour about 7.6 µm, filament radius 10 nm, EI = 3.5 pN·µm²) driven by a free-torsion motor (1300 pN·nm, 300 Hz), neutrally buoyant, with `T_obs = 1 s`. **The solver is unchanged, so the results of existing cases are unchanged.**
+The current release is **8.6.6 (2026-10-21)**, a visualisation fix. Custom-body alpha shapes now keep a closed surface through the point cloud, so a summary figure or animation no longer collapses to a single facet; the *E. coli* body is 326 vertices and 648 faces. Co-moving windows c and d never use a tick spacing finer than 0.5 μm. The two dark body stripes are replaced by one short dark-green patch on one side of the waist (central 18 % of the length, ±32°), on an otherwise uniform light-green body. **The ODE is unchanged. Parametric results are unchanged.** A custom body whose reconstructed surface changes also changes its enclosed volume, the volume-based length scale, and the sinking force when the cell is not neutrally buoyant.
+
+**8.6.5 (2026-10-20)** was an example-case release. It added a realistic single-polar-flagellum *E. coli* swimmer as a custom-geometry configuration ([`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json), geometry from [`geometry/generate_ecoli_geometry.m`](geometry/generate_ecoli_geometry.m)): a 2.5 µm × 0.88 µm sphero-cylinder (`N_body = 300` requested, 326 points from `capsule_body_building`), one left-handed helical filament at the tail pole (pitch 2.22 µm, helix diameter 0.41 µm, contour about 7.6 µm, filament radius 10 nm, EI = 3.5 pN·µm²) driven by a free-torsion motor (1300 pN·nm, 300 Hz), neutrally buoyant, with `T_obs = 1 s`. **The solver was unchanged, so the results of cases that already existed in 8.6.3 were unchanged.**
 
 **8.6.3 (2026-10-19)** was an animation-layout refinement release. The co-moving windows c and d ceased to be cubes / squares: along every lab axis their extent became the reach of the body and all pili over all frames plus a margin, at equal scale on X, Y and Z, so the bacterium filled the window; they carried no scale bar (panel b kept its 2-μm scale bar). The body carried two dark longitudinal stripes that rotated with it, so a roll about the long axis could be seen. The four panels were arranged automatically: all guillotine arrangements were tried and the one that allowed the largest common scale of the panels was chosen (logged as, for example, `Layout H(a,H(b,V(c,d)))`), so the canvas stayed compact for elongated, flat and compact bacteria alike. `info.window_half_um` of `render_motion_animation` became a `[hx hy hz]` vector and `info.window_offset_um` was added. **Simulation results were unchanged.**
 

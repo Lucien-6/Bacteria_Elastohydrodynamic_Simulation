@@ -81,7 +81,7 @@
         "AbsTol": 1e-4,
         "RelTol": 1e-4,
         "delta_frac": 20,
-        "tlim": 3600,
+        "tlim": 72000,
         "dt": 0.001,
         "seg_per_um": 5
     },

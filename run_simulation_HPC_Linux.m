@@ -101,7 +101,9 @@ function [results, params, output_dir] = run_simulation_HPC_Linux(cfg_or_path)
 %           bacterium, roll-marker stripes on the body, adaptive panel layout
 %  Updated: 2026-10-20 — v8.6.5 realistic single-flagellum E. coli example case
 %           (no solver or animation change)
-%  Log banner version: 8.6.5 (2026-10-20) - emitted via project_version(); keep README / CHANGELOG in sync
+%  Updated: 2026-10-21 — v8.6.6 custom-body surface reconstruction; animation
+%           tick floor 0.5 um and a short waist roll mark
+%  Log banner version: 8.6.6 (2026-10-21) - emitted via project_version(); keep README / CHANGELOG in sync
 %
 %  Path policy: defensive addpath calls here allow
 %  run_simulation_HPC_Linux(cfg) without main_coupled_simulation.m.

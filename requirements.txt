@@ -1,6 +1,15 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 8.6.5 (2026-10-20)
+# Release: 8.6.6 (2026-10-21)
+#
+# v8.6.6: Visualisation fix. Custom-body alpha shapes now keep a closed
+#   surface of the whole cloud (the E. coli body is no longer one tetrahedron).
+#   Co-moving animation windows never use a tick spacing finer than 0.5 um.
+#   The two body stripes are replaced by one short dark-green patch on one
+#   side of the waist.  The ODE is unchanged.  Parametric results are
+#   unchanged.  A custom body whose surface mesh changes also changes its
+#   enclosed volume, the volume-based length scale, and the sinking force
+#   when the cell is not neutrally buoyant.  No new dependency.
 #
 # v8.6.5: Example-case release. Adds a realistic single-polar-flagellum E. coli
 #   swimmer (configs/config_ecoli_single_flagellum.json, geometry from

@@ -35,13 +35,13 @@ function info = render_motion_animation(results, params, output_dir, opts)
 %    Each window keeps constant magnification (no scale bar; panel b carries
 %    the 2-um scale bar).  Ticks and grid
 %    of c and d follow the lab frame, so the grid slides past the bacterium.
+%    Tick spacing on c and d is never finer than 0.5 μm.
 %    Gravity arrow: panel a only.
 %
-%    The body carries two dark longitudinal stripes (a wide and a narrow one on
-%    opposite sides, smooth profile, faded towards the end caps) stored as
-%    per-vertex colour / opacity; they rotate with the body, so a roll about the
-%    long axis is visible in every panel (custom bodies: long axis = principal
-%    axis of the vertex cloud).
+%    The body keeps a uniform light green.  A short dark-green patch sits on one
+%    side of the waist and rotates with the body, so a roll about the long
+%    axis stays visible without a line or a half-and-half split (custom
+%    bodies: long axis = principal axis of the vertex cloud).
 %
 %    Every panel shows the semi-transparent body surface, every pilus, the
 %    centre-of-mass marker and (panels a and b only) the full-resolution
@@ -129,6 +129,9 @@ function info = render_motion_animation(results, params, output_dir, opts)
 %           no scale bar in panels c and d; two dark body stripes make the
 %           roll visible; adaptive panel layout (best of all guillotine
 %           arrangements, common scale factor)
+%  Updated: 2026-10-21 — co-moving windows c and d use a minimum tick
+%           spacing of 0.5 μm; body roll is shown by a short dark-green patch
+%           on one side of the waist
 
 %% ---- Options ----
 if nargin < 4 || ~isstruct(opts)
@@ -188,43 +191,33 @@ pili_palette = [0.20 0.40 0.80;
 pili_colors = pili_palette(mod((1:M_pili)-1, size(pili_palette,1)) + 1, :);
 ink_color   = [0.15 0.15 0.15];          % Scale bars, gravity arrows, frames
 
-% --- Roll marker: two dark stripes along the long axis of the body ---
-% The body is otherwise uniform, so a rotation about the long axis would be
-% invisible.  Two stripes at fixed azimuths about the long axis (smooth cosine
-% profile, faded out towards the end caps) are stored as per-vertex colour /
-% opacity and rotate with the body: a wide one (+-30 deg) at azimuth 0 and a
-% narrow one (+-15 deg) at 180 deg.  Two stripes of different width keep a
-% marker on the visible side at (almost) every orientation and still tell the
-% two sides apart.  Only the vertex positions are updated in the frame loop.
-stripe_color = [0.03 0.25 0.10];         % Dark green
-stripe_alpha = 0.90;                     % Opacity of the stripe core
-stripe_half  = 30 * pi / 180;            % Half-width of the wide stripe [rad]
-stripe_half2 = 15 * pi / 180;            % Half-width of the narrow stripe [rad]
+% --- Roll cue: a short patch on one side of the waist ---
+% A uniform body hides rotation about the long axis.  One dark-green patch,
+% shorter than the body and only a small fraction of the circumference, is
+% fixed in the body frame and therefore rotates with it.
+body_color_dark = [0.03 0.25 0.10];
+waist_alpha     = 0.95;
 if is_capsule
-    v_body = capsule_flat.';             % [N x 3], body frame; long axis = body X
-    e_a = [0 1 0];  e_b = [0 0 1];
+    e_long  = [1 0 0];
+    e_side  = [0 1 0];
+    waist_origin = [0 0 0];
+    waist_pts = capsule_flat.';
 else
-    v_body = custom_verts_um - mean(custom_verts_um, 1);
-    [Vp, Dp] = eig(cov(v_body));         % Long axis = principal axis of largest variance
+    waist_origin = mean(custom_verts_um, 1);
+    waist_pts = custom_verts_um - waist_origin;
+    [Vp, Dp] = eig(cov(waist_pts));
     [~, i_long] = max(diag(Dp));
     e_long = Vp(:, i_long).';
-    e_tmp  = [1 0 0];
-    if abs(e_tmp * e_long.') > 0.9, e_tmp = [0 1 0]; end
-    e_a = e_tmp - (e_tmp * e_long.') * e_long;   e_a = e_a / norm(e_a);
-    e_b = cross(e_long, e_a);
+    e_tmp = [0 1 0];
+    if abs(dot(e_tmp, e_long)) > 0.9
+        e_tmp = [0 0 1];
+    end
+    e_side = e_tmp - dot(e_tmp, e_long) * e_long;
+    e_side = e_side / norm(e_side);
 end
-r_a    = v_body * e_a.';
-r_b    = v_body * e_b.';
-theta  = atan2(r_b, r_a);                % Azimuth about the long axis, (-pi, pi]
-rho_n  = hypot(r_a, r_b) / max(hypot(r_a, r_b));
-t_f    = min(max((rho_n - 0.2) / 0.4, 0), 1);
-fade   = t_f.^2 .* (3 - 2 * t_f);        % Smoothstep: no stripe on the end caps' axis
-prof1  = 0.5 * (1 + cos(pi * min(abs(theta) / stripe_half, 1)));           % Wide stripe at azimuth 0
-prof2  = 0.5 * (1 + cos(pi * min((pi - abs(theta)) / stripe_half2, 1)));   % Narrow stripe at 180 deg
-s_str  = max(prof1, prof2) .* fade;                                        % [N x 1] in [0, 1]
-body_vcolor = (1 - s_str) * body_color + s_str * stripe_color;             % [N x 3]
-body_valpha = body_alpha + s_str * (stripe_alpha - body_alpha);            % [N x 1]
-clear v_body e_long e_a e_b r_a r_b theta rho_n t_f fade prof1 prof2
+[waist_flat, waist_size] = waist_mark_surface(waist_pts, e_long, e_side);
+waist_flat = waist_flat + waist_origin.';
+clear waist_pts e_long e_side e_tmp waist_origin i_long Vp Dp
 
 % --- Typography and line widths (tuned for the 2560 x 1440 canvas) ---
 fs_tick   = 16;    % Tick labels [pt]
@@ -342,6 +335,7 @@ win_half_um = rel_span / 2 + win_pad;                   % [hx hy hz] half-extent
 win_off_um  = (rel_min + rel_max) / 2;                  % Box centre relative to the CM [um]
 logf(['[ANIM] Co-moving windows (box, equal scale): half-extents X=%.2f, Y=%.2f, Z=%.2f um; ', ...
       'centre offset from CM (%.2f, %.2f, %.2f) um\n'], win_half_um, win_off_um);
+win_tick_min_um = 0.5;   % Finest tick spacing on panels c and d [μm]
 stage_s.prepass = toc(t_stage);
 
 %% ---- Canvas layout (logical pixels, origin bottom-left) ----
@@ -365,7 +359,7 @@ panel_str = {'{\bf a}  3-D view', '{\bf b}  XZ view', ...
              '{\bf c}  Co-moving 3-D view', '{\bf d}  Co-moving XZ view'};
 
 % --- Legend geometry (drawn manually on the canvas for full spacing control) ---
-leg_labels = [{'Body (dark stripes mark roll)'}, arrayfun(@(k) sprintf('Pilus %d', k), 1:M_pili, ...
+leg_labels = [{'Body'}, arrayfun(@(k) sprintf('Pilus %d', k), 1:M_pili, ...
               'UniformOutput', false), {'Centre of mass', 'Trajectory'}];
 n_leg         = numel(leg_labels);
 leg_key_w     = 46;      % Width of the key symbol [px]
@@ -578,11 +572,12 @@ vid.Quality   = 100;
 open(vid);
 
 %% ---- Create all graphics objects ONCE (child order identical per axis) ----
-% Per axis: body, pili, centre-of-mass marker, trajectory (panels a, b only),
-% [panel b: XZ border lines / scale bar], then lights.  Only their data are updated
-% inside the frame loop.
+% Per axis: body, waist mark, pili, centre-of-mass marker, trajectory
+% (panels a, b only), [panel b: XZ border lines / scale bar], then lights.
+% Only their data are updated inside the frame loop.
 n_ax   = numel(ax_all);
 h_body = gobjects(1, n_ax);
+h_waist = gobjects(1, n_ax);
 h_pili = gobjects(M_pili, n_ax);
 h_mark = gobjects(1, n_ax);
 h_traj = gobjects(1, n_ax);
@@ -599,12 +594,7 @@ for ai = 1:n_ax
         h_body(ai) = surf(ax, reshape(pts_1(1,:), mesh_size), ...
                               reshape(pts_1(2,:), mesh_size), ...
                               reshape(pts_1(3,:), mesh_size), ...
-                          cat(3, reshape(body_vcolor(:,1), mesh_size), ...
-                                 reshape(body_vcolor(:,2), mesh_size), ...
-                                 reshape(body_vcolor(:,3), mesh_size)), ...
-                          'FaceColor', 'interp', 'FaceAlpha', 'interp', ...
-                          'AlphaData', reshape(body_valpha, mesh_size), ...
-                          'AlphaDataMapping', 'none', ...
+                          'FaceColor', body_color, 'FaceAlpha', body_alpha, ...
                           'EdgeColor', 'none', 'FaceLighting', 'gouraud');
     else
         verts_1 = (R_1 * custom_verts_um' + cm_1)';   % [V x 3]
@@ -612,11 +602,17 @@ for ai = 1:n_ax
         % VISUALISATION section of run_simulation.m.
         h_body(ai) = trisurf(params.body_faces, ...
                              verts_1(:,1), verts_1(:,2), verts_1(:,3), ...
-                             'FaceColor', 'interp', 'FaceAlpha', 'interp', ...
-                             'EdgeColor', 'none', 'FaceLighting', 'gouraud', 'Parent', ax);
-        set(h_body(ai), 'FaceVertexCData', body_vcolor, ...
-                        'FaceVertexAlphaData', body_valpha, 'AlphaDataMapping', 'none');
+                             'FaceColor', body_color, 'FaceAlpha', body_alpha, ...
+                             'EdgeColor', 'none', 'FaceLighting', 'gouraud', ...
+                             'Parent', ax);
     end
+    waist_1 = R_1 * waist_flat + cm_1;
+    h_waist(ai) = surf(ax, reshape(waist_1(1, :), waist_size), ...
+                           reshape(waist_1(2, :), waist_size), ...
+                           reshape(waist_1(3, :), waist_size), ...
+                       'FaceColor', body_color_dark, 'FaceAlpha', waist_alpha, ...
+                       'EdgeColor', 'none', 'FaceLighting', 'gouraud', ...
+                       'HandleVisibility', 'off');
 
     for k = 1:M_pili
         Xp = results.X_pili_um{k}(:, :, 1);
@@ -727,8 +723,8 @@ for ir = 1:leg_rows
         if ie == 1                                     % Body
             patch(ax_ov, x_c + [0 leg_key_w leg_key_w 0], y_c + [-8 -8 8 8], body_color, ...
                   'FaceAlpha', 0.55, 'EdgeColor', 'none');
-            patch(ax_ov, x_c + [0 leg_key_w leg_key_w 0], y_c + [-2.5 -2.5 2.5 2.5], stripe_color, ...
-                  'FaceAlpha', stripe_alpha, 'EdgeColor', 'none');
+            patch(ax_ov, x_c + leg_key_w * [0.38 0.62 0.62 0.38], y_c + [-4 -4 4 4], ...
+                  body_color_dark, 'FaceAlpha', 0.95, 'EdgeColor', 'none');
         elseif ie <= 1 + M_pili                        % Pilus k
             line(ax_ov, x_c + [0 leg_key_w], y_c * [1 1], ...
                  'Color', pili_colors(ie - 1, :), 'LineWidth', lw_pilus);
@@ -767,12 +763,16 @@ for fi = 1:n_frames
         verts = (R_fi * custom_verts_um' + cm_um)';              % [V x 3]
     end
 
+    waist_lab = R_fi * waist_flat + cm_um;
     for ai = 1:n_ax
         if is_capsule
             set(h_body(ai), 'XData', Xs, 'YData', Ys, 'ZData', Zs);
         else
             set(h_body(ai), 'Vertices', verts);
         end
+        set(h_waist(ai), 'XData', reshape(waist_lab(1, :), waist_size), ...
+                         'YData', reshape(waist_lab(2, :), waist_size), ...
+                         'ZData', reshape(waist_lab(3, :), waist_size));
     end
 
     for k = 1:M_pili
@@ -798,14 +798,22 @@ for fi = 1:n_frames
     cm_row  = cm_um(:).';
     box_ctr = cm_row + win_off_um;                % Centre of the co-moving box
     % Panel c: limits + manual orthographic camera (target = box centre)
-    set(ax_3df, 'XLim', box_ctr(1) + win_half_um(1) * [-1 1], ...
-                'YLim', box_ctr(2) + win_half_um(2) * [-1 1], ...
-                'ZLim', box_ctr(3) + win_half_um(3) * [-1 1], ...
+    lim_c = [box_ctr(1) + win_half_um(1) * [-1 1]; ...
+             box_ctr(2) + win_half_um(2) * [-1 1]; ...
+             box_ctr(3) + win_half_um(3) * [-1 1]];
+    set(ax_3df, 'XLim', lim_c(1, :), 'YLim', lim_c(2, :), 'ZLim', lim_c(3, :), ...
+                'XTick', window_ticks(lim_c(1, :), win_tick_min_um), ...
+                'YTick', window_ticks(lim_c(2, :), win_tick_min_um), ...
+                'ZTick', window_ticks(lim_c(3, :), win_tick_min_um), ...
                 'CameraTarget', box_ctr, ...
                 'CameraPosition', box_ctr + cam_dist * cam_dir);
-    % Panel d: limits only (view along Y, orthographic)
-    set(ax_xzf, 'XLim', box_ctr(1) + win_half_um(1) * [-1 1], ...
-                'ZLim', box_ctr(3) + win_half_um(3) * [-1 1]);
+    % Panel d: limits only (view along Y, orthographic).  Y is the viewing
+    % direction and keeps the global range; X and Z follow the box.
+    lim_dx = box_ctr(1) + win_half_um(1) * [-1 1];
+    lim_dz = box_ctr(3) + win_half_um(3) * [-1 1];
+    set(ax_xzf, 'XLim', lim_dx, 'ZLim', lim_dz, ...
+                'XTick', window_ticks(lim_dx, win_tick_min_um), ...
+                'ZTick', window_ticks(lim_dz, win_tick_min_um));
 
     set(h_time, 'String', sprintf('{\\itt} = %.4f s', results.t(ti)));
     stage_s.update = stage_s.update + toc(t_stage);
@@ -1038,6 +1046,7 @@ function [cam_dir, cam_up, cam_right, cam_up_s] = ...
             'CameraUpVector', cam_up, ...
             'CameraViewAngle', 2 * atand(proj_short / 2 / cam_dist));
     set_window_axes(ax, lw, fs_tick, fs_label, true);
+    apply_window_ticks(ax, 0.5);
 end
 
 function setup_follow_xz(ax, ctr, half_um, lim_y, lw, fs_tick, fs_label)
@@ -1052,12 +1061,14 @@ function setup_follow_xz(ax, ctr, half_um, lim_y, lw, fs_tick, fs_label)
     set(ax, 'DataAspectRatio', [1 1 1], 'Projection', 'orthographic');
     view(ax, 0, 0);
     set_window_axes(ax, lw, fs_tick, fs_label, false);
+    apply_window_ticks(ax, 0.5);
 end
 
 function set_window_axes(ax, lw, fs_tick, fs_label, with_y_label)
 %SET_WINDOW_AXES  Axes box, ticks (lab-frame coordinates), tick labels, grid, axis labels
-%  The tick positions are automatic, so they are recomputed when the limits
-%  follow the centre of mass; the grid therefore slides past the bacterium.
+%  Tick positions are set explicitly (see window_ticks) and refreshed whenever
+%  the limits follow the centre of mass, so the grid slides past the bacterium.
+%  Spacing is at least 0.5 μm.
     set(ax, 'Box', 'on', 'TickDir', 'out', 'LineWidth', lw, 'FontSize', fs_tick, ...
             'Layer', 'top');
     grid(ax, 'on');
@@ -1066,6 +1077,86 @@ function set_window_axes(ax, lw, fs_tick, fs_label, with_y_label)
         ylabel(ax, 'Y (μm)', 'FontName', 'Arial', 'FontSize', fs_label);
     end
     zlabel(ax, 'Z (μm)', 'FontName', 'Arial', 'FontSize', fs_label);
+end
+
+function apply_window_ticks(ax, min_step)
+%APPLY_WINDOW_TICKS  Place X/Y/Z ticks on the current limits, spacing >= min_step
+    set(ax, 'XTick', window_ticks(get(ax, 'XLim'), min_step), ...
+            'YTick', window_ticks(get(ax, 'YLim'), min_step), ...
+            'ZTick', window_ticks(get(ax, 'ZLim'), min_step));
+end
+
+function ticks = window_ticks(lim, min_step)
+%WINDOW_TICKS  Lab-frame ticks inside lim with spacing at least min_step
+%  The step is a 1-2-5 value.  Short axes, whose automatic step would be
+%  0.2 μm, therefore use 0.5 μm; longer axes keep a coarser step.
+    span = lim(2) - lim(1);
+    if ~(isfinite(span) && span > 0)
+        ticks = mean(lim);
+        return;
+    end
+    step = max(min_step, nice_step_at_least(span / 6));
+    tol = 1e-9 * max(1, abs(step));
+    first = ceil(lim(1) / step - tol) * step;
+    last  = floor(lim(2) / step + tol) * step;
+    if last + tol < first
+        ticks = round(mean(lim) / step) * step;
+        return;
+    end
+    n = round((last - first) / step);
+    ticks = first + (0:n) * step;
+end
+
+function step = nice_step_at_least(raw)
+%NICE_STEP_AT_LEAST  Smallest {1, 2, 5} x 10^k that is at least raw
+    if ~(isfinite(raw) && raw > 0)
+        step = 1;
+        return;
+    end
+    exp10 = floor(log10(raw));
+    base = 10^exp10;
+    mant = raw / base;
+    if mant <= 1
+        factor = 1;
+    elseif mant <= 2
+        factor = 2;
+    elseif mant <= 5
+        factor = 5;
+    else
+        factor = 10;
+    end
+    step = factor * base;
+end
+
+function [mark_flat, mark_size] = waist_mark_surface(pts, e_long, e_side)
+%WAIST_MARK_SURFACE  Short patch on one side of the body waist
+%  pts is [N x 3] and centred on the body.  The patch covers the central
+%  18 % of the body length and ±32° of azimuth about e_side, and sits 2 %
+%  outside the local radius.  mark_flat is [3 x N] and mark_size is the
+%  surf grid.
+    e_long = e_long(:) / norm(e_long);
+    e_side = e_side(:) / norm(e_side);
+    e_bin  = cross(e_long, e_side);
+    s = pts * e_long;
+    radial = pts - s * e_long.';
+    rad = sqrt(sum(radial.^2, 2));
+    s_half = max(abs(s));
+    near_waist = abs(s) <= 0.35 * s_half;
+    if ~any(near_waist)
+        near_waist = true(size(s));
+    end
+    radius = median(rad(near_waist));
+    half_len = 0.18 * s_half;
+    azimuth = 32 * pi / 180;
+    n_s = 16;
+    n_a = 10;
+    ss = linspace(-half_len, half_len, n_s);
+    aa = linspace(-azimuth, azimuth, n_a);
+    [SS, AA] = meshgrid(ss, aa);
+    lifted = 1.02 * radius;
+    P = e_long * SS(:).' + lifted * (e_side * cos(AA(:)).' + e_bin * sin(AA(:)).');
+    mark_flat = P;
+    mark_size = size(SS);
 end
 
 function [capsule_flat, mesh_size] = build_capsule_mesh(a_um, b_um)

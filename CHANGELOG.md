@@ -12,6 +12,63 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [8.6.6] — 2026-10-21
+
+Visualisation fix.  **The hydrodynamic solver is unchanged.**  Parametric
+results are unchanged.  Custom-body surface reconstruction can change, and
+with it the enclosed volume, the volume-based length scale, and the sinking
+force when the cell is not neutrally buoyant.  Motion-animation videos are
+not pixel-comparable with 8.6.3–8.6.5.
+
+### Fixed
+
+- **Custom-body alpha shape.**  `try_alpha_shape` used to accept the first
+  closed piece it found while scanning from a small alpha upward.  On the
+  *E. coli* capsule that piece was a 4-vertex tetrahedron, so the summary
+  figure and the animation drew a single facet and the enclosed volume was
+  \(4.1\times10^{-24}\,\mathrm{m}^3\).  The scan now starts at the one-region
+  critical alpha and keeps the tightest closed genus-0 surface that still
+  uses at least 90 % of the input points.  The same capsule reconstructs as
+  326 vertices and 648 faces, with volume \(1.31\times10^{-18}\,\mathrm{m}^3\)
+  (about 97 % of the analytic capsule).  The regularised-Stokeslet point
+  cloud is still the input cloud; only the display mesh and the
+  divergence-theorem volume change.
+
+### Changed
+
+- **Co-moving windows (c, d).**  Tick spacing is never finer than 0.5 μm.
+  The step is a 1-2-5 value at or above that floor, refreshed as the window
+  follows the centre of mass, so the grid still slides past the bacterium.
+- **E. coli example time limit.**  `configs/config_ecoli_single_flagellum.json` sets `simulation.tlim` to 72000 s.  The previous 3600 s limit can expire before `T_obs = 1 s` finishes.
+- **Roll marker.**  The two dark longitudinal stripes are removed.  The body
+  is uniform light green again (`FaceAlpha` 0.35).  One short dark-green
+  patch lies on one side of the waist: the central 18 % of the body length
+  and ±32° of azimuth, 2 % outside the local radius.  It rotates with the
+  body.  The legend key is the light-green body with that small patch.
+
+### Compatibility
+
+- Parametric geometry, the ODE, and results of parametric cases are
+  unchanged.
+- A custom body whose previous alpha shape was already a proper closed
+  surface can still receive a different mesh, volume, and volume-based
+  `L_0`.  When `rho_bac` differs from `rho_fluid`, `Eg` changes with the
+  volume.  The *E. coli* example is neutrally buoyant, so its sinking force
+  stays zero; a re-run is not bit-identical because the length scale used
+  by that case was taken from the old tetrahedron volume.
+- Saved `simulation_results.mat` files keep the mesh they were written
+  with.  Re-rendering an old file does not rebuild the body surface.
+- No new dependency.
+
+### Documentation
+
+- `project_version.m` bumped to 8.6.6 (2026-10-21); README (EN/ZH), USER_GUIDE
+  (EN/ZH), theory (EN/ZH), `requirements.txt`, the project website and
+  presentation version strings, and the headers of `run_simulation*.m` and
+  `main_coupled_simulation.m` updated.
+
+---
+
 ## [8.6.5] — 2026-10-20
 
 Example-case release.  **No change to the solver, and no change to the results of
