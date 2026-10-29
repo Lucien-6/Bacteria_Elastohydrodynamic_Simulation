@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-10-21
-> **Version:** 8.6.6
+> **Updated:** 2026-10-29
+> **Version:** 8.7.0
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -113,6 +113,7 @@ drivers exclude that partial trajectory from steady-state statistics.
 | [`src/physics/sample_brownian_body_force.m`](src/physics/sample_brownian_body_force.m) | Per-interval thermal generalised body force (force realisation of the Brownian increment). |
 | [`src/physics/background_flow_velocity.m`](src/physics/background_flow_velocity.m) | Shared background-flow velocity evaluator (solver and flow-field plots). |
 | [`src/visualization/compute_plot_flowfield.m`](src/visualization/compute_plot_flowfield.m) | End-state flow-field evaluation at the achieved final time and figure export. |
+| [`post_processing/render_flowfield_from_results.m`](post_processing/render_flowfield_from_results.m) | Recompute final, selected-time, or animated flow fields from a v8.7.0 `simulation_results.mat`. |
 | [`src/visualization/render_motion_animation.m`](src/visualization/render_motion_animation.m) | Shared 4-panel motion-animation renderer (3-D and XZ overviews plus co-moving 3-D and XZ windows, legend, scale bar, a short dark-green waist patch as the roll mark, time stamp with playback speed): graphics objects are created once and only their data are updated per frame; logs per-stage timing. Co-moving ticks are never finer than 0.5 μm. |
 | [`src/visualization/add_gravity_indicator_outside.m`](src/visualization/add_gravity_indicator_outside.m) | Gravity-arrow annotation shared by the preview, summary and animation figures (optional `head_scale` argument). |
 
@@ -128,7 +129,9 @@ drivers exclude that partial trajectory from steady-state statistics.
 
 ## Version Notes
 
-The current release is **8.6.6 (2026-10-21)**, a visualisation fix. Custom-body alpha shapes now keep a closed surface through the point cloud, so a summary figure or animation no longer collapses to a single facet; the *E. coli* body is 326 vertices and 648 faces. Co-moving windows c and d never use a tick spacing finer than 0.5 μm. The two dark body stripes are replaced by one short dark-green patch on one side of the waist (central 18 % of the length, ±32°), on an otherwise uniform light-green body. **The ODE is unchanged. Parametric results are unchanged.** A custom body whose reconstructed surface changes also changes its enclosed volume, the volume-based length scale, and the sinking force when the cell is not neutrally buoyant.
+The current release is **8.7.0 (2026-10-29)**.  Every new run saves `results.flow_state`, the full state, pilus basis, and Brownian force at each stored output.  `render_flowfield_from_results` draws the final flow field, selected times, or a full-sequence animation from that file.  The end-of-run figure is still the only flow field drawn automatically.  **The ODE trajectory is unchanged.**  A `simulation_results.mat` from 8.6.6 or earlier cannot reconstruct a flow field.
+
+**8.6.6 (2026-10-21)** was a visualisation fix. Custom-body alpha shapes now keep a closed surface through the point cloud, so a summary figure or animation no longer collapses to a single facet; the *E. coli* body is 326 vertices and 648 faces. Co-moving windows c and d never use a tick spacing finer than 0.5 μm. The two dark body stripes are replaced by one short dark-green patch on one side of the waist (central 18 % of the length, ±32°), on an otherwise uniform light-green body. **The ODE is unchanged. Parametric results are unchanged.** A custom body whose reconstructed surface changes also changes its enclosed volume, the volume-based length scale, and the sinking force when the cell is not neutrally buoyant.
 
 **8.6.5 (2026-10-20)** was an example-case release. It added a realistic single-polar-flagellum *E. coli* swimmer as a custom-geometry configuration ([`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json), geometry from [`geometry/generate_ecoli_geometry.m`](geometry/generate_ecoli_geometry.m)): a 2.5 µm × 0.88 µm sphero-cylinder (`N_body = 300` requested, 326 points from `capsule_body_building`), one left-handed helical filament at the tail pole (pitch 2.22 µm, helix diameter 0.41 µm, contour about 7.6 µm, filament radius 10 nm, EI = 3.5 pN·µm²) driven by a free-torsion motor (1300 pN·nm, 300 Hz), neutrally buoyant, with `T_obs = 1 s`. **The solver was unchanged, so the results of cases that already existed in 8.6.3 were unchanged.**
 

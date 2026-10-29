@@ -1,6 +1,13 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 8.6.6 (2026-10-21)
+# Release: 8.7.0 (2026-10-29)
+#
+# v8.7.0: Flow-field post-processing. Every new run saves results.flow_state
+#   (full state, pilus basis, and the Brownian force at each stored output).
+#   render_flowfield_from_results draws a final panel, selected times, or a
+#   full-sequence animation (MP4 on Windows/macOS, AVI on Linux). The ODE
+#   trajectory is unchanged. Results from 8.6.6 or earlier cannot reconstruct
+#   a flow field. No new dependency.
 #
 # v8.6.6: Visualisation fix. Custom-body alpha shapes now keep a closed
 #   surface of the whole cloud (the E. coli body is no longer one tetrahedron).

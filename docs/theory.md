@@ -4,8 +4,8 @@ English | [中文](theory.zh-CN.md)
 [Back to README](../README.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Updated:** 2026-10-21
-> **Version:** 8.6.6
+> **Updated:** 2026-10-29
+> **Version:** 8.7.0
 
 This document contains the model details that were formerly embedded in the long README. The repository entry page is now intentionally short; practical run instructions are in [`../USER_GUIDE.md`](../USER_GUIDE.md), and release history is in [`../CHANGELOG.md`](../CHANGELOG.md).
 
@@ -620,6 +620,8 @@ solution to \(\sim10^{-5}\) relative.  `cfg.jacobian_reuse=false` restores the
 - 2D YZ velocity magnitude and normalized direction arrows.
 
 Custom bodies use stored triangulation and alpha-shape based interior masking where available.
+
+From v8.7.0, each saved output also stores `results.flow_state`: the full state, the pilus basis, and the Brownian force that produced that output. [`render_flowfield_from_results.m`](../post_processing/render_flowfield_from_results.m) uses those data to draw the final state, selected times, or an animation. The velocity kernels are the same as the end-of-run figure. Files written before v8.7.0 do not contain this history.
 
 ## 12. Walker Scaling Consistency
 

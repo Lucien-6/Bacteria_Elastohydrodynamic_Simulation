@@ -12,6 +12,72 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [8.7.0] — 2026-10-29
+
+Flow-field post-processing release.  **The ODE trajectory is unchanged.**
+Every new run stores the state needed to reconstruct the flow at each saved
+output.  Results written before 8.7.0 do not contain `results.flow_state`
+and cannot be used for this post-processing.
+
+### Added
+
+- **Saved flow-field state.**  `results.flow_state` (version 1) records, at
+  every stored output, the full dimensionless state `Z`, the pilus basis
+  `rot{k}`, and the single Brownian generalised force that produced that
+  output.  The initial sample has zero thermal force.  The last sample keeps
+  the force of the Brownian interval that produced it; the saved
+  `params.brown_force_dimless` is still cleared after integration.
+- **`post_processing/render_flowfield_from_results.m`.**  Independent entry,
+  with the same file-dialog style as `render_animation_from_results`.
+  Modes: `final` (default), `times` (nearest saved output in seconds;
+  duplicate matches are computed once), `animation` (`fps` and `skip`, last
+  frame always kept), and `all`.  Static multi-time output is PNG only.
+  The animation is MPEG-4 `.mp4` on Windows and macOS, and Motion JPEG AVI
+  `.avi` on Linux.  New files do not overwrite `flowfield_panels.png`.
+- **Four-panel flow figure.**  3-D and 2-D XZ/YZ views on a fixed canvas,
+  panels (a)–(d), one colour bar, and a note that the colour is the full
+  speed while the arrows are normalised in-plane directions.  The window
+  follows the centre of mass.  The final panel uses that frame's 99th
+  percentile; selected times use only the requested frames; an animation
+  uses every saved output.
+
+### Changed
+
+- **One hydrodynamic assembly per flow frame.**  `ode_coupled_rhs` can
+  return the mobility matrices already built for `dZ`.  Callers that request
+  only `dZ` do not copy them, and the discrete trajectory is unchanged.
+  `flowfield_from_saved_state` solves the force and torque coefficients from
+  those matrices with the existing backslash path.
+- **One grid evaluation per required frame.**  Final and selected-time
+  figures are drawn from the grids just computed.  An animation evaluates
+  every saved output once for the global colour scale and keeps grids only
+  for frames that will be shown, up to 512 MiB.  Frames beyond that limit
+  are redrawn from the saved force coefficients; the velocity kernel is
+  unchanged.
+- **End-of-run flow figure.**  `run_simulation` and
+  `run_simulation_HPC_Linux` still draw only the final state when
+  `compute_flowfield` is true, and that figure now uses the thermal force
+  recorded for the last saved output.
+
+### Compatibility
+
+- The ODE, Brownian sampling, and saved trajectories of quantities other
+  than `results.flow_state` are unchanged.
+- A `simulation_results.mat` from 8.6.6 or earlier can still re-render the
+  motion animation.  It cannot reconstruct a flow field.
+- Linux HPC batch sampling of `compute_flowfield` is unchanged.  Every new
+  repeat still saves `flow_state`.
+- No new dependency.
+
+### Documentation
+
+- `project_version.m` bumped to 8.7.0 (2026-10-29); README (EN/ZH), USER_GUIDE
+  (EN/ZH), theory (EN/ZH), `requirements.txt`, the project website and
+  presentation version strings, and the headers of `run_simulation*.m` and
+  `main_coupled_simulation.m` updated.
+
+---
+
 ## [8.6.6] — 2026-10-21
 
 Visualisation fix.  **The hydrodynamic solver is unchanged.**  Parametric

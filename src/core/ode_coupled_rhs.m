@@ -1,4 +1,4 @@
-function dZ = ode_coupled_rhs(t, Z, params)
+function [dZ, flow_hydro] = ode_coupled_rhs(t, Z, params)
 %ODE_COUPLED_RHS  Core ODE right-hand side for coupled body-pili system
 %
 %  Description:
@@ -35,6 +35,13 @@ function dZ = ode_coupled_rhs(t, Z, params)
 %
 %  Syntax:
 %    dZ = ode_coupled_rhs(t, Z, params)
+%    [dZ, flow_hydro] = ode_coupled_rhs(t, Z, params)
+%
+%  The second output is optional.  It reuses the mobility matrices already
+%  built for dZ and is intended for flow-field reconstruction.  Callers that
+%  request only dZ do not copy those matrices.  flow_hydro contains
+%  M_weighted, M_twist, M_rotlet, D_twist, C_twist, and C_twist_reverse.
+%  It does not include LU factors.
 %
 %  Inputs:
 %    t      - Current dimensionless time
@@ -103,7 +110,8 @@ end
 
 %% Steps 1-7: Build coupled linear system (geometry + hydrodynamics + root BC)
 has_bg_flow = ~strcmp(params.bg_flow.type, 'off');
-if has_bg_flow
+want_flow_hydro = nargout >= 2;
+if has_bg_flow || want_flow_hydro
     [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params);
 else
     [lin_sys, geom] = build_coupled_lin_sys(Z, params);
@@ -320,10 +328,29 @@ end
 
 dZ = pack_state_rates(V, dqdt, pili_rates, N_segs);
 
+if want_flow_hydro
+    flow_hydro = flow_hydro_for_coefficients(hydro);
+else
+    flow_hydro = [];
+end
+
 end
 
 
 %% ==================== Local Helper Functions ====================
+
+function flow_hydro = flow_hydro_for_coefficients(hydro)
+%FLOW_HYDRO_FOR_COEFFICIENTS  Mobility blocks for the flow-field force solve.
+%  LU factors and the other coupled-system intermediates stay local to the
+%  right-hand-side evaluation.
+flow_hydro = struct();
+flow_hydro.M_weighted = hydro.M_weighted;
+flow_hydro.M_twist = hydro.M_twist;
+flow_hydro.M_rotlet = hydro.M_rotlet;
+flow_hydro.D_twist = hydro.D_twist;
+flow_hydro.C_twist = hydro.C_twist;
+flow_hydro.C_twist_reverse = hydro.C_twist_reverse;
+end
 
 function back = apply_Ainv_u(u_bg, hydro)
 %APPLY_AINV_U  Compute B_global * Ainv * u_bg for background flow coupling

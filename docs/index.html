@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v8.6.6 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, second-order Kirchhoff curvature stencil, proper-rotation attachment sites, signed motor torque-speed law, whole-filament free-torsion root balance, body-only Brownian dynamics realised as a thermal force through the coupled ODE, batch post-processing with 3-D MSD and XZ MSAD diffusion fits, hardened numerical diagnostics, JSON config, and Linux HPC execution.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v8.7.0 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, second-order Kirchhoff curvature stencil, proper-rotation attachment sites, signed motor torque-speed law, whole-filament free-torsion root balance, body-only Brownian dynamics realised as a thermal force through the coupled ODE, batch post-processing with 3-D MSD and XZ MSAD diffusion fits, hardened numerical diagnostics, JSON config, and Linux HPC execution.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v8.6.6 &middot; 2026-10-21</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v8.7.0 &middot; 2026-10-29</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 8.6.6 &bull; 2026-10-21
+      Version 8.7.0 &bull; 2026-10-29
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -541,6 +541,16 @@ tailwind.config = {
       <span class="zh"><strong>v8.2.0&ndash;v8.5.0</strong>（2026-09-04）为全面数理审查后的物理正确性系列版本：带符号马达扭矩–转速关系、二阶曲率模板与真旋转附着位点、整根鞭毛的 <code>free_torsion</code> 根部平衡，以及以恒定热力经耦合 ODE 实现的 body-only 布朗动力学（无根部折点、隐式 It&ocirc; 漂移）。</span>
     </p>
     <div class="grid md:grid-cols-2 gap-6">
+      <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v8.7.0 &mdash; 2026-10-29</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Saved-state flow fields</span><span class="zh">由保存状态重建流场</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">Every new run stores <code>results.flow_state</code>: the full state, the pilus basis, and the Brownian force that produced each saved output. The end-of-run figure still shows only the final state, using that last recorded force.</span><span class="zh">每次新仿真都保存 <code>results.flow_state</code>：每个已保存输出点的完整状态、菌毛局部基，以及产生该输出的 Brownian 热力。仿真结束时自动绘制的仍只有末状态，并使用最后一条记录的热力。</span></li>
+          <li><span class="en"><code>render_flowfield_from_results</code> draws a final panel, selected times, or a full-sequence animation (MPEG-4 on Windows/macOS, Motion JPEG AVI on Linux). Results written before 8.7.0 cannot reconstruct a flow field. The ODE trajectory is unchanged.</span><span class="zh"><code>render_flowfield_from_results</code> 可绘制末状态、指定时刻或全时序动画（Windows/macOS 为 MPEG-4，Linux 为 Motion JPEG AVI）。8.7.0 之前的结果不能重建流场。ODE 轨迹不变。</span></li>
+        </ul>
+      </div>
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
         <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v8.5.0 &mdash; 2026-09-04</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
@@ -2018,7 +2028,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v8.6.6 &middot; 2026-10-21</li>
+        <li>v8.7.0 &middot; 2026-10-29</li>
       </ul>
     </div>
   </div>

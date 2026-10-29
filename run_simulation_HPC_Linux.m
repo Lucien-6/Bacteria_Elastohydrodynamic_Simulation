@@ -103,7 +103,9 @@ function [results, params, output_dir] = run_simulation_HPC_Linux(cfg_or_path)
 %           (no solver or animation change)
 %  Updated: 2026-10-21 — v8.6.6 custom-body surface reconstruction; animation
 %           tick floor 0.5 um and a short waist roll mark
-%  Log banner version: 8.6.6 (2026-10-21) - emitted via project_version(); keep README / CHANGELOG in sync
+%  Updated: 2026-10-29 — v8.7.0 saved flow-field history and post-processing;
+%           one mobility assembly per flow frame
+%  Log banner version: 8.7.0 (2026-10-29) - emitted via project_version(); keep README / CHANGELOG in sync
 %
 %  Path policy: defensive addpath calls here allow
 %  run_simulation_HPC_Linux(cfg) without main_coupled_simulation.m.
@@ -878,6 +880,29 @@ if enable_brown
     results.brown_rng_seed = brown_rng_seed_used;
 end
 
+% Flow-field reconstruction history. Saved on every run, whether or not a
+% flow field is drawn. brown_force(:,i) is the one thermal force that
+% produced output i, including the last output. It is zero at the initial
+% sample. The saved parameter value is cleared after integration; the
+% final flow field uses brown_force(:,end), not that cleared value.
+nZ_flow = numel(Z0);
+results.flow_state.version = 1;
+results.flow_state.Z = zeros(nZ_flow, NT);
+results.flow_state.Z(:, 1) = Z0(:);
+results.flow_state.brown_force = zeros(6, NT);
+results.flow_state.rot = cell(M_pili, 1);
+for k = 1:M_pili
+    results.flow_state.rot{k} = zeros(3, 3, NT);
+    results.flow_state.rot{k}(:, :, 1) = params.rot{k};
+end
+results.flow_state.units.Z = 'dimensionless ODE state (lengths in L_0, angles in rad)';
+results.flow_state.units.rot = 'pilus local basis; rows map lab-frame vectors into the basis';
+results.flow_state.units.brown_force = ['dimensionless generalised thermal force, ', ...
+    'same units as params.brown_force_dimless'];
+results.flow_state.brownian_endpoint_convention = 'closing_interval';
+results.flow_state.state_dimension = nZ_flow;
+results.flow_state.n_times = NT;
+
 % --- Integration loop ---
 clear odetpbar;                    % Reset persistent vars from prior runs
 clear ode_coupled_rhs;             % Reset DPSI1_PREV motor-speed cache
@@ -1009,6 +1034,11 @@ while T_achieved < T_obs_dimless
                 norm(brown_info.dU_target_dim(1:3)), norm(brown_info.dU_target_dim(4:6)));
         end
     end
+
+    % Preserve the force acting in this segment. Interval-end bookkeeping
+    % clears params.brown_force_dimless before output samples are written;
+    % those samples keep the force that produced them.
+    flow_interval_force = params.brown_force_dimless(:);
 
     % Setup ODE solver
     tstart_ode   = tic;
@@ -1168,7 +1198,10 @@ while T_achieved < T_obs_dimless
             geom_i = reconstruct_geometry(Z_i, params);
             for k = 1:M_pili
                 results.X_pili{k}(:, :, ti) = geom_i.X_pili{k};
+                results.flow_state.rot{k}(:, :, ti) = params.rot{k};
             end
+            results.flow_state.Z(:, ti) = Z_i(:);
+            results.flow_state.brown_force(:, ti) = flow_interval_force;
         end
     end
 
@@ -1186,7 +1219,10 @@ while T_achieved < T_obs_dimless
             geom_i = reconstruct_geometry(Z_end, params);
             for k = 1:M_pili
                 results.X_pili{k}(:, :, ti) = geom_i.X_pili{k};
+                results.flow_state.rot{k}(:, :, ti) = params.rot{k};
             end
+            results.flow_state.Z(:, ti) = Z_end(:);
+            results.flow_state.brown_force(:, ti) = flow_interval_force;
             current_time_ind = ti;
         end
         timed_out = true;
@@ -1228,8 +1264,9 @@ end
 
 elapsed_total = toc(tic_total);
 
-% The thermal force is an interval-local quantity; never let it leak into
-% post-processing (flow-field evaluation, saved params) after the loop.
+% Clear the active parameter after the loop so a saved params struct does
+% not look like an integration still in progress. The last output keeps
+% its own recorded force in flow_state.brown_force(:,end).
 params.brown_force_dimless = zeros(6, 1);
 
 % Remove every uncomputed preallocated sample before diagnostics,
@@ -1237,9 +1274,13 @@ params.brown_force_dimless = zeros(6, 1);
 results.t_dimless = results.t_dimless(1:current_time_ind);
 results.X_cm      = results.X_cm(:, 1:current_time_ind);
 results.q         = results.q(:, 1:current_time_ind);
+results.flow_state.Z = results.flow_state.Z(:, 1:current_time_ind);
+results.flow_state.brown_force = results.flow_state.brown_force(:, 1:current_time_ind);
 for k = 1:M_pili
     results.X_pili{k} = results.X_pili{k}(:, :, 1:current_time_ind);
+    results.flow_state.rot{k} = results.flow_state.rot{k}(:, :, 1:current_time_ind);
 end
+results.flow_state.n_times = current_time_ind;
 NT = current_time_ind;
 results.completed          = ~timed_out;
 results.termination_reason = termination_reason;
@@ -1399,6 +1440,24 @@ logf('\n');
 %  =====================================================================
 
 logf('[SAVE] Saving simulation data...\n');
+
+n_flow = results.flow_state.n_times;
+flow_len_ok = n_flow == numel(results.t) && n_flow == numel(results.t_dimless) && ...
+    size(results.flow_state.Z, 2) == n_flow && ...
+    size(results.flow_state.brown_force, 2) == n_flow && ...
+    size(results.flow_state.Z, 1) == results.flow_state.state_dimension;
+for k = 1:M_pili
+    flow_len_ok = flow_len_ok && size(results.flow_state.rot{k}, 3) == n_flow;
+end
+if ~flow_len_ok
+    error('run_simulation_HPC_Linux:FlowStateLength', ...
+        'flow_state history is inconsistent with the saved time vector.');
+end
+logf('[SAVE] Flow-state history: version %d | %d states x %d outputs | force convention %s\n', ...
+    results.flow_state.version, results.flow_state.state_dimension, n_flow, ...
+    results.flow_state.brownian_endpoint_convention);
+logf('[SAVE] Flow-state final sample vs last_Z max |diff| = %.3e\n', ...
+    max(abs(results.flow_state.Z(:, end) - last_Z(:))));
 
 % Remove function handles before saving (not serialisable to .mat)
 params = rmfield(params, {'logf', 'logf_file'});
@@ -1766,6 +1825,7 @@ if compute_flowfield
     flow_opts.grid_range_um   = flowfield_grid_range;
     flow_opts.quiver_skip     = flowfield_quiver_skip;
     flow_opts.chunk_size      = flowfield_chunk_size;
+    params.brown_force_dimless = results.flow_state.brown_force(:, end);
     compute_plot_flowfield(last_Z, params, output_dir, run_id, logf, flow_opts, T_achieved, silent);
     t_flow_elapsed = toc(t_flow_start);
     logf('[FLOW] Flow field visualisation completed in %s\n\n', format_duration(t_flow_elapsed));
