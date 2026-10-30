@@ -1,6 +1,13 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 8.7.0 (2026-10-29)
+# Release: 8.7.1 (2026-10-30)
+#
+# v8.7.1: Flow-field figure patch. The cell interior is left blank, the
+#   axes cover the body and flagellum, and the outline is a smooth
+#   surface section. Panel letters sit outside the axes. The colour bar
+#   is vertical beside panel d. The figure title is the time at 0.0001 s
+#   resolution. The ODE and results.flow_state are unchanged. No new
+#   dependency.
 #
 # v8.7.0: Flow-field post-processing. Every new run saves results.flow_state
 #   (full state, pilus basis, and the Brownian force at each stored output).

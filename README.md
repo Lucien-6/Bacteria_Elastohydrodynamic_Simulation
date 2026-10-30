@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-10-29
-> **Version:** 8.7.0
+> **Updated:** 2026-10-30
+> **Version:** 8.7.1
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -129,7 +129,9 @@ drivers exclude that partial trajectory from steady-state statistics.
 
 ## Version Notes
 
-The current release is **8.7.0 (2026-10-29)**.  Every new run saves `results.flow_state`, the full state, pilus basis, and Brownian force at each stored output.  `render_flowfield_from_results` draws the final flow field, selected times, or a full-sequence animation from that file.  The end-of-run figure is still the only flow field drawn automatically.  **The ODE trajectory is unchanged.**  A `simulation_results.mat` from 8.6.6 or earlier cannot reconstruct a flow field.
+The current release is **8.7.1 (2026-10-30)**, a flow-field figure patch.  The cell interior is left blank, the axes cover the body and flagellum, and the outline is a smooth surface section.  Panel letters sit outside the axes, and the colour bar is a vertical bar beside panel d.  **The ODE trajectory is unchanged.**
+
+**8.7.0 (2026-10-29)** saves `results.flow_state` on every new run: the full state, pilus basis, and Brownian force at each stored output.  `render_flowfield_from_results` draws the final flow field, selected times, or a full-sequence animation from that file.  The end-of-run figure is still the only flow field drawn automatically.  A `simulation_results.mat` from 8.6.6 or earlier cannot reconstruct a flow field.
 
 **8.6.6 (2026-10-21)** was a visualisation fix. Custom-body alpha shapes now keep a closed surface through the point cloud, so a summary figure or animation no longer collapses to a single facet; the *E. coli* body is 326 vertices and 648 faces. Co-moving windows c and d never use a tick spacing finer than 0.5 μm. The two dark body stripes are replaced by one short dark-green patch on one side of the waist (central 18 % of the length, ±32°), on an otherwise uniform light-green body. **The ODE is unchanged. Parametric results are unchanged.** A custom body whose reconstructed surface changes also changes its enclosed volume, the volume-based length scale, and the sinking force when the cell is not neutrally buoyant.
 

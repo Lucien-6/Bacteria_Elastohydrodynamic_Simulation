@@ -4,8 +4,8 @@
 [返回中文 README](../README.zh-CN.md)
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **更新日期:** 2026-10-29
-> **版本:** 8.7.0
+> **更新日期:** 2026-10-30
+> **版本:** 8.7.1
 
 本文档承接原长版 README 中的理论、模型和数值方法说明。仓库首页现在保持精简；实际运行步骤见 [`../USER_GUIDE.md`](../USER_GUIDE.md)，版本历史见 [`../CHANGELOG.md`](../CHANGELOG.md)。
 
@@ -496,7 +496,7 @@ k_B T\,\nabla\!\cdot\!\mathbf{M}\,\Delta t_B
 
 自定义胞体在可用时使用保存的三角化表面和 alpha-shape 内部遮罩。
 
-自 v8.7.0 起，每个已保存输出点还记录 `results.flow_state`：完整状态、菌毛局部基，以及产生该输出的 Brownian 热力。[`render_flowfield_from_results.m`](../post_processing/render_flowfield_from_results.m) 用这些数据绘制末状态、指定时刻或动画。速度核与仿真结束时的末状态图相同。v8.7.0 之前的文件没有这套历史数据。
+自 v8.7.0 起，每个已保存输出点还记录 `results.flow_state`：完整状态、菌毛局部基，以及产生该输出的 Brownian 热力。[`render_flowfield_from_results.m`](../post_processing/render_flowfield_from_results.m) 用这些数据绘制末状态、指定时刻或动画。速度核与仿真结束时的末状态图相同。v8.7.1 将胞体内部留白，坐标范围盖住整个细菌，并用光滑的表面截线作轮廓。v8.7.0 之前的文件没有这套历史数据。
 
 ## 12. Walker 标度一致性
 

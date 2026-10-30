@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v8.7.0 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, second-order Kirchhoff curvature stencil, proper-rotation attachment sites, signed motor torque-speed law, whole-filament free-torsion root balance, body-only Brownian dynamics realised as a thermal force through the coupled ODE, batch post-processing with 3-D MSD and XZ MSAD diffusion fits, hardened numerical diagnostics, JSON config, and Linux HPC execution.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v8.7.1 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, second-order Kirchhoff curvature stencil, proper-rotation attachment sites, signed motor torque-speed law, whole-filament free-torsion root balance, body-only Brownian dynamics realised as a thermal force through the coupled ODE, batch post-processing with 3-D MSD and XZ MSAD diffusion fits, hardened numerical diagnostics, JSON config, and Linux HPC execution.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v8.7.0 &middot; 2026-10-29</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v8.7.1 &middot; 2026-10-30</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 8.7.0 &bull; 2026-10-29
+      Version 8.7.1 &bull; 2026-10-30
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -542,6 +542,16 @@ tailwind.config = {
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v8.7.1 &mdash; 2026-10-30</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Flow-field figure</span><span class="zh">流场图修正</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">The cell interior is left blank, the axes cover the body and flagellum, and the outline is a smooth surface section. The ODE and <code>results.flow_state</code> are unchanged.</span><span class="zh">胞体内部留白，坐标范围盖住胞体和鞭毛，轮廓为光滑的表面截线。ODE 与 <code>results.flow_state</code> 不变。</span></li>
+          <li><span class="en">Panel letters sit outside the axes. The colour bar is vertical beside panel d. The figure title is the time at 0.0001 s resolution.</span><span class="zh">子图编号在坐标框外。色标是子图 d 右侧的竖条。图顶标题是精确到 0.0001 s 的时间。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50/50 dark:bg-navy-950/20 p-6">
         <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v8.7.0 &mdash; 2026-10-29</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
           <span class="en">Saved-state flow fields</span><span class="zh">由保存状态重建流场</span>
@@ -2028,7 +2038,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v8.7.0 &middot; 2026-10-29</li>
+        <li>v8.7.1 &middot; 2026-10-30</li>
       </ul>
     </div>
   </div>

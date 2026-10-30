@@ -12,6 +12,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [8.7.1] — 2026-10-30
+
+Flow-field figure patch.  **The ODE trajectory and the saved
+`results.flow_state` are unchanged.**
+
+### Changed
+
+- **Body interior.**  The custom-body mask is a solid volume.  Velocity is
+  not drawn inside the cell.  The white outline is the surface–plane
+  section, resampled with a periodic spline, instead of the stair-stepped
+  contour of the velocity grid.
+- **Axis window.**  Each plane covers the configured range and is extended,
+  with a margin, so the body and every flagellum node lie inside the axes.
+- **Figure layout.**  Panel letters sit outside the top-left of each axes
+  box.  The only colour bar is vertical, beside panel d.  The figure title
+  is the time at 0.0001 s resolution.  Lighting on the 3-D panels comes
+  from `[1, -1, 0]` toward the origin.  The footer note is removed.
+
+### Compatibility
+
+- No new dependency.  Results from 8.7.0 can be redrawn with the new
+  figure.  Results from 8.6.6 or earlier still cannot reconstruct a flow
+  field.
+
+### Documentation
+
+- `project_version.m` bumped to 8.7.1 (2026-10-30); README (EN/ZH), USER_GUIDE
+  (EN/ZH), theory (EN/ZH), `requirements.txt`, the project website and
+  presentation version strings, and the headers of `run_simulation*.m` and
+  `main_coupled_simulation.m` updated.
+
+---
+
 ## [8.7.0] — 2026-10-29
 
 Flow-field post-processing release.  **The ODE trajectory is unchanged.**

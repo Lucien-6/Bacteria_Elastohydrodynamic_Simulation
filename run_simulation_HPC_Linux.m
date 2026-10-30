@@ -103,9 +103,11 @@ function [results, params, output_dir] = run_simulation_HPC_Linux(cfg_or_path)
 %           (no solver or animation change)
 %  Updated: 2026-10-21 — v8.6.6 custom-body surface reconstruction; animation
 %           tick floor 0.5 um and a short waist roll mark
+%  Updated: 2026-10-30 — v8.7.1 flow-field figure: blank interior, cell-sized
+%           axes, smooth outline, vertical colour bar beside panel d
 %  Updated: 2026-10-29 — v8.7.0 saved flow-field history and post-processing;
 %           one mobility assembly per flow frame
-%  Log banner version: 8.7.0 (2026-10-29) - emitted via project_version(); keep README / CHANGELOG in sync
+%  Log banner version: 8.7.1 (2026-10-30) - emitted via project_version(); keep README / CHANGELOG in sync
 %
 %  Path policy: defensive addpath calls here allow
 %  run_simulation_HPC_Linux(cfg) without main_coupled_simulation.m.

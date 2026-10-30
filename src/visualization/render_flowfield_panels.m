@@ -13,6 +13,9 @@ function out = render_flowfield_panels(frame, opts)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-10-28
+%  Updated: 2026-10-30 — body interior left blank; axes cover the cell;
+%           panel letters outside the axes; vertical colour bar beside (d);
+%           light direction [-1 1 0]; time is the only figure title
 
 if nargin < 2 || isempty(opts), opts = struct(); end
 action = 'static';
@@ -48,15 +51,16 @@ end
 
 
 function handles = create_figure(frame, visible)
-pos_a = [0.08, 0.57, 0.415, 0.31];
-pos_b = [0.545, 0.57, 0.415, 0.31];
-pos_c = [0.08, 0.14, 0.415, 0.38];
-pos_d = [0.545, 0.14, 0.415, 0.38];
+pos_a = [0.055, 0.56, 0.40, 0.30];
+pos_b = [0.50,  0.56, 0.36, 0.30];
+pos_c = [0.055, 0.13, 0.40, 0.36];
+pos_d = [0.50,  0.13, 0.36, 0.36];
 
 fig = figure('Units', 'pixels', 'Position', [40, 40, 1800, 1400], ...
-    'Color', 'w', 'Visible', visible, 'InvertHardcopy', 'off');
-set(fig, 'DefaultAxesFontName', 'Arial', 'DefaultAxesFontSize', 10, ...
-    'DefaultAxesLineWidth', 0.6, 'DefaultTextFontName', 'Arial');
+    'Color', 'w', 'Visible', visible);
+set(fig, 'DefaultAxesFontName', 'Arial', 'DefaultAxesFontSize', 12, ...
+    'DefaultAxesLineWidth', 0.6, 'DefaultTextFontName', 'Arial', ...
+    'DefaultTextInterpreter', 'none');
 
 ax_a = axes('Parent', fig, 'Position', pos_a);
 ax_b = axes('Parent', fig, 'Position', pos_b);
@@ -73,28 +77,24 @@ handles.created = false;
 handles = update_figure(handles, frame);
 
 cb = colorbar(ax_d);
-cb.Position = [0.25, 0.055, 0.50, 0.018];
+cb.Location = 'manual';
+cb.Position = colorbar_position(ax_d, pos_d);
+cb.FontName = 'Arial';
+cb.FontSize = 12;
 cb.Label.String = 'Velocity magnitude (μm/s)';
 cb.Label.FontName = 'Arial';
-cb.Label.FontSize = 10;
+cb.Label.FontSize = 14;
+cb.Label.Rotation = 90;
+cb.Label.Interpreter = 'none';
+cb.TickLabelInterpreter = 'none';
 handles.cb = cb;
 restore_positions(handles);
 
-handles.title = annotation(fig, 'textbox', [0.08, 0.935, 0.84, 0.040], ...
-    'String', sprintf('Flow field  [%s]', frame.run_id), ...
-    'EdgeColor', 'none', 'HorizontalAlignment', 'center', ...
-    'VerticalAlignment', 'middle', 'FontName', 'Arial', ...
-    'FontSize', 14, 'FontWeight', 'bold', 'Interpreter', 'none');
-handles.time = annotation(fig, 'textbox', [0.08, 0.895, 0.84, 0.035], ...
+handles.time = annotation(fig, 'textbox', [0.08, 0.909, 0.84, 0.045], ...
     'String', time_string(frame.time_s), ...
     'EdgeColor', 'none', 'HorizontalAlignment', 'center', ...
     'VerticalAlignment', 'middle', 'FontName', 'Arial', ...
-    'FontSize', 11, 'Interpreter', 'none');
-handles.note = annotation(fig, 'textbox', [0.08, 0.008, 0.84, 0.038], ...
-    'String', note_string(frame.scale_note), ...
-    'EdgeColor', 'none', 'HorizontalAlignment', 'center', ...
-    'VerticalAlignment', 'middle', 'FontName', 'Arial', ...
-    'FontSize', 9, 'Interpreter', 'none');
+    'FontSize', 20, 'FontWeight', 'bold', 'Interpreter', 'none');
 restore_positions(handles);
 drawnow;
 end
@@ -113,9 +113,6 @@ handles = paint_2d(handles, frame, 'yz');
 
 if isfield(handles, 'time') && isgraphics(handles.time)
     handles.time.String = time_string(frame.time_s);
-end
-if isfield(handles, 'note') && isgraphics(handles.note)
-    handles.note.String = note_string(frame.scale_note);
 end
 restore_positions(handles);
 handles.created = true;
@@ -156,10 +153,9 @@ if ~handles.created
         'FaceAlpha', 'texturemap', 'AlphaData', A);
     handles.(['body_' tag]) = render_body_mesh(ax, mesh, body_color, 0.40);
     handles.(['pili_' tag]) = draw_pili_lines(ax, frame);
-    text(ax, 0.02, 0.98, ['(' tag ')'], 'Units', 'normalized', ...
-        'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold', ...
-        'VerticalAlignment', 'top', 'HorizontalAlignment', 'left');
-    camlight(ax, 'headlight');
+    handles.(['tag_' tag]) = panel_label(ax, tag);
+    % Propagation direction is [-1, 1, 0], so the source sits at [1, -1, 0].
+    light(ax, 'Position', [1, -1, 0], 'Style', 'infinite');
     lighting(ax, 'gouraud');
     material(ax, 'dull');
     hold(ax, 'off');
@@ -170,7 +166,12 @@ else
     update_pili_lines(handles.(['pili_' tag]), frame);
 end
 apply_3d_limits(ax, frame);
-caxis(ax, [0, frame.cmax]);
+clim(ax, [0, frame.cmax]);
+if strcmp(plane_name, 'xz')
+    set_panel_title(ax, '3D — XZ plane');
+else
+    set_panel_title(ax, '3D — YZ plane');
+end
 end
 
 
@@ -219,18 +220,14 @@ if ~handles.created
     handles.(['quiver_' tag]) = quiver(ax, qx, qy, qu, qv, 0, ...
         'Color', [0.12, 0.12, 0.12], 'LineWidth', 0.75, ...
         'MaxHeadSize', 0.45, 'AutoScale', 'off');
-    text(ax, 0.02, 0.98, ['(' tag ')'], 'Units', 'normalized', ...
-        'FontName', 'Arial', 'FontSize', 12, 'FontWeight', 'bold', ...
-        'VerticalAlignment', 'top', 'HorizontalAlignment', 'left');
-    xlabel(ax, xlab, 'FontName', 'Arial', 'FontSize', 11);
-    ylabel(ax, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 11);
+    handles.(['tag_' tag]) = panel_label(ax, tag);
+    xlabel(ax, xlab, 'FontName', 'Arial', 'FontSize', 14, 'Interpreter', 'none');
+    ylabel(ax, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 14, 'Interpreter', 'none');
     hold(ax, 'off');
 else
     set(handles.(['img_' tag]), 'XData', [plane.h_vec(1), plane.h_vec(end)], ...
         'YData', [plane.v_vec(1), plane.v_vec(end)], ...
         'CData', C, 'AlphaData', A);
-    set_xy(handles.(['outline_' tag]), plane.cap_h, plane.cap_v);
-    set_xy(handles.(['cross_' tag]), cx, cy);
     delete(handles.(['quiver_' tag]));
     hold(ax, 'on');
     handles.(['quiver_' tag]) = quiver(ax, qx, qy, qu, qv, 0, ...
@@ -238,71 +235,76 @@ else
         'MaxHeadSize', 0.45, 'AutoScale', 'off');
     hold(ax, 'off');
 end
-if handles.created
-    set_xy(handles.(['outline_' tag]), plane.cap_h, plane.cap_v);
-    set_xy(handles.(['cross_' tag]), cx, cy);
-else
-    set_xy(handles.(['outline_' tag]), plane.cap_h, plane.cap_v);
-    set_xy(handles.(['cross_' tag]), cx, cy);
-end
+set_xy(handles.(['outline_' tag]), plane.cap_h, plane.cap_v);
+set_xy(handles.(['cross_' tag]), cx, cy);
 apply_2d_limits(ax, frame, plane_name);
-caxis(ax, [0, frame.cmax]);
+clim(ax, [0, frame.cmax]);
 colormap(ax, jet(256));
+if strcmp(plane_name, 'xz')
+    set_panel_title(ax, 'XZ plane');
+else
+    set_panel_title(ax, 'YZ plane');
+end
 end
 
 
 function style_3d(ax, frame, plane_name)
-if strcmp(plane_name, 'xz')
-    title(ax, '3D — XZ plane', 'FontName', 'Arial', 'FontSize', 11, 'FontWeight', 'bold');
-else
-    title(ax, '3D — YZ plane', 'FontName', 'Arial', 'FontSize', 11, 'FontWeight', 'bold');
-end
-xlabel(ax, 'X (μm)', 'FontName', 'Arial', 'FontSize', 11);
-ylabel(ax, 'Y (μm)', 'FontName', 'Arial', 'FontSize', 11);
-zlabel(ax, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 11);
-axis(ax, 'equal');
 grid(ax, 'on');
 box(ax, 'on');
-set(ax, 'TickDir', 'out', 'FontName', 'Arial', 'FontSize', 10);
+set(ax, 'TickDir', 'out', 'FontName', 'Arial', 'FontSize', 12, ...
+    'LabelFontSizeMultiplier', 1);
 view(ax, 45, 25);
 camproj(ax, 'orthographic');
 colormap(ax, jet(256));
-caxis(ax, [0, frame.cmax]);
+clim(ax, [0, frame.cmax]);
+xlabel(ax, 'X (μm)', 'FontName', 'Arial', 'FontSize', 14, 'Interpreter', 'none');
+ylabel(ax, 'Y (μm)', 'FontName', 'Arial', 'FontSize', 14, 'Interpreter', 'none');
+zlabel(ax, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 14, 'Interpreter', 'none');
+if strcmp(plane_name, 'xz')
+    set_panel_title(ax, '3D — XZ plane');
+else
+    set_panel_title(ax, '3D — YZ plane');
+end
 end
 
 
 function style_2d(ax, frame, plane_name)
-if strcmp(plane_name, 'xz')
-    title(ax, 'XZ plane', 'FontName', 'Arial', 'FontSize', 11, 'FontWeight', 'bold');
-else
-    title(ax, 'YZ plane', 'FontName', 'Arial', 'FontSize', 11, 'FontWeight', 'bold');
-end
-axis(ax, 'equal');
 box(ax, 'on');
-set(ax, 'TickDir', 'out', 'Layer', 'top', 'FontName', 'Arial', 'FontSize', 10);
+set(ax, 'TickDir', 'out', 'Layer', 'top', 'FontName', 'Arial', 'FontSize', 12, ...
+    'LabelFontSizeMultiplier', 1);
 colormap(ax, jet(256));
-caxis(ax, [0, frame.cmax]);
+clim(ax, [0, frame.cmax]);
+if strcmp(plane_name, 'xz')
+    set_panel_title(ax, 'XZ plane');
+else
+    set_panel_title(ax, 'YZ plane');
+end
 end
 
 
 function apply_3d_limits(ax, frame)
-cm = frame.planes.X_cm_um(:);
-half = frame.planes.half_range;
-xlim(ax, cm(1) + [-half, half]);
-ylim(ax, cm(2) + [-half, half]);
-zlim(ax, cm(3) + [-half, half]);
+lim = frame.planes.axis_lim_um;
+xlim(ax, lim(1, :));
+ylim(ax, lim(2, :));
+zlim(ax, lim(3, :));
+set(ax, 'DataAspectRatio', [1, 1, 1], ...
+    'PlotBoxAspectRatio', [diff(lim(1, :)), diff(lim(2, :)), diff(lim(3, :))]);
 end
 
 
 function apply_2d_limits(ax, frame, plane_name)
-cm = frame.planes.X_cm_um(:);
-half = frame.planes.half_range;
+lim = frame.planes.axis_lim_um;
 if strcmp(plane_name, 'xz')
-    xlim(ax, cm(1) + [-half, half]);
+    xr = lim(1, :);
+    yr = lim(3, :);
 else
-    xlim(ax, cm(2) + [-half, half]);
+    xr = lim(2, :);
+    yr = lim(3, :);
 end
-ylim(ax, cm(3) + [-half, half]);
+xlim(ax, xr);
+ylim(ax, yr);
+set(ax, 'DataAspectRatio', [1, 1, 1], ...
+    'PlotBoxAspectRatio', [diff(xr), diff(yr), 1]);
 end
 
 
@@ -330,9 +332,65 @@ end
 
 function [C, A] = display_image(Umag, mask)
 C = Umag;
-C(mask) = 0;
-A = ones(size(Umag));
-A(mask) = 0;
+C(mask) = NaN;
+A = double(~mask);
+end
+
+
+function h = panel_label(ax, tag)
+%PANEL_LABEL  Bold panel letter just outside the top-left corner of the axes
+h = text(ax, 0, 1.02, tag, 'Units', 'normalized', ...
+    'Clipping', 'off', 'FontName', 'Arial', 'FontSize', 18, ...
+    'FontWeight', 'bold', 'Interpreter', 'none', ...
+    'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'left', ...
+    'HitTest', 'off');
+end
+
+
+function set_panel_title(ax, str)
+%SET_PANEL_TITLE  Subplot title in Arial, clear of the top of the axes box
+h = title(ax, str, 'FontName', 'Arial', 'FontSize', 15, ...
+    'FontWeight', 'bold', 'Interpreter', 'none');
+set(h, 'Units', 'normalized', ...
+    'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', ...
+    'Position', [0.5, 1.04, 0]);
+end
+
+
+function p = colorbar_position(ax, pos_d)
+%COLORBAR_POSITION  Vertical colour bar just to the right of panel (d)
+%  Equal scaling leaves the square plot box inside a wider axes rectangle.
+%  The bar is placed against that plot box, not against the axes rectangle.
+fig = ancestor(ax, 'figure');
+fig_units = fig.Units;
+fig.Units = 'pixels';
+fp = fig.Position;
+fig.Units = fig_units;
+
+pbar = ax.PlotBoxAspectRatio;
+target = pbar(1) / max(pbar(2), eps);
+aw = pos_d(3) * fp(3);
+ah = pos_d(4) * fp(4);
+if aw / max(ah, eps) > target
+    bw = ah * target;
+    bh = ah;
+else
+    bw = aw;
+    bh = aw / max(target, eps);
+end
+bx = pos_d(1) * fp(3) + (aw - bw) / 2;
+by = pos_d(2) * fp(4) + (ah - bh) / 2;
+% A little wider than before: about five times the axes frame line.
+ppi = get(groot, 'ScreenPixelsPerInch');
+if ~(isfinite(ppi) && ppi > 0)
+    ppi = 96;
+end
+gap_px = 5 * ax.LineWidth * ppi / 72;
+if gap_px < 0.008 * fp(3)
+    gap_px = 0.008 * fp(3);
+end
+bar_w = 0.016 * fp(3);
+p = [(bx + bw + gap_px) / fp(3), by / fp(4), bar_w / fp(3), bh / fp(4)];
 end
 
 
@@ -349,8 +407,6 @@ scale = max(spd(:), [], 'omitnan');
 ok = isfinite(spd) & spd > 1e-15 * scale & ~mk;
 qx = Gh_s(ok);
 qy = Gv_s(ok);
-qu = zeros(size(qx));
-qv = zeros(size(qx));
 if isempty(qx)
     qx = nan; qy = nan; qu = nan; qv = nan;
     return
@@ -397,17 +453,15 @@ handles.ax_a.Position = handles.pos.a;
 handles.ax_b.Position = handles.pos.b;
 handles.ax_c.Position = handles.pos.c;
 handles.ax_d.Position = handles.pos.d;
+if isfield(handles, 'cb') && isgraphics(handles.cb)
+    handles.cb.Location = 'manual';
+    handles.cb.Position = colorbar_position(handles.ax_d, handles.pos.d);
+end
 end
 
 
 function s = time_string(time_s)
-s = sprintf('Time = %.4g s', time_s);
-end
-
-
-function s = note_string(scale_note)
-s = ['Colour shows the full three-dimensional speed. ', ...
-     'Arrows show the normalised in-plane direction only.  ', scale_note];
+s = sprintf('Time = %.4f s', time_s);
 end
 
 
