@@ -42,6 +42,7 @@ function geom = reconstruct_geometry(Z, params)
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
 %  Updated: 2026-07-12
+%  Updated: 2026-11-04 — v8.7.2: comment and message-text corrections only; no behavioural change.
 
 %% Unpack state
 [X_cm, q, pili_angles] = unpack_state(Z, params.N_segments);

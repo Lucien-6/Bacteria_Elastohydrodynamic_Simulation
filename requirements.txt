@@ -1,6 +1,13 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 8.7.1 (2026-10-30)
+# Release: 8.7.2 (2026-11-04)
+#
+# v8.7.2: Documentation and comment-accuracy patch. Outdated or wrong source
+#   comments were corrected, the motor-speed pre-flight warning and one flow-field
+#   log line were reworded, the obsolete src/utils/verify_migration.m was
+#   removed, and the README no longer carries a version-notes section. The
+#   solver, ODE trajectories and saved results are unchanged. No new
+#   dependency.
 #
 # v8.7.1: Flow-field figure patch. The cell interior is left blank, the
 #   axes cover the body and flagellum, and the outline is a smooth

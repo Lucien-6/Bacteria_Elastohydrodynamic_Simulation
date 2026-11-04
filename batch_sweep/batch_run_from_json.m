@@ -42,6 +42,7 @@
 %  Updated: 2026-05-25 — Lucien — optional parfor parallel branch, case_name
 %                        deduplication, real-time DataQueue logging, unified
 %                        run header/itemized summary (P0+P2 blog consistency).
+%  Updated: 2026-11-04 — v8.7.2: comment and message-text corrections only; no behavioural change.
 
 close all force;
 clear; clc;

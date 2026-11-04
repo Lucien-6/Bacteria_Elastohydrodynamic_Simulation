@@ -12,6 +12,74 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [8.7.2] — 2026-11-04
+
+Documentation and comment-accuracy patch.  **The solver, the ODE trajectories
+and the saved results are unchanged.**  Only comments, user-visible message
+text and documentation changed.
+
+### Fixed (comments and messages)
+
+- **Wrong comments.**  `main_coupled_simulation.m` quoted `T_obs = 5 s` and
+  `dt = 0.01 s` for the inline demo (the code uses 3 s and 1e-3 s), called
+  `max_omega_Hz` a "stall speed" (it is the zero-torque speed), described
+  `tlim` as the ODE timeout (it is the wall-clock limit of one `ode15s`
+  segment), and did not say that a missing `config_file` silently falls back
+  to the inline block.  `build_global_resistance.m` labelled the RSM/RSS
+  origin of the `M_BP` and `M_PB` blocks the wrong way round (rows are
+  evaluation points, columns are force points).  `reconstruct_geometry.m`
+  referred to the non-existent `params.L_0` (it is `params.scales.L_0`).
+  The `deflection_z` / `deflection_x` descriptions in `pili_type_building.m`,
+  `pili_building.m` and `parse_pili_config.m` now state the real axes
+  (rotation about the template Z axis = tilt, about X = twist).  The
+  mobility-accuracy figure in `init_coupled_params.m` now agrees with
+  `docs/theory.md` (about 3 %).  `postprocess_cases.m` required R2020a+, not
+  R2018b+.
+- **Outdated comments.**  References to the removed `DPSI1_PREV` cache and
+  `get_trapezoidal_weight`, to hard-coded line numbers (`L274-276`, `L324`,
+  `L568+`), to the internal "defect-2" ticket and to a non-existent
+  `§"NOTE (v7.3.0)"` were replaced.  `run_token` and `dpsi1_prev` in
+  `init_coupled_params.m` are documented as unused placeholders.  The
+  `custom_pili_building.m` step list was renumbered, `load_sim_config.m`
+  documents `hydro_radius_factor`, `tlim` and the custom-mode
+  `alpha_0` / `eps_body` mapping, and `compute_curvature_binormal.m` is
+  marked as not used by the solver.  The old project name `Coupled_Body_Pili`
+  was replaced by "project root" in the batch scripts and both user guides.
+
+### Changed
+
+- **Motor-speed pre-flight warning** (`validate_simulation_params.m`).  The
+  ratio `omega_steady/omega_max` is 0 at stall and 1 at the zero-torque
+  speed, so a ratio near 1 means the motor runs near its zero-torque speed,
+  not near stall.  The warning text now says so and no longer refers to "RFT
+  drag" (the torsional drag is the whole-filament rotlet-segment drag).  The
+  thresholds (0.4 and 0.7) are unchanged.
+- **Flow-field log line.**  `[FLOW] Computing XZ/YZ-plane flow field ...`
+  (it computes both planes); section headers of `run_simulation*.m` match.
+
+### Removed
+
+- `src/utils/verify_migration.m`.  It was a one-off check of the directory
+  restructuring, was not called by any code, and its expected-file list was
+  out of date (five `src/visualization` files were missing).
+- The *Version Notes* section of `README.md` and `README.zh-CN.md`.  Release
+  history lives in this file.
+
+### Compatibility
+
+- No new dependency.  Numerical results are identical to 8.7.1.  Only the
+  text of the motor-speed warning and of one log line changed; scripts that
+  match on that text need adjusting.
+
+### Documentation
+
+- `project_version.m` bumped to 8.7.2 (2026-11-04); README (EN/ZH),
+  USER_GUIDE (EN/ZH), theory (EN/ZH), `requirements.txt`, the project
+  website (new release card) and presentation version strings, and the
+  headers of `run_simulation*.m` and `main_coupled_simulation.m` updated.
+  The headers of every source file touched above gained an `Updated:` line.
+
+---
 ## [8.7.1] — 2026-10-30
 
 Flow-field figure patch.  **The ODE trajectory and the saved

@@ -71,6 +71,7 @@ function Pili = custom_pili_building(custom_pili_cfg, attachment_sites, ...
 %  Updated: 2026-07-03 — Optional logf_h for run_simulation silent mode.
 %  Updated: 2026-07-13
 %  Updated: 2026-09-04 — v8.3.0 RX_loc made right-handed.
+%  Updated: 2026-11-04 — v8.7.2: comment and message-text corrections only; no behavioural change.
 
 %% Input validation
 if nargin < 7

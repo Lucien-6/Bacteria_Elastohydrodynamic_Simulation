@@ -45,6 +45,7 @@ function Pili_str = pili_type_building(PM, Ntail)
 %  Created: 2024-10-10
 %  Updated: 2026-09-04 (v8.3.0: RX made right-handed)
 %  Updated: 2026-09-04 (v8.5.0: type-2 parabola anchored at the origin)
+%  Updated: 2026-11-04 — v8.7.2: comment and message-text corrections only; no behavioural change.
 
 %% Extract common parameters
 Pili_Type = PM(1);   % Morphology type

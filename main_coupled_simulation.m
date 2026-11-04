@@ -36,7 +36,8 @@
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
 %  Updated: 2026-09-04
-%  Documentation release: 8.7.1 (2026-10-30) - see README.md / CHANGELOG.md
+%  Updated: 2026-11-04 — v8.7.2: comment corrections (run-mode notes, demo values); no behavioural change.
+%  Documentation release: 8.7.2 (2026-11-04) - see README.md / CHANGELOG.md
 
 close all force;
 clear; clc;

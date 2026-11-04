@@ -58,6 +58,7 @@ function Pili = pili_building(Pili_Matrix, seg_per_um, major_axis, minor_axis, d
 %  Created: 2026-01-23
 %  Updated: 2026-09-04 (v8.3.0: attachment-site maps are proper rotations;
 %                       reflections at sites 1,2,5,7,10,11,14 removed)
+%  Updated: 2026-11-04 — v8.7.2: comment and message-text corrections only; no behavioural change.
 
 %% Input validation
 if nargin < 7

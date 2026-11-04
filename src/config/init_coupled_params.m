@@ -95,6 +95,7 @@ function params = init_coupled_params(varargin)
 %           2026-09-04 — v8.5.0 brown_force_dimless field initialised.
 %           2026-10-11 — pilus hydrodynamic radius factor (default sqrt(2)).
 %  Updated: 2026-10-11
+%  Updated: 2026-11-04 — v8.7.2: comment and message-text corrections only; no behavioural change.
 
 %% Parse inputs
 p = inputParser;

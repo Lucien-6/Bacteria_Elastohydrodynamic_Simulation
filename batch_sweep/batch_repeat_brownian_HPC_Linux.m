@@ -92,6 +92,7 @@
 %                        distributed/network storage): see items 1-5 above.
 %  Updated: 2026-07-16 — Lucien — capture_partial_outdir moved to src/utils
 %                        (parfor-safe); FATAL handler prints MException.cause.
+%  Updated: 2026-11-04 — v8.7.2: comment and message-text corrections only; no behavioural change.
 clear; clc;
 
 % Ensure working directory is project root (contains run_simulation_HPC_Linux.m)

@@ -110,7 +110,8 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %           axes, smooth outline, vertical colour bar beside panel d
 %  Updated: 2026-10-29 — v8.7.0 saved flow-field history and post-processing;
 %           one mobility assembly per flow frame
-%  Log banner version: 8.7.1 (2026-10-30) - emitted via project_version(); keep README / CHANGELOG in sync
+%  Updated: 2026-11-04 — v8.7.2: comment and log/warning-text corrections only; no behavioural change.
+%  Log banner version: 8.7.2 (2026-11-04) - emitted via project_version(); keep README / CHANGELOG in sync
 %
 %  Path policy: defensive addpath calls here allow run_simulation(cfg) without
 %  main_coupled_simulation.m.  Standalone drivers in batch_sweep/ and

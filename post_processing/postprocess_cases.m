@@ -74,6 +74,7 @@ function postprocess_cases()
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-04-07
 %  Updated: 2026-07-25
+%  Updated: 2026-11-04 — v8.7.2: comment and message-text corrections only; no behavioural change.
 
 %% ---- Banner ------------------------------------------------------------
 sep = repmat('=', 1, 64);

@@ -64,6 +64,7 @@ function [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params)
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-31
 %  Updated: 2026-07-13
+%  Updated: 2026-11-04 — v8.7.2: comment and message-text corrections only; no behavioural change.
 
 N_body = params.N_body;
 M      = params.M_pili;

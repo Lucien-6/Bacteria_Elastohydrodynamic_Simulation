@@ -41,6 +41,7 @@
 %  Updated: 2026-07-16 — Lucien — move capture_partial_outdir to src/utils so
 %                        parfor workers can resolve it (fixes SourceCodeNotAvailable);
 %                        FATAL handler prints MException.cause.
+%  Updated: 2026-11-04 — v8.7.2: comment and message-text corrections only; no behavioural change.
 clear; clc;
 
 % Ensure working directory is project root (contains run_simulation.m)

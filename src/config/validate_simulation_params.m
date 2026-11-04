@@ -55,6 +55,7 @@ function validate_simulation_params(cfg, logf_h)
 %  Updated: 2026-09-04 — Pili_Matrix shape-parameter checks for types 2-5
 %           (validate_pili_shape_params); v8.4.0 stall diagnostic uses the
 %           RSS torsional drag 2*pi*mu*eps^2*L and free-bearing wording.
+%  Updated: 2026-11-04 — v8.7.2: comment and message-text corrections only; no behavioural change.
 
 if nargin < 2 || isempty(logf_h)
     logf_h = @(varargin) [];   % no-op fallback

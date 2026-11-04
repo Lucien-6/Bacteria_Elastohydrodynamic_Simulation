@@ -64,6 +64,7 @@ function [dZ, flow_hydro] = ode_coupled_rhs(t, Z, params)
 %           torque; the interior twist moment is no longer double counted.
 %           v8.5.0 — Step 8a: Brownian thermal generalised force realised
 %           through the coupled RHS (params.brown_force_dimless).
+%  Updated: 2026-11-04 — v8.7.2: comment and message-text corrections only; no behavioural change.
 
 %% Extract frequently used parameters
 if ~isscalar(t) || ~isfinite(t) || any(~isfinite(Z(:)))
