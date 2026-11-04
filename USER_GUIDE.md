@@ -32,7 +32,7 @@ Breaking configuration changes (since 8.0.0): `Pili_Matrix` must contain exactly
 Open MATLAB from the repository root or run:
 
 ```matlab
-cd('path/to/Coupled_Body_Pili')
+cd('path/to/project_root')
 ```
 
 This keeps relative paths for JSON configs, geometry files, and outputs predictable.

@@ -67,8 +67,8 @@ function postprocess_cases()
 %    Windows with Microsoft Excel is required only for COM visual formatting;
 %    if COM is unavailable or formatting fails, the raw .xlsx data remains
 %    saved and processing continues with a warning.
-%    MATLAB R2018b+ is required by the documented workflow.
-%    Summary figure export uses exportgraphics (MATLAB R2020a or later).
+%    Summary figure export uses exportgraphics, so MATLAB R2020a or later is
+%    required (the project README recommends R2020b or later).
 %    Interactive HTML figure export requires MATLAB R2026a or later.
 %
 %  Author:  Lucien (lucien-6@qq.com)

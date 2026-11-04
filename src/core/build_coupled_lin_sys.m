@@ -209,7 +209,7 @@ end
 
 %  Vectorised angular-moment rows.  Uses the precomputed quadrature
 %  weights from init_coupled_params (w=1 for body points, trapezoidal
-%  ds/2 or ds for pili node points -- identical to get_trapezoidal_weight).
+%  ds/2 at the two end nodes and ds at interior nodes of each pilus).
 r_all = X_all - X_cm';                                % [N_total x 3]
 w_all = params.quad_weights(:)';                      % 1 x N_total
 rax   = r_all(:,1)';  ray = r_all(:,2)';  raz = r_all(:,3)';
@@ -566,7 +566,7 @@ for k = 1:M
     % row.  Production code (v7.3.0+) does NOT add any motor reaction
     % term to R_global(4:6) — the system moment balance must remain
     % free of internal motor torques, which cancel by Newton's third
-    % law (see ode_coupled_rhs.m §"NOTE (v7.3.0)").  This field is
+    % law (see the Step 8d note in ode_coupled_rhs.m).  This field is
     % retained purely for offline diagnostics that compare the
     % omega -> dot_psi projection against d3_lab (see CHANGELOG v7.3.0).
     geom.J_euler3{k} = J_euler(3,:);
@@ -583,9 +583,10 @@ end
 end
 
 
-%  Note: the former local helper get_trapezoidal_weight is superseded by
-%  params.quad_weights, precomputed once in init_coupled_params.  This
-%  eliminates per-call iteration over all pili points at every ODE RHS.
+%  Note: the trapezoidal/body quadrature weights are not recomputed here;
+%  they are read from params.quad_weights, precomputed once in
+%  init_coupled_params, so the ODE RHS never loops over the pili points to
+%  rebuild them.
 
 
 function logf_h = get_params_logf(params)

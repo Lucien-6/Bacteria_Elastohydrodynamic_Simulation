@@ -32,11 +32,12 @@ function [M_weighted, M_twist, M_rotlet, D_twist] = build_global_resistance(X_al
 %                      (params.epsilon; default factor sqrt(2), see init_coupled_params.m)
 %      Pair rule    :  eps_ij = eps_j  (force-point-determined)
 %
-%    Matrix layout (block view):
-%      M_weighted = [ M_BB  M_BP ]   BB = body-body   (RSM)
-%                   [ M_PB  M_PP ]   BP = body-pili   (RSM)
-%                                    PB = pili-body   (RSS)
-%                                    PP = pili-pili   (RSS)
+%    Matrix layout (block view; rows = evaluation points, columns = force
+%    (source) points, block name = M_<eval><source>):
+%      M_weighted = [ M_BB  M_BP ]   BB : eval body, source body  (RSM)
+%                   [ M_PB  M_PP ]   BP : eval body, source pili  (RSS)
+%                                    PB : eval pili, source body  (RSM)
+%                                    PP : eval pili, source pili  (RSS)
 %      Column method is determined by the force point (source j):
 %        Body columns (j = body point) → RSM, eps = eps_body, w = 1
 %        Pili columns (j = pili point) → RSS, eps = eps_pili, w = 1

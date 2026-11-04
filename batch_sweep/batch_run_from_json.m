@@ -56,7 +56,7 @@ end
 if ~isfolder(proj_root) || ~isfile(fullfile(proj_root, 'run_simulation.m'))
     error('batch_run_from_json:BadRoot', ...
         ['Cannot resolve project root (run_simulation.m not found). ', ...
-         'Run from Coupled_Body_Pili/batch_sweep/ or cd to project root.']);
+         'Run from <project root>/batch_sweep/ or cd to the project root.']);
 end
 cd(proj_root);
 addpath(proj_root);

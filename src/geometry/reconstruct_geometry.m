@@ -8,8 +8,8 @@ function geom = reconstruct_geometry(Z, params)
 %    ODE RHS evaluation.
 %    All positions are nondimensional coordinates x/L_0; no conversion
 %    back to SI units is performed here.  Multiply any positional field by
-%    params.L_0 to recover metres, for example
-%      X_body_SI = geom.X_body * params.L_0.
+%    params.scales.L_0 to recover metres, for example
+%      X_body_SI = geom.X_body * params.scales.L_0.
 %
 %  Syntax:
 %    geom = reconstruct_geometry(Z, params)

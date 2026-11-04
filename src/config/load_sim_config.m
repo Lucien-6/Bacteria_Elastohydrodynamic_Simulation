@@ -29,8 +29,8 @@
 %        dimensionless indices or shape parameters.  The matrix must have
 %        exactly eight rows; per-pilus stiffness rows are rejected.
 %      Material and fluid:
-%        E [Pa], r_pili [m], sigma_p, mu [Pa*s], rho_bac [kg/m^3],
-%        rho_fluid [kg/m^3]
+%        E [Pa], r_pili [m], sigma_p, hydro_radius_factor (eps_pili/r_pili),
+%        mu [Pa*s], rho_bac [kg/m^3], rho_fluid [kg/m^3]
 %      Time integration and Brownian motion:
 %        T_obs [s], AbsTol, RelTol, delta [rad], tlim [s], dt [s],
 %        seg_per_um [1/um], enable_brown, Temper [K], dt_B [s],
@@ -50,11 +50,14 @@
 %      case_name, geometry_mode -> cfg fields with the same names
 %      custom_geometry -> custom_geometry and custom-mode geometry fields
 %      custom_geometry.initial_orientation -> initial_orientation
+%      custom_geometry.{alpha_0,eps_body} -> alpha_0, eps_body (custom mode)
 %      body.* -> minor_axis, major_axis, N_body, alpha_0, eps_body
+%        (parametric mode)
 %      pili -> Pili_Matrix and pili_ext
-%      material.* -> E, r_pili, sigma_p
+%      material.* -> E, r_pili, sigma_p, hydro_radius_factor
 %      fluid.* -> mu, rho_bac, rho_fluid
 %      simulation.{T_obs,AbsTol,RelTol,tlim,dt,seg_per_um} -> same names
+%        (tlim = wall-clock timeout of one ode15s segment [s])
 %      simulation.delta_frac -> delta = pi/delta_frac
 %      brownian.enable -> enable_brown
 %      brownian.temperature -> Temper

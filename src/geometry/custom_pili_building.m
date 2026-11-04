@@ -9,11 +9,11 @@ function Pili = custom_pili_building(custom_pili_cfg, attachment_sites, ...
 %      1. Read and deduplicate raw centerline points.
 %      2. Canonicalize the PCHIP parameter curve to the target segment
 %         density using a nested equal-chord root construction.
-%      4. Align the root tangent to the attachment site direction (with
+%      3. Align the root tangent to the attachment site direction (with
 %         logging of the alignment angle; warn if > 45 deg).
-%      5. Apply optional local-basis deflection rotations around the
+%      4. Apply optional local-basis deflection rotations around the
 %         tangent (deflection_z) and bending-plane normal (deflection_x).
-%      6. Translate to (site.position + dis * site.direction).
+%      5. Translate to (site.position + dis * site.direction).
 %    The file coordinates are interpreted in their source Cartesian input
 %    frame; the alignment and translation place the result in the body-local,
 %    COM-centred frame used by attachment_sites.

@@ -77,7 +77,8 @@ function params = init_coupled_params(varargin)
 %    reproduces it exactly.  Translational mobility, matched to slender-body
 %    theory of a cylinder of radius r (Maxian et al. 2021-2023: RPY radius
 %    a_hat = r*e^(3/2)/4, equivalent to eps = sqrt(e)*r for this blob), is then
-%    within about 2.5 % (mid-filament, a/L = 3e-3).  hydro_radius_factor = 1
+%    within about 3 % (2.4 % perpendicular, 2.9 % parallel; mid-filament,
+%    r/L = 3e-3; see docs/theory.md section 5.2).  hydro_radius_factor = 1
 %    reproduces versions up to 8.5.1; sqrt(e) matches translation exactly.
 %    The bending stiffness EI always uses the physical r_pili.
 %
@@ -370,10 +371,11 @@ switch geometry_mode
     case 'custom'
         % In custom mode, Pili_Matrix is intentionally empty here regardless
         % of whether custom_cfg.pili is defined.  Custom pili are built
-        % separately by custom_pili_building (see the custom branch below,
-        % L568+), which recomputes M_pili from numel(custom_pili_cfg).
-        % The placeholder zeros(8, 0) keeps M_pili = 0 for the parametric-
-        % only guards (e.g. L324) that would otherwise index into it.
+        % separately by custom_pili_building (see the "Custom pili
+        % geometry" branch further below), which recomputes M_pili from
+        % numel(custom_pili_cfg).  The placeholder zeros(8, 0) keeps
+        % M_pili = 0 for the parametric-only guards (the duplicate-site and
+        % zero-length checks below) that would otherwise index into it.
         Pili_Matrix = zeros(8, 0);
 end
 
@@ -821,7 +823,7 @@ end
 %% Precompute trapezoidal quadrature weights for the global point cloud
 %  quad_weights(i) = 1 for body points, and trapezoidal weight ds/2 or ds
 %  for pili node points.  Used by build_coupled_lin_sys to vectorise the
-%  angular-moment rows of B_global (replaces get_trapezoidal_weight).
+%  angular-moment rows of B_global.
 N_total_pts = params.N_body + sum(params.N_segments) + params.M_pili;
 params.quad_weights = ones(N_total_pts, 1);
 off_qw = params.N_body;
@@ -904,15 +906,18 @@ end
 %  acting through the coupled ODE, which reproduces the Ito drift
 %  kB*T*div(M) implicitly (v8.5.0).
 
-%% Run token for run-scoped diagnostics and future cache isolation
-%  A high-resolution monotonic token distinguishes independent simulations
-%  sharing one MATLAB process.
+%% Run token (informational)
+%  A high-resolution monotonic token that distinguishes independent
+%  simulations sharing one MATLAB process.  No solver code reads it any
+%  more (the former per-run motor cache that used it was removed); it is
+%  kept in params only so saved simulation_results.mat files stay
+%  structurally comparable.
 params.run_token = uint64(tic);
 
-%% Per-pilus diagnostic placeholder
-%  Initialised here so that downstream code can reference the field if
-%  needed; the authoritative cross-step state lives in the persistent
-%  variable inside ode_coupled_rhs.m.
+%% Per-pilus placeholder (unused)
+%  params.dpsi1_prev is retained only for structural compatibility with
+%  older saved params.  ode_coupled_rhs no longer carries any cross-step
+%  motor state: the torque-speed law is solved exactly inside each RHS call.
 if M_pili > 0
     params.dpsi1_prev = cell(M_pili, 1);
 else

@@ -195,7 +195,7 @@ else
                 'Each pilus must have a matching pili_ext entry (use parse_pili_config ', ...
                 'or provide exactly %d entries).'], numel(cfg.pili_ext), M_pili, M_pili);
         else
-            % Build aux struct for stall-curve diagnostics (parametric mode):
+            % Build aux struct for the motor-speed diagnostic (parametric mode):
             % pili lengths sit in row 2 of Pili_Matrix in microns.
             aux.pili_lengths_m = PM(2, 1:M_pili) * 1e-6;       % [1 x M_pili] in m
             aux.r_pili         = cfg.r_pili;
@@ -227,10 +227,10 @@ if strcmp(geometry_mode, 'custom') ...
             'Each custom pilus must have a matching pili_ext entry.'], ...
             numel(cfg.pili_ext), M_pili_custom_expected);
     else
-        % Custom mode: pili lengths require reading user files; skip stall
-        % diagnostics in the validator.  init_coupled_params will still log
-        % each pilus length, and the stall check could be re-enabled there.
-        aux_custom = struct();    % empty -> no stall check inside validator
+        % Custom mode: pili lengths require reading user files; skip the
+        % motor-speed diagnostic in the validator.  run_simulation still
+        % logs each pilus length and segment count after initialisation.
+        aux_custom = struct();    % empty -> no motor-speed check inside validator
         [errs, warns] = validate_pili_ext(cfg.pili_ext, M_pili_custom_expected, errs, warns, aux_custom);
     end
 end
@@ -306,7 +306,8 @@ end
 % parameter errors are reported in one pass.
 %   - parametric mode: alpha_0 is always consumed to build q_0_init.
 %   - custom mode + empty initial_orientation: alpha_0 is consumed as a
-%     fallback (init_coupled_params L274-276), so the range must hold.
+%     fallback (init_coupled_params, "Legacy alpha_0 path"), so the range
+%     must hold.
 %   - custom mode + non-empty initial_orientation: alpha_0 is ignored
 %     (a warning is emitted by init_coupled_params), so no range check
 %     is needed here.
@@ -538,13 +539,13 @@ function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
 %  and the custom branch (M_pili = numel(custom_geometry.pili)).
 %
 %  aux (optional) is a struct with auxiliary info used for the
-%  stall-curve diagnostic on free_torsion + constant motors.  Fields:
+%  motor-speed diagnostic on free_torsion + constant motors.  Fields:
 %    .pili_lengths_m  - [1 x M_pili] pili total lengths [m]
 %    .r_pili          - pili radius [m]
 %    .hydro_radius_factor - eps_pili / r_pili of the hydrodynamic regularisation
 %                      (optional; default sqrt(2))
 %    .mu              - dynamic viscosity [Pa*s]
-%  An empty aux disables the stall-curve check (used by the custom-mode
+%  An empty aux disables the motor-speed check (used by the custom-mode
 %  call where centreline lengths require reading the user files).
 
     if nargin < 5
@@ -704,7 +705,7 @@ function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
                             kk, mt_type);
                     end
 
-                    % --- Stall-curve diagnostic (Issue #7+#9, v7.3.0) ---
+                    % --- Motor-speed diagnostic (Issue #7+#9, v7.3.0) ---
                     %
                     % The motor model is the signed linear torque-speed law
                     % tau_eff = tau_motor*(1 - omega_rel/omega_max), omega_rel
@@ -719,21 +720,23 @@ function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
                     % the Cortez (2018) 7/2 blob with eps = hydro_radius_factor*r_pili
                     % (default sqrt(2), which makes xi_t equal to the no-slip-cylinder
                     % value 4*pi*mu*r^2*L; with eps = r_pili it would be half of it).
-                    % The simulator's own steady state agrees with this to <1e-3.
+                    % For an isolated straight filament the simulator's own steady
+                    % state agrees with this to <1e-3.
                     % Solving: omega_steady = tau_motor / (xi_t + tau_motor/omega_max)
                     % => omega_steady/omega_max = tau_motor / (xi_t*omega_max + tau_motor)
                     %
-                    % If this ratio is too close to 1 the motor is operating at
-                    % stall, where:
-                    %   (a) the speed-limiter dominates the dynamics, so the
+                    % This ratio is 0 at stall and 1 at the zero-torque speed.
+                    % If it is close to 1 the motor runs near its zero-torque
+                    % (no-load) speed, where:
+                    %   (a) the speed limiter dominates the dynamics, so the
                     %       ode15s step may shrink as it resolves the stiff
-                    %       torque-balance (the stall-curve torque itself is
-                    %       now solved EXACTLY in-call -- see ode_coupled_rhs.m
+                    %       torque balance (the torque-speed law itself is
+                    %       solved EXACTLY in-call -- see ode_coupled_rhs.m
                     %       Step 9 -- so there is no lag-approximation error,
                     %       but the underlying dynamics are still stiff);
                     %   (b) results become highly sensitive to the empirical
-                    %       linear stall curve and rarely represent real
-                    %       biological motors well.
+                    %       linear torque-speed law (max_omega_Hz) and rarely
+                    %       represent real biological motors well.
                     if strcmp(mt_type, 'constant') && strcmp(rc_actual, 'free_torsion') && ...
                        aux_has_lengths && kk <= numel(aux.pili_lengths_m) && ...
                        isfield(mt_val, 'torque_pN_nm') && isnumeric(mt_val.torque_pN_nm) ...
@@ -749,18 +752,19 @@ function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
                         ratio       = tau_motor_N / (xi_t*omega_max + tau_motor_N);
                         if ratio >= 0.7
                             warns{end+1} = sprintf(['Pili %d: motor is operating ', ...
-                                'near stall (omega_steady/omega_max ~ %.2f). The ', ...
-                                'speed-limiter dominates the dynamics; although ', ...
-                                'tau_eff(dpsi_1) is now solved exactly in-call, the ', ...
-                                'stiff torque-balance may still shrink the ode15s step. ', ...
+                                'near its zero-torque speed (omega_steady/omega_max ~ %.2f). The ', ...
+                                'speed limiter dominates the dynamics; although ', ...
+                                'tau_eff is now solved exactly in-call, the ', ...
+                                'stiff torque balance may still shrink the ode15s step. ', ...
                                 'Consider a larger max_omega_Hz, smaller torque_pN_nm, ', ...
                                 'or a longer pilus.'], kk, ratio);
                         elseif ratio >= 0.4
                             warns{end+1} = sprintf(['Pili %d: motor steady-state ', ...
-                                'speed reaches ~%.0f%% of max_omega_Hz under RFT drag ', ...
-                                'alone. Body+pilus hydrodynamic feedback may push this ', ...
-                                'higher; if step size shrinks unexpectedly, increase ', ...
-                                'max_omega_Hz or check stall behaviour.'], ...
+                                'speed reaches ~%.0f%% of max_omega_Hz for the torsional ', ...
+                                'drag of an isolated straight filament. Body+pilus ', ...
+                                'hydrodynamic feedback may push this higher; if step ', ...
+                                'size shrinks unexpectedly, increase max_omega_Hz or ', ...
+                                'check the motor operating point.'], ...
                                 kk, 100*ratio);
                         end
                     end

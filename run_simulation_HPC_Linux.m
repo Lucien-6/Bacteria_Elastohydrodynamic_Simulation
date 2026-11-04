@@ -907,7 +907,7 @@ results.flow_state.n_times = NT;
 
 % --- Integration loop ---
 clear odetpbar;                    % Reset persistent vars from prior runs
-clear ode_coupled_rhs;             % Reset DPSI1_PREV motor-speed cache
+clear ode_coupled_rhs;             % Harmless guard: ode_coupled_rhs keeps no persistent state (pure function of t, Z, params)
 tic_total        = tic;
 t_last_heartbeat = tic;   % throttle timer for the optional progress_queue heartbeat
 T_achieved       = 0;
@@ -1817,11 +1817,11 @@ elseif timed_out && requested_generate_animation
 end
 
 %% =====================================================================
-%  FLOW FIELD VISUALISATION (XZ Plane at Final State)
+%  FLOW FIELD VISUALISATION (XZ and YZ planes at the final state)
 %  =====================================================================
 
 if compute_flowfield
-    logf('\n[FLOW] Computing XZ-plane flow field at final state...\n');
+    logf('\n[FLOW] Computing XZ/YZ-plane flow field at final state...\n');
     t_flow_start = tic;
     flow_opts.grid_spacing_um = flowfield_grid_spacing;
     flow_opts.grid_range_um   = flowfield_grid_range;

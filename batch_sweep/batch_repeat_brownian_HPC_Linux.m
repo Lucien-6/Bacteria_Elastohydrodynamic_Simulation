@@ -67,7 +67,7 @@
 %    Usage:
 %      1. Set case_name_base, n_repeats, and either config_json OR the inline
 %         cfg_base block below.
-%      2. Run this script from the Coupled_Body_Pili project directory
+%      2. Run this script from the project root (the folder that contains run_simulation.m)
 %         (same as other batch scripts).
 %      3. Brownian seed mode (see brown_rng_seed_mode below):
 %            'fixed'     — cfg.brown_rng_seed = rng_seed_base + k (reproducible batch).
@@ -104,7 +104,7 @@ elseif isfile('run_simulation_HPC_Linux.m')
 else
     error('batch_repeat_brownian_HPC_Linux:WrongDirectory', ...
         ['Could not find run_simulation_HPC_Linux.m. Place this script in batch_sweep/ ', ...
-         'under Coupled_Body_Pili, or cd to Coupled_Body_Pili before running.']);
+         'under the project root, or cd to the project root before running.']);
 end
 addpath(genpath(fullfile(projectRoot, 'src')));
 

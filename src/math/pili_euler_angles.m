@@ -35,7 +35,7 @@ function [theta, phi, psi] = pili_euler_angles(d1, d2, d3)
 %
 %  References:
 %    [1] Walker et al. (2020), Physical Review E.
-%        (Euler angle parametrisation; directors.m inverse)
+%        (Euler angle parametrisation; this routine inverts pili_directors.m)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06

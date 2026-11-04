@@ -17,8 +17,11 @@
 %      .type           - Morphology type: string ('linear','parabolic',
 %                        'circular','sinusoidal','spiral') OR integer 1-5
 %      .length_um      - Pilus length [um] (must be > 0)
-%      .deflection_z   - Deflection angle from Z-axis [rad] (default: 0)
-%      .deflection_x   - Deflection angle from X-axis [rad] (default: 0)
+%      .deflection_z   - Rotation about the template Z axis [rad]: tilts the
+%                        tangent in the bending plane (default: 0)
+%      .deflection_x   - Rotation about the template X axis [rad]: twists
+%                        about the initial tangent (default: 0)
+%                        (axis roles are swapped in custom mode)
 %      .shape_params   - [1x3] shape parameters (default: [NaN NaN NaN])
 %      .site           - Attachment site index, 1-14
 %      Per-pilus bending_stiffness is not supported; stiffness is derived

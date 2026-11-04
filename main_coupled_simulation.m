@@ -18,7 +18,7 @@
 %      purpose: rho_bac = rho_fluid = 998.232 kg/m^3 isolates motor-driven
 %      rotation and propulsion from gravitational sinking.  This is NOT
 %      the documented project default - the standard sinking workflow uses
-%      rho_bac = 1180 kg/m^3.  Likewise T_obs = 5 s and dt = 0.01 s are
+%      rho_bac = 1180 kg/m^3.  Likewise T_obs = 3 s and dt = 1e-3 s are
 %      tuned for the high-frequency motor diagnostic (the JSON loader
 %      fallback defaults in load_sim_config.m are T_obs = 30 s, dt = 0.1 s).
 %      compute_flowfield is omitted below, so run_simulation() uses its
@@ -51,9 +51,11 @@ addpath(genpath(fullfile(proj_root, 'src')));
 %% =====================================================================
 %  CONFIGURATION SOURCE
 %  =====================================================================
-%  Priority: config_file (if non-empty) > inline defaults below.
+%  Priority: config_file (if non-empty AND the file exists) > inline defaults.
 %  To use external config: set config_file to a valid JSON path.
 %  To use inline parameters: leave config_file = '' (default).
+%  NOTE: a non-empty config_file that does not point to an existing file is
+%  NOT an error here; the script silently falls back to the inline block.
 %
 %  --- Geometry Modes ---
 %  'parametric' (default): Use capsule body + analytic pili shapes.
@@ -133,9 +135,12 @@ else
         %  motor_torque: only meaningful for free_torsion pili
         %    struct('type','off')  (default)
         %    struct('type','constant','torque_pN_nm',2000,'max_omega_Hz',300)
-        %      - Constant motor torque with linear speed limiting
-        %      - torque_pN_nm: output torque [pN*nm] (positive=CCW, negative=CW)
-        %      - max_omega_Hz: stall speed [Hz]
+        %      - Constant stall torque with linear torque-speed law
+        %        tau_eff = tau*(1 - omega_rel/omega_max)  (relative to the body)
+        %      - torque_pN_nm: stall torque [pN*nm].  Positive drives the rotor
+        %        right-handed about the outward root tangent d3 (CCW seen from
+        %        the filament tip toward the cell); negative drives it CW.
+        %      - max_omega_Hz: zero-torque (no-load) speed [Hz]
         % pili_config(1).root_coupling = 'clamped';
         pili_config(1).root_coupling = 'free_torsion';
         pili_config(1).motor_torque  = struct('type','constant', ...
@@ -248,9 +253,8 @@ else
     cfg.AbsTol = 1e-4;                    % ODE absolute tolerance
     cfg.RelTol = 1e-4;                    % ODE relative tolerance
     cfg.delta  = pi / 20;                 % [rad] Euler angle singularity threshold
-    cfg.tlim   = 3600*72;                    % [s]   ODE timeout limit
-    cfg.dt     = 1e-3;                    %
-    % [s]   Output time step
+    cfg.tlim   = 3600*72;                 % [s]   Wall-clock timeout of ONE ode15s segment
+    cfg.dt     = 1e-3;                    % [s]   Output time step
 
     % -------- Brownian Motion --------
     cfg.enable_brown     = false;          % true = enable Brownian motion

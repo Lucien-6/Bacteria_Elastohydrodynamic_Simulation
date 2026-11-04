@@ -14,8 +14,10 @@ function Pili_str = pili_type_building(PM, Ntail)
 %              PM(1) - Morphology type (1=linear, 2=parabolic, 3=circular,
 %                       4=sinusoidal, 5=conical spiral)
 %              PM(2) - Length [um]
-%              PM(3) - Deflection angle relative to Z-axis [rad]
-%              PM(4) - Deflection angle relative to X-axis [rad]
+%              PM(3) - Rotation about the template Z axis [rad]: tilts the
+%                       tangent within the template xy plane (deflection_z)
+%              PM(4) - Rotation about the template X axis [rad]: twists the
+%                       template about its initial tangent (deflection_x)
 %              PM(5) - Shape parameter 1 (type-dependent)
 %              PM(6) - Shape parameter 2 (type-dependent)
 %              PM(7) - Shape parameter 3 (type-dependent)

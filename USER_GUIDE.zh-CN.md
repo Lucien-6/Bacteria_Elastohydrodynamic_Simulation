@@ -32,7 +32,7 @@ v8.0.0 引入不等段长平动—扭转加权互易、自定义菌毛等弦长 
 建议从仓库根目录打开 MATLAB，或在 MATLAB 中运行：
 
 ```matlab
-cd('path/to/Coupled_Body_Pili')
+cd('path/to/project_root')
 ```
 
 这样 JSON 配置、几何文件和输出目录的相对路径会更稳定。

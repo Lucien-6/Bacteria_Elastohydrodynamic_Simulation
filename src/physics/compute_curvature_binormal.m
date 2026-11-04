@@ -7,6 +7,10 @@
 %    Rods".  The curvature binormal is defined at interior vertices and
 %    captures both the magnitude and direction of curvature.
 %
+%    Status: standalone geometric utility.  The coupled solver does NOT call
+%    it; pilus curvature and intrinsic curvature come from the Euler-angle
+%    Kirchhoff operator compute_pili_curvature.
+%
 %  Syntax:
 %    kb = compute_curvature_binormal(x)
 %

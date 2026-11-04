@@ -15,8 +15,10 @@ function Pili = pili_building(Pili_Matrix, seg_per_um, major_axis, minor_axis, d
 %        Row 1 : Morphology type (1=linear, 2=parabolic, 3=circular,
 %                 4=sinusoidal, 5=conical spiral)
 %        Row 2 : Length [um]
-%        Row 3 : Deflection angle relative to Z-axis [rad]
-%        Row 4 : Deflection angle relative to X-axis [rad]
+%        Row 3 : Rotation about the template Z axis [rad] (tilt of the
+%                tangent in the template bending plane; deflection_z)
+%        Row 4 : Rotation about the template X axis [rad] (twist about the
+%                initial tangent; deflection_x)
 %        Row 5-7: Shape control parameters (type-dependent)
 %        Row 8 : Attachment position on bacterial body (1-14)
 %    seg_per_um   - Segments per micron for discretization [seg/um]
@@ -46,6 +48,9 @@ function Pili = pili_building(Pili_Matrix, seg_per_um, major_axis, minor_axis, d
 %
 %  References:
 %    [1] Bergou, M. et al. (2008). Discrete Elastic Rods. ACM TOG 27(3):63.
+%        (Origin of the legacy field layout .v/.kb/.kb0/.f_bend; the solver
+%        itself uses the Walker (2020) Euler-angle Kirchhoff rod, and none of
+%        these legacy fields is read downstream.)
 %
 %  See also: pili_type_building, init_coupled_params
 %

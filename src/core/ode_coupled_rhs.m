@@ -106,7 +106,9 @@ end
 % flagellar motor (Berg & Turner 1993; Berg 2003).  This keeps the RHS a
 % PURE function of (t, Z) -- a prerequisite for ode15s' internal Jacobian
 % and error control -- and is exact even near stall.
-% The former persistent DPSI1_PREV / run-token machinery has been removed.
+% This function holds no persistent state (the former lagged DPSI1_PREV
+% cache was removed); the only run-scoped side channel is the diagnostics
+% accumulator updated by check_linear_solve.
 
 %% Steps 1-7: Build coupled linear system (geometry + hydrodynamics + root BC)
 has_bg_flow = ~strcmp(params.bg_flow.type, 'off');
@@ -136,7 +138,7 @@ end
 % Collectors for motorised pili (free_torsion + constant motor).  The motor
 % torque is NOT added to R_global in this loop; R_global is assembled as the
 % motor-free baseline RHS and the stall-curve torque is resolved exactly in
-% Step 9 (defect-2 remediation).
+% Step 9.
 motor_rows    = [];   % moment-balance row index (segment-1 psi_1 row) per motor
 motor_obs     = zeros(n_state, 0);  % omega_rel = motor_obs(:,i)' * z_dot per motor
 motor_tau     = [];   % constant motor torque (dimensionless)
@@ -264,7 +266,7 @@ end
 %  the law is linear in omega_rel, the reduced problem is a small linear
 %  system with a unique solution (see solve_motor_self_consistent).  This
 %  replaces the former lagged persistent cache and makes the RHS a pure
-%  function of (t, Z) (defect-2 remediation).
+%  function of (t, Z).
 n_motor = numel(motor_rows);
 if any(~isfinite(R_global))
     error('numerical_diagnostics:NonFiniteRhs', ...
