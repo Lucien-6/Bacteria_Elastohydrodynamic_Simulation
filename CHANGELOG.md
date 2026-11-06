@@ -10,6 +10,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`configs/config_motor_flagella_example.json` restored.**  The file was
+  removed by mistake in the 8.6.5 release commit, although README, both user
+  guides, the project website and `load_sim_config.m` refer to it.  The
+  restored file is the version from 8.6.4 (one clamped pilus plus one
+  free-torsion pilus with a constant motor torque; `T_obs = 1 s`,
+  `dt = 1 ms`), unchanged.
+
 ---
 
 ## [8.7.2] — 2026-11-04
