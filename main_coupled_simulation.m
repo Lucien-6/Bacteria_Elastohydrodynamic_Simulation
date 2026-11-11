@@ -37,7 +37,9 @@
 %  Created: 2026-02-06
 %  Updated: 2026-09-04
 %  Updated: 2026-11-04 — v8.7.2: comment corrections (run-mode notes, demo values); no behavioural change.
-%  Documentation release: 8.7.2 (2026-11-04) - see README.md / CHANGELOG.md
+%  Updated: 2026-11-11 — v8.7.3: version banner only; no behavioural change.
+%  Updated: 2026-11-11 — v8.8.0: version banner only; the Chlamydomonas driver is outside this file.
+%  Documentation release: 8.8.0 (2026-11-11) - see README.md / CHANGELOG.md
 
 close all force;
 clear; clc;

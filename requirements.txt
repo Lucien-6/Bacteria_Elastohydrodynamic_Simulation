@@ -1,6 +1,25 @@
 # Bacteria Elastohydrodynamic Simulation — MATLAB project
 #
-# Release: 8.7.2 (2026-11-04)
+# Release: 8.8.0 (2026-11-11)
+#
+# v8.8.0: Biflagellate Chlamydomonas swimmer. The active moment is inverted
+#   from the measured gait of cell 1p00 A (57.8 Hz) and fitted with two
+#   harmonics. chlamy_run_case can tilt each beat plane about its root
+#   tangent and scale one flagellum's amplitude, phase or frequency.
+#   chlamy_swim_analysis reports forward speed, spin and the helical pitch,
+#   radius and axis tilt. Open chlamydomonas/run_long_sym50.m or
+#   run_long_asym50.m in the MATLAB desktop. Settling, E. coli and Brownian
+#   cases are unchanged. No new toolbox. The gait tables under
+#   output/chlamy_inverse/ are generated data.
+#
+# v8.7.3: Flow-field figure release. The end-of-run figure and every redraw
+#   are six panels (3-D and 2-D XZ, YZ and XY through the body centre) on a
+#   2500 x 1400 canvas; the colour bar sits beside panel f and the 99th
+#   percentile includes the XY samples. render_flowfield_from_results accepts
+#   opts.drop_first_frame (default false) and shows one Compute bar and one
+#   Video bar while writing an animation. Saved Chlamydomonas runs whose
+#   active moment is a nested function handle from before 2026-11-11 can be
+#   redrawn. The ODE and results.flow_state are unchanged. No new dependency.
 #
 # v8.7.2: Documentation and comment-accuracy patch. Outdated or wrong source
 #   comments were corrected, the motor-speed pre-flight warning and one flow-field

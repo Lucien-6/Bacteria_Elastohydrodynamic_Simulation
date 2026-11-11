@@ -1,3 +1,5 @@
+<!-- markdownlint-configure-file { "MD024": { "siblings_only": true } } -->
+
 # Changelog
 
 All notable changes to this project are documented in this file.
@@ -10,14 +12,118 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+---
+
+## [8.8.0] — 2026-11-11
+
+Biflagellate *Chlamydomonas* swimmer driven by the active moment inverted
+from a measured gait.  Settling, *E. coli* and Brownian cases are unchanged.
+
+### Added
+
+- **Biflagellate swimmer.**  `chlamydomonas/` runs a closed-loop cell from
+  `configs/config_chlamy_biflagellate_gz.json`: a 5 µm by 4 µm spheroid,
+  two clamped flagella, and a 13 degree angle between each root tangent
+  and the cell axis.  Gravity is off.
+- **Inverse active moment.**  `chlamy_inverse_moment` imposes the measured
+  planar gait of cell 1p00 A (Gutierrez et al., 57.8 Hz) and inverts this
+  project's coupled linear system, so the tabulated moment is an exact
+  discrete solution of the forward model.  The root oscillation is ramped
+  over the proximal 0.15 of the length.  The table is
+  `output/chlamy_inverse/tab_1p00A.mat`.
+- **Two-harmonic fit.**  `chlamy_fit_moment` replaces that table by 23
+  parameters and two harmonics (`fit_1p00A.mat`).  Flagellum 2 is the
+  mirror image of flagellum 1.  Closed-loop runs use the fit.
+- **Symmetry breaking.**  `chlamy_run_case` accepts `tilt_deg` (each beat
+  plane rotated about its own root tangent), and per-flagellum
+  `drive_amp`, `drive_phase` and `drive_freq_ratio`.  The moment acts
+  about the tilted plane normal.  `drive_amp` scales only the oscillating
+  part of the moment.
+- **Helical-path analysis.**  `chlamy_swim_analysis` reports forward speed,
+  spin about the body axis, and the screw period, pitch, radius and axis
+  tilt over an integer number of beats.
+- **Long runs from the MATLAB desktop.**  Open
+  `chlamydomonas/run_long_sym50.m` (symmetric, 50 beats) or
+  `chlamydomonas/run_long_asym50.m` (17 degree same-sense tilt and
+  flagellum-2 oscillating amplitude times 0.85) and press Run.  Both write
+  the 3-D motion animation.
+
+### Compatibility
+
+- No new toolbox.  The gait tables live under `output/chlamy_inverse/`,
+  which is not tracked (the whole `output/` tree is ignored).  Regenerate
+  them with `chlamy_inverse_moment` and `chlamy_fit_moment` from the
+  waveforms in `chlamydomonas/Refers/` when the `.mat` files are absent.
+
+### Documentation
+
+- `project_version.m` bumped to 8.8.0 (2026-11-11); README (EN/ZH),
+  USER_GUIDE (EN/ZH), theory (EN/ZH), `requirements.txt`, the project
+  website and presentation version strings, and the headers of
+  `run_simulation*.m` and `main_coupled_simulation.m` updated.
+
+---
+
+## [8.7.3] — 2026-11-11
+
+Flow-field figure release.  **The ODE trajectory and `results.flow_state`
+are unchanged.**  Redrawn figures use a different colour limit from 8.7.1
+and 8.7.2 because the 99th percentile now includes the XY plane.
+
+### Added
+
+- **XY plane.**  The end-of-run figure and every redraw from
+  `render_flowfield_from_results` evaluate the plane Z = Z_cm as well as
+  XZ (Y = Y_cm) and YZ (X = X_cm).  The canvas is 2500 x 1400.  The top
+  row is the 3-D views (a XZ, b YZ, c XY) and the bottom row is the 2-D
+  views (d XZ, e YZ, f XY).  The colour bar sits beside panel f.  The
+  99th-percentile colour scale is taken over all three planes.
+- **`opts.drop_first_frame`** (default false) on
+  `post_processing/render_flowfield_from_results`.  When true, saved
+  output index 1 is left out of `times`, `animation` and `all`, including
+  the colour scale.  `final` is unchanged.  Use it to skip a startup
+  transient.
+
+### Changed
+
+- **Lighting.**  The infinite light on the 3-D panels sits at
+  `[1, -1, 1]` and propagates along `[-1, 1, -1]` (previously
+  `[1, -1, 0]` / `[-1, 1, 0]`).
+- **Animation console log.**  An animation (and the animation part of
+  `all`) prints one in-place Compute bar while the fields are evaluated
+  and one Video bar while frames are written, instead of a log line per
+  plane and per frame.
+
 ### Fixed
 
+- **Saved Chlamydomonas active-moment handles.**  Results written before
+  2026-11-11 store a nested `chlamy_table_moment_fun/moment_fun` (workspace
+  `{tab, k}`) or `chlamy_moment_fun/moment_fun`.  After the moment source
+  was edited, reloading those handles failed with an undefined variable
+  (`fratio`).  `restore_saved_moment_handles` rebuilds them from the saved
+  workspace.  New runs store an anonymous handle with the drive data by
+  value, so a later edit of the moment file does not break the saved
+  result.  The nested functions remain callable for the old files.
 - **`configs/config_motor_flagella_example.json` restored.**  The file was
-  removed by mistake in the 8.6.5 release commit, although README, both user
-  guides, the project website and `load_sim_config.m` refer to it.  The
-  restored file is the version from 8.6.4 (one clamped pilus plus one
+  removed by mistake in the 8.6.5 release commit, although README, both
+  user guides, the project website and `load_sim_config.m` refer to it.
+  The restored file is the version from 8.6.4 (one clamped pilus plus one
   free-torsion pilus with a constant motor torque; `T_obs = 1 s`,
   `dt = 1 ms`), unchanged.
+
+### Compatibility
+
+- No new dependency.  Results from 8.7.0 onward can be redrawn.  Results
+  from 8.6.6 or earlier still cannot reconstruct a flow field.  A redraw
+  can show a different colour maximum from a figure saved by 8.7.1 or
+  8.7.2.
+
+### Documentation
+
+- `project_version.m` bumped to 8.7.3 (2026-11-11); README (EN/ZH),
+  USER_GUIDE (EN/ZH), theory (EN/ZH), `requirements.txt`, the project
+  website (new release card) and presentation version strings, and the
+  headers of `run_simulation*.m` and `main_coupled_simulation.m` updated.
 
 ---
 
@@ -89,6 +195,7 @@ text and documentation changed.
   The headers of every source file touched above gained an `Updated:` line.
 
 ---
+
 ## [8.7.1] — 2026-10-30
 
 Flow-field figure patch.  **The ODE trajectory and the saved

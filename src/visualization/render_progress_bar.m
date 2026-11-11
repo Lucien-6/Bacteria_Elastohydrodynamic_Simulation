@@ -1,4 +1,4 @@
-﻿function render_progress_bar(tag, current, total, tstart)
+﻿function render_progress_bar(tag, current, total, tstart, detail)
 %RENDER_PROGRESS_BAR  Generic in-place text progress bar for long loops
 %
 %  Description:
@@ -9,12 +9,14 @@
 %
 %  Syntax:
 %    render_progress_bar(tag, current, total, tstart)
+%    render_progress_bar(tag, current, total, tstart, detail)
 %
 %  Inputs:
-%    tag     - Prefix label string, e.g. '[ANIM]  ' or '[FLOW-XZ] '
+%    tag     - Prefix label string, e.g. '[ANIM]  ' or '[FLOW] Compute '
 %    current - Current step number (1-based)
 %    total   - Total number of steps
 %    tstart  - tic handle for elapsed / ETA computation
+%    detail  - (Optional) short status inserted after the tag, e.g. '3/54'
 %
 %  Display format:
 %    [ANIM]   [==============................]  46.7%  Elapsed: 12.3 s  ETA: 14.0 s
@@ -30,6 +32,12 @@ persistent prev_msg_len last_upd_time;
 
 BAR_W    = 30;
 THROTTLE = 0.25;   % Min seconds between display refreshes
+
+if nargin < 5 || isempty(detail)
+    detail = '';
+elseif ~endsWith(detail, ' ')
+    detail = [detail, ' '];
+end
 
 if current == 1
     prev_msg_len  = 0;
@@ -48,20 +56,26 @@ bar_str = [repmat('=', 1, filled), repmat('.', 1, BAR_W - filled)];
 
 if pct > 0.5 && now_s > 0.5
     eta_s = now_s * (total - current) / current;
-    msg = sprintf('%s[%s] %5.1f%%  Elapsed: %s  ETA: %s', ...
-        tag, bar_str, pct, fmt_dur_rpb(now_s), fmt_dur_rpb(eta_s));
+    msg = sprintf('%s%s[%s] %5.1f%%  Elapsed: %s  ETA: %s', ...
+        tag, detail, bar_str, pct, fmt_dur_rpb(now_s), fmt_dur_rpb(eta_s));
 else
-    msg = sprintf('%s[%s] %5.1f%%  Elapsed: %s', ...
-        tag, bar_str, pct, fmt_dur_rpb(now_s));
+    msg = sprintf('%s%s[%s] %5.1f%%  Elapsed: %s', ...
+        tag, detail, bar_str, pct, fmt_dur_rpb(now_s));
 end
 
 % In-place overwrite via \b (backspace) — same mechanism as odetpbar.
 % State is tracked via persistent prev_msg_len (NOT via a parameter,
 % because MATLAB passes numeric arrays by value, not by reference).
+% A shorter refresh is padded so the previous tail does not remain.
 if prev_msg_len > 0
     fprintf(repmat('\b', 1, prev_msg_len));
 end
 fprintf('%s', msg);
+extra = prev_msg_len - numel(msg);
+if extra > 0
+    fprintf('%s', repmat(' ', 1, extra));
+    fprintf(repmat('\b', 1, extra));
+end
 prev_msg_len  = numel(msg);
 last_upd_time = now_s;
 

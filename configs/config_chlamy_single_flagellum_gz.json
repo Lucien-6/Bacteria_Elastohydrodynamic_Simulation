@@ -1,0 +1,126 @@
+{
+    "case_name": "Chlamy-Single-Flagellum-GZ",
+
+    "geometry_mode": "custom",
+
+    "_comment_case": [
+        "Stage 2 (measured mean shape): ONE flagellum on the cell body, rest shape = measured",
+        "time-averaged flagellar shape of swimming cells in water (Qin et al. 2015; Gutierrez et al. 2025,",
+        "Dryad doi:10.5061/dryad.sbcc2frj6): curvature ~1 rad/um over the first ~2 um, ~0.25 rad/um up to ~0.4 L,",
+        "then decreasing to ~0 distally; total turning ~125 deg.  Attachment site at 13 deg from the cell axis,",
+        "root half-angle 13 deg (see geometry/generate_chlamydomonas_geometry.m, shape_mode = 'gutierrez').",
+        "Beat target (1 cP data): curvature amplitude ~0.3 rad/um (tapering over the distal ~30 %),",
+        "curvature-wave wavelength ~18-21 um (1.7-2.0 L), tangent-angle RMS ~0.75 rad.",
+        "The active moment is the custom moment of chlamydomonas/chlamy_moment_fun.m injected by",
+        "chlamydomonas/chlamy_run_case.m (ov.moment); amplitude_Nm below is only a placeholder."
+    ],
+
+    "custom_geometry": {
+        "_comment_body": "Prolate spheroid c = 5 um (X), a = 4 um (Pradipta et al. 2025, CC-125); 400 surface points.",
+        "body_points_file": "geometry/chlamy_body_spheroid.csv",
+        "L_0_override": null,
+        "L_0_suggest_mode": "volume",
+        "eps_body": null,
+
+        "initial_orientation": {
+            "euler_zyx": [0.0, 0.0, 0.0]
+        },
+
+        "_comment_sites": "Attachment sites at polar angle 13 deg from the cell axis: (c cos 13, +-a sin 13) = (4.87185, +-0.89980) um (basal-body separation 1.80 um). Root half-angle 13 deg. Site 1 = +Y flagellum.",
+        "attachment_sites": [
+            {
+                "position": [4.871850e-6, 0.8998042e-6, 0],
+                "direction": [0.974370, 0.224951, 0],
+                "label": "basal_body_plusY"
+            },
+            {
+                "position": [4.871850e-6, -0.8998042e-6, 0],
+                "direction": [0.974370, -0.224951, 0],
+                "label": "basal_body_minusY"
+            }
+        ],
+
+        "pili": [
+            {
+                "_comment": "Flagellum on +Y side. frozen = rest shape is the measured mean shape. Beat plane = XY: d2 = +Z, so the bending moment is d2_amp = 1.",
+                "points_file": "geometry/chlamy_flagellum_ccw_gz.csv",
+                "site_index": 1,
+                "deflection_z": 0,
+                "deflection_x": 0,
+                "intrinsic_curvature": "frozen",
+                "active_moment": {
+                    "type": "traveling_wave",
+                    "amplitude_Nm": 1.0e-15,
+                    "omega_Hz": 50,
+                    "wavenumber": 6.283185,
+                    "d1_amp": 0,
+                    "d2_amp": 1,
+                    "d3_amp": 0,
+                    "phase_rad": 0
+                },
+                "root_coupling": "clamped",
+                "motor_torque": { "type": "off" }
+            }
+        ]
+    },
+
+    "_comment_material": [
+        "Axoneme + membrane hydrodynamic radius 0.125 um.  E is an EFFECTIVE modulus chosen so that",
+        "EI = E*pi*r^4/4 = 840 pN um^2 (intrinsic axonemal rigidity, Xu et al. 2016, CC-124).",
+        "sigma_p only affects twist, which a planar beat does not excite."
+    ],
+    "material": {
+        "E": 4.3808e6,
+        "r_pili": 0.125e-6,
+        "sigma_p": 0.2
+    },
+
+    "_comment_fluid": "Water, mu = 1 mPa s (as in Pradipta et al.).  Neutrally buoyant: swimming only, no sedimentation.",
+    "fluid": {
+        "mu": 1e-3,
+        "rho_bac": 998.232,
+        "rho_fluid": 998.232
+    },
+
+    "simulation": {
+        "_comment_T_obs": "6 beats at 50 Hz.  Discard the first 1-2 beats (start-up transient from the initial phase).",
+        "T_obs": 0.12,
+        "AbsTol": 1e-4,
+        "RelTol": 1e-4,
+        "delta_frac": 20,
+        "tlim": 72000,
+        "_comment_dt": "dt is only the output sampling stride: 1 ms = 20 frames per beat.",
+        "dt": 0.001,
+        "seg_per_um": 6
+    },
+
+    "brownian": {
+        "enable": false,
+        "temperature": 293.15,
+        "dt_B_ratio": 0.5
+    },
+
+    "output": {
+        "preview_initial": true,
+        "generate_animation": false,
+        "animation_fps": 30,
+        "animation_skip": 1,
+        "auto_confirm": false,
+        "compute_flowfield": false
+    },
+
+    "flowfield": {
+        "grid_spacing_um": 0.05,
+        "grid_range_um": 10.0,
+        "quiver_skip": 5,
+        "chunk_size": 2000
+    },
+
+    "background_flow": {
+        "type": "off",
+        "U_max": 0,
+        "direction": [1, 0, 0],
+        "shear_axis": [0, 0, 1],
+        "shear_height_m": 0
+    }
+}

@@ -3,14 +3,16 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 %
 %  Description:
 %    Computes the Stokes flow velocity field around the bacterium on the
-%    XZ plane (Y = Y_cm) and YZ plane (X = X_cm) using force coefficients
-%    extracted from the coupled body-pili system at the final simulation
-%    state.  Produces a 2x2 panel figure:
+%    XZ plane (Y = Y_cm), YZ plane (X = X_cm), and XY plane (Z = Z_cm) using
+%    force coefficients extracted from the coupled body-pili system at the
+%    final simulation state.  Produces a 2x3 panel figure:
 %
 %      (a) 3D view with XZ flow-field surface + 3D bacterium
 %      (b) 3D view with YZ flow-field surface + 3D bacterium
-%      (c) 2D XZ flow field (speed and normalised arrows)
-%      (d) 2D YZ flow field (speed and normalised arrows)
+%      (c) 3D view with XY flow-field surface + 3D bacterium
+%      (d) 2D XZ flow field (speed and normalised arrows)
+%      (e) 2D YZ flow field (speed and normalised arrows)
+%      (f) 2D XY flow field (speed and normalised arrows)
 %
 %    This procedure has no return value.  It creates a visible figure,
 %    writes flowfield_panels.png, flowfield_panels.pdf, and, when
@@ -31,6 +33,7 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-06
 %  Updated: 2026-10-28 — shared flow-field evaluation and panel layout
+%  Updated: 2026-11-11 — added the XY plane (2x3 layout)
 
 if nargin < 6 || isempty(flow_opts), flow_opts = struct(); end
 if nargin < 7 || isempty(t_final), t_final = 0; end
@@ -42,7 +45,7 @@ planes = flowfield_grid_velocity(hydro, params, flow_opts, logf, silent);
 logf('[FLOW] Flow-field grids completed in %.1f s\n', toc(t_flow_start));
 
 frame = pack_final_frame(hydro, planes, params, t_final, run_id);
-logf('[FLOW] Generating 2x2 flow field panel...\n');
+logf('[FLOW] Generating 2x3 flow field panel...\n');
 
 png_file  = fullfile(output_dir, 'flowfield_panels.png');
 pdf_file  = fullfile(output_dir, 'flowfield_panels.pdf');

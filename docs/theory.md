@@ -4,8 +4,8 @@ English | [中文](theory.zh-CN.md)
 [Back to README](../README.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Updated:** 2026-11-04
-> **Version:** 8.7.2
+> **Updated:** 2026-11-11
+> **Version:** 8.8.0
 
 This document contains the model details that were formerly embedded in the long README. The repository entry page is now intentionally short; practical run instructions are in [`../USER_GUIDE.md`](../USER_GUIDE.md), and release history is in [`../CHANGELOG.md`](../CHANGELOG.md).
 
@@ -612,16 +612,14 @@ solution to \(\sim10^{-5}\) relative.  `cfg.jacobian_reuse=false` restores the
 
 ## 11. Flow-Field Visualization
 
-[`compute_plot_flowfield.m`](../src/visualization/compute_plot_flowfield.m) reconstructs the end-state geometry, evaluates the flow on XZ and YZ planes around the body center, masks body interiors, and exports a 2 x 2 panel figure:
+[`compute_plot_flowfield.m`](../src/visualization/compute_plot_flowfield.m) reconstructs the end-state geometry, evaluates the flow on the XZ (Y = Y_cm), YZ (X = X_cm) and XY (Z = Z_cm) planes through the body centre, masks body interiors, and exports a 2 x 3 panel figure:
 
-- 3D XZ plane view.
-- 3D YZ plane view.
-- 2D XZ velocity magnitude and normalized direction arrows.
-- 2D YZ velocity magnitude and normalized direction arrows.
+- 3D XZ, YZ and XY plane views (top row).
+- 2D XZ, YZ and XY velocity magnitude and normalized direction arrows (bottom row).
 
 Custom bodies use stored triangulation and alpha-shape based interior masking where available.
 
-From v8.7.0, each saved output also stores `results.flow_state`: the full state, the pilus basis, and the Brownian force that produced that output. [`render_flowfield_from_results.m`](../post_processing/render_flowfield_from_results.m) uses those data to draw the final state, selected times, or an animation. The velocity kernels are the same as the end-of-run figure. v8.7.1 leaves the cell interior blank, extends the axes to the whole cell, and draws a smooth surface section. Files written before v8.7.0 do not contain this history.
+From v8.7.0, each saved output also stores `results.flow_state`: the full state, the pilus basis, and the Brownian force that produced that output. [`render_flowfield_from_results.m`](../post_processing/render_flowfield_from_results.m) uses those data to draw the final state, selected times, or an animation. The velocity kernels are the same as the end-of-run figure. v8.7.1 leaves the cell interior blank, extends the axes to the whole cell, and draws a smooth surface section. v8.7.3 adds the XY plane, places the colour bar beside panel f, and takes the 99th-percentile colour scale over all three planes. `opts.drop_first_frame` (default false) omits saved output 1 from a `times`, `animation` or `all` redraw. Files written before v8.7.0 do not contain this history.
 
 ## 12. Walker Scaling Consistency
 
@@ -703,6 +701,16 @@ Detailed bug-fix history belongs in [`../CHANGELOG.md`](../CHANGELOG.md), not in
 - Cortez, R. (2018). Regularized Stokeslet segments.
 - Walker, B. J. (2020). Elastic filament / bacterial appendage formulation used as the rod-model reference.
 
-## 15. License
+## 15. Measured-gait active moment
+
+The biflagellate swimmer in [`../chlamydomonas/`](../chlamydomonas/) does not use a prescribed traveling-wave moment. A measured planar gait is imposed as a known state and rate. The rigid-body velocity comes from the force and torque rows of the same coupled linear system as the forward solver (§6). The rod rows then give the internal active moment that makes that motion an exact solution of the discrete model,
+
+\[
+\mathbf{M}_{\mathrm{act}} = \boldsymbol{\kappa}_{\mathrm{dev}} - \mathrm{lin\_sys}\,\dot{\mathbf{z}}.
+\]
+
+Only the bending component about \(\mathbf{d}_2\) is kept. `chlamy_inverse_moment` stores it as a Fourier series in time at each node. Closed-loop runs use the two-harmonic analytic fit from `chlamy_fit_moment`; flagellum 2 is the mirror image of flagellum 1. A beat-plane tilt rotates the moment about each flagellum's own root tangent, and the amplitude, phase and frequency ratio may differ between the two flagella. Settling and motor-driven cases do not take this path.
+
+## 16. License
 
 MIT License. See [`../LICENSE`](../LICENSE).

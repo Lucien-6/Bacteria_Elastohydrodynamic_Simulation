@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v8.7.2 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, second-order Kirchhoff curvature stencil, proper-rotation attachment sites, signed motor torque-speed law, whole-filament free-torsion root balance, body-only Brownian dynamics realised as a thermal force through the coupled ODE, batch post-processing with 3-D MSD and XZ MSAD diffusion fits, hardened numerical diagnostics, JSON config, and Linux HPC execution.">
+<meta name="description" content="Bacteria Elastohydrodynamic Simulation v8.8.0 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, second-order Kirchhoff curvature stencil, proper-rotation attachment sites, signed motor torque-speed law, whole-filament free-torsion root balance, body-only Brownian dynamics realised as a thermal force through the coupled ODE, batch post-processing with 3-D MSD and XZ MSAD diffusion fits, hardened numerical diagnostics, JSON config, and Linux HPC execution.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v8.7.2 &middot; 2026-11-04</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v8.8.0 &middot; 2026-11-11</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 8.7.2 &bull; 2026-11-04
+      Version 8.8.0 &bull; 2026-11-11
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -542,6 +542,26 @@ tailwind.config = {
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v8.8.0 &mdash; 2026-11-11</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Measured-gait Chlamydomonas swimmer</span><span class="zh">实测步态驱动的衣藻</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">A biflagellate cell (5 &micro;m by 4 &micro;m spheroid, 13 degree root angle) is driven by the active moment inverted from the measured gait of cell 1p00 A at 57.8 Hz, then fitted with two harmonics. Settling, <em>E. coli</em> and Brownian cases are unchanged.</span><span class="zh">双鞭毛细胞（5 &micro;m &times; 4 &micro;m 椭球，根角 13 度）由细胞 1p00 A 在 57.8 Hz 的实测步态反推的主动力矩驱动，再用两个谐波拟合。沉降、大肠杆菌和布朗算例不变。</span></li>
+          <li><span class="en">Open <code>chlamydomonas/run_long_sym50.m</code> or <code>run_long_asym50.m</code> in the MATLAB desktop and press Run. The second case tilts both beat planes by 17 degrees and scales flagellum 2 by 0.85. <code>chlamy_swim_analysis</code> reports speed, spin and the helical pitch, radius and axis tilt.</span><span class="zh">在 MATLAB 桌面打开 <code>chlamydomonas/run_long_sym50.m</code> 或 <code>run_long_asym50.m</code> 后点 Run。后者把拍动平面倾斜 17 度，并把鞭毛 2 的幅值乘以 0.85。<code>chlamy_swim_analysis</code> 给出速度、自旋以及螺旋螺距、半径和轴倾角。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50/50 dark:bg-navy-950/20 p-6">
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v8.7.3 &mdash; 2026-11-11</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">XY flow-field plane</span><span class="zh">流场增加 XY 平面</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">The flow-field figure is six panels (3-D and 2-D XZ, YZ and XY) on a 2500&times;1400 canvas. The colour bar sits beside panel f, and the 99th percentile includes the XY samples. The ODE and <code>results.flow_state</code> are unchanged.</span><span class="zh">流场图为 2500&times;1400 画布上的六面板（3D 与 2D 的 XZ、YZ、XY）。色标在子图 f 右侧，99 分位计入 XY 平面。ODE 与 <code>results.flow_state</code> 不变。</span></li>
+          <li><span class="en"><code>opts.drop_first_frame</code> (default false) omits saved output 1 from a times, animation or all redraw. An animation prints one Compute bar and one Video bar. Saved Chlamydomonas nested moment handles from before 2026-11-11 can be redrawn.</span><span class="zh"><code>opts.drop_first_frame</code>（默认 false）在 times、animation 或 all 重绘中去掉已保存输出 1。动画显示一条 Compute 进度条和一条 Video 进度条。2026-11-11 之前保存的衣藻嵌套力矩句柄可以重绘。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50/50 dark:bg-navy-950/20 p-6">
         <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v8.7.2 &mdash; 2026-11-04</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
           <span class="en">Documentation and comment accuracy</span><span class="zh">文档与注释准确性</span>
@@ -2047,7 +2067,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2020b+</li>
         <li>MIT License</li>
-        <li>v8.7.2 &middot; 2026-11-04</li>
+        <li>v8.8.0 &middot; 2026-11-11</li>
       </ul>
     </div>
   </div>

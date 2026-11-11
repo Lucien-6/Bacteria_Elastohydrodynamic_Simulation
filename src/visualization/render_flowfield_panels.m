@@ -1,8 +1,9 @@
 function out = render_flowfield_panels(frame, opts)
-%RENDER_FLOWFIELD_PANELS  Draw the four-panel flow-field figure
+%RENDER_FLOWFIELD_PANELS  Draw the six-panel flow-field figure
 %
 %  Description:
-%    Draws the XZ/YZ flow field on a fixed 1800 x 1400 canvas.  Static
+%    Draws the XZ/YZ/XY flow field on a fixed 2500 x 1400 canvas.  The top
+%    row holds the 3D views (a-c) and the bottom row the 2D views (d-f).  Static
 %    calls export PNG, or the existing PNG/PDF/HTML bundle.  Animation
 %    calls create the objects once and then update them.
 %
@@ -15,7 +16,8 @@ function out = render_flowfield_panels(frame, opts)
 %  Created: 2026-10-28
 %  Updated: 2026-10-30 — body interior left blank; axes cover the cell;
 %           panel letters outside the axes; vertical colour bar beside (d);
-%           light direction [-1 1 0]; time is the only figure title
+%           light direction [-1 1 -1]; time is the only figure title
+%  Updated: 2026-11-11 — added the XY plane; 2 x 3 layout, colour bar beside (f)
 
 if nargin < 2 || isempty(opts), opts = struct(); end
 action = 'static';
@@ -51,12 +53,16 @@ end
 
 
 function handles = create_figure(frame, visible)
-pos_a = [0.055, 0.56, 0.40, 0.30];
-pos_b = [0.50,  0.56, 0.36, 0.30];
-pos_c = [0.055, 0.13, 0.40, 0.36];
-pos_d = [0.50,  0.13, 0.36, 0.36];
+% Top row: 3D views (a) XZ, (b) YZ, (c) XY.
+% Bottom row: 2D views (d) XZ, (e) YZ, (f) XY.
+pos_a = [0.040, 0.56, 0.28, 0.30];
+pos_b = [0.355, 0.56, 0.26, 0.30];
+pos_c = [0.660, 0.56, 0.26, 0.30];
+pos_d = [0.040, 0.13, 0.28, 0.36];
+pos_e = [0.355, 0.13, 0.26, 0.36];
+pos_f = [0.660, 0.13, 0.26, 0.36];
 
-fig = figure('Units', 'pixels', 'Position', [40, 40, 1800, 1400], ...
+fig = figure('Units', 'pixels', 'Position', [40, 40, 2500, 1400], ...
     'Color', 'w', 'Visible', visible);
 set(fig, 'DefaultAxesFontName', 'Arial', 'DefaultAxesFontSize', 12, ...
     'DefaultAxesLineWidth', 0.6, 'DefaultTextFontName', 'Arial', ...
@@ -66,19 +72,24 @@ ax_a = axes('Parent', fig, 'Position', pos_a);
 ax_b = axes('Parent', fig, 'Position', pos_b);
 ax_c = axes('Parent', fig, 'Position', pos_c);
 ax_d = axes('Parent', fig, 'Position', pos_d);
+ax_e = axes('Parent', fig, 'Position', pos_e);
+ax_f = axes('Parent', fig, 'Position', pos_f);
 
 handles.fig = fig;
 handles.ax_a = ax_a;
 handles.ax_b = ax_b;
 handles.ax_c = ax_c;
 handles.ax_d = ax_d;
-handles.pos = struct('a', pos_a, 'b', pos_b, 'c', pos_c, 'd', pos_d);
+handles.ax_e = ax_e;
+handles.ax_f = ax_f;
+handles.pos = struct('a', pos_a, 'b', pos_b, 'c', pos_c, ...
+    'd', pos_d, 'e', pos_e, 'f', pos_f);
 handles.created = false;
 handles = update_figure(handles, frame);
 
-cb = colorbar(ax_d);
+cb = colorbar(ax_f);
 cb.Location = 'manual';
-cb.Position = colorbar_position(ax_d, pos_d);
+cb.Position = colorbar_position(ax_f, pos_f);
 cb.FontName = 'Arial';
 cb.FontSize = 12;
 cb.Label.String = 'Velocity magnitude (μm/s)';
@@ -101,15 +112,19 @@ end
 
 
 function handles = update_figure(handles, frame)
-style_3d(handles.ax_a, frame, 'xz');
-style_3d(handles.ax_b, frame, 'yz');
-style_2d(handles.ax_c, frame, 'xz');
-style_2d(handles.ax_d, frame, 'yz');
+plane_names = {'xz', 'yz', 'xy'};
+for n = 1:numel(plane_names)
+    spec = plane_spec(plane_names{n});
+    style_3d(handles.(spec.ax3), frame, plane_names{n});
+    style_2d(handles.(spec.ax2), frame, plane_names{n});
+end
 
-handles = paint_3d(handles, frame, 'xz');
-handles = paint_3d(handles, frame, 'yz');
-handles = paint_2d(handles, frame, 'xz');
-handles = paint_2d(handles, frame, 'yz');
+for n = 1:numel(plane_names)
+    handles = paint_3d(handles, frame, plane_names{n});
+end
+for n = 1:numel(plane_names)
+    handles = paint_2d(handles, frame, plane_names{n});
+end
 
 if isfield(handles, 'time') && isgraphics(handles.time)
     handles.time.String = time_string(frame.time_s);
@@ -131,16 +146,35 @@ end
 end
 
 
-function handles = paint_3d(handles, frame, plane_name)
-if strcmp(plane_name, 'xz')
-    ax = handles.ax_a;
-    tag = 'a';
-    plane = frame.planes.xz;
-else
-    ax = handles.ax_b;
-    tag = 'b';
-    plane = frame.planes.yz;
+function spec = plane_spec(plane_name)
+%PLANE_SPEC  Axes handles, panel letters, and labels of one plane
+switch plane_name
+    case 'xz'
+        spec.ax3 = 'ax_a';  spec.tag3 = 'a';
+        spec.ax2 = 'ax_d';  spec.tag2 = 'd';
+        spec.xlab = 'X (μm)';  spec.ylab = 'Z (μm)';
+    case 'yz'
+        spec.ax3 = 'ax_b';  spec.tag3 = 'b';
+        spec.ax2 = 'ax_e';  spec.tag2 = 'e';
+        spec.xlab = 'Y (μm)';  spec.ylab = 'Z (μm)';
+    case 'xy'
+        spec.ax3 = 'ax_c';  spec.tag3 = 'c';
+        spec.ax2 = 'ax_f';  spec.tag2 = 'f';
+        spec.xlab = 'X (μm)';  spec.ylab = 'Y (μm)';
+    otherwise
+        error('render_flowfield_panels:BadPlane', ...
+            'Unknown plane ''%s''.', plane_name);
 end
+spec.title2 = [upper(plane_name), ' plane'];
+spec.title3 = ['3D — ', upper(plane_name), ' plane'];
+end
+
+
+function handles = paint_3d(handles, frame, plane_name)
+spec = plane_spec(plane_name);
+ax = handles.(spec.ax3);
+tag = spec.tag3;
+plane = frame.planes.(plane_name);
 [C, A] = display_image(plane.Umag, plane.mask);
 mesh = build_body_mesh(frame.planes.body_vis, frame.params, ...
     frame.geom.R_body, frame.planes.X_cm_um);
@@ -154,8 +188,8 @@ if ~handles.created
     handles.(['body_' tag]) = render_body_mesh(ax, mesh, body_color, 0.40);
     handles.(['pili_' tag]) = draw_pili_lines(ax, frame);
     handles.(['tag_' tag]) = panel_label(ax, tag);
-    % Propagation direction is [-1, 1, 0], so the source sits at [1, -1, 0].
-    light(ax, 'Position', [1, -1, 0], 'Style', 'infinite');
+    % Propagation direction is [-1, 1, -1], so the source sits at [1, -1, 1].
+    light(ax, 'Position', [1, -1, 1], 'Style', 'infinite');
     lighting(ax, 'gouraud');
     material(ax, 'dull');
     hold(ax, 'off');
@@ -167,40 +201,43 @@ else
 end
 apply_3d_limits(ax, frame);
 clim(ax, [0, frame.cmax]);
-if strcmp(plane_name, 'xz')
-    set_panel_title(ax, '3D — XZ plane');
-else
-    set_panel_title(ax, '3D — YZ plane');
-end
+set_panel_title(ax, spec.title3);
 end
 
 
 function handles = paint_2d(handles, frame, plane_name)
-if strcmp(plane_name, 'xz')
-    ax = handles.ax_c;
-    tag = 'c';
-    plane = frame.planes.xz;
-    Uh = plane.Ux;
-    Uv = plane.Uz;
-    Gh = plane.HG;
-    Gv = plane.ZG;
-    vary_col = 2;
-    h_col = 1;
-    v_col = 3;
-    xlab = 'X (μm)';
-else
-    ax = handles.ax_d;
-    tag = 'd';
-    plane = frame.planes.yz;
-    Uh = plane.Uy;
-    Uv = plane.Uz;
-    Gh = plane.VG;
-    Gv = plane.ZG;
-    vary_col = 1;
-    h_col = 2;
-    v_col = 3;
-    xlab = 'Y (μm)';
+spec = plane_spec(plane_name);
+ax = handles.(spec.ax2);
+tag = spec.tag2;
+plane = frame.planes.(plane_name);
+switch plane_name
+    case 'xz'
+        Uh = plane.Ux;
+        Uv = plane.Uz;
+        Gh = plane.HG;
+        Gv = plane.ZG;
+        vary_col = 2;
+        h_col = 1;
+        v_col = 3;
+    case 'yz'
+        Uh = plane.Uy;
+        Uv = plane.Uz;
+        Gh = plane.VG;
+        Gv = plane.ZG;
+        vary_col = 1;
+        h_col = 2;
+        v_col = 3;
+    case 'xy'
+        Uh = plane.Ux;
+        Uv = plane.Uy;
+        Gh = plane.HG;
+        Gv = plane.VG;
+        vary_col = 3;
+        h_col = 1;
+        v_col = 2;
 end
+xlab = spec.xlab;
+ylab = spec.ylab;
 [C, A] = display_image(plane.Umag, plane.mask);
 arrow = 1.5 * 0.55 * frame.planes.grid_spacing_um * frame.planes.quiver_skip;
 [qx, qy, qu, qv] = quiver_samples(Gh, Gv, Uh, Uv, plane.mask, ...
@@ -222,7 +259,7 @@ if ~handles.created
         'MaxHeadSize', 0.45, 'AutoScale', 'off');
     handles.(['tag_' tag]) = panel_label(ax, tag);
     xlabel(ax, xlab, 'FontName', 'Arial', 'FontSize', 14, 'Interpreter', 'none');
-    ylabel(ax, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 14, 'Interpreter', 'none');
+    ylabel(ax, ylab, 'FontName', 'Arial', 'FontSize', 14, 'Interpreter', 'none');
     hold(ax, 'off');
 else
     set(handles.(['img_' tag]), 'XData', [plane.h_vec(1), plane.h_vec(end)], ...
@@ -240,11 +277,7 @@ set_xy(handles.(['cross_' tag]), cx, cy);
 apply_2d_limits(ax, frame, plane_name);
 clim(ax, [0, frame.cmax]);
 colormap(ax, jet(256));
-if strcmp(plane_name, 'xz')
-    set_panel_title(ax, 'XZ plane');
-else
-    set_panel_title(ax, 'YZ plane');
-end
+set_panel_title(ax, spec.title2);
 end
 
 
@@ -260,11 +293,8 @@ clim(ax, [0, frame.cmax]);
 xlabel(ax, 'X (μm)', 'FontName', 'Arial', 'FontSize', 14, 'Interpreter', 'none');
 ylabel(ax, 'Y (μm)', 'FontName', 'Arial', 'FontSize', 14, 'Interpreter', 'none');
 zlabel(ax, 'Z (μm)', 'FontName', 'Arial', 'FontSize', 14, 'Interpreter', 'none');
-if strcmp(plane_name, 'xz')
-    set_panel_title(ax, '3D — XZ plane');
-else
-    set_panel_title(ax, '3D — YZ plane');
-end
+spec = plane_spec(plane_name);
+set_panel_title(ax, spec.title3);
 end
 
 
@@ -274,11 +304,8 @@ set(ax, 'TickDir', 'out', 'Layer', 'top', 'FontName', 'Arial', 'FontSize', 12, .
     'LabelFontSizeMultiplier', 1);
 colormap(ax, jet(256));
 clim(ax, [0, frame.cmax]);
-if strcmp(plane_name, 'xz')
-    set_panel_title(ax, 'XZ plane');
-else
-    set_panel_title(ax, 'YZ plane');
-end
+spec = plane_spec(plane_name);
+set_panel_title(ax, spec.title2);
 end
 
 
@@ -294,12 +321,16 @@ end
 
 function apply_2d_limits(ax, frame, plane_name)
 lim = frame.planes.axis_lim_um;
-if strcmp(plane_name, 'xz')
-    xr = lim(1, :);
-    yr = lim(3, :);
-else
-    xr = lim(2, :);
-    yr = lim(3, :);
+switch plane_name
+    case 'xz'
+        xr = lim(1, :);
+        yr = lim(3, :);
+    case 'yz'
+        xr = lim(2, :);
+        yr = lim(3, :);
+    case 'xy'
+        xr = lim(1, :);
+        yr = lim(2, :);
 end
 xlim(ax, xr);
 ylim(ax, yr);
@@ -358,7 +389,7 @@ end
 
 
 function p = colorbar_position(ax, pos_d)
-%COLORBAR_POSITION  Vertical colour bar just to the right of panel (d)
+%COLORBAR_POSITION  Vertical colour bar just to the right of panel (f)
 %  Equal scaling leaves the square plot box inside a wider axes rectangle.
 %  The bar is placed against that plot box, not against the axes rectangle.
 fig = ancestor(ax, 'figure');
@@ -453,9 +484,11 @@ handles.ax_a.Position = handles.pos.a;
 handles.ax_b.Position = handles.pos.b;
 handles.ax_c.Position = handles.pos.c;
 handles.ax_d.Position = handles.pos.d;
+handles.ax_e.Position = handles.pos.e;
+handles.ax_f.Position = handles.pos.f;
 if isfield(handles, 'cb') && isgraphics(handles.cb)
     handles.cb.Location = 'manual';
-    handles.cb.Position = colorbar_position(handles.ax_d, handles.pos.d);
+    handles.cb.Position = colorbar_position(handles.ax_f, handles.pos.f);
 end
 end
 

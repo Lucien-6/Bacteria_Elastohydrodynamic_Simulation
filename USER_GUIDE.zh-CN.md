@@ -3,12 +3,12 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 8.7.2
-> **更新日期:** 2026-11-04
+> **版本:** 8.8.0
+> **更新日期:** 2026-11-11
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
-版本提示：v8.7.2 为文档与注释准确性更新：求解器、ODE 轨迹和已保存结果均不变。本版修正了过时或错误的源码注释，改写了电机转速的运行前警告（它针对的是零扭矩转速而不是堵转），删除了已过时的 `src/utils/verify_migration.m`，并从 README 中移除篇幅过长的版本说明（版本历史见 `CHANGELOG.md`）。v8.7.1 修正流场图。胞体内部留白，坐标范围盖住胞体和鞭毛，轮廓为光滑的表面截线。图顶标题是精确到 0.0001 s 的时间，色标在子图 d 右侧。v8.7.0 在每个已保存输出点写入 `results.flow_state`，并新增 `render_flowfield_from_results`，用于绘制末状态、指定时刻或全时序流场动画。ODE 轨迹不变。8.7.0 之前保存的结果不能重建流场。v8.6.6 修正了自定义胞体的表面重建，汇总图和动画会画出完整胞体而不是单个面片；跟随窗口的刻度间隔不细于 0.5 μm；两条深色条纹改为腰部一侧的深绿色短标记。求解器未改，参数化算例的结果不变。表面网格发生变化的自定义胞体，其包围体积、按体积选取的长度尺度，以及非中性浮力时的沉降力，都会改变。v8.6.5 新增接近真实的单根尾部鞭毛大肠杆菌示例（自定义几何、中性浮力、`T_obs = 1 s`）；求解器未改，已有算例的结果不变。v8.6.3 精修了动画：跟随质心的窗口按细菌在各方向上触及的范围分别确定（不再是立方体）且不带比例尺，胞体上的两条深色条纹使绕长轴的转动可见，四个面板在画布上自动排版；仿真结果不变。v8.6.2 将运动动画改为面向论文的四面板版面（3D 与 XZ 总览，加上带刻度和网格的跟随质心 3D 与 XZ 窗口、图例、2 μm 比例尺、带播放速度的时间戳；YZ 面板已移除），仿真结果不变。v8.6.0 加速了运动动画的渲染（图形对象只创建一次、逐帧仅更新数据），并新增 `render_animation_from_results` 以根据已保存结果重新渲染动画；仿真结果和视频内容不变。v8.5.2 标定了菌毛的水动力半径（`material.hydro_radius_factor`，默认 `sqrt(2)`；见 §4、§7 和 `docs/theory.zh-CN.md` §5.2）：直菌毛的轴向扭转阻力现在等于无滑移圆柱值，而不是它的一半，菌毛平动迁移率与细长体理论相差约 3% 以内，因此带菌毛算例的默认结果略有改变（设 `hydro_radius_factor = 1` 可复现 8.5.1）；无菌毛算例不受影响。v8.5.1 在 Brownian 运行的 `ode15s` 重启之间复用上一次的精确有限差分 Jacobian，多菌毛算例每个 Brownian 节点的耗时降低约 2–3.7 倍（单菌毛约 1.4 倍），差异保持在积分容差以内（见 §8；`cfg.jacobian_reuse = false` 与 v8.5.0 逐位一致）；同时清理运行脚本的代码分析器提示、修复 `verify_migration.m` 并新增 Markdown 检查配置。v8.5.0 改变 body-only 布朗运动的施加方式——每个区间的热增量以恒定广义力经耦合 ODE 实现，取代“位移 kick + 根部重投影”，从而消除每个 Brownian 节点处的纤毛根部伪折点，并使 Ito 漂移隐式生成（见 §8）。即使随机种子相同，Brownian 轨迹也与旧版本不同；确定性算例不受影响。2 型抛物线菌毛模板现在精确锚定于原点（此前首节点偏移约 4 nm/K）。v8.4.0 修正 `free_torsion` 根部扭转方程——马达扭矩现在由整根鞭毛的扭转阻力平衡，而不再只由第 1 段平衡，因此马达驱动算例的稳态转子转速相对旧版约下降为 1/N（N 为分段数，见 §7）；运行前失速诊断改用一致的阻力系数。v8.3.0 将菌毛曲率差分模板改为节点共位的二阶格式，并将 14 个参数化附着位点变换全部改为真旋转、`deflection_x` 改为右手约定。平面菌毛（1–4 型、`deflection_x = 0`）的放置与旧版完全一致；位点 1、2、5、7、10、11、14 上的锥形螺旋菌毛以及任何 `deflection_x` 非零的菌毛现在具有正确（旧版为镜像）的手性——若配置是针对旧几何调参的，请将螺旋参数 `c` 或 `deflection_x` 取反。v8.2.0 为物理正确性更新。鞭毛马达改用以转子相对胞体转速表述的带符号线性扭矩–转速关系并明确符号约定（见 §7）；流场后处理计入背景流；2–5 型菌毛的 `shape_params` 在运行前校验；曲率/力矩输入的单位已写入文档（§4）。v8.1.0 扩展批量后处理（`postprocess_cases`）：在 \(0<\tau\le T/2\) 上拟合三维平移 MSD，并新增 XZ 平面转动扩散 \(D_\mathrm{rot}\)（MSAD）。
+版本提示：v8.8.0 增加双鞭毛衣藻游动。主动力矩由细胞 1p00 A 的实测步态（57.8 Hz）反推，再用两个谐波拟合。在 MATLAB 中打开 [`chlamydomonas/run_long_sym50.m`](chlamydomonas/run_long_sym50.m) 或 [`chlamydomonas/run_long_asym50.m`](chlamydomonas/run_long_asym50.m) 后点 Run。后者把两根鞭毛的拍动平面绕各自根部切线同向倾斜 17 度，并把鞭毛 2 的振荡力矩乘以 0.85。`chlamy_swim_analysis` 给出前进速度、绕长轴的自旋，以及螺旋的螺距、半径和轴倾角。沉降、大肠杆菌和布朗算例不变。v8.7.3 为流场图增加 XY 平面（Z = Z_cm）。仿真结束时的图和事后重绘都是 2500 x 1400 画布上的六面板（上排 3D XZ/YZ/XY，下排 2D XZ/YZ/XY），色标在子图 f 右侧，光源位于 [1, -1, 1]。99 分位色标计入 XY 平面，因此重绘旧图时色标上限可能与 8.7.2 不同。`render_flowfield_from_results` 接受 `opts.drop_first_frame`（默认 false），为 true 时 `times`、`animation` 和 `all` 不使用已保存输出 1；动画在命令行用一条 Compute 进度条和一条 Video 进度条。2026-11-11 之前保存的、主动力矩为嵌套函数句柄的衣藻结果可以再次重绘。ODE 与 `results.flow_state` 不变。v8.7.2 为文档与注释准确性更新：求解器、ODE 轨迹和已保存结果均不变。本版修正了过时或错误的源码注释，改写了电机转速的运行前警告（它针对的是零扭矩转速而不是堵转），删除了已过时的 `src/utils/verify_migration.m`，并从 README 中移除篇幅过长的版本说明（版本历史见 `CHANGELOG.md`）。v8.7.1 修正流场图。胞体内部留白，坐标范围盖住胞体和鞭毛，轮廓为光滑的表面截线。图顶标题是精确到 0.0001 s 的时间，色标在子图 d 右侧。v8.7.0 在每个已保存输出点写入 `results.flow_state`，并新增 `render_flowfield_from_results`，用于绘制末状态、指定时刻或全时序流场动画。ODE 轨迹不变。8.7.0 之前保存的结果不能重建流场。v8.6.6 修正了自定义胞体的表面重建，汇总图和动画会画出完整胞体而不是单个面片；跟随窗口的刻度间隔不细于 0.5 μm；两条深色条纹改为腰部一侧的深绿色短标记。求解器未改，参数化算例的结果不变。表面网格发生变化的自定义胞体，其包围体积、按体积选取的长度尺度，以及非中性浮力时的沉降力，都会改变。v8.6.5 新增接近真实的单根尾部鞭毛大肠杆菌示例（自定义几何、中性浮力、`T_obs = 1 s`）；求解器未改，已有算例的结果不变。v8.6.3 精修了动画：跟随质心的窗口按细菌在各方向上触及的范围分别确定（不再是立方体）且不带比例尺，胞体上的两条深色条纹使绕长轴的转动可见，四个面板在画布上自动排版；仿真结果不变。v8.6.2 将运动动画改为面向论文的四面板版面（3D 与 XZ 总览，加上带刻度和网格的跟随质心 3D 与 XZ 窗口、图例、2 μm 比例尺、带播放速度的时间戳；YZ 面板已移除），仿真结果不变。v8.6.0 加速了运动动画的渲染（图形对象只创建一次、逐帧仅更新数据），并新增 `render_animation_from_results` 以根据已保存结果重新渲染动画；仿真结果和视频内容不变。v8.5.2 标定了菌毛的水动力半径（`material.hydro_radius_factor`，默认 `sqrt(2)`；见 §4、§7 和 `docs/theory.zh-CN.md` §5.2）：直菌毛的轴向扭转阻力现在等于无滑移圆柱值，而不是它的一半，菌毛平动迁移率与细长体理论相差约 3% 以内，因此带菌毛算例的默认结果略有改变（设 `hydro_radius_factor = 1` 可复现 8.5.1）；无菌毛算例不受影响。v8.5.1 在 Brownian 运行的 `ode15s` 重启之间复用上一次的精确有限差分 Jacobian，多菌毛算例每个 Brownian 节点的耗时降低约 2–3.7 倍（单菌毛约 1.4 倍），差异保持在积分容差以内（见 §8；`cfg.jacobian_reuse = false` 与 v8.5.0 逐位一致）；同时清理运行脚本的代码分析器提示、修复 `verify_migration.m` 并新增 Markdown 检查配置。v8.5.0 改变 body-only 布朗运动的施加方式——每个区间的热增量以恒定广义力经耦合 ODE 实现，取代“位移 kick + 根部重投影”，从而消除每个 Brownian 节点处的纤毛根部伪折点，并使 Ito 漂移隐式生成（见 §8）。即使随机种子相同，Brownian 轨迹也与旧版本不同；确定性算例不受影响。2 型抛物线菌毛模板现在精确锚定于原点（此前首节点偏移约 4 nm/K）。v8.4.0 修正 `free_torsion` 根部扭转方程——马达扭矩现在由整根鞭毛的扭转阻力平衡，而不再只由第 1 段平衡，因此马达驱动算例的稳态转子转速相对旧版约下降为 1/N（N 为分段数，见 §7）；运行前失速诊断改用一致的阻力系数。v8.3.0 将菌毛曲率差分模板改为节点共位的二阶格式，并将 14 个参数化附着位点变换全部改为真旋转、`deflection_x` 改为右手约定。平面菌毛（1–4 型、`deflection_x = 0`）的放置与旧版完全一致；位点 1、2、5、7、10、11、14 上的锥形螺旋菌毛以及任何 `deflection_x` 非零的菌毛现在具有正确（旧版为镜像）的手性——若配置是针对旧几何调参的，请将螺旋参数 `c` 或 `deflection_x` 取反。v8.2.0 为物理正确性更新。鞭毛马达改用以转子相对胞体转速表述的带符号线性扭矩–转速关系并明确符号约定（见 §7）；流场后处理计入背景流；2–5 型菌毛的 `shape_params` 在运行前校验；曲率/力矩输入的单位已写入文档（§4）。v8.1.0 扩展批量后处理（`postprocess_cases`）：在 \(0<\tau\le T/2\) 上拟合三维平移 MSD，并新增 XZ 平面转动扩散 \(D_\mathrm{rot}\)（MSAD）。
 
 v8.0.1 在 v8.0.0 之上加固运行期数值诊断。稠密耗散检验改用全谱 `eig`；孤立近奇异（`rcond < 1e-14`）以 `NearSingularMatrix` 告警；`SingularMatrix` 仅在大后向残差（`> 1e-6`）与近奇异 `rcond` 同时成立时中止。诊断快照字段为 `rcond_near_singular_threshold`。
 
@@ -46,7 +46,21 @@ cd('path/to/project_root')
 | 模拟接近真实的大肠杆菌（单根尾部鞭毛、马达驱动） | 使用 [`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json)；几何文件由 [`geometry/generate_ecoli_geometry.m`](geometry/generate_ecoli_geometry.m) 生成。 |
 | 导入自定义胞体和纤毛几何 | 使用 [`configs/config_custom_example.json`](configs/config_custom_example.json)。 |
 | 测试自由扭转马达鞭毛 | 使用 [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json)。 |
+| 用实测步态模拟双鞭毛衣藻 | 打开 [`chlamydomonas/run_long_sym50.m`](chlamydomonas/run_long_sym50.m) 或 [`chlamydomonas/run_long_asym50.m`](chlamydomonas/run_long_asym50.m) 后点 Run。 |
 | 无人值守运行多个工况 | 调用 [`run_simulation.m`](run_simulation.m)，并设置 `cfg.auto_confirm = true`。 |
+
+### 双鞭毛衣藻
+
+几何为 [`configs/config_chlamy_biflagellate_gz.json`](configs/config_chlamy_biflagellate_gz.json)：5 µm × 4 µm 的旋转椭球，两根固支鞭毛，每根根部切线与细胞长轴成 13 度。JSON 里的行波力矩不是实际驱动。`chlamy_run_case` 用 `output/chlamy_inverse/fit_1p00A.mat` 替换它，这是细胞 1p00 A 在 57.8 Hz 下实测步态反推力矩的二次谐波拟合。若该文件不在，用 `chlamy_inverse_moment` 和 `chlamy_fit_moment` 从 `chlamydomonas/Refers/` 里的波形重新生成。
+
+在 MATLAB 桌面打开其中一个脚本后点 Run。脚本会根据自身路径找到项目根目录。
+
+```matlab
+run('chlamydomonas/run_long_sym50.m')    % 对称胸泳，50 拍，含动画
+run('chlamydomonas/run_long_asym50.m')   % 倾斜 17 度；鞭毛 2 幅值 0.85
+```
+
+`tilt_deg`、`drive_amp`、`drive_phase` 和 `drive_freq_ratio` 是 `chlamy_run_case` 对每根鞭毛的覆盖项。`drive_amp` 只缩放力矩的振荡部分。长时间脚本把 `swim_analysis.mat` 写在该次运行的目录里。
 
 ## 3. 使用内联参数运行
 
@@ -264,7 +278,7 @@ SPD 修复和 Cholesky 分解在无量纲广义坐标中完成，再转换到 SI
 | `timeseries.csv` | 便于外部分析的标量时间序列。 |
 | `config.json` | 本次运行的配置快照，可用于复现。 |
 | `summary_plot.png` / `.pdf` / 可选 `.html` | 主汇总图。 |
-| `flowfield_panels.png` / `.pdf` / 可选 `.html` | 仿真结束时的 XZ 和 YZ 末状态流场图。 |
+| `flowfield_panels.png` / `.pdf` / 可选 `.html` | 仿真结束时的 XZ、YZ 和 XY 末状态流场图（2×3）。 |
 | `flowfield_panels_rerender_final.png` | 可选；由 `render_flowfield_from_results` 重绘的末状态流场图。 |
 | `flowfield_panels_tNNNNNN.png` | 可选；指定时刻的流场图。 |
 | `flowfield_animation.mp4` | 可选流场动画（Linux 上为 `flowfield_animation.avi`）。 |
@@ -278,7 +292,7 @@ SPD 修复和 Cholesky 分解在无量纲广义坐标中完成，再转换到 SI
 
 若要在不重跑 ODE 的情况下根据已完成算例重新生成动画（例如更换抽帧间隔或帧率），先执行 `addpath('post_processing')`，再运行 `render_animation_from_results()`（弹出文件对话框）或 `render_animation_from_results(mat_file, fps, skip)`。未给出 `fps` / `skip` 时，取该算例文件夹 `config.json` 中的 `output.animation_fps` / `output.animation_skip`，否则为 30 和 1。结果保存在 `.mat` 文件旁，文件名为 `bacteria_3d_motion_rerender.mp4`（Linux 上为 `.avi`），不会覆盖原视频。
 
-v8.7.0 及之后的结果可以用 `render_flowfield_from_results()` 或 `render_flowfield_from_results(mat_file, mode, requested_times_s, fps, skip)` 重算流场。`mode` 为 `final`（默认）、`times`、`animation` 或 `all`。时刻单位为秒，并匹配最近的已保存输出点；多个请求落到同一点时只计算一次。未给出 `fps` / `skip` 时，与运动动画一样读取 `config.json`。末状态色标只用该帧，指定时刻只用被请求的帧，动画使用全部已保存输出点。文件写在 `.mat` 旁边，不覆盖 `flowfield_panels.png`。动画在 Windows 和 macOS 上为 `flowfield_animation.mp4`，在 Linux 上为 `flowfield_animation.avi`。无图形界面时必须传入 MAT 路径，不能依赖文件选择框。
+v8.7.0 及之后的结果可以用 `render_flowfield_from_results()` 或 `render_flowfield_from_results(mat_file, mode, requested_times_s, fps, skip)` 重算流场。`mode` 为 `final`（默认）、`times`、`animation` 或 `all`。时刻单位为秒，并匹配最近的已保存输出点；多个请求落到同一点时只计算一次。未给出 `fps` / `skip` 时，与运动动画一样读取 `config.json`。末状态色标只用该帧，指定时刻只用被请求的帧，动画使用全部已保存输出点；分位数计入 XZ、YZ 和 XY 三个平面。自 v8.7.3 起，图为 2500 x 1400 画布上的六面板：上排是 XZ、YZ、XY 的 3D 视图，下排是对应的 2D 视图，色标在子图 f 右侧。第六个参数 `opts.drop_first_frame = true` 时，`times`、`animation` 和 `all` 去掉已保存输出 1（`final` 不变）。动画在计算流场时显示一条原地刷新的 Compute 进度条，写视频时显示一条 Video 进度条。文件写在 `.mat` 旁边，不覆盖 `flowfield_panels.png`。动画在 Windows 和 macOS 上为 `flowfield_animation.mp4`，在 Linux 上为 `flowfield_animation.avi`。无图形界面时必须传入 MAT 路径，不能依赖文件选择框。
 
 若某个积分段超时，`results.completed=false` 且 `results.termination_reason='timeout'`。程序会保存并正常返回已经获得的部分轨迹，但跳过动画、流场以及批处理稳态统计。
 

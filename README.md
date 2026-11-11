@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-11-04
-> **Version:** 8.7.2
+> **Updated:** 2026-11-11
+> **Version:** 8.8.0
 > **Runtime:** MATLAB-only. No Python or pip dependencies are required.
 
 This project simulates the low-Reynolds-number settling dynamics of a rigid bacterial body coupled to one or more flexible pili or flagella. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -19,6 +19,7 @@ This project simulates the low-Reynolds-number settling dynamics of a rigid bact
 - Optional body-only Brownian dynamics: the 6-DOF body covariance uses the full coupled body-pili effective mobility with dimensionless SPD repair and an isolated reproducible random stream; each interval's increment is realised as a constant thermal generalised force acting through the coupled ODE (implicit Ito drift, no root kink). Pili internal elastic modes receive no thermal noise of their own.
 - Optional background flow: off, uniform, or finite-thickness shear.
 - Free-torsion root coupling and constant motor torque for motor-driven flagella.
+- Biflagellate *Chlamydomonas* swimmer (8.8.0): the active moment is the inverse of a measured gait, with optional beat-plane tilt and a per-flagellum amplitude, phase or frequency. See [`chlamydomonas/run_long_sym50.m`](chlamydomonas/run_long_sym50.m).
 - Inline MATLAB configuration, JSON configuration, and programmatic batch execution.
 - Publication-oriented exports: MAT, CSV, log, PNG, vector PDF, optional interactive HTML, and MP4 animation.
 - Optional **parallel** batch drivers ([`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m), [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m)): `parfor` with automatic pool sizing (Parallel Computing Toolbox); serial fallback when the toolbox or pool is unavailable.
@@ -57,7 +58,7 @@ config_file = 'configs/my_case.json';
 main_coupled_simulation
 ```
 
-Use [`configs/config_custom_example.json`](configs/config_custom_example.json) for imported body and pili geometry, and [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json) for free-torsion motor examples.  A realistic single-flagellum *E. coli* swimmer (2.5 µm × 0.88 µm body, left-handed helical filament with pitch 2.22 µm, motor torque 1300 pN·nm) is provided in [`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json).
+Use [`configs/config_custom_example.json`](configs/config_custom_example.json) for imported body and pili geometry, and [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json) for free-torsion motor examples.  A realistic single-flagellum *E. coli* swimmer (2.5 µm × 0.88 µm body, left-handed helical filament with pitch 2.22 µm, motor torque 1300 pN·nm) is provided in [`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json).  A biflagellate *Chlamydomonas* swimmer driven by a measured gait is started from the MATLAB desktop: open [`chlamydomonas/run_long_sym50.m`](chlamydomonas/run_long_sym50.m) (symmetric, 50 beats) or [`chlamydomonas/run_long_asym50.m`](chlamydomonas/run_long_asym50.m) (17 degree beat-plane tilt and a weaker second flagellum) and press Run.
 
 For machine-specific cases, keep copied JSON files under a local `configs/` path (for example `configs/my_case.json`). The repository tracks example JSON files under `configs/`; only `output/` is listed in `.gitignore`.
 
@@ -81,7 +82,7 @@ Results are written under `output/<case_name>/` or an automatically timestamped 
 | `timeseries.csv` | Scalar time series for external analysis. |
 | `config.json` | Saved run configuration for reproduction. |
 | `summary_plot.png` / `.pdf` / optional `.html` | Main trajectory and summary figure. |
-| `flowfield_panels.png` / `.pdf` / optional `.html` | XZ/YZ flow-field panels. |
+| `flowfield_panels.png` / `.pdf` / optional `.html` | XZ/YZ/XY flow-field panels (2×3). |
 | `initial_pose.png` / `.pdf` / optional `.html` | Initial pose preview, when enabled. |
 | `bacteria_3d_motion.mp4` | Optional 3D animation (`bacteria_3d_motion.avi` on Linux). |
 | `bacteria_3d_motion_rerender.mp4` | Optional animation re-rendered from saved results by `render_animation_from_results`. |
@@ -116,6 +117,8 @@ drivers exclude that partial trajectory from steady-state statistics.
 | [`post_processing/render_flowfield_from_results.m`](post_processing/render_flowfield_from_results.m) | Recompute final, selected-time, or animated flow fields from a v8.7.0 `simulation_results.mat`. |
 | [`src/visualization/render_motion_animation.m`](src/visualization/render_motion_animation.m) | Shared 4-panel motion-animation renderer (3-D and XZ overviews plus co-moving 3-D and XZ windows, legend, scale bar, a short dark-green waist patch as the roll mark, time stamp with playback speed): graphics objects are created once and only their data are updated per frame; logs per-stage timing. Co-moving ticks are never finer than 0.5 μm. |
 | [`src/visualization/add_gravity_indicator_outside.m`](src/visualization/add_gravity_indicator_outside.m) | Gravity-arrow annotation shared by the preview, summary and animation figures (optional `head_scale` argument). |
+| [`chlamydomonas/chlamy_run_case.m`](chlamydomonas/chlamy_run_case.m) | One *Chlamydomonas* run: measured-gait moment, optional beat-plane tilt and per-flagellum drive (8.8.0). |
+| [`chlamydomonas/chlamy_swim_analysis.m`](chlamydomonas/chlamy_swim_analysis.m) | Forward speed, spin and helical pitch, radius and axis tilt of a finished *Chlamydomonas* run. |
 
 ## Documentation
 

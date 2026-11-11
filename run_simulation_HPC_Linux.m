@@ -108,7 +108,9 @@ function [results, params, output_dir] = run_simulation_HPC_Linux(cfg_or_path)
 %  Updated: 2026-10-29 — v8.7.0 saved flow-field history and post-processing;
 %           one mobility assembly per flow frame
 %  Updated: 2026-11-04 — v8.7.2: comment and log/warning-text corrections only; no behavioural change.
-%  Log banner version: 8.7.2 (2026-11-04) - emitted via project_version(); keep README / CHANGELOG in sync
+%  Updated: 2026-11-11 — v8.7.3: flow-field figure is XZ/YZ/XY (2x3); this file's solver path is unchanged.
+%  Updated: 2026-11-11 — v8.8.0: version banner only; the Chlamydomonas driver is outside this file.
+%  Log banner version: 8.8.0 (2026-11-11) - emitted via project_version(); keep README / CHANGELOG in sync
 %
 %  Path policy: defensive addpath calls here allow
 %  run_simulation_HPC_Linux(cfg) without main_coupled_simulation.m.

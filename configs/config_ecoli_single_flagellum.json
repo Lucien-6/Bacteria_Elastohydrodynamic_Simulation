@@ -33,7 +33,7 @@
 
         "pili": [
             {
-                "_comment": "Flagellar filament: left-handed helix, pitch 2.22 um, diameter 0.41 um, ~7.6 um contour (Turner et al. 2000).",
+                "_comment": "Flagellar filament: left-handed helix, pitch 2.22 um, diameter 0.41 um, ~7.9 um contour including a 0.4 um straight hook-like lead-in along the cell axis (Turner et al. 2000).",
                 "points_file": "geometry/ecoli_flagellum_helix.csv",
                 "site_index": 1,
                 "deflection_z": 0,

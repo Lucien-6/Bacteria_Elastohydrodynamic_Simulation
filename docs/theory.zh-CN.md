@@ -4,8 +4,8 @@
 [返回中文 README](../README.zh-CN.md)
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **更新日期:** 2026-11-04
-> **版本:** 8.7.2
+> **更新日期:** 2026-11-11
+> **版本:** 8.8.0
 
 本文档承接原长版 README 中的理论、模型和数值方法说明。仓库首页现在保持精简；实际运行步骤见 [`../USER_GUIDE.md`](../USER_GUIDE.md)，版本历史见 [`../CHANGELOG.md`](../CHANGELOG.md)。
 
@@ -487,16 +487,14 @@ k_B T\,\nabla\!\cdot\!\mathbf{M}\,\Delta t_B
 
 ## 11. 流场可视化
 
-[`compute_plot_flowfield.m`](../src/visualization/compute_plot_flowfield.m) 在末状态重构几何，在胞体质心附近的 XZ 和 YZ 平面上评估速度场，遮罩胞体内部区域，并导出 2 x 2 面板图：
+[`compute_plot_flowfield.m`](../src/visualization/compute_plot_flowfield.m) 在末状态重构几何，在过胞体质心的 XZ（Y = Y_cm）、YZ（X = X_cm）和 XY（Z = Z_cm）平面上评估速度场，遮罩胞体内部区域，并导出 2 x 3 面板图：
 
-- 3D XZ 平面视图。
-- 3D YZ 平面视图。
-- 2D XZ 速度大小和归一化方向箭头。
-- 2D YZ 速度大小和归一化方向箭头。
+- 上排：3D XZ、YZ、XY 平面视图。
+- 下排：2D XZ、YZ、XY 速度大小和归一化方向箭头。
 
 自定义胞体在可用时使用保存的三角化表面和 alpha-shape 内部遮罩。
 
-自 v8.7.0 起，每个已保存输出点还记录 `results.flow_state`：完整状态、菌毛局部基，以及产生该输出的 Brownian 热力。[`render_flowfield_from_results.m`](../post_processing/render_flowfield_from_results.m) 用这些数据绘制末状态、指定时刻或动画。速度核与仿真结束时的末状态图相同。v8.7.1 将胞体内部留白，坐标范围盖住整个细菌，并用光滑的表面截线作轮廓。v8.7.0 之前的文件没有这套历史数据。
+自 v8.7.0 起，每个已保存输出点还记录 `results.flow_state`：完整状态、菌毛局部基，以及产生该输出的 Brownian 热力。[`render_flowfield_from_results.m`](../post_processing/render_flowfield_from_results.m) 用这些数据绘制末状态、指定时刻或动画。速度核与仿真结束时的末状态图相同。v8.7.1 将胞体内部留白，坐标范围盖住整个细菌，并用光滑的表面截线作轮廓。v8.7.3 增加 XY 平面，色标放在子图 f 右侧，99 分位色标计入三个平面。`opts.drop_first_frame`（默认 false）会在 `times`、`animation` 和 `all` 重绘中去掉已保存输出 1。v8.7.0 之前的文件没有这套历史数据。
 
 ## 12. Walker 标度一致性
 
@@ -572,6 +570,16 @@ c_t \sim 4\pi\mu r_{\mathrm{pili}}^2.
 - Cortez, R. (2018). Regularized Stokeslet segments.
 - Walker, B. J. (2020). Elastic filament / bacterial appendage formulation used as the rod-model reference.
 
-## 15. 许可证
+## 15. 实测步态主动力矩
+
+[`../chlamydomonas/`](../chlamydomonas/) 中的双鞭毛游动模型不使用预先给定的行波力矩。实测平面步态作为已知的状态和速率代入。刚体速度来自与正向求解器相同的耦合线性系统的力、力矩行（§6）。杆的各行则给出使该运动成为离散模型精确解的内主动力矩
+
+\[
+\mathbf{M}_{\mathrm{act}} = \boldsymbol{\kappa}_{\mathrm{dev}} - \mathrm{lin\_sys}\,\dot{\mathbf{z}}.
+\]
+
+只保留绕 \(\mathbf{d}_2\) 的弯曲分量。`chlamy_inverse_moment` 把它存成每个节点上的时间傅里叶级数。闭环算例使用 `chlamy_fit_moment` 的二次谐波解析拟合；鞭毛 2 是鞭毛 1 的镜像。拍动平面倾斜把力矩绕每根鞭毛自己的根部切线转动，两根鞭毛的幅值、相位和频率比可以不同。沉降和马达驱动算例不走这条路径。
+
+## 16. 许可证
 
 MIT License。详见 [`../LICENSE`](../LICENSE)。

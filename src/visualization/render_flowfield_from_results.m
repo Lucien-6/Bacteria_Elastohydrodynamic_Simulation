@@ -15,6 +15,12 @@ function info = render_flowfield_from_results(varargin)
 %    closing-interval Brownian force.  Velocity grids are not retained
 %    between the sampling pass and the drawing pass.
 %
+%    opts.drop_first_frame (default false): when true, output index 1 is
+%    omitted from times / animation / all (evaluation, drawing, and colour
+%    scale).  final mode is unchanged.  Use this to skip a startup transient.
+%    Animation (and the animation part of all) prints one Compute bar and
+%    one Video bar instead of a log line per plane and per frame.
+%
 %  Syntax:
 %    info = render_flowfield_from_results(results, params, output_dir, opts)
 %    info = render_flowfield_from_results()
@@ -22,6 +28,7 @@ function info = render_flowfield_from_results(varargin)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-10-28
+%  Updated: 2026-11-11 — opts.drop_first_frame
 
 if nargin == 0 || ischar(varargin{1}) || isstring(varargin{1})
     info = open_saved_flowfield_ui(varargin{:});
@@ -32,7 +39,7 @@ if nargin ~= 4 || ~isstruct(varargin{1}) || ~isstruct(varargin{2}) || ~isstruct(
         'Pass loaded results, params, an output directory, and an options struct.');
 end
 results = varargin{1};
-params = varargin{2};
+params = restore_saved_moment_handles(varargin{2});
 output_dir = varargin{3};
 opts = varargin{4};
 if ~isfield(opts, 'mode') || isempty(opts.mode)
@@ -47,8 +54,13 @@ end
 
 mode = lower(char(opts.mode));
 flow_opts = flow_options(opts);
+opts.drop_first_frame = drop_first_frame_flag(opts);
 t_start = tic;
 info = blank_info(mode, opt_of(opts, 'input_file', ''));
+info.drop_first_frame = opts.drop_first_frame;
+if opts.drop_first_frame
+    logf('[FLOW] drop_first_frame = true: output index 1 will be omitted where applicable.\n');
+end
 
 switch mode
     case 'final'
@@ -94,6 +106,7 @@ if ~isfield(opts, 'requested_times_s') || isempty(opts.requested_times_s)
 end
 [idx_unique, requested_index, requested_times] = match_output_times( ...
     results.t, opts.requested_times_s);
+idx_unique = omit_first_output(idx_unique, opts.drop_first_frame, 'times');
 logf('[FLOW] Requested-time colour scale uses %d matched output(s).\n', numel(idx_unique));
 held = hold_frames(results, params, idx_unique, idx_unique, flow_opts, logf, silent, opts);
 cmax = colour_limit(samples_for(held, idx_unique));
@@ -121,9 +134,12 @@ end
 function info = render_animation(info, results, params, output_dir, opts, flow_opts, logf, silent)
 [fps, skip, frame_index] = animation_frame_index(results, opts);
 n_times = results.flow_state.n_times;
-logf('[FLOW] Animation colour scale uses all %d saved outputs.\n', n_times);
-held = hold_frames(results, params, 1:n_times, frame_index, flow_opts, logf, silent, opts);
-cmax = colour_limit(samples_for(held, 1:n_times));
+scale_index = omit_first_output(1:n_times, opts.drop_first_frame, 'animation');
+logf('[FLOW] Animation — %d flow fields, %d video frames, %g fps, stride %d.\n', ...
+    numel(scale_index), numel(frame_index), fps, skip);
+opts.compact_progress = true;
+held = hold_frames(results, params, scale_index, frame_index, flow_opts, logf, silent, opts);
+cmax = colour_limit(samples_for(held, scale_index));
 [info, held] = write_animation_held(info, held, frame_index, cmax, fps, skip, ...
     results, output_dir, opts, flow_opts, logf, silent);
 info.colour_max.animation = cmax;
@@ -141,10 +157,15 @@ end
 [fps, skip, frame_index] = animation_frame_index(results, opts);
 [idx_unique, requested_index, requested_times] = match_output_times( ...
     results.t, opts.requested_times_s);
+idx_unique = omit_first_output(idx_unique, opts.drop_first_frame, 'times');
 n_times = results.flow_state.n_times;
+scale_index = omit_first_output(1:n_times, opts.drop_first_frame, 'animation');
 retain = unique([n_times, reshape(idx_unique, 1, []), reshape(frame_index, 1, [])]);
-logf('[FLOW] Combined output evaluates each saved frame once.\n');
-held = hold_frames(results, params, 1:n_times, retain, flow_opts, logf, silent, opts);
+visit = unique([reshape(scale_index, 1, []), reshape(retain, 1, [])]);
+logf('[FLOW] Combined output — %d flow fields, then static panels and %d video frames.\n', ...
+    numel(visit), numel(frame_index));
+opts.compact_progress = true;
+held = hold_frames(results, params, visit, retain, flow_opts, logf, silent, opts);
 
 cmax_final = colour_limit(samples_for(held, n_times));
 png = fullfile(output_dir, 'flowfield_panels_rerender_final.png');
@@ -173,7 +194,7 @@ for n = 1:numel(idx_unique)
 end
 info.colour_max.times = cmax_times;
 
-cmax_anim = colour_limit(samples_for(held, 1:n_times));
+cmax_anim = colour_limit(samples_for(held, scale_index));
 [info, held] = write_animation_held(info, held, frame_index, cmax_anim, fps, skip, ...
     results, output_dir, opts, flow_opts, logf, silent);
 info.colour_max.animation = cmax_anim;
@@ -197,6 +218,33 @@ frame_index = 1:skip:n_times;
 if frame_index(end) ~= n_times
     frame_index(end + 1) = n_times;
 end
+frame_index = omit_first_output(frame_index, opts.drop_first_frame, 'animation');
+end
+
+
+function drop = drop_first_frame_flag(opts)
+drop = opt_of(opts, 'drop_first_frame', false);
+if isnumeric(drop) && isscalar(drop) && (drop == 0 || drop == 1)
+    drop = logical(drop);
+end
+if ~(islogical(drop) && isscalar(drop))
+    error('render_flowfield_from_results:BadDropFirstFrame', ...
+        'opts.drop_first_frame must be a logical scalar (true/false).');
+end
+end
+
+
+function indices = omit_first_output(indices, drop, context)
+indices = reshape(indices, 1, []);
+if ~drop
+    return
+end
+indices = indices(indices ~= 1);
+if isempty(indices)
+    error('render_flowfield_from_results:NoFramesLeft', ...
+        ['drop_first_frame left no outputs for %s. ', ...
+         'Need at least one saved output after index 1.'], context);
+end
 end
 
 
@@ -216,9 +264,19 @@ held.retained_bytes = 0;
 held.grid_recompute_count = 0;
 retain = unique(reshape(retain, 1, []));
 visit = reshape(visit, 1, []);
-for n = 1:numel(visit)
+compact = isfield(opts, 'compact_progress') && logical(opts.compact_progress);
+eval_logf = logf;
+eval_silent = silent;
+if compact
+    eval_logf = @(varargin) [];
+    eval_silent = true;
+end
+n_visit = numel(visit);
+t_bar = tic;
+cache_notes = {};
+for n = 1:n_visit
     idx = visit(n);
-    packed = evaluate_saved_index(results, params, idx, flow_opts, logf, silent);
+    packed = evaluate_saved_index(results, params, idx, flow_opts, eval_logf, eval_silent);
     held.sample{idx} = packed.planes.samples;
     if any(retain == idx)
         nbytes = struct_bytes(packed.planes);
@@ -228,12 +286,21 @@ for n = 1:numel(visit)
         else
             packed.planes = [];
             held.pack{idx} = packed;
-            logf(['[FLOW] Grid cache full; output %d will rebuild its grid ', ...
-                  'from saved coefficients.\n'], idx);
+            cache_notes{end + 1} = sprintf( ...
+                ['[FLOW] Grid cache full; output %d will rebuild its grid ', ...
+                 'from saved coefficients.'], idx); %#ok<AGROW>
         end
     end
-    logf('[FLOW] Evaluated output %d at t = %.6g s (%s).\n', ...
-        idx, packed.t_s, packed.convention);
+    if compact && ~silent
+        render_progress_bar('[FLOW] Compute ', n, n_visit, t_bar, ...
+            sprintf('%d/%d  t=%.4f s', n, n_visit, packed.t_s));
+    elseif ~compact
+        logf('[FLOW] Evaluated output %d at t = %.6g s (%s).\n', ...
+            idx, packed.t_s, packed.convention);
+    end
+end
+for n = 1:numel(cache_notes)
+    logf('%s\n', cache_notes{n});
 end
 end
 
@@ -290,9 +357,17 @@ if write_png
 else
     frame_files = {};
 end
+compact = isfield(opts, 'compact_progress') && logical(opts.compact_progress);
+draw_logf = logf;
+draw_silent = silent;
+if compact
+    draw_logf = @(varargin) [];
+    draw_silent = true;
+end
+t_bar = tic;
 for n = 1:n_frames
     idx = frame_index(n);
-    [packed, held] = materialize_pack(held, idx, flow_opts, logf, silent);
+    [packed, held] = materialize_pack(held, idx, flow_opts, draw_logf, draw_silent);
     frame = pack_frame(packed, run_id, cmax, 'Global colour scale');
     if n == 1
         handles = render_flowfield_panels(frame, ...
@@ -311,8 +386,13 @@ for n = 1:n_frames
             'figure', handles.fig, 'png_path', png, 'dpi', dpi));
         frame_files{n} = png;
     end
-    logf('[FLOW] Animation frame %d/%d at t = %.6g s (%s).\n', ...
-        n, n_frames, packed.t_s, packed.convention);
+    if compact && ~silent
+        render_progress_bar('[FLOW] Video   ', n, n_frames, t_bar, ...
+            sprintf('%d/%d  t=%.4f s', n, n_frames, packed.t_s));
+    elseif ~compact
+        logf('[FLOW] Animation frame %d/%d at t = %.6g s (%s).\n', ...
+            n, n_frames, packed.t_s, packed.convention);
+    end
 end
 cleanup_vid();
 if exist('cleanup_fig', 'var')
@@ -516,6 +596,7 @@ end
 function info = blank_info(mode, input_file)
 info.input_file = input_file;
 info.mode = mode;
+info.drop_first_frame = false;
 info.requested_times_s = [];
 info.matched_times_s = [];
 info.requested_output_index = [];

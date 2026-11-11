@@ -224,7 +224,7 @@
     </p>
     <div class="title-meta">
       <div><b style="color:#fff;">Author</b> &nbsp; Lucien &nbsp;·&nbsp; lucien-6@qq.com</div>
-      <div><b style="color:#fff;">Version</b> &nbsp; 8.7.2 &nbsp;·&nbsp; 2026-11-04</div>
+      <div><b style="color:#fff;">Version</b> &nbsp; 8.8.0 &nbsp;·&nbsp; 2026-11-11</div>
       <div><b style="color:#fff;">Methods</b> &nbsp; RSM + RSS + Rotlet · Kirchhoff rods · Quaternion · Brownian</div>
     </div>
   </div>
@@ -1107,7 +1107,7 @@ cfg.auto_confirm = true;
       <tr><td><code>timeseries.csv</code></td><td>Scalar time series for external analysis.</td></tr>
       <tr><td><code>config.json</code></td><td>Saved run configuration for exact reproduction.</td></tr>
       <tr><td><code>summary_plot</code> .png/.pdf/.html</td><td>Trajectory and summary figure.</td></tr>
-      <tr><td><code>flowfield_panels</code> .png/.pdf/.html</td><td>XZ / YZ flow-field panels (2×2).</td></tr>
+      <tr><td><code>flowfield_panels</code> .png/.pdf/.html</td><td>XZ / YZ / XY flow-field panels (2×3).</td></tr>
       <tr><td><code>initial_pose</code> .png/.pdf/.html</td><td>Initial pose preview (when enabled).</td></tr>
       <tr><td><code>bacteria_3d_motion.mp4</code></td><td>Optional 3-D animation.</td></tr>
       <tr><td><code>simulation.log</code> · <code>brownian_rng_seed.txt</code></td><td>Run log · Brownian seed (if enabled).</td></tr>
@@ -1118,7 +1118,7 @@ cfg.auto_confirm = true;
       <tr><td><code>timeseries.csv</code></td><td>供外部分析的标量时间序列。</td></tr>
       <tr><td><code>config.json</code></td><td>保存的运行配置，便于精确复现。</td></tr>
       <tr><td><code>summary_plot</code> .png/.pdf/.html</td><td>轨迹与汇总图。</td></tr>
-      <tr><td><code>flowfield_panels</code> .png/.pdf/.html</td><td>XZ / YZ 流场面板（2×2）。</td></tr>
+      <tr><td><code>flowfield_panels</code> .png/.pdf/.html</td><td>XZ / YZ / XY 流场面板（2×3）。</td></tr>
       <tr><td><code>initial_pose</code> .png/.pdf/.html</td><td>初始位姿预览（启用时）。</td></tr>
       <tr><td><code>bacteria_3d_motion.mp4</code></td><td>可选三维动画。</td></tr>
       <tr><td><code>simulation.log</code> · <code>brownian_rng_seed.txt</code></td><td>运行日志 · 布朗随机种子（启用时）。</td></tr>
@@ -1165,7 +1165,7 @@ cfg.auto_confirm = true;
     <span class="kicker"><span class="lang-en">Thank You</span><span class="lang-zh">谢谢</span></span>
     <h1 style="font-size:1.85em;"><span class="lang-en">Questions &amp; Discussion</span><span class="lang-zh">提问与讨论</span></h1>
     <div class="bar" style="margin-left:auto;margin-right:auto;"></div>
-    <p class="muted" style="font-size:.68em;">Lucien &nbsp;·&nbsp; lucien-6@qq.com &nbsp;·&nbsp; Version 8.7.2 (2026-11-04)</p>
+    <p class="muted" style="font-size:.68em;">Lucien &nbsp;·&nbsp; lucien-6@qq.com &nbsp;·&nbsp; Version 8.8.0 (2026-11-11)</p>
   </div>
 </section>
 
@@ -1223,8 +1223,8 @@ cfg.auto_confirm = true;
       en:'Probes the deterministic coupled system with six unit body loads to obtain the 6×6 effective body mobility, D=kT·M, and its Cholesky factor. <code>sample_brownian_body_force.m</code> turns the sampled increment into the constant thermal force applied through the ODE; only body coordinates are forced.',
       zh:'用 6 个单位胞体载荷探测确定性耦合系统，得到 6×6 有效胞体迁移率、D=kT·M 及其 Cholesky 因子；<code>sample_brownian_body_force.m</code> 将抽样增量换算为经 ODE 施加的恒定热力，仅作用于胞体坐标。' },
     FLOW: { t:'src/visualization/compute_plot_flowfield.m',
-      en:'Reconstructs the end-state geometry, evaluates the flow on XZ and YZ planes around the body centre, masks body interiors, and exports a 2×2 panel figure.',
-      zh:'重建末态几何，在胞体中心周围的 XZ 与 YZ 平面上求流场，屏蔽胞体内部，并导出 2×2 面板图。' },
+      en:'Reconstructs the end-state geometry, evaluates the flow on the XZ, YZ and XY planes through the body centre, masks body interiors, and exports a 2×3 panel figure.',
+      zh:'重建末态几何，在过胞体中心的 XZ、YZ 与 XY 平面上求流场，屏蔽胞体内部，并导出 2×3 面板图。' },
     OUT: { t:'Run products',
       en:'Outputs written per run: <code>simulation_results.mat</code>, <code>timeseries.csv</code>, <code>config.json</code>, summary &amp; flow-field figures (PNG/PDF/HTML), optional <code>bacteria_3d_motion.mp4</code>, <code>simulation.log</code>, and the Brownian RNG seed.',
       zh:'每次运行的产物：<code>simulation_results.mat</code>、<code>timeseries.csv</code>、<code>config.json</code>、汇总图与流场图（PNG/PDF/HTML）、可选 <code>bacteria_3d_motion.mp4</code>、<code>simulation.log</code> 及布朗随机种子。' },

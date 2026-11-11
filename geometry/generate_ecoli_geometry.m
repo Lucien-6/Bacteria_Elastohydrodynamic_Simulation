@@ -18,13 +18,27 @@
 %    J. Bacteriol. 182, 2793, 2000):
 %      helical wavelength (pitch)   2.22 um
 %      helix diameter               0.41 um
-%      contour length               n_turns turns (default 3.0 -> ~7.5 um;
-%                                   filament lengths of 5-10 um are typical)
-%    The helix amplitude is ramped smoothly from 0 to its full value over the
-%    first RAMP_TURNS turns (sin^2 envelope).  The centreline therefore leaves
-%    the cell pole exactly along the cell axis with zero curvature, which is
-%    how the flexible hook + filament root is represented when the model
-%    imposes a bending-locked root (see the notes in the JSON config).
+%      contour length               n_turns turns (default 3.0 -> ~8 um incl.
+%                                   lead-in; filament lengths of 5-10 um
+%                                   are typical)
+%    The filament starts with a straight lead-in segment (length LEAD_LEN,
+%    representing the hook) along the cell axis, followed by the helix whose
+%    amplitude is ramped smoothly from 0 to its full value over the first
+%    RAMP_TURNS turns (sin^2 envelope).  The centreline therefore leaves the
+%    cell pole exactly along the cell axis with zero curvature, which is how
+%    the flexible hook + filament root is represented when the model imposes
+%    a bending-locked root (see the notes in the JSON config).
+%
+%    Why the lead-in is needed (2026-11-06):
+%      custom_pili_building.m resamples the centreline into equal chords
+%      (~0.2 um at seg_per_um = 5) and rotates the FIRST CHORD onto the
+%      attachment-site direction.  If the first chord lies inside the
+%      amplitude ramp it is not parallel to the helix axis (4.5 deg for the
+%      old 0.5-turn ramp without lead-in), and that error is transferred as
+%      a tilt of the whole helix axis relative to the cell axis.  With a
+%      straight lead-in longer than one chord (LEAD_LEN >= ~2 chords) the
+%      first chord is exactly along the helix axis, so the helix axis and the
+%      cell long axis coincide (align_angle = 180.00 deg in the run log).
 %
 %    The filament is sampled with a UNIFORM arc-length discretisation, as
 %    required by custom_pili_building.m.  The first point is the origin (root)
@@ -54,7 +68,8 @@ D_cell      = 0.88e-6;    % [m] cell diameter
 lambda_h    = 2.22e-6;    % [m] helical pitch (wavelength along axis)
 D_helix     = 0.41e-6;    % [m] helix diameter (centreline)
 n_turns     = 3.0;        % [-] number of helical turns
-ramp_turns  = 0.5;        % [-] turns over which the helix amplitude ramps up
+ramp_turns  = 1.0;        % [-] turns over which the helix amplitude ramps up
+lead_len    = 0.4e-6;     % [m] straight lead-in (hook) along the cell axis; keep >= 2 solver chords (0.2 um at seg_per_um = 5)
 seg_len     = 0.10e-6;    % [m] source chord length (the solver re-samples to seg_per_um)
 handedness  = -1;         % [-] -1 = left-handed (normal E. coli filament)
 N_body      = 300;        % [-] requested body surface points (actual count may differ slightly)
@@ -85,25 +100,36 @@ env      = ones(size(t_fine));
 in_ramp  = t_fine < t_ramp;
 env(in_ramp) = sin(0.5*pi * t_fine(in_ramp) / t_ramp).^2;   % C1 smooth, env'(0)=0
 
-x_f = lambda_h * t_fine / (2*pi);
+x_f = lead_len + lambda_h * t_fine / (2*pi);
 y_f = R_h * env .* cos(t_fine);
 z_f = handedness * R_h * env .* sin(t_fine);
-pts_fine = [x_f, y_f, z_f];
+
+% Straight lead-in along +X (root at the origin), joined C1-continuously to
+% the helix start point (lead_len, 0, 0), where the helix tangent is +X.
+if lead_len > 0
+    n_lead = max(ceil(lead_len / 0.01e-6), 2);
+    x_lead = linspace(0, lead_len, n_lead + 1)';
+    x_lead(end) = [];                       % helix start point is the next row
+    pts_fine = [x_lead, zeros(size(x_lead)), zeros(size(x_lead)); ...
+                x_f, y_f, z_f];
+else
+    pts_fine = [x_f, y_f, z_f];
+end
 
 s_fine = [0; cumsum(vecnorm(diff(pts_fine, 1, 1), 2, 2))];
 L_total = s_fine(end);
 N_seg   = max(round(L_total / seg_len), 4);
 s_new   = linspace(0, L_total, N_seg + 1)';
-helix_pts = [interp1(s_fine, x_f, s_new, 'pchip'), ...
-             interp1(s_fine, y_f, s_new, 'pchip'), ...
-             interp1(s_fine, z_f, s_new, 'pchip')];
+helix_pts = [interp1(s_fine, pts_fine(:,1), s_new, 'pchip'), ...
+             interp1(s_fine, pts_fine(:,2), s_new, 'pchip'), ...
+             interp1(s_fine, pts_fine(:,3), s_new, 'pchip')];
 
 fprintf('  Filament: contour length %.3f um, axial length %.3f um, %d segments\n', ...
     L_total*1e6, x_f(end)*1e6, N_seg);
 write_csv(fullfile(out_dir, 'ecoli_flagellum_helix.csv'), helix_pts, ...
     sprintf(['E. coli flagellar filament: left-handed helix, pitch %.2f um, ', ...
-    'diameter %.2f um, %.1f turns, %.2f-turn root ramp, contour %.2f um'], ...
-    lambda_h*1e6, D_helix*1e6, n_turns, ramp_turns, L_total*1e6));
+    'diameter %.2f um, %.1f turns, %.2f-turn root ramp, %.2f um straight lead-in, contour %.2f um'], ...
+    lambda_h*1e6, D_helix*1e6, n_turns, ramp_turns, lead_len*1e6, L_total*1e6));
 
 fprintf('Done.  Attachment site (tail pole): x = %.4e m, direction [-1 0 0].\n', ...
     -L_cell/2);

@@ -4,8 +4,8 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-11-04
-> **版本:** 8.7.2
+> **更新日期:** 2026-11-11
+> **版本:** 8.8.0
 > **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
 
 本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -19,6 +19,7 @@
 - 可选 body-only 胞体布朗运动：胞体 6 自由度协方差来自完整胞体-纤毛耦合有效迁移率，并采用无量纲 SPD 修复及独立可复现随机流；每个区间的增量以恒定广义热力经耦合 ODE 实现（隐式 Ito 漂移、无根部折点）。纤毛内部弹性模态本身不接受热噪声。
 - 可选背景流：关闭、均匀流或有限厚度剪切流。
 - 支持自由扭转根部边界条件和恒定马达力矩，用于马达驱动鞭毛。
+- 双鞭毛衣藻游动（8.8.0）：主动力矩由实测步态反推，可对拍动平面倾斜，也可分别改一根鞭毛的幅值、相位或频率。入口见 [`chlamydomonas/run_long_sym50.m`](chlamydomonas/run_long_sym50.m)。
 - 支持 MATLAB 内联配置、JSON 配置和程序化批处理运行。
 - 支持面向论文图像的导出：MAT、CSV、日志、PNG、矢量 PDF、可选交互式 HTML 和 MP4 动画。
 - 可选**并行**批量驱动（[`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m)、[`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m)）：在已安装 **Parallel Computing Toolbox** 时使用 `parfor` 与自动池规模估计；无工具箱或池创建失败时自动回退为串行循环。
@@ -53,7 +54,7 @@ config_file = 'configs/my_case.json';
 main_coupled_simulation
 ```
 
-自定义胞体和纤毛几何可参考 [`configs/config_custom_example.json`](configs/config_custom_example.json)；自由扭转马达鞭毛可参考 [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json)。接近真实的单根尾部鞭毛大肠杆菌游动案例（胞体 2.5 µm × 0.88 µm，左手螺旋鞭毛丝、螺距 2.22 µm，马达扭矩 1300 pN·nm）见 [`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json)。
+自定义胞体和纤毛几何可参考 [`configs/config_custom_example.json`](configs/config_custom_example.json)；自由扭转马达鞭毛可参考 [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json)。接近真实的单根尾部鞭毛大肠杆菌游动案例（胞体 2.5 µm × 0.88 µm，左手螺旋鞭毛丝、螺距 2.22 µm，马达扭矩 1300 pN·nm）见 [`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json)。双鞭毛衣藻由实测步态驱动：在 MATLAB 中打开 [`chlamydomonas/run_long_sym50.m`](chlamydomonas/run_long_sym50.m)（对称，50 拍）或 [`chlamydomonas/run_long_asym50.m`](chlamydomonas/run_long_asym50.m)（拍动平面倾斜 17 度，第二根鞭毛较弱）后点 Run。
 
 ### 方式 C：程序化调用
 
@@ -75,7 +76,7 @@ cfg.auto_confirm = true;
 | `timeseries.csv` | 便于外部分析的标量时间序列。 |
 | `config.json` | 本次运行配置快照，可用于复现。 |
 | `summary_plot.png` / `.pdf` / 可选 `.html` | 轨迹与汇总图。 |
-| `flowfield_panels.png` / `.pdf` / 可选 `.html` | XZ / YZ 双平面流场图。 |
+| `flowfield_panels.png` / `.pdf` / 可选 `.html` | XZ / YZ / XY 流场图（2×3）。 |
 | `initial_pose.png` / `.pdf` / 可选 `.html` | 初始姿态预览图，开启预览时生成。 |
 | `bacteria_3d_motion.mp4` | 可选三维动画（Linux 上为 `bacteria_3d_motion.avi`）。 |
 | `bacteria_3d_motion_rerender.mp4` | 可选；由 `render_animation_from_results` 根据已保存结果重新渲染的动画。 |
@@ -107,6 +108,8 @@ cfg.auto_confirm = true;
 | [`post_processing/render_flowfield_from_results.m`](post_processing/render_flowfield_from_results.m) | 从 v8.7.0 的 `simulation_results.mat` 重算末状态、指定时刻或全时序流场动画。 |
 | [`src/visualization/render_motion_animation.m`](src/visualization/render_motion_animation.m) | 共用的四面板运动动画渲染器（3D 与 XZ 总览，加上跟随质心的 3D 与 XZ 窗口，含图例、比例尺、腰部一侧的深绿色短标记、带播放速度的时间戳）：图形对象只创建一次，逐帧仅更新数据；输出分阶段耗时日志。跟随窗口的刻度间隔不细于 0.5 μm。 |
 | [`src/visualization/add_gravity_indicator_outside.m`](src/visualization/add_gravity_indicator_outside.m) | 预览图、汇总图和动画图共用的重力箭头标注（可选参数 `head_scale`）。 |
+| [`chlamydomonas/chlamy_run_case.m`](chlamydomonas/chlamy_run_case.m) | 一次衣藻算例：实测步态力矩，可选拍动平面倾斜和单根鞭毛驱动（8.8.0）。 |
+| [`chlamydomonas/chlamy_swim_analysis.m`](chlamydomonas/chlamy_swim_analysis.m) | 已完成衣藻算例的前进速度、自旋，以及螺旋螺距、半径和轴倾角。 |
 
 ## 文档导航
 

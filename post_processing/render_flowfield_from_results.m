@@ -7,6 +7,10 @@ function info = render_flowfield_from_results(mat_file, mode, requested_times_s,
 %    config.json in the same folder, then to 30 fps and a stride of 1.
 %    Grid settings fall back to that file's flowfield section.
 %
+%    Optional opts.drop_first_frame (default false): true omits saved output
+%    index 1 from times / animation / all (drawing and colour scale), so a
+%    startup transient does not dominate the figure.  final mode is unchanged.
+%
 %  Syntax:
 %    info = render_flowfield_from_results()
 %    info = render_flowfield_from_results(mat_file)
@@ -21,6 +25,7 @@ function info = render_flowfield_from_results(mat_file, mode, requested_times_s,
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-10-28
+%  Updated: 2026-11-11 — opts.drop_first_frame
 
 info = [];
 this_file = mfilename('fullpath');
@@ -79,9 +84,13 @@ end
 if ~isfield(opts, 'silent') || isempty(opts.silent)
     opts.silent = false;
 end
+if ~isfield(opts, 'drop_first_frame') || isempty(opts.drop_first_frame)
+    opts.drop_first_frame = false;
+end
 
 fprintf('Results file : %s\n', mat_file);
 fprintf('Mode         : %s\n', char(mode));
+fprintf('Drop first   : %d\n', logical(opts.drop_first_frame));
 info = call_saved_flowfield(S.results, S.params, out_dir, opts, ...
     fullfile(proj_root, 'src', 'visualization'));
 end

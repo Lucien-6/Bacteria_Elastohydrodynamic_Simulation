@@ -5,3 +5,5 @@ paper_cases/
 .ruff_cache/
 .mypy_cache/
 .understand-anything/
+# Gutierrez Dryad archive. Absolute paths exceed the Windows MAX_PATH limit.
+chlamydomonas/Refers/

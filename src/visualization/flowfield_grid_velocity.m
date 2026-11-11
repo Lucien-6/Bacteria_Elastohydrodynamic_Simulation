@@ -1,8 +1,8 @@
 function planes = flowfield_grid_velocity(hydro, params, flow_opts, logf, silent)
-%FLOWFIELD_GRID_VELOCITY  Evaluate XZ and YZ Stokes velocity planes
+%FLOWFIELD_GRID_VELOCITY  Evaluate XZ, YZ, and XY Stokes velocity planes
 %
 %  Description:
-%    Builds XZ and YZ grids that cover the configured window and the whole
+%    Builds XZ, YZ, and XY grids (through the body centre) that cover the configured window and the whole
 %    cell (body and flagella), and evaluates the regularised Stokeslet,
 %    Stokeslet-segment, and rotlet kernels outside the body.  The body
 %    interior is left blank (NaN).  The ambient flow is added when
@@ -14,6 +14,7 @@ function planes = flowfield_grid_velocity(hydro, params, flow_opts, logf, silent
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-10-28
 %  Updated: 2026-10-30
+%  Updated: 2026-11-11 — added the XY plane (Z = Z_cm)
 
 if nargin < 4 || isempty(logf), logf = @(varargin) []; end
 if nargin < 5 || isempty(silent), silent = false; end
@@ -66,8 +67,23 @@ if silent, yz_tag = ''; end
 logf('[FLOW] YZ velocity range: [%.4e, %.4e] um/s\n', ...
     min(Umag_yz(:), [], 'omitnan'), max(Umag_yz(:), [], 'omitnan'));
 
+logf('[FLOW] Computing XY-plane flow field...\n');
+x_vec_xy = x_vec_xz;
+y_vec_xy = y_vec_yz;
+[XG_xy, YG_xy] = meshgrid(x_vec_xy, y_vec_xy);
+ZG_xy = X_cm_um(3) * ones(size(XG_xy));
+xy_tag = '[FLOW-XY] ';
+if silent, xy_tag = ''; end
+[Ux_xy, Uy_xy, Uz_xy, Umag_xy, mask_xy, ~] = evaluate_plane_velocity( ...
+    [XG_xy(:)*um_to_L, YG_xy(:)*um_to_L, ZG_xy(:)*um_to_L], ...
+    [numel(y_vec_xy), numel(x_vec_xy)], X_cm, R_body, body_vis, ...
+    hydro.body_data, hydro.seg_data, um_s_factor, chunk_size, xy_tag, hydro.bg_fun);
+logf('[FLOW] XY velocity range: [%.4e, %.4e] um/s\n', ...
+    min(Umag_xy(:), [], 'omitnan'), max(Umag_xy(:), [], 'omitnan'));
+
 [cap_xz_h, cap_xz_v] = body_section_outline(body_vis, R_body, X_cm_um, 'xz');
 [cap_yz_h, cap_yz_v] = body_section_outline(body_vis, R_body, X_cm_um, 'yz');
+[cap_xy_h, cap_xy_v] = body_section_outline(body_vis, R_body, X_cm_um, 'xy');
 
 planes.body_vis = body_vis;
 planes.axis_lim_um = [x_vec_xz(1), x_vec_xz(end); ...
@@ -82,7 +98,10 @@ planes.xz = pack_plane(x_vec_xz, z_vec_xz, XG_xz, YG_xz, ZG_xz, ...
     Ux_xz, Uy_xz, Uz_xz, Umag_xz, mask_xz, cap_xz_h, cap_xz_v);
 planes.yz = pack_plane(y_vec_yz, z_vec_yz, XG_yz, YG_yz, ZG_yz, ...
     Ux_yz, Uy_yz, Uz_yz, Umag_yz, mask_yz, cap_yz_h, cap_yz_v);
-samples = [Umag_xz(isfinite(Umag_xz)); Umag_yz(isfinite(Umag_yz))];
+planes.xy = pack_plane(x_vec_xy, y_vec_xy, XG_xy, YG_xy, ZG_xy, ...
+    Ux_xy, Uy_xy, Uz_xy, Umag_xy, mask_xy, cap_xy_h, cap_xy_v);
+samples = [Umag_xz(isfinite(Umag_xz)); Umag_yz(isfinite(Umag_yz)); ...
+           Umag_xy(isfinite(Umag_xy))];
 planes.samples = samples(:);
 
 end
@@ -461,7 +480,7 @@ end
 %  LOCAL FUNCTION: extract_body_outline
 %  =====================================================================
 function [h, v] = body_section_outline(body_vis, R_body, X_cm_um, plane_name)
-%BODY_SECTION_OUTLINE  Smooth body silhouette on the XZ or YZ plane
+%BODY_SECTION_OUTLINE  Smooth body silhouette on the XZ, YZ, or XY plane
 %
 %  The curve is the plane cut of the body surface, resampled with a
 %  periodic spline.  A contour of the velocity-grid mask is stair-stepped
@@ -473,6 +492,11 @@ function [h, v] = body_section_outline(body_vis, R_body, X_cm_um, plane_name)
         fixed_value = X_cm_um(2);
         h_axis = 1;
         v_axis = 3;
+    elseif strcmp(plane_name, 'xy')
+        fixed_axis = 3;
+        fixed_value = X_cm_um(3);
+        h_axis = 1;
+        v_axis = 2;
     else
         fixed_axis = 1;
         fixed_value = X_cm_um(1);
