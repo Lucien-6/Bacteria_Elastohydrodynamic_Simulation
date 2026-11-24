@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="Bacteria Elastohydrodynamic Simulation v8.8.0 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, second-order Kirchhoff curvature stencil, proper-rotation attachment sites, signed motor torque-speed law, whole-filament free-torsion root balance, body-only Brownian dynamics realised as a thermal force through the coupled ODE, batch post-processing with 3-D MSD and XZ MSAD diffusion fits, hardened numerical diagnostics, JSON config, and Linux HPC execution.">
+<meta name="description" content="BacEHD (Bacteria Elastohydrodynamic Simulation) v10.1.0 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, body-frame Block Schur & frozen-hydrodynamics 3-colour Jacobian acceleration, second-order Kirchhoff curvature stencil, signed motor torque-speed law, body-only & pilus thermal fluctuations with balancing axial torque density and unequal-length time-scale mode selection, expanded 18-check CPC validation & performance benchmark suite, 2-D in-plane flow-field streamlines, JSON config, and unified Linux HPC execution.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v8.8.0 &middot; 2026-11-11</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v10.1.0 &middot; 2026-11-24</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 8.8.0 &bull; 2026-11-11
+      Version 10.1.0 &bull; 2026-11-24
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -289,7 +289,7 @@ tailwind.config = {
       </a>
     </div>
     <div class="mt-10 flex flex-wrap justify-center gap-2.5 text-[11px] font-medium">
-      <span class="px-3 py-1 rounded-full bg-white/8 border border-white/15 text-gray-200">MATLAB R2020b+</span>
+      <span class="px-3 py-1 rounded-full bg-white/8 border border-white/15 text-gray-200">MATLAB R2022a+</span>
       <span class="px-3 py-1 rounded-full bg-white/8 border border-white/15 text-gray-200">RSM + RSS + Rotlet</span>
       <span class="px-3 py-1 rounded-full bg-white/8 border border-white/15 text-gray-200">Kirchhoff rods</span>
       <span class="px-3 py-1 rounded-full bg-white/8 border border-white/15 text-gray-200">Brownian dynamics</span>
@@ -542,13 +542,43 @@ tailwind.config = {
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v10.1.0 &mdash; 2026-11-24</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">BacEHD CPC deposit readiness, full-codebase audit hardening &amp; single-engine HPC unification</span><span class="zh">BacEHD CPC 投稿完备化、全项目代码审计加固与单引擎 HPC 统一</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">Formalised program title <strong>BacEHD</strong> with <code>CITATION.cff</code>, <code>cpc/PROGRAM_SUMMARY.md</code>, expanded 18-check <code>cpc/run_cpc_tests.m</code> (Block Schur equivalence, pilus thermal operator, end-to-end JSON&rarr;<code>run_simulation</code> smoke, 3-D <em>Chlamydomonas</em> <code>dry_run</code>), <code>validation/cpc_performance_benchmark.m</code> (up to 105&times; RHS / 411&times; Jacobian / 9.4&times; end-to-end speedups), and unified Elsevier CPC 90/140/190 mm <code>(a), (b)</code> figure scripts.</span><span class="zh">正式定名程序为 <strong>BacEHD</strong>，补齐 <code>CITATION.cff</code>、<code>cpc/PROGRAM_SUMMARY.md</code>、18 项扩展版 <code>cpc/run_cpc_tests.m</code>（Block Schur 等价性、纤毛热算子、端到端管线、3D 衣藻 <code>dry_run</code>）、<code>validation/cpc_performance_benchmark.m</code>（最高 105&times; RHS / 411&times; 雅可比 / 9.4&times; 端到端加速）以及统一 Elsevier CPC 90/140/190 mm <code>(a), (b)</code> 出版级画图脚本。</span></li>
+          <li><span class="en">Unified <code>run_simulation_HPC_Linux.m</code> into a thin forwarding alias to <code>run_simulation.m</code>; eliminated Statistics Toolbox <code>prctile</code> dependency on R2022a&ndash;R2024b; hardened validation (<code>NaN</code>/<code>Inf</code>/<code>geometry_mode</code>/custom <code>.fun</code>), <code>init_coupled_params</code> default <code>N_segments</code>, <code>save_sim_config</code> heterogeneous pili &amp; UTF-8 export, <code>ode_coupled_jacobian</code> unlimited-motor guard, and achieved 0 MATLAB <code>codeIssues</code> across all 170 project files.</span><span class="zh">将 <code>run_simulation_HPC_Linux.m</code> 统一为指向 <code>run_simulation.m</code> 的薄包装别名；移除 R2022a&ndash;R2024b 流场绘图对 Statistics Toolbox <code>prctile</code> 的隐性依赖；全面加固参数校验、<code>N_segments</code> 默认推导、异构纤毛 UTF-8 配置导出与无速限马达雅可比保护，全项目 170 个自研 <code>.m</code> 文件实现 0 条 MATLAB <code>codeIssues</code>。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50/50 dark:bg-navy-950/20 p-6">
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v10.0.0 &mdash; 2026-11-24</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Pilus thermal physics hardening, Block Schur &amp; fast Jacobian acceleration, CPC validation</span><span class="zh">纤毛热涨落物理与工程全面加固、Block Schur 与快速雅可比加速、CPC 验证套件</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">Pilus thermal loads now include the constrained probe's balancing scalar axial torque density (<code>brown_pili_tau</code>), reproducing the full probe RHS to machine precision (~10<sup>&minus;15</sup>) on bent 3-D filaments, cutting twist energy by 2&ndash;4 orders of magnitude, and restoring monotone small-<code>dt_B</code> covariance convergence. Unequal-length pili gain optional <code>brownian.pili_tau_cut_s</code> and <code>brownian.pili_protect_pairs</code>; per-pilus <code>brownian.pili_rng_seeds</code> are wired through JSON, seed files, and collision-free batch repeats.</span><span class="zh">纤毛热载荷现包含受约束探测的平衡轴向标量力矩密度（<code>brown_pili_tau</code>），在三维弯曲纤毛上以机器精度（~10<sup>&minus;15</sup>）复现探针右端项，扭转能再降 2&ndash;4 个数量级并恢复小 <code>dt_B</code> 单调协方差收敛。不等长纤毛新增可选 <code>brownian.pili_tau_cut_s</code> 与 <code>brownian.pili_protect_pairs</code>；分纤毛种子 <code>brownian.pili_rng_seeds</code> 全链路接入 JSON、种子文件与无冲突批处理。</span></li>
+          <li><span class="en">Body-frame Block Schur precomputation (<code>build_body_precomp</code>, <code>build_pili_mobility_blocks</code>), fast 3-colour frozen-hydrodynamics Jacobian (<code>ode_coupled_jacobian</code>), 3-colour curvature Jacobian, batched <code>pagesvd</code>, <code>O(N_k)</code> matrix-free drift, CPC physics test suite (<code>cpc/run_cpc_tests.m</code>), adaptive ETA/progress estimators, and 2-D in-plane flow-field streamlines.</span><span class="zh">胞体框架 Block Schur 预计算（<code>build_body_precomp</code>、<code>build_pili_mobility_blocks</code>）、快速三色冻结水动力雅可比（<code>ode_coupled_jacobian</code>）、三色曲率雅可比、批处理 <code>pagesvd</code>、<code>O(N_k)</code> 无矩阵漂移、CPC 验证测试套件（<code>cpc/run_cpc_tests.m</code>）、自适应进度/ETA 估计器与 2D 平面流线渲染。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50/50 dark:bg-navy-950/20 p-6">
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v9.0.0 &mdash; 2026-11-12</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Thermal fluctuations of the pili</span><span class="zh">纤毛的热涨落</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">With <code>brownian.pili_thermal = true</code> the first and second bending modes of every pilus receive thermal forces sampled together with the body from the joint mobility, and reach equipartition. Twist and higher bending modes stay deterministic. The option is off by default; results without it are unchanged bit for bit.</span><span class="zh">设 <code>brownian.pili_thermal = true</code> 后，每根纤毛的第一、二阶弯曲模态与胞体一起按联合迁移率抽取热力，并达到能量均分。扭转和更高阶弯曲仍为确定性。该选项默认关闭；不开启时结果逐位不变。</span></li>
+          <li><span class="en">For passive, naturally straight pili with clamped roots. Use a Brownian interval of at most a quarter of the fastest thermal relaxation time: 0.002 s for 3 &micro;m filaments. <code>results.pili_modes</code> holds the mode amplitudes and energies.</span><span class="zh">适用于被动、本征为直线、根部固支的纤毛。Brownian 区间不超过最快热松弛时间的四分之一：3 &micro;m 纤毛取 0.002 s。<code>results.pili_modes</code> 保存模态幅值和能量。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50/50 dark:bg-navy-950/20 p-6">
         <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v8.8.0 &mdash; 2026-11-11</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
           <span class="en">Measured-gait Chlamydomonas swimmer</span><span class="zh">实测步态驱动的衣藻</span>
         </h3>
         <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
           <li><span class="en">A biflagellate cell (5 &micro;m by 4 &micro;m spheroid, 13 degree root angle) is driven by the active moment inverted from the measured gait of cell 1p00 A at 57.8 Hz, then fitted with two harmonics. Settling, <em>E. coli</em> and Brownian cases are unchanged.</span><span class="zh">双鞭毛细胞（5 &micro;m &times; 4 &micro;m 椭球，根角 13 度）由细胞 1p00 A 在 57.8 Hz 的实测步态反推的主动力矩驱动，再用两个谐波拟合。沉降、大肠杆菌和布朗算例不变。</span></li>
-          <li><span class="en">Open <code>chlamydomonas/run_long_sym50.m</code> or <code>run_long_asym50.m</code> in the MATLAB desktop and press Run. The second case tilts both beat planes by 17 degrees and scales flagellum 2 by 0.85. <code>chlamy_swim_analysis</code> reports speed, spin and the helical pitch, radius and axis tilt.</span><span class="zh">在 MATLAB 桌面打开 <code>chlamydomonas/run_long_sym50.m</code> 或 <code>run_long_asym50.m</code> 后点 Run。后者把拍动平面倾斜 17 度，并把鞭毛 2 的幅值乘以 0.85。<code>chlamy_swim_analysis</code> 给出速度、自旋以及螺旋螺距、半径和轴倾角。</span></li>
+          <li><span class="en">Open <code>chlamydomonas/cases/run_planar_sym50.m</code>, <code>chlamydomonas/cases/run_3d_helix_2s.m</code>, or call <code>chlamydomonas/chlamy_run_preset.m</code> in MATLAB (reorganised in v10.0.0 from the original <code>run_long_sym50.m</code> / <code>run_long_asym50.m</code>). <code>chlamy_swim_analysis</code> reports speed, spin and the helical pitch, radius and axis tilt.</span><span class="zh">在 MATLAB 中打开 <code>chlamydomonas/cases/run_planar_sym50.m</code>、<code>chlamydomonas/cases/run_3d_helix_2s.m</code> 或调用 <code>chlamydomonas/chlamy_run_preset.m</code>（v10.0.0 由原 <code>run_long_sym50.m</code> / <code>run_long_asym50.m</code> 重组）。<code>chlamy_swim_analysis</code> 给出速度、自旋以及螺旋螺距、半径和轴倾角。</span></li>
         </ul>
       </div>
       <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50/50 dark:bg-navy-950/20 p-6">
@@ -1409,13 +1439,13 @@ graph TD
             </tr>
             <tr>
               <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">ODE Core</span><span class="zh">ODE 核心</span></td>
-              <td class="px-4 py-2"><code>ode_coupled_rhs.m</code>, <code>build_coupled_lin_sys.m</code></td>
-              <td class="px-4 py-2"><span class="en">Deterministic RHS: linear system assembly + elastic moments + active moments + background flow + state-rate packing</span><span class="zh">确定性右端项：线性系统装配 + 弹性力矩 + 主动力矩 + 背景流 + 状态速率组装</span></td>
+              <td class="px-4 py-2"><code>ode_coupled_rhs.m</code>, <code>build_coupled_lin_sys.m</code>, <code>build_force_balance.m</code></td>
+              <td class="px-4 py-2"><span class="en">Deterministic RHS: linear system assembly, force/moment balance, elastic/active moments, background flow, state-rate packing</span><span class="zh">确定性右端项：线性系统装配、力/力矩平衡、弹性/主动力矩、背景流、状态速率组装</span></td>
             </tr>
             <tr>
               <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">Brownian</span><span class="zh">布朗</span></td>
-              <td class="px-4 py-2"><code>compute_effective_body_brownian.m</code></td>
-              <td class="px-4 py-2"><span class="en">Probing method, dimensionalisation, Cholesky decomposition</span><span class="zh">探测法、量纲化、Cholesky 分解</span></td>
+              <td class="px-4 py-2"><code>compute_effective_body_brownian.m</code>, <code>compute_effective_coupled_brownian.m</code>, <code>sample_brownian_coupled_force.m</code>, <code>init_pili_brownian_modes.m</code>, <code>pili_thermal_rhs.m</code></td>
+              <td class="px-4 py-2"><span class="en">Body-only and optional pilus-mode Brownian: probing, joint mobility, centreline loads, held-load drift</span><span class="zh">仅胞体与可选纤毛模态布朗：探测、联合迁移率、中心线载荷、保持载荷漂移</span></td>
             </tr>
             <tr>
               <td class="px-4 py-2 font-semibold text-gray-800 dark:text-gray-200"><span class="en">Geometry</span><span class="zh">几何</span></td>
@@ -1457,13 +1487,13 @@ graph TD
       <button onclick="this.nextElementSibling.classList.toggle('open'); this.querySelector('svg').classList.toggle('rotate-180')"
         class="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 dark:hover:bg-navy-800 transition">
         <span class="font-semibold text-sm">
-          <span class="en">Project File Tree (60 <code>.m</code> sources incl. <code>_legacy/</code>)</span>
-          <span class="zh">项目文件树（60 个 <code>.m</code> 源文件，含 <code>_legacy/</code>）</span>
+          <span class="en">Project File Tree (illustrative; see repository for the full list)</span>
+          <span class="zh">项目文件树（示意；完整列表见仓库）</span>
         </span>
         <svg class="w-5 h-5 text-gray-400 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
       </button>
       <div class="collapsible-body px-5 pb-5">
-        <pre class="text-xs text-gray-600 dark:text-gray-400 font-mono leading-relaxed whitespace-pre">Coupled_Body_Pili/
+        <pre class="text-xs text-gray-600 dark:text-gray-400 font-mono leading-relaxed whitespace-pre">Bacteria Elastohydrodynamic Simulation/
 ├── main_coupled_simulation.m              % Entry point
 ├── run_simulation.m                       % Core simulation engine
 ├── src/
@@ -1477,8 +1507,13 @@ graph TD
 │   │   ├── save_sim_config.m              % cfg → JSON
 │   │   └── validate_simulation_params.m   % Pre-flight checks
 │   ├── core/
-│   │   ├── build_coupled_lin_sys.m        % Coupled linear system assembly
+│   │   ├── build_body_precomp.m           % Body-frame M_BB Cholesky precomp (10.0.0)
+│   │   ├── build_coupled_lin_sys.m        % Coupled linear system (Block Schur + LU)
+│   │   ├── build_force_balance.m          % Force/moment-balance operator (9.0.0)
 │   │   ├── build_global_resistance.m      % RSM/RSS mobility matrices
+│   │   ├── build_pili_mobility_blocks.m   % Body-frame non-BB mobility blocks (10.0.0)
+│   │   ├── LaggedJacobian.m               % Reused Jacobian (fast + FD fallback)
+│   │   ├── ode_coupled_jacobian.m         % Fast frozen-hydro 3-colour Jacobian (10.0.0)
 │   │   └── ode_coupled_rhs.m              % ODE right-hand side
 │   ├── geometry/
 │   │   ├── capsule_body_building.m          % Capsule body mesh
@@ -1507,14 +1542,19 @@ graph TD
 │   ├── physics/
 │   │   ├── compute_curvature_binormal.m     % Discrete curvature binormal
 │   │   ├── compute_effective_body_brownian.m % Body-only Brownian (coupled probe)
+│   │   ├── compute_effective_coupled_brownian.m % Joint body+pilus mobility (9.0.0)
 │   │   ├── compute_node_directors.m         % Segment → node directors (SVD polar)
 │   │   ├── compute_pili_elastic_moments.m   % Kirchhoff elastic moments
 │   │   ├── coupled_active_moment.m          % Per-pili active moments
-│   │   └── coupled_background_flow.m        % Background flow field
+│   │   ├── coupled_background_flow.m        % Background flow field
+│   │   ├── init_pili_brownian_modes.m       % Thermal pilus bending modes (9.0.0)
+│   │   ├── pili_thermal_rhs.m               % Thermal load RHS contribution (9.0.0)
+│   │   └── sample_brownian_coupled_force.m  % Joint thermal forces (9.0.0)
 │   ├── utils/
 │   │   ├── brown_rng_seed_from_clock.m      % Default Brownian twister seed
 │   │   ├── odetpbar.m                       % ODE OutputFcn progress
 │   │   ├── pack_state_rates.m               % Assemble dZ/dt
+│   │   ├── project_version.m                % Single source of the release version
 │   │   └── unpack_state.m                   % Z → body + pili components
 │   └── visualization/
 │       ├── add_gravity_indicator_outside.m  % Gravity arrow annotation (shared)
@@ -1631,10 +1671,10 @@ postprocess_cases();</code></pre>
         <span class="en">Prerequisites</span><span class="zh">运行环境</span>
       </h3>
       <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-        <li>&#10003;&nbsp; <strong>MATLAB R2020b</strong> <span class="en">or later</span><span class="zh">或更高版本</span></li>
+        <li>&#10003;&nbsp; <strong>MATLAB R2022a</strong> <span class="en">or later</span><span class="zh">或更高版本</span></li>
         <li>&#10003;&nbsp; <span class="en"><strong>S2 Sampling Toolbox</strong> (Anton Semechko, File Exchange / Add-On) — required for <strong>capsule</strong> body surface points (<code>ParticleSampleSphere</code>, <code>SpiralSampleSphere</code>, <code>SubdivideSphericalMesh</code>, … on MATLAB path)</span><span class="zh"><strong>S2 Sampling Toolbox</strong>（Anton Semechko，File Exchange / 附加功能）— <strong>胶囊</strong>胞体球帽布点依赖（<code>ParticleSampleSphere</code> 等需在路径上）</span></li>
         <li>&#10003;&nbsp; <span class="en">Statistics Toolbox not required (code avoids toolbox-only APIs)</span><span class="zh">无需 Statistics 工具箱（代码避免仅工具箱提供的 API）</span></li>
-        <li>&#10003;&nbsp; <span class="en">Navigate MATLAB to the</span><span class="zh">将 MATLAB 工作目录切换至</span> <code class="bg-gray-100 dark:bg-navy-800 px-1.5 py-0.5 rounded text-xs">Coupled_Body_Pili/</code> <span class="en">directory</span><span class="zh">目录</span></li>
+        <li>&#10003;&nbsp; <span class="en">Navigate MATLAB to the</span><span class="zh">将 MATLAB 工作目录切换至</span> <code class="bg-gray-100 dark:bg-navy-800 px-1.5 py-0.5 rounded text-xs">Bacteria Elastohydrodynamic Simulation/</code> <span class="en">directory</span><span class="zh">目录</span></li>
       </ul>
     </div>
 
@@ -1794,6 +1834,11 @@ run('batch_sweep/batch_run_from_json.m');</code></pre>
             <tr><td class="px-4 py-2 font-mono text-xs">enable_brown</td><td class="px-4 py-2"><code>brownian.enable</code></td><td class="px-4 py-2"><code>false</code></td><td class="px-4 py-2"><span class="en">Master switch for Brownian motion</span><span class="zh">布朗运动总开关</span></td></tr>
             <tr><td class="px-4 py-2 font-mono text-xs">Temper</td><td class="px-4 py-2"><code>brownian.temperature</code></td><td class="px-4 py-2"><code>293.15</code> K</td><td class="px-4 py-2"><span class="en">Fluid temperature</span><span class="zh">流体温度</span></td></tr>
             <tr><td class="px-4 py-2 font-mono text-xs">dt_B</td><td class="px-4 py-2"><code>brownian.dt_B_ratio</code> &times; dt</td><td class="px-4 py-2"><code>dt/2</code></td><td class="px-4 py-2"><span class="en">Brownian time step (fixed, dimensional)</span><span class="zh">布朗时间步长（固定、有量纲）</span></td></tr>
+            <tr><td class="px-4 py-2 font-mono text-xs">enable_pili_brown</td><td class="px-4 py-2"><code>brownian.pili_thermal</code></td><td class="px-4 py-2"><code>false</code></td><td class="px-4 py-2"><span class="en">Thermal fluctuations of the slow pilus bending modes (v9.0.0, upgraded v10.0.0)</span><span class="zh">纤毛慢弯曲模态热涨落（v9.0.0，v10.0.0 升级加固）</span></td></tr>
+            <tr><td class="px-4 py-2 font-mono text-xs">pili_brown_orders</td><td class="px-4 py-2"><code>brownian.pili_mode_orders</code></td><td class="px-4 py-2"><code>2</code></td><td class="px-4 py-2"><span class="en">Bending orders per pilus that receive thermal noise</span><span class="zh">每根纤毛接受热噪声的弯曲阶数</span></td></tr>
+            <tr><td class="px-4 py-2 font-mono text-xs">pili_brown_tau_cut_s</td><td class="px-4 py-2"><code>brownian.pili_tau_cut_s</code></td><td class="px-4 py-2"><code>[]</code></td><td class="px-4 py-2"><span class="en">Optional relaxation-time cutoff [s] for unequal-length pili (v10.0.0)</span><span class="zh">可选松弛时间门槛 [s]，适用于不等长纤毛（v10.0.0）</span></td></tr>
+            <tr><td class="px-4 py-2 font-mono text-xs">pili_brown_protect_pairs</td><td class="px-4 py-2"><code>brownian.pili_protect_pairs</code></td><td class="px-4 py-2"><code>[]</code></td><td class="px-4 py-2"><span class="en">Expand mode cut across near-degenerate clusters (gap &lt; 1.15, v10.0.0)</span><span class="zh">自动扩充截断以保护近简并偏振对（gap &lt; 1.15，v10.0.0）</span></td></tr>
+            <tr><td class="px-4 py-2 font-mono text-xs">brown_pili_rng_seeds</td><td class="px-4 py-2"><code>brownian.pili_rng_seeds</code></td><td class="px-4 py-2"><code>[]</code></td><td class="px-4 py-2"><span class="en">Optional independent positive integer RNG seeds per pilus (v10.0.0)</span><span class="zh">可选分纤毛独立正整数随机种子数组（v10.0.0）</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -2065,9 +2110,9 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
       <p class="text-white font-semibold text-sm mb-3"><span class="en">Project</span><span class="zh">项目</span></p>
       <ul class="space-y-2 text-sm">
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
-        <li>MATLAB R2020b+</li>
+        <li>MATLAB R2022a+</li>
         <li>MIT License</li>
-        <li>v8.8.0 &middot; 2026-11-11</li>
+        <li>v10.1.0 &middot; 2026-11-24</li>
       </ul>
     </div>
   </div>

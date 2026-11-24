@@ -145,12 +145,12 @@ function pts = read_csv_points(file_path)
 
     raw_lines = cell(0, 1);
     while ~feof(fid)
-        line = fgetl(fid);
-        if ~ischar(line), continue; end
-        line = strtrim(line);
-        if isempty(line),                            continue; end
-        if startsWith(line, '#') || startsWith(line, '%'), continue; end
-        raw_lines{end+1, 1} = line; %#ok<AGROW>
+        text_line = fgetl(fid);
+        if ~ischar(text_line), continue; end
+        text_line = strtrim(text_line);
+        if isempty(text_line),                            continue; end
+        if startsWith(text_line, '#') || startsWith(text_line, '%'), continue; end
+        raw_lines{end+1, 1} = text_line; %#ok<AGROW>
     end
 
     if isempty(raw_lines)

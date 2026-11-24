@@ -85,7 +85,7 @@ try
 catch
     warning('sphere_particle_sample_cached:loadFail', ...
         'Cache file unreadable, will recompute: %s', fpath);
-    try; delete(fpath); catch; end
+    try delete(fpath); catch, end
     return
 end
 
@@ -105,7 +105,7 @@ if isfield(s, 'Vtool') && isfield(s, 'meta')
 end
 
 if ~valid
-    try; delete(fpath); catch; end
+    try delete(fpath); catch, end
     return
 end
 
@@ -155,7 +155,7 @@ catch err
     warning('sphere_particle_sample_cached:saveFail', ...
         'Cache save failed (%s), continuing without cache.', err.message);
     if ~isempty(tmp_path) && isfile(tmp_path)
-        try; delete(tmp_path); catch; end
+        try delete(tmp_path); catch, end
     end
 end
 

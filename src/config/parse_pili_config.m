@@ -80,6 +80,11 @@ type_map = struct( ...
 
 M = numel(pili_cfg);
 Pili_Matrix = zeros(8, M);
+pili_ext = repmat(struct( ...
+    'intrinsic_curvature', 'frozen', ...
+    'active_moment', struct('type', 'off'), ...
+    'root_coupling', 'clamped', ...
+    'motor_torque', struct('type', 'off')), 1, M);
 
 for k = 1:M
     pc = pili_cfg(k);
@@ -117,24 +122,34 @@ for k = 1:M
 
     % --- Length ---
     if isfield(pc, 'length_um') && ~isempty(pc.length_um)
-        if pc.length_um <= 0
+        if ~isnumeric(pc.length_um) || ~isscalar(pc.length_um) || ...
+                ~isfinite(pc.length_um) || pc.length_um <= 0
             error('parse_pili_config:InvalidLength', ...
-                'Pili %d: length_um must be > 0, got %g.', k, pc.length_um);
+                'Pili %d: length_um must be a finite scalar > 0, got %s.', ...
+                k, mat2str(pc.length_um));
         end
-        Pili_Matrix(2, k) = pc.length_um;
+        Pili_Matrix(2, k) = double(pc.length_um);
     else
         error('parse_pili_config:MissingLength', 'Pili %d: field ''length_um'' is required.', k);
     end
 
     % --- Deflection angles (optional, default 0) ---
     if isfield(pc, 'deflection_z') && ~isempty(pc.deflection_z)
-        Pili_Matrix(3, k) = pc.deflection_z;
+        if ~isnumeric(pc.deflection_z) || ~isscalar(pc.deflection_z) || ~isfinite(pc.deflection_z)
+            error('parse_pili_config:InvalidDeflection', ...
+                'Pili %d: deflection_z must be a finite scalar.', k);
+        end
+        Pili_Matrix(3, k) = double(pc.deflection_z);
     else
         Pili_Matrix(3, k) = 0;
     end
 
     if isfield(pc, 'deflection_x') && ~isempty(pc.deflection_x)
-        Pili_Matrix(4, k) = pc.deflection_x;
+        if ~isnumeric(pc.deflection_x) || ~isscalar(pc.deflection_x) || ~isfinite(pc.deflection_x)
+            error('parse_pili_config:InvalidDeflection', ...
+                'Pili %d: deflection_x must be a finite scalar.', k);
+        end
+        Pili_Matrix(4, k) = double(pc.deflection_x);
     else
         Pili_Matrix(4, k) = 0;
     end
@@ -155,11 +170,12 @@ for k = 1:M
 
     % --- Attachment site ---
     if isfield(pc, 'site') && ~isempty(pc.site)
-        if pc.site < 1 || pc.site > 14 || floor(pc.site) ~= pc.site
+        if ~isnumeric(pc.site) || ~isscalar(pc.site) || ~isfinite(pc.site) || ...
+                pc.site < 1 || pc.site > 14 || floor(pc.site) ~= pc.site
             error('parse_pili_config:InvalidSite', ...
-                'Pili %d: site must be integer 1-14, got %g.', k, pc.site);
+                'Pili %d: site must be integer 1-14, got %s.', k, mat2str(pc.site));
         end
-        Pili_Matrix(8, k) = pc.site;
+        Pili_Matrix(8, k) = double(pc.site);
     else
         error('parse_pili_config:MissingSite', 'Pili %d: field ''site'' is required.', k);
     end

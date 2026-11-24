@@ -255,7 +255,9 @@ if n_repeats < 1 || floor(n_repeats) ~= n_repeats
 end
 
 % --- Resolve heavy-output sampling indices (first, middle, last by default) ---
-heavy_output_sample_idx = unique([1, ceil(n_repeats / 2), n_repeats]);
+if isempty(heavy_output_sample_idx)
+    heavy_output_sample_idx = unique([1, ceil(n_repeats / 2), n_repeats]);
+end
 heavy_output_sample_idx = heavy_output_sample_idx( ...
     heavy_output_sample_idx >= 1 & heavy_output_sample_idx <= n_repeats);
 
@@ -359,6 +361,8 @@ end
 %  runs remain bit-exact with the previous version.
 
 seeds = [];
+pili_seeds_all = zeros(n_repeats, 0);
+has_pili_seeds = isfield(cfg, 'brown_pili_rng_seeds') && ~isempty(cfg.brown_pili_rng_seeds);
 seed_origin_label = '';
 if use_parallel
     seeds = zeros(n_repeats, 1);
@@ -373,6 +377,14 @@ if use_parallel
             seeds(k) = seed_base + k;
         end
         seed_origin_label = sprintf('timestamp+offset (base=%d, +k)', seed_base);
+    end
+    if has_pili_seeds
+        n_ps = numel(cfg.brown_pili_rng_seeds);
+        pili_seed_floor = max(max(seeds), max(round(double(cfg.brown_pili_rng_seeds(:))))) + 100000;
+        pili_seeds_all = zeros(n_repeats, n_ps);
+        for k = 1:n_repeats
+            pili_seeds_all(k, :) = pili_seed_floor + (k - 1) * n_ps + (1:n_ps);
+        end
     end
 end
 
@@ -575,21 +587,24 @@ try
 if use_parallel
     %% ---- PARALLEL BRANCH (parfor + DataQueue progress) ----
     progress_q = parallel.pool.DataQueue;
-    print_progress(struct('reset', true), n_repeats);   % reset persistent counter
-    afterEach(progress_q, @(msg) dispatch_progress_msg(msg, n_repeats, sum_path, brown_rng_seed_mode));
+    batch_eta  = BatchEtaEstimator(n_repeats, parallel_info.n_pool);
+    afterEach(progress_q, @(msg) dispatch_progress_msg(msg, batch_eta, n_repeats, sum_path, brown_rng_seed_mode));
 
     fprintf('Launching parfor with %d workers...\n\n', parallel_info.n_pool);
 
     parfor k = 1:n_repeats
-        cfg_k                 = cfg;                                         %#ok<PFBNS>
+        cfg_k                 = cfg;
         cfg_k.case_name       = fullfile(case_name_base, sprintf('%03d', k));
         cfg_k.brown_rng_seed  = seeds(k);
+        if has_pili_seeds
+            cfg_k.brown_pili_rng_seeds = pili_seeds_all(k, :);
+        end
         cfg_k.preview_initial = false;
         cfg_k.auto_confirm    = true;
         cfg_k.silent          = true;   % suppress per-run stdout on workers (see run_simulation_HPC_Linux.dual_log)
         % Heavy-output sampling: force animation/flowfield OFF except for the
         % sampled repeats, to shrink per-worker peak memory (see USER SETTINGS).
-        is_sample_k                = ismember(k, heavy_output_sample_idx);   %#ok<PFBNS>
+        is_sample_k                = ismember(k, heavy_output_sample_idx);
         cfg_k.generate_animation   = is_sample_k;
         cfg_k.compute_flowfield    = is_sample_k;
         % Live sub-case progress (HPC_Linux addition): reuse the same
@@ -597,7 +612,7 @@ if use_parallel
         % sends throttled 'heartbeat' messages through it (30 s interval),
         % which dispatch_progress_msg below routes separately from the
         % 'done' completion messages.
-        cfg_k.progress_queue       = progress_q;                             %#ok<PFBNS>
+        cfg_k.progress_queue       = progress_q;
         cfg_k.progress_tag         = k;
         run_seed(k) = seeds(k);
 
@@ -659,6 +674,16 @@ if use_parallel
 
 else
     %% ---- SERIAL BRANCH (legacy for-loop; summary lines written incrementally) ----
+    serial_eta = BatchEtaEstimator(n_repeats, 1);
+    serial_pili_seed_floor = 0;
+    if has_pili_seeds
+        if strcmp(brown_rng_seed_mode, 'fixed')
+            max_body_ser = rng_seed_base + n_repeats;
+        else
+            max_body_ser = brown_rng_seed_from_clock() + n_repeats + 86400;
+        end
+        serial_pili_seed_floor = max(max_body_ser, max(round(double(cfg.brown_pili_rng_seeds(:))))) + 100000;
+    end
     for k = 1:n_repeats
         sub = sprintf('%03d', k);
         fprintf('%s\n  Repeat %d/%d  ->  output/%s/%s\n%s\n', ...
@@ -681,6 +706,10 @@ else
             if isfield(cfg_k, 'brown_rng_seed')
                 cfg_k = rmfield(cfg_k, 'brown_rng_seed');
             end
+        end
+        if has_pili_seeds
+            n_ps = numel(cfg.brown_pili_rng_seeds);
+            cfg_k.brown_pili_rng_seeds = serial_pili_seed_floor + (k - 1) * n_ps + (1:n_ps);
         end
 
         res_k   = [];
@@ -734,6 +763,16 @@ else
         append_run_summary(sum_path, k, run_seed(k), run_status(k), ...
             run_wall(k), run_errid(k), run_errmsg(k), run_errloc(k), ...
             run_outdir(k), brown_rng_seed_mode);
+
+        serial_eta.markComplete(k, run_wall(k), run_status(k) == "OK");
+        if k < n_repeats
+            est_s = serial_eta.estimate();
+            if isfinite(est_s.eta_s)
+                fprintf('  [BATCH] %d/%d done  |  Elapsed: %s  |  ETA: %s\n', ...
+                    k, n_repeats, format_duration(est_s.elapsed_s, 'compact'), ...
+                    format_batch_eta_tag(est_s));
+            end
+        end
     end
 end
 
@@ -1101,7 +1140,6 @@ function pool = ensure_parpool(n_target)
 %  JobStorageLocation), so this change can never leave pool creation worse
 %  off than before.  Windows behaviour is completely unchanged.
 
-    pool = [];
     p = gcp('nocreate');
     if ~isempty(p) && p.NumWorkers == n_target
         pool = p;
@@ -1128,7 +1166,6 @@ function pool = ensure_parpool(n_target)
         catch ME
             fprintf(['  [WARN] Relocated-JobStorageLocation parpool start failed (%s); ', ...
                 'falling back to default JobStorageLocation.\n'], ME.message);
-            pool = [];
         end
     end
 
@@ -1205,7 +1242,7 @@ function append_run_summary(sum_path, k, seed, status, wall, errid, errmsg, errl
     if seed > 0
         seed_tag = sprintf('seed=%d', seed);
         if ~strcmp(seed_mode, 'fixed')
-            seed_tag = [seed_tag, ' (timestamp)']; %#ok<AGROW>
+            seed_tag = [seed_tag, ' (timestamp)'];
         end
     else
         seed_tag = 'seed=n/a';
@@ -1241,7 +1278,7 @@ function s = path_for_log(p)
     pw = char(pwd);
     sep_ch = filesep;
     if ~isempty(pw) && pw(end) ~= sep_ch
-        pw = [pw, sep_ch]; %#ok<AGROW>
+        pw = [pw, sep_ch];
     end
     if strlength(s) >= strlength(pw) && strcmpi(s(1:strlength(pw)), pw)
         s = s(strlength(pw)+1:end);
@@ -1285,65 +1322,51 @@ function write_resource_probe_summary(fid, info, mem_per_worker_gb, cpu_frac, me
 end
 
 
-function dispatch_progress_msg(msg, n_total, sum_path, seed_mode)
+function dispatch_progress_msg(msg, batch_eta, n_total, sum_path, seed_mode)
 %DISPATCH_PROGRESS_MSG  DataQueue callback: routes 'heartbeat' vs 'done' messages.
 %
 %  run_simulation_HPC_Linux sends 'heartbeat' messages (intra-run progress,
 %  at most once per 30 s per repeat) through the same DataQueue used for
-%  the existing per-repeat 'done' completion messages.  Both share one
-%  queue/one afterEach callback (simplest way to guarantee they interleave
-%  correctly and never race on the client thread), so this dispatcher is
-%  the single entry point that tells them apart via msg.type and routes
-%  to the appropriate handler.  Older-style messages with no 'type' field
-%  are treated as 'done' for backward compatibility (should not occur in
-%  practice since every send() site now sets 'type' explicitly).
+%  the existing per-repeat 'done' completion messages.  Both feed into the
+%  shared BatchEtaEstimator so live batch ETA accounts for in-flight worker
+%  progress even before the first repeat completes.
     if isfield(msg, 'type') && strcmp(msg.type, 'heartbeat')
-        print_heartbeat(msg);
+        print_heartbeat(msg, batch_eta);
     else
-        on_run_complete(msg, n_total, sum_path, seed_mode);
+        on_run_complete(msg, batch_eta, n_total, sum_path, seed_mode);
     end
 end
 
 
-function print_heartbeat(msg)
+function print_heartbeat(msg, batch_eta)
 %PRINT_HEARTBEAT  Console-only intra-run progress line for a still-running repeat.
 %
-%  Deliberately NOT written to the persistent summary file (append_run_summary)
-%  -- the summary's job is to record final per-repeat outcomes, not the
-%  dozens of intermediate heartbeats a single long repeat may emit; keeping
-%  them console-only avoids bloating that file with noise.  Printed as a
-%  simple appended line (no cursor/redraw tricks): HPC batch output is
-%  typically redirected to a log file, not a live terminal, so append-only
-%  is the robust choice here.
-    fprintf('  [HB] k=%03d running  %5.1f%%  elapsed=%s\n', ...
-        msg.tag, msg.pct, format_duration_hms(msg.elapsed));
-end
-
-
-function s = format_duration_hms(seconds_in)
-%FORMAT_DURATION_HMS  Compact H:MM:SS (or M:SS) formatting for heartbeat elapsed time.
-    seconds_in = max(0, seconds_in);
-    h = floor(seconds_in / 3600);
-    m = floor(mod(seconds_in, 3600) / 60);
-    s_val = mod(seconds_in, 60);
-    if h > 0
-        s = sprintf('%d:%02d:%02.0f', h, m, s_val);
-    else
-        s = sprintf('%d:%02.0f', m, s_val);
+%  Deliberately NOT written to the persistent summary file (append_run_summary).
+%  Updates the shared BatchEtaEstimator with in-flight progress and prints
+%  both per-job ETA and live parallel batch ETA.
+    job_eta = NaN;
+    if isfield(msg, 'eta')
+        job_eta = msg.eta;
     end
+    batch_eta.updateHeartbeat(msg.tag, msg.pct, msg.elapsed, job_eta);
+    est = batch_eta.estimate();
+
+    fprintf('  [HB] k=%03d running  %5.1f%%  elapsed=%s  jobETA=%s  | batch %5.1f%%  ETA=%s\n', ...
+        msg.tag, msg.pct, format_duration(msg.elapsed, 'hms'), ...
+        format_duration(job_eta, 'compact'), est.eff_pct, format_batch_eta_tag(est));
 end
 
 
-function on_run_complete(msg, n_total, sum_path, seed_mode)
+function on_run_complete(msg, batch_eta, n_total, sum_path, seed_mode)
 %ON_RUN_COMPLETE  DataQueue callback: print console progress + append summary.
 %
 %  Called by dispatch_progress_msg on the main thread whenever a parfor
-%  worker sends a completion notice.  Delegates the console line (with ETA)
-%  to print_progress and the persistent summary append to
+%  worker sends a completion notice.  Delegates the console line (with
+%  makespan ETA) to print_progress and the persistent summary append to
 %  append_run_summary.  Runs on the main thread, so there is no
 %  concurrent-file-write race.
 
-    print_progress(msg, n_total);
+    print_progress(msg, batch_eta, n_total);
 
     errloc = '';
     if isfield(msg, 'stack_name') && ~isempty(msg.stack_name) ...
@@ -1364,44 +1387,34 @@ function on_run_complete(msg, n_total, sum_path, seed_mode)
 end
 
 
-function print_progress(msg, n_total)
+function print_progress(msg, batch_eta, n_total)
 %PRINT_PROGRESS  Streaming progress callback for parfor's DataQueue.
 %
-%  Maintains a persistent (per-MATLAB-session) counter and timer so that
-%  workers can fire-and-forget completion notices and the main thread
-%  prints them in completion order with elapsed/ETA estimates.
-%
-%  Reset between batches with:  print_progress(struct('reset', true), n_total)
+%  Uses BatchEtaEstimator (in-flight aware greedy list scheduling across
+%  workers, excluding FAILED runs from duration calibration) to avoid wave
+%  quantization spikes and tail distortion.
 
-    persistent n_done t0;
-
-    if isstruct(msg) && isfield(msg, 'reset') && msg.reset
-        n_done = 0;
-        t0     = tic;
-        return;
-    end
-    if isempty(n_done) || isempty(t0)
-        n_done = 0;
-        t0     = tic;
-    end
     if ~isstruct(msg) || ~isfield(msg, 'k')
         return;   % defensive: ignore unexpected messages
     end
 
-    n_done  = n_done + 1;
-    elapsed = toc(t0);
-    eta_s   = elapsed * max(0, n_total - n_done) / max(n_done, 1);
+    is_ok = (msg.status == "OK");
+    batch_eta.markComplete(msg.k, msg.wall, is_ok);
+    est = batch_eta.estimate();
 
-    if msg.status == "OK"
-        fprintf('  [%3d/%3d] OK     k=%03d  wall=%6.1f s  | elapsed=%6.1f s  ETA=%6.1f s\n', ...
-            n_done, n_total, msg.k, msg.wall, elapsed, eta_s);
+    elap_str = format_duration(est.elapsed_s, 'compact');
+    eta_str  = format_batch_eta_tag(est);
+
+    if is_ok
+        fprintf('  [%3d/%3d] OK     k=%03d  wall=%6.1f s  | elapsed=%s  ETA=%s\n', ...
+            est.n_done, n_total, msg.k, msg.wall, elap_str, eta_str);
     else
         err_one_line = regexprep(char(msg.msg), '[\r\n]+', ' ');
         if numel(err_one_line) > 120
             err_one_line = [err_one_line(1:117), '...'];
         end
-        fprintf('  [%3d/%3d] %-7s k=%03d  wall=%6.1f s  | %s\n', ...
-            n_done, n_total, char(msg.status), msg.k, msg.wall, err_one_line);
+        fprintf('  [%3d/%3d] %-7s k=%03d  wall=%6.1f s  | elapsed=%s  ETA=%s  | %s\n', ...
+            est.n_done, n_total, char(msg.status), msg.k, msg.wall, elap_str, eta_str, err_one_line);
         % Extended error details (identifier + location), mirroring the
         % serial branch's console output and batch_run_from_json's parallel
         % branch.  Fields are always present (sent by both catch paths).
@@ -1413,6 +1426,18 @@ function print_progress(msg, n_total)
             fprintf('         Location   : %s (line %d)\n', ...
                 msg.stack_name, msg.stack_line);
         end
+    end
+end
+
+
+function s = format_batch_eta_tag(est)
+    if ~isfinite(est.eta_s)
+        s = '--';
+        return;
+    end
+    s = format_duration(est.eta_s, 'compact');
+    if est.eta_s >= 60 && ~isempty(est.finish_str)
+        s = sprintf('%s (~%s)', s, est.finish_str);
     end
 end
 

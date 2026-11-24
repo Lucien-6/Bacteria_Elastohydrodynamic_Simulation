@@ -1,16 +1,76 @@
-# Bacteria Elastohydrodynamic Simulation — MATLAB project
+# BacEHD (Bacteria Elastohydrodynamic Simulation) — MATLAB project
 #
-# Release: 8.8.0 (2026-11-11)
+# Release: 10.1.0 (2026-11-24)
+#
+# v10.1.0: CPC submission readiness, full-codebase audit hardening, and
+#   single-engine HPC unification.
+#   (1) Official program title BacEHD, CITATION.cff, cpc/PROGRAM_SUMMARY.md,
+#       expanded 18-check cpc/run_cpc_tests.m (Block Schur equivalence,
+#       pilus thermal operator, end-to-end JSON->run_simulation smoke,
+#       3-D Chlamydomonas dry_run), and validation/cpc_performance_benchmark.m.
+#   (2) run_simulation_HPC_Linux.m unified into a thin forwarding alias to
+#       run_simulation.m; flow-field colour scaling replaced prctile with pure
+#       base-MATLAB linear percentile interpolation (zero Statistics Toolbox
+#       dependency across R2022a-R2026a).
+#   (3) Hardened parameter validation (NaN/Inf/geometry_mode/custom .fun),
+#       init_coupled_params default N_segments derivation, save_sim_config
+#       heterogeneous pili & UTF-8 export, ode_coupled_jacobian unlimited-motor
+#       guard, run_simulation relative time tolerances & fallback timer reset,
+#       batch physical-core probe sync, and 0 codeIssues across all 170
+#       project .m files.
+#   No new toolbox dependency.
+#
+# v10.0.0: Major elastohydrodynamic performance, pilus thermal physics, and
+#   validation release.
+#   (1) Pilus thermal fluctuations hardened and upgraded: the constrained
+#       probe's balancing scalar axial torque density (AQ_twist_scalar ->
+#       info.P_tau -> pili_thermal_rhs / flow_state.brown_pili_tau) now
+#       accompanies the centreline force density, eliminating the ~3.3 %
+#       bent-state instantaneous modal response error and ~141 % transient
+#       twist-rate leak while lowering bent-state twist energy by 2-4 orders
+#       of magnitude and restoring monotone small-dt_B covariance convergence.
+#       Unequal-length pili gain optional time-scale mode selection
+#       (brownian.pili_tau_cut_s) and near-degenerate pair protection
+#       (brownian.pili_protect_pairs). Numerical hardening adds symmetric
+#       diagonal preconditioning for T_hh, symmetrisation/SPD repair prior to
+#       held-load drift W, two-sided dt_B window guards, tiny tail-step
+#       merging, curved-pilus validation warnings, complete per-pilus RNG
+#       seed propagation (JSON, seed txt, batch_repeat_brownian*, clean .mat),
+#       and non-polluting final flow-field rendering.
+#   (2) Solver and operator acceleration: rigid-body body-frame Block Schur
+#       complement precomputation (build_body_precomp, build_pili_mobility_blocks),
+#       fast frozen-hydrodynamics 3-colour Jacobian (ode_coupled_jacobian),
+#       3-colour sparse curvature Jacobian (pili_bending_rates), batched
+#       pagesvd node directors, and O(N_k) matrix-free held-load drift.
+#   (3) Validation, progress, and visualisation: CPC reviewer test suite
+#       (cpc/run_cpc_tests.m) and external slender-body/cantilever checks
+#       (validation/); adaptive ProgressEstimator / BatchEtaEstimator with
+#       atomic progress.txt heartbeats; 2-D in-plane flow-field streamlines
+#       (flowfield.stream_spacing_um / stream_length_um); reorganised
+#       chlamydomonas/ 3-D helical swimmer package.
+#   No new toolbox dependency.
+#
+# v9.0.0: Optional thermal fluctuations of the pili (brownian.pili_thermal /
+#   cfg.enable_pili_brown, default off). The first and second bending modes of
+#   every pilus receive thermal forces sampled jointly with the body from the
+#   coupled mobility and applied as a force density on the pilus centrelines;
+#   these modes reach equipartition. Twist and higher bending modes stay
+#   deterministic. For passive, naturally straight pili with clamped roots
+#   (free_torsion is rejected). Needs a Brownian interval of at most a
+#   quarter of the fastest thermal relaxation time (0.002 s for 3 um
+#   filaments). Results with the option off are unchanged bit for bit.
+#   No new dependency.
 #
 # v8.8.0: Biflagellate Chlamydomonas swimmer. The active moment is inverted
 #   from the measured gait of cell 1p00 A (57.8 Hz) and fitted with two
 #   harmonics. chlamy_run_case can tilt each beat plane about its root
 #   tangent and scale one flagellum's amplitude, phase or frequency.
 #   chlamy_swim_analysis reports forward speed, spin and the helical pitch,
-#   radius and axis tilt. Open chlamydomonas/run_long_sym50.m or
-#   run_long_asym50.m in the MATLAB desktop. Settling, E. coli and Brownian
-#   cases are unchanged. No new toolbox. The gait tables under
-#   output/chlamy_inverse/ are generated data.
+#   radius and axis tilt. Run chlamydomonas/cases/run_planar_sym50.m,
+#   chlamydomonas/cases/run_3d_helix_2s.m, or chlamy_run_preset.m (reorganised
+#   in v10.0.0 from the original run_long_sym50.m / run_long_asym50.m).
+#   Settling, E. coli and Brownian cases are unchanged. No new toolbox. The
+#   gait tables under output/chlamy_inverse/ are generated data.
 #
 # v8.7.3: Flow-field figure release. The end-of-run figure and every redraw
 #   are six panels (3-D and 2-D XZ, YZ and XY through the body centre) on a
@@ -312,7 +372,7 @@
 # This repository has no Python/pip dependencies. Simulation code is MATLAB-only.
 #
 # Runtime
-#   - MATLAB R2020b or later recommended (tested with modern releases).
+#   - MATLAB R2022a or later required (developed and tested with R2026a; Linux HPC also run on R2023a).
 #   - Interactive HTML figure export (exportgraphics → .html) requires MATLAB R2026a or later; PNG/PDF work from R2020a (exportgraphics).
 #   - Parallel Computing Toolbox: optional. Required only for the default parallel
 #     branches of batch_sweep/batch_repeat_brownian.m and batch_sweep/batch_run_from_json.m

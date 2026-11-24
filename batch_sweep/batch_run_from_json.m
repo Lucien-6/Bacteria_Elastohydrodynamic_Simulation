@@ -155,8 +155,9 @@ run_errmsg   = repmat("", n_total, 1);          % Error / skip reason
 
 %% ---- Pre-scan and build run queue ----
 seen_case          = containers.Map('KeyType', 'char', 'ValueType', 'char');
-run_ii             = zeros(0, 1);
-run_json_path      = cell(0, 1);
+run_ii             = zeros(n_total, 1);
+run_json_path      = cell(n_total, 1);
+n_run_queued       = 0;
 n_skipped_prescan  = 0;
 n_prescan_fail     = 0;
 
@@ -189,8 +190,9 @@ for ii = 1:n_total
             if ~isempty(cn)
                 seen_case(cn) = fname;
             end
-            run_ii(end+1, 1)        = ii;           %#ok<AGROW>
-            run_json_path{end+1, 1} = json_path;     %#ok<AGROW>
+            n_run_queued                = n_run_queued + 1;
+            run_ii(n_run_queued)        = ii;
+            run_json_path{n_run_queued} = json_path;
         end
 
     catch ME
@@ -205,6 +207,8 @@ for ii = 1:n_total
     end
 end
 
+run_ii        = run_ii(1:n_run_queued);
+run_json_path = run_json_path(1:n_run_queued);
 n_run = numel(run_ii);
 fprintf('\n  Total JSON: %d  |  To run: %d  |  Skipped (duplicate): %d  |  Prescan failed: %d\n\n', ...
     n_total, n_run, n_skipped_prescan, n_prescan_fail);
@@ -303,8 +307,8 @@ if n_run > 0
         pq_errmsg   = repmat("", n_run, 1);
 
         progress_q = parallel.pool.DataQueue;
-        afterEach(progress_q, @(msg) on_progress_impl(msg, n_run, n_total, blog, blog_fid));
-        print_progress_json(struct('reset', true), n_run, n_total);
+        batch_eta  = BatchEtaEstimator(n_run, pool_handle.NumWorkers);
+        afterEach(progress_q, @(msg) on_progress_impl(msg, batch_eta, n_run, n_total, blog, blog_fid));
 
         parfor k = 1:n_run
             json_path = run_json_path{k};
@@ -390,6 +394,7 @@ if n_run > 0
     else
         %% ---- SERIAL BRANCH ----
         n_serial_done = 0;
+        serial_eta    = BatchEtaEstimator(n_run, 1);
         for k = 1:n_run
             ii        = run_ii(k);
             json_path = run_json_path{k};
@@ -472,11 +477,17 @@ if n_run > 0
             batch_log_flush(blog_fid);
 
             n_serial_done = n_serial_done + 1;
+            serial_eta.markComplete(k, run_walltime(ii), run_status(ii) == "OK");
             if n_serial_done > 0 && n_serial_done < n_run
-                done_mask = run_status(run_ii(1:k)) ~= "PENDING";
-                avg_t     = mean(run_walltime(run_ii(done_mask)), 'omitnan');
-                eta_s     = avg_t * (n_run - n_serial_done);
-                fprintf('  ETA remaining: %.0f s  (~%.1f min)\n', eta_s, eta_s / 60);
+                est_s = serial_eta.estimate();
+                if isfinite(est_s.eta_s)
+                    fin_tag = '';
+                    if est_s.eta_s >= 60 && ~isempty(est_s.finish_str)
+                        fin_tag = sprintf(' (~%s)', est_s.finish_str);
+                    end
+                    fprintf('  ETA remaining: %s%s\n', ...
+                        format_duration(est_s.eta_s, 'compact'), fin_tag);
+                end
             end
         end
     end
@@ -600,9 +611,9 @@ function batch_log_flush(fid)
 end
 
 
-function on_progress_impl(msg, n_run, n_total, blog_fn, blog_fid)
+function on_progress_impl(msg, batch_eta, n_run, n_total, blog_fn, blog_fid)
 %ON_PROGRESS_IMPL  DataQueue callback: console progress + real-time batch log
-    print_progress_json(msg, n_run, n_total);
+    print_progress_json(msg, batch_eta, n_run, n_total);
 
     blog_fn('\n%s\n', repmat('-', 1, 56));
     blog_fn('%s\n', format_run_queue_line(msg.k, n_run, msg.ii, n_total, msg.fname));
@@ -638,9 +649,9 @@ function on_progress_impl(msg, n_run, n_total, blog_fn, blog_fid)
 end
 
 
-function line = format_run_queue_line(k, n_run, ii, n_total, fname)
+function queue_line = format_run_queue_line(k, n_run, ii, n_total, fname)
 %FORMAT_RUN_QUEUE_LINE  Unified run header: queue index + original JSON index
-    line = sprintf('  Run queue %02d/%02d  [JSON %02d/%02d]: %s', ...
+    queue_line = sprintf('  Run queue %02d/%02d  [JSON %02d/%02d]: %s', ...
         k, n_run, ii, n_total, fname);
 end
 
@@ -746,9 +757,9 @@ function [n_pool, info] = decide_pool_size(n_cases, mem_per_worker_gb, max_frac,
 
     if ~isfinite(n_phys) || n_phys < 1
         try
-            n_logical = feature('numCores');
-            n_phys = max(1, floor(n_logical / 2));
-            probe_note = "feature(numCores)/2";
+            % feature('numCores') already returns the physical core count (not logical).
+            n_phys = max(1, round(feature('numCores')));
+            probe_note = "feature(numCores)";
         catch
             try
                 n_phys = max(1, maxNumCompThreads);
@@ -763,7 +774,6 @@ function [n_pool, info] = decide_pool_size(n_cases, mem_per_worker_gb, max_frac,
     info.n_physical_cores = n_phys;
     info.core_probe = probe_note;
 
-    avail_gb = NaN;
     try
         [~, sys] = memory;
         avail_gb = sys.PhysicalMemory.Available / 1e9;
@@ -805,7 +815,6 @@ end
 function pool = ensure_parpool(n_target)
 %ENSURE_PARPOOL  Reuse-or-create a process-based parpool of the requested size.
 
-    pool = [];
     p = gcp('nocreate');
     if ~isempty(p) && p.NumWorkers == n_target
         pool = p;
@@ -829,39 +838,38 @@ function pool = ensure_parpool(n_target)
 end
 
 
-function print_progress_json(msg, n_run, n_total)
+function print_progress_json(msg, batch_eta, n_run, n_total)
 %PRINT_PROGRESS_JSON  Console streaming progress for JSON batch parfor runs.
 
-    persistent n_done t0;
-
-    if isstruct(msg) && isfield(msg, 'reset') && msg.reset
-        n_done = 0;
-        t0     = tic;
-        return;
-    end
-    if isempty(n_done) || isempty(t0)
-        n_done = 0;
-        t0     = tic;
-    end
     if ~isstruct(msg) || ~isfield(msg, 'k')
         return;
     end
 
-    n_done  = n_done + 1;
-    elapsed = toc(t0);
-    eta_s   = elapsed * max(0, n_run - n_done) / max(n_done, 1);
+    is_ok = (msg.status == "OK");
+    batch_eta.markComplete(msg.k, msg.wall, is_ok);
+    est = batch_eta.estimate();
+
+    elap_str = format_duration(est.elapsed_s, 'compact');
+    if isfinite(est.eta_s)
+        eta_str = format_duration(est.eta_s, 'compact');
+        if est.eta_s >= 60 && ~isempty(est.finish_str)
+            eta_str = sprintf('%s (~%s)', eta_str, est.finish_str);
+        end
+    else
+        eta_str = '--';
+    end
     run_tag = format_run_queue_tag(msg.k, n_run, msg.ii, n_total, msg.fname);
 
-    if msg.status == "OK"
-        fprintf('  [%3d/%3d] OK     %s  wall=%6.1f s  | elapsed=%6.1f s  ETA=%6.1f s\n', ...
-            n_done, n_run, run_tag, msg.wall, elapsed, eta_s);
+    if is_ok
+        fprintf('  [%3d/%3d] OK     %s  wall=%6.1f s  | elapsed=%s  ETA=%s\n', ...
+            est.n_done, n_run, run_tag, msg.wall, elap_str, eta_str);
     else
         err_one_line = regexprep(char(msg.errmsg), '[\r\n]+', ' ');
         if numel(err_one_line) > 80
             err_one_line = [err_one_line(1:77), '...'];
         end
-        fprintf('  [%3d/%3d] FAILED %s  wall=%6.1f s  | err: %s\n', ...
-            n_done, n_run, run_tag, msg.wall, err_one_line);
+        fprintf('  [%3d/%3d] FAILED %s  wall=%6.1f s  | elapsed=%s  ETA=%s  | err: %s\n', ...
+            est.n_done, n_run, run_tag, msg.wall, elap_str, eta_str, err_one_line);
     end
 end
 

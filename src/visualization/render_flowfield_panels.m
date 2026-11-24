@@ -18,6 +18,8 @@ function out = render_flowfield_panels(frame, opts)
 %           panel letters outside the axes; vertical colour bar beside (d);
 %           light direction [-1 1 -1]; time is the only figure title
 %  Updated: 2026-11-11 — added the XY plane; 2 x 3 layout, colour bar beside (f)
+%  Updated: 2026-11-13 — 2D panels draw in-plane streamlines instead of arrows
+%  Updated: 2026-11-13 — no white halo; each curve runs to the panel edge
 
 if nargin < 2 || isempty(opts), opts = struct(); end
 action = 'static';
@@ -214,24 +216,18 @@ switch plane_name
     case 'xz'
         Uh = plane.Ux;
         Uv = plane.Uz;
-        Gh = plane.HG;
-        Gv = plane.ZG;
         vary_col = 2;
         h_col = 1;
         v_col = 3;
     case 'yz'
         Uh = plane.Uy;
         Uv = plane.Uz;
-        Gh = plane.VG;
-        Gv = plane.ZG;
         vary_col = 1;
         h_col = 2;
         v_col = 3;
     case 'xy'
         Uh = plane.Ux;
         Uv = plane.Uy;
-        Gh = plane.HG;
-        Gv = plane.VG;
         vary_col = 3;
         h_col = 1;
         v_col = 2;
@@ -239,24 +235,27 @@ end
 xlab = spec.xlab;
 ylab = spec.ylab;
 [C, A] = display_image(plane.Umag, plane.mask);
-arrow = 1.5 * 0.55 * frame.planes.grid_spacing_um * frame.planes.quiver_skip;
-[qx, qy, qu, qv] = quiver_samples(Gh, Gv, Uh, Uv, plane.mask, ...
-    frame.planes.quiver_skip, arrow);
+geom = plane_stream_geometry(frame, plane, plane_name, Uh, Uv);
 [cx, cy] = pili_crossings(frame, vary_col, h_col, v_col);
+ink = [0.12, 0.12, 0.12];
 
 if ~handles.created
     hold(ax, 'on');
     handles.(['img_' tag]) = imagesc(ax, plane.h_vec, plane.v_vec, C);
     set(handles.(['img_' tag]), 'AlphaData', A);
     set(ax, 'YDir', 'normal');
+    % Curve, arrowhead, then the body so the outline stays visible where a
+    % curve stops on the mask.
+    handles.(['line_k_' tag]) = plot(ax, geom.x, geom.y, '-', ...
+        'Color', ink, 'LineWidth', 0.75, 'Clipping', 'on');
+    handles.(['head_' tag]) = patch(ax, 'Faces', geom.faces, ...
+        'Vertices', geom.vertices, 'FaceColor', ink, 'EdgeColor', 'none', ...
+        'Clipping', 'on');
     handles.(['outline_' tag]) = fill(ax, [0, 1, 0], [0, 0, 1], 'w', ...
         'EdgeColor', [0.25, 0.25, 0.25], 'LineWidth', 1.0);
     handles.(['cross_' tag]) = plot(ax, nan, nan, 'o', 'MarkerSize', 5, ...
         'LineWidth', 1.0, 'MarkerFaceColor', 'w', ...
         'MarkerEdgeColor', [0.25, 0.25, 0.25]);
-    handles.(['quiver_' tag]) = quiver(ax, qx, qy, qu, qv, 0, ...
-        'Color', [0.12, 0.12, 0.12], 'LineWidth', 0.75, ...
-        'MaxHeadSize', 0.45, 'AutoScale', 'off');
     handles.(['tag_' tag]) = panel_label(ax, tag);
     xlabel(ax, xlab, 'FontName', 'Arial', 'FontSize', 14, 'Interpreter', 'none');
     ylabel(ax, ylab, 'FontName', 'Arial', 'FontSize', 14, 'Interpreter', 'none');
@@ -265,12 +264,9 @@ else
     set(handles.(['img_' tag]), 'XData', [plane.h_vec(1), plane.h_vec(end)], ...
         'YData', [plane.v_vec(1), plane.v_vec(end)], ...
         'CData', C, 'AlphaData', A);
-    delete(handles.(['quiver_' tag]));
-    hold(ax, 'on');
-    handles.(['quiver_' tag]) = quiver(ax, qx, qy, qu, qv, 0, ...
-        'Color', [0.12, 0.12, 0.12], 'LineWidth', 0.75, ...
-        'MaxHeadSize', 0.45, 'AutoScale', 'off');
-    hold(ax, 'off');
+    set(handles.(['line_k_' tag]), 'XData', geom.x, 'YData', geom.y);
+    set(handles.(['head_' tag]), 'Faces', geom.faces, ...
+        'Vertices', geom.vertices);
 end
 set_xy(handles.(['outline_' tag]), plane.cap_h, plane.cap_v);
 set_xy(handles.(['cross_' tag]), cx, cy);
@@ -425,25 +421,37 @@ p = [(bx + bw + gap_px) / fp(3), by / fp(4), bar_w / fp(3), bh / fp(4)];
 end
 
 
-function [qx, qy, qu, qv] = quiver_samples(Gh, Gv, Uh, Uv, mask, skip, arrow)
-qh = 1:skip:size(Uh, 2);
-qv_idx = 1:skip:size(Uh, 1);
-Uh_s = Uh(qv_idx, qh);
-Uv_s = Uv(qv_idx, qh);
-Gh_s = Gh(qv_idx, qh);
-Gv_s = Gv(qv_idx, qh);
-mk = mask(qv_idx, qh);
-spd = sqrt(Uh_s.^2 + Uv_s.^2);
-scale = max(spd(:), [], 'omitnan');
-ok = isfinite(spd) & spd > 1e-15 * scale & ~mk;
-qx = Gh_s(ok);
-qy = Gv_s(ok);
-if isempty(qx)
-    qx = nan; qy = nan; qu = nan; qv = nan;
-    return
+function geom = plane_stream_geometry(frame, plane, plane_name, Uh, Uv)
+%PLANE_STREAM_GEOMETRY  Resolve spacing and length, then place the curves
+%  Spacing is 4.5% of the shorter side.  Each direction may travel four
+%  panel diagonals, so a curve reaches the window edge instead of stopping
+%  mid-panel and leaving a gap for the next seed.  It still stops on the
+%  body, at the boundary, or when it loops.  Absolute overrides on
+%  frame.planes replace these defaults.
+span_h = abs(plane.h_vec(end) - plane.h_vec(1));
+span_v = abs(plane.v_vec(end) - plane.v_vec(1));
+spacing_um = 0.045 * min(span_h, span_v);
+length_um = 4 * hypot(span_h, span_v);
+if isfield(frame.planes, 'stream_spacing_um') && ~isempty(frame.planes.stream_spacing_um)
+    spacing_um = frame.planes.stream_spacing_um;
 end
-qu = Uh_s(ok) ./ spd(ok) * arrow;
-qv = Uv_s(ok) ./ spd(ok) * arrow;
+if isfield(frame.planes, 'stream_length_um') && ~isempty(frame.planes.stream_length_um)
+    length_um = frame.planes.stream_length_um;
+end
+cm = frame.planes.X_cm_um(:);
+switch plane_name
+    case 'xz'
+        origin = [cm(1); cm(3)];
+    case 'yz'
+        origin = [cm(2); cm(3)];
+    case 'xy'
+        origin = [cm(1); cm(2)];
+    otherwise
+        error('render_flowfield_panels:BadPlane', ...
+            'Unknown plane ''%s''.', plane_name);
+end
+geom = flowfield_plane_streamlines(plane.h_vec, plane.v_vec, Uh, Uv, ...
+    plane.mask, origin, spacing_um, length_um, plane_name);
 end
 
 

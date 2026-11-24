@@ -1,26 +1,18 @@
-# 用户指南 — 细菌弹性流体动力学仿真
+# 用户指南 — BacEHD（细菌弹性流体动力学仿真）
 
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 8.8.0
-> **更新日期:** 2026-11-11
+> **版本:** 10.1.0
+> **更新日期:** 2026-11-24
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
-
-版本提示：v8.8.0 增加双鞭毛衣藻游动。主动力矩由细胞 1p00 A 的实测步态（57.8 Hz）反推，再用两个谐波拟合。在 MATLAB 中打开 [`chlamydomonas/run_long_sym50.m`](chlamydomonas/run_long_sym50.m) 或 [`chlamydomonas/run_long_asym50.m`](chlamydomonas/run_long_asym50.m) 后点 Run。后者把两根鞭毛的拍动平面绕各自根部切线同向倾斜 17 度，并把鞭毛 2 的振荡力矩乘以 0.85。`chlamy_swim_analysis` 给出前进速度、绕长轴的自旋，以及螺旋的螺距、半径和轴倾角。沉降、大肠杆菌和布朗算例不变。v8.7.3 为流场图增加 XY 平面（Z = Z_cm）。仿真结束时的图和事后重绘都是 2500 x 1400 画布上的六面板（上排 3D XZ/YZ/XY，下排 2D XZ/YZ/XY），色标在子图 f 右侧，光源位于 [1, -1, 1]。99 分位色标计入 XY 平面，因此重绘旧图时色标上限可能与 8.7.2 不同。`render_flowfield_from_results` 接受 `opts.drop_first_frame`（默认 false），为 true 时 `times`、`animation` 和 `all` 不使用已保存输出 1；动画在命令行用一条 Compute 进度条和一条 Video 进度条。2026-11-11 之前保存的、主动力矩为嵌套函数句柄的衣藻结果可以再次重绘。ODE 与 `results.flow_state` 不变。v8.7.2 为文档与注释准确性更新：求解器、ODE 轨迹和已保存结果均不变。本版修正了过时或错误的源码注释，改写了电机转速的运行前警告（它针对的是零扭矩转速而不是堵转），删除了已过时的 `src/utils/verify_migration.m`，并从 README 中移除篇幅过长的版本说明（版本历史见 `CHANGELOG.md`）。v8.7.1 修正流场图。胞体内部留白，坐标范围盖住胞体和鞭毛，轮廓为光滑的表面截线。图顶标题是精确到 0.0001 s 的时间，色标在子图 d 右侧。v8.7.0 在每个已保存输出点写入 `results.flow_state`，并新增 `render_flowfield_from_results`，用于绘制末状态、指定时刻或全时序流场动画。ODE 轨迹不变。8.7.0 之前保存的结果不能重建流场。v8.6.6 修正了自定义胞体的表面重建，汇总图和动画会画出完整胞体而不是单个面片；跟随窗口的刻度间隔不细于 0.5 μm；两条深色条纹改为腰部一侧的深绿色短标记。求解器未改，参数化算例的结果不变。表面网格发生变化的自定义胞体，其包围体积、按体积选取的长度尺度，以及非中性浮力时的沉降力，都会改变。v8.6.5 新增接近真实的单根尾部鞭毛大肠杆菌示例（自定义几何、中性浮力、`T_obs = 1 s`）；求解器未改，已有算例的结果不变。v8.6.3 精修了动画：跟随质心的窗口按细菌在各方向上触及的范围分别确定（不再是立方体）且不带比例尺，胞体上的两条深色条纹使绕长轴的转动可见，四个面板在画布上自动排版；仿真结果不变。v8.6.2 将运动动画改为面向论文的四面板版面（3D 与 XZ 总览，加上带刻度和网格的跟随质心 3D 与 XZ 窗口、图例、2 μm 比例尺、带播放速度的时间戳；YZ 面板已移除），仿真结果不变。v8.6.0 加速了运动动画的渲染（图形对象只创建一次、逐帧仅更新数据），并新增 `render_animation_from_results` 以根据已保存结果重新渲染动画；仿真结果和视频内容不变。v8.5.2 标定了菌毛的水动力半径（`material.hydro_radius_factor`，默认 `sqrt(2)`；见 §4、§7 和 `docs/theory.zh-CN.md` §5.2）：直菌毛的轴向扭转阻力现在等于无滑移圆柱值，而不是它的一半，菌毛平动迁移率与细长体理论相差约 3% 以内，因此带菌毛算例的默认结果略有改变（设 `hydro_radius_factor = 1` 可复现 8.5.1）；无菌毛算例不受影响。v8.5.1 在 Brownian 运行的 `ode15s` 重启之间复用上一次的精确有限差分 Jacobian，多菌毛算例每个 Brownian 节点的耗时降低约 2–3.7 倍（单菌毛约 1.4 倍），差异保持在积分容差以内（见 §8；`cfg.jacobian_reuse = false` 与 v8.5.0 逐位一致）；同时清理运行脚本的代码分析器提示、修复 `verify_migration.m` 并新增 Markdown 检查配置。v8.5.0 改变 body-only 布朗运动的施加方式——每个区间的热增量以恒定广义力经耦合 ODE 实现，取代“位移 kick + 根部重投影”，从而消除每个 Brownian 节点处的纤毛根部伪折点，并使 Ito 漂移隐式生成（见 §8）。即使随机种子相同，Brownian 轨迹也与旧版本不同；确定性算例不受影响。2 型抛物线菌毛模板现在精确锚定于原点（此前首节点偏移约 4 nm/K）。v8.4.0 修正 `free_torsion` 根部扭转方程——马达扭矩现在由整根鞭毛的扭转阻力平衡，而不再只由第 1 段平衡，因此马达驱动算例的稳态转子转速相对旧版约下降为 1/N（N 为分段数，见 §7）；运行前失速诊断改用一致的阻力系数。v8.3.0 将菌毛曲率差分模板改为节点共位的二阶格式，并将 14 个参数化附着位点变换全部改为真旋转、`deflection_x` 改为右手约定。平面菌毛（1–4 型、`deflection_x = 0`）的放置与旧版完全一致；位点 1、2、5、7、10、11、14 上的锥形螺旋菌毛以及任何 `deflection_x` 非零的菌毛现在具有正确（旧版为镜像）的手性——若配置是针对旧几何调参的，请将螺旋参数 `c` 或 `deflection_x` 取反。v8.2.0 为物理正确性更新。鞭毛马达改用以转子相对胞体转速表述的带符号线性扭矩–转速关系并明确符号约定（见 §7）；流场后处理计入背景流；2–5 型菌毛的 `shape_params` 在运行前校验；曲率/力矩输入的单位已写入文档（§4）。v8.1.0 扩展批量后处理（`postprocess_cases`）：在 \(0<\tau\le T/2\) 上拟合三维平移 MSD，并新增 XZ 平面转动扩散 \(D_\mathrm{rot}\)（MSAD）。
-
-v8.0.1 在 v8.0.0 之上加固运行期数值诊断。稠密耗散检验改用全谱 `eig`；孤立近奇异（`rcond < 1e-14`）以 `NearSingularMatrix` 告警；`SingularMatrix` 仅在大后向残差（`> 1e-6`）与近奇异 `rcond` 同时成立时中止。诊断快照字段为 `rcond_near_singular_threshold`。
-
-v8.0.0 引入不等段长平动—扭转加权互易、自定义菌毛等弦长 canonical 几何、完整 director 客观初始化、无量纲 Brownian SPD 修复、真实时长余数 kick、独立 Brownian 随机流、严格不可压缩剪切流验证、超时部分结果保存，以及运行级数值诊断。
-
-破坏性配置变更（自 8.0.0 起）：`Pili_Matrix` 必须精确为 8 行；不再支持逐菌毛 `bending_stiffness`；`shear_z.direction` 必须与 `shear_z.shear_axis` 正交。任一积分段超时后，程序保存已达到的轨迹并正常返回 `results.completed=false` 与 `termination_reason='timeout'`；调用方不得将该部分轨迹用于稳态统计。
 
 ## 1. 运行前准备
 
 ### 运行需求
 
-- 推荐 MATLAB R2020b 或更新版本。
+- MATLAB R2022a 或更新版本。本项目在 Windows 11 R2026a 上开发和测试，并在 Linux 超算 R2023a 上运行验证。更早版本不支持：每次运行都用 `jsonencode(..., 'PrettyPrint', true)`（R2021a）写出 `config.json`；默认开启的流场图使用 `clim`（R2022a）。流场色标采用纯基础 MATLAB 分位数插值，不依赖 Statistics Toolbox。
 - PNG 和 PDF 图像导出依赖 `exportgraphics`；可选交互式 HTML 导出需要 MATLAB R2026a 或更新版本。
 - 胶囊胞体表面布点需要 Anton Semechko 的 **S2 Sampling Toolbox**，可通过 MATLAB Add-On Explorer / File Exchange 安装。
 - 运行仿真不需要 Python、Conda 或 pip 环境；[`requirements.txt`](requirements.txt) 已明确说明。
@@ -46,21 +38,19 @@ cd('path/to/project_root')
 | 模拟接近真实的大肠杆菌（单根尾部鞭毛、马达驱动） | 使用 [`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json)；几何文件由 [`geometry/generate_ecoli_geometry.m`](geometry/generate_ecoli_geometry.m) 生成。 |
 | 导入自定义胞体和纤毛几何 | 使用 [`configs/config_custom_example.json`](configs/config_custom_example.json)。 |
 | 测试自由扭转马达鞭毛 | 使用 [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json)。 |
-| 用实测步态模拟双鞭毛衣藻 | 打开 [`chlamydomonas/run_long_sym50.m`](chlamydomonas/run_long_sym50.m) 或 [`chlamydomonas/run_long_asym50.m`](chlamydomonas/run_long_asym50.m) 后点 Run。 |
+| 模拟三维双鞭毛莱茵衣藻游动 | 打开 [`chlamydomonas/cases/run_3d_helix_2s.m`](chlamydomonas/cases/run_3d_helix_2s.m) 或 [`chlamydomonas/cases/run_planar_sym50.m`](chlamydomonas/cases/run_planar_sym50.m) 后点 Run（详见 [`chlamydomonas/README.zh-CN.md`](chlamydomonas/README.zh-CN.md)）。 |
 | 无人值守运行多个工况 | 调用 [`run_simulation.m`](run_simulation.m)，并设置 `cfg.auto_confirm = true`。 |
 
-### 双鞭毛衣藻
+### 双鞭毛莱茵衣藻
 
-几何为 [`configs/config_chlamy_biflagellate_gz.json`](configs/config_chlamy_biflagellate_gz.json)：5 µm × 4 µm 的旋转椭球，两根固支鞭毛，每根根部切线与细胞长轴成 13 度。JSON 里的行波力矩不是实际驱动。`chlamy_run_case` 用 `output/chlamy_inverse/fit_1p00A.mat` 替换它，这是细胞 1p00 A 在 57.8 Hz 下实测步态反推力矩的二次谐波拟合。若该文件不在，用 `chlamy_inverse_moment` 和 `chlamy_fit_moment` 从 `chlamydomonas/Refers/` 里的波形重新生成。
-
-在 MATLAB 桌面打开其中一个脚本后点 Run。脚本会根据自身路径找到项目根目录。
+几何配置为 [`configs/config_chlamy_biflagellate_gz.json`](configs/config_chlamy_biflagellate_gz.json)：5 µm × 4 µm 旋转椭球体与两根 13° 固支鞭毛。JSON 内的行波项仅作占位，运行时由 `chlamydomonas/data/fit_1p00A.mat`（57.75 Hz 双波数 1ω+2ω 实测拟合表）与可选的三维面外弯矩（`chlamydomonas/core/chlamy_make_perp_envelope.m`）替换。完整模型说明与参数见 [`chlamydomonas/README.zh-CN.md`](chlamydomonas/README.zh-CN.md)。
 
 ```matlab
-run('chlamydomonas/run_long_sym50.m')    % 对称胸泳，50 拍，含动画
-run('chlamydomonas/run_long_asym50.m')   % 倾斜 17 度；鞭毛 2 幅值 0.85
+run('chlamydomonas/cases/run_3d_helix_2s.m')    % 三维螺旋游动，2.0 s，含动画
+run('chlamydomonas/cases/run_planar_sym50.m')   % 纯平面全对称参考，50 拍，含动画
 ```
 
-`tilt_deg`、`drive_amp`、`drive_phase` 和 `drive_freq_ratio` 是 `chlamy_run_case` 对每根鞭毛的覆盖项。`drive_amp` 只缩放力矩的振荡部分。长时间脚本把 `swim_analysis.mat` 写在该次运行的目录里。
+`tilt_deg`、`drive_amp`、`drive_phase`、`drive_freq_ratio`、`drive_amp_perp` 和 `perp_sign` 是 `chlamy_run_case` 对每根鞭毛的覆写项。预设脚本会在算例目录内自动保存 `swim_analysis.mat`。
 
 ## 3. 使用内联参数运行
 
@@ -84,7 +74,7 @@ config_file = 'configs/my_case.json';
 main_coupled_simulation
 ```
 
-仓库在 `configs/` 下提供示例 JSON；本地工况请复制为 `configs/my_case.json` 等路径使用。`.gitignore` 中仅忽略 `output/`。
+仓库在 `configs/` 下提供示例 JSON；本地工况请复制为 `configs/my_case.json` 等路径使用。`configs/` 下的文件不在 git 的忽略范围内，自建的工况文件会显示为未跟踪文件；运行结果写入已被忽略的 `output/`。
 
 ### 按几何模式划分的 JSON 字段
 
@@ -108,11 +98,11 @@ main_coupled_simulation
 
 | 字段 | 合法值 | 代码来源 |
 | --- | --- | --- |
-| `intrinsic_curvature` | 裸字符串（`frozen`、`zero`、`constant`、`helix`）**或**含 `.type` 的结构体（v7.9.0 P7） | `validate_simulation_params.m` |
+| `intrinsic_curvature` | 裸字符串（`frozen`、`zero`、`constant`、`helix`）**或**含 `.type` 的结构体 | `validate_simulation_params.m` |
 | `intrinsic_curvature`（`constant`） | 含 3 元素 `kappa` 的结构体 | `validate_simulation_params.m` |
 | `intrinsic_curvature`（`helix`） | 含有限标量 `kappa_d2`、`kappa_d3` 的结构体 | `validate_simulation_params.m` |
-| `active_moment` | 裸字符串（`off`、`traveling_wave`、`custom`）**或**含 `.type` 的结构体（v7.9.0 P7） | `validate_simulation_params.m` |
-| `motor_torque` | 裸字符串（`off`、`constant`）**或**含 `.type` 的结构体（v7.9.0 P7/P8） | `validate_simulation_params.m` |
+| `active_moment` | 裸字符串（`off`、`traveling_wave`、`custom`）**或**含 `.type` 的结构体 | `validate_simulation_params.m` |
+| `motor_torque` | 裸字符串（`off`、`constant`）**或**含 `.type` 的结构体 | `validate_simulation_params.m` |
 | `background_flow.type` | `off`、`uniform`、`shear_z` | `coupled_background_flow.m` |
 | `root_coupling` | `clamped`、`free_torsion` | `build_coupled_lin_sys.m` |
 
@@ -130,21 +120,22 @@ main_coupled_simulation
 
 由于曲率输入按菌毛长度缩放，同一个 `kappa` 值用于不同 `length_um` 的菌毛时对应不同的物理曲率。`intrinsic_curvature = "frozen"`（默认）直接取初始几何为参考曲率，无需换算。
 
-### 起飞前参数检查（v7.9.0）
+### 运行前参数检查
 
-[`validate_simulation_params.m`](src/config/validate_simulation_params.m) 在初始化前运行，并将所有错误聚合成单份报告。v7.9.0 新增或加强的检查：
+[`validate_simulation_params.m`](src/config/validate_simulation_params.m) 在初始化前运行，并将所有错误聚合成单份报告。最常拦下运行的检查：
 
 | 检查项 | 条件 | 严重度 |
 | --- | --- | --- |
-| `pili_ext` 数量一致性（P1） | `numel(pili_ext)` != 纤毛数（parametric：`size(Pili_Matrix,2)`；custom：`numel(custom_geometry.pili)`） | 错误 |
-| `delta` 范围（P2） | `delta <= 0` | 错误 |
-| `delta` 范围（P2） | `delta >= pi/4`（奇异事件过早触发） | 警告 |
-| `N_body` 上限（P4） | `N_body > 2000`（`O(N^2)` 内存） | 警告 |
-| 背景流正交性（P5） | `shear_z` 要求两个方向均为有限非零向量，且 `abs(dot(direction_hat,shear_axis_hat)) <= 1e-12` | 错误 |
-| `alpha_0` 范围（P6/A1） | 超出 `[-pi/2, pi/2]`；在 parametric 模式及 custom 模式下 `initial_orientation` 为空时生效 | 错误 |
-| `AbsTol` / `RelTol` 措辞（P9） | 超出 `(0, 1]`；推荐 `1e-6 ~ 1e-3` | 警告 |
+| `Pili_Matrix` 形状 | 行数不是 8（每根纤毛一列）；不接受第 9 行的逐纤毛刚度，所有纤毛共用同一组 `E` 和 `r_pili` | 错误 |
+| `pili_ext` 数量一致性 | `numel(pili_ext)` != 纤毛数（parametric：`size(Pili_Matrix,2)`；custom：`numel(custom_geometry.pili)`） | 错误 |
+| `delta` 范围 | `delta <= 0` | 错误 |
+| `delta` 范围 | `delta >= pi/4`（奇异事件过早触发） | 警告 |
+| `N_body` 上限 | `N_body > 2000`（`O(N^2)` 内存） | 警告 |
+| 背景流正交性 | `shear_z` 要求 `direction` 与 `shear_axis` 均为有限非零向量，且 `abs(dot(direction_hat,shear_axis_hat)) <= 1e-12` | 错误 |
+| `alpha_0` 范围 | 超出 `[-pi/2, pi/2]`；在 parametric 模式及 custom 模式下 `initial_orientation` 为空时生效 | 错误 |
+| `AbsTol` / `RelTol` 范围 | 超出 `(0, 1]`；推荐 `1e-6 ~ 1e-3` | 警告 |
 
-布朗 JSON 字段由 [`load_sim_config.m`](src/config/load_sim_config.m) 映射：`brownian.enable`、`brownian.temperature` -> `Temper`、`brownian.rng_seed`、`brownian.dt_B_ratio`。
+布朗 JSON 字段由 [`load_sim_config.m`](src/config/load_sim_config.m) 映射：`brownian.enable`、`brownian.temperature` -> `Temper`、`brownian.rng_seed`、`brownian.dt_B_ratio`、`brownian.pili_thermal` -> `enable_pili_brown`、`brownian.pili_mode_orders` -> `pili_brown_orders`。
 
 权威格式以仓库中的示例 JSON 文件和 [`src/config/load_sim_config.m`](src/config/load_sim_config.m) 的实现为准。
 
@@ -164,7 +155,7 @@ cfg.auto_confirm = true;
 
 从仓库根目录打开 [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m)，对**同一套**布朗开启配置进行多次独立重复，输出写入 `output/<case_name_base>/001`、`002`、…（零填充子目录）。
 
-- **并行（默认）：** `use_parallel = true` 在已许可 **Parallel Computing Toolbox** 且能创建 `parpool` 时使用 `parfor`。worker 数量由探测到的物理核心数与可用内存共同约束，默认最多使用约 `max_resource_frac`（默认 `0.75`）的“资源预算”，并配合 `mem_per_worker_gb` 估算内存上限。若无工具箱或建池失败，脚本会**告警并回退**到与旧版等价的串行 `for` 循环。
+- **并行（默认）：** `use_parallel = true` 在已许可 **Parallel Computing Toolbox** 且能创建 `parpool` 时使用 `parfor`。worker 数量由探测到的物理核心数与可用内存共同约束，默认最多使用约 `max_resource_frac`（默认 `0.90`）的“资源预算”，并配合 `mem_per_worker_gb`（默认 `2.5`）估算内存上限。若无工具箱或建池失败，脚本会**告警并回退**到与旧版等价的串行 `for` 循环。
 - **串行：** 设置 `use_parallel = false` 可强制单线程循环，便于与 v7.4 之前的行为逐字节对照。
 - **随机种子：** 并行模式下，`brown_rng_seed_mode = 'fixed'` 对每个重复索引 `k` 设置 `cfg.brown_rng_seed = rng_seed_base + k`；`'timestamp'` 则使用时间基底 + `k`，避免多 worker 撞同一种子。**串行** `'timestamp'` 仍像单次交互运行一样不在每轮传入 `cfg.brown_rng_seed`。
 - **worker 控制台静默（仅并行）：** parfor 分支设置 `cfg_k.silent = true`，因此每个 worker 的 `run_simulation` 只把完整日志写入 `output/<case>/<NNN>/simulation.log`，**不**回显到共享 stdout。这样可避免约 15000 行交错的 `[ODE] Segment N completed` 淹没有用的 `[k/100] OK` 进度行。自 v7.9.5 起，自定义几何 run 在 worker 上亦完全静默。串行分支不变（保持 verbose），便于交互式调试。
@@ -186,7 +177,7 @@ run('batch_sweep/batch_run_from_json.m');
 
 ### 5.3 Linux 超算集群批跑（`batch_repeat_brownian_HPC_Linux.m`，7.10.0 起）
 
-如需在无图形界面、独占整节点的 Linux 超算集群上运行，请使用 [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) / [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m) 而非原版脚本。这是一个维护中的分叉版本，**不会**自动跟随 `run_simulation.m` / `batch_repeat_brownian.m` 同步——原版今后若有物理/算法层面的修复，需要手动搬运过来。用法与 §5.1 完全一致（同样的 `case_name_base` / `n_repeats` / `brown_rng_seed_mode` / 内联或 JSON 配置方式）。
+如需在无图形界面、独占整节点的 Linux 超算集群上运行，请使用 [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m)。自 v10.0.0 起，所有 Linux/无界面求解器特性（平台自适应 AVI/MP4 导出、`.avi` 检测、`cfg.silent` 与 `DataQueue` 进度心跳）已统一合入 `run_simulation.m`，[`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) 保留为转发至 `run_simulation.m` 的薄包装别名。用法与 §5.1 完全一致（同样的 `case_name_base` / `n_repeats` / `brown_rng_seed_mode` / 内联或 JSON 配置方式）。
 
 与 `batch_repeat_brownian.m` 的差异：
 
@@ -195,7 +186,7 @@ run('batch_sweep/batch_run_from_json.m');
 - **CPU/内存余量独立设置：** `cpu_resource_frac`（默认 `0.90`）与 `mem_resource_frac`（默认 `0.65`，更保守）取代了原来单一的 `max_resource_frac`。
 - **重度输出抽样：** 无论内联配置还是 JSON 怎么设置，`generate_animation` / `compute_flowfield` 默认只在 `heavy_output_sample_idx`（默认第一个、中间一个、最后一个）指定的重复里打开，其余全部强制关闭，以控制单个 worker 的峰值内存。确认内存余量足够安全后，可将 `heavy_output_sample_idx` 设为 `1:n_repeats` 以恢复每次重复都输出完整内容。
 - **并行池任务存储目录迁移到节点本地：** 在 Linux 下，本地并行池的 `JobStorageLocation` 会被迁移到 `tempdir()`（自动识别作业调度系统设置的 `$TMPDIR`，通常是节点本地临时存储）下一个按 `SLURM_JOB_ID` / `PBS_JOBID` 命名的专属子目录，避免 MATLAB 默认路径（用户家目录下）在家目录为分布式/网络存储的集群上已知会出现的并行池启动竞态问题。若迁移本身失败会自动退回原有方式，Windows 完全不受影响。
-- **实时子任务进度心跳：** 尽管 `cfg.silent = true` 会抑制某次重复运行的全部正常控制台回显，仍会按每次重复至少间隔 15 秒的节流频率打印一行 `[HB] k=NNN running  PP.P%  elapsed=...`，让长时间运行的重复也能看到进度，无需等它跑完。该心跳只打印到控制台，不写入 summary 文件。
+- **实时子任务进度心跳：** 尽管 `cfg.silent = true` 会抑制某次重复运行的全部正常控制台回显，仍会按每次重复至少间隔 30 秒的节流频率打印一行 `[HB] k=NNN running  PP.P%  elapsed=...`，让长时间运行的重复也能看到进度，无需等它跑完。该心跳只打印到控制台，不写入 summary 文件。
 
 **在真正信任集群上自动估算出的并行池规模之前**，`mem_per_worker_gb`（默认 `2.5` GB）**并未针对任何具体配置做过实测标定**。建议先单独跑一次，用 `/usr/bin/time -v matlab -batch ...` 或 Linux 下的 `top`/`ps` 测出真实的内存峰值，再把 `mem_per_worker_gb` 设为该测量值再加 30%~50% 余量。这个值预算过低，是导致 worker 被 Linux OOM Killer 中途杀死的最可能根因——由于 `parfor` 没有内置的超时或掉线 worker 恢复机制，这可能会让整批任务无限期卡死而不是报错退出。上面的重度输出抽样能降低触发概率，但不能完全杜绝。
 
@@ -247,7 +238,7 @@ $$\tau_{\mathrm{eff}} = \tau_{\mathrm{motor}}\left(1 - \frac{\omega_{\mathrm{rel
 
 在 JSON 中设置 `brownian.enable`，或在 MATLAB 中设置 `cfg.enable_brown`。
 
-Brownian 动力学为 body-only：6×6 有效迁移率 `M_eff` 来自完整胞体-纤毛确定性耦合系统，但热驱动只施加到胞体的三个平移和三个转动自由度；纤毛内部 Euler 角模态本身不接受热噪声。因此该方案不是完整耦合热平衡模型，不适用于研究纤毛内部模态的能量均分。
+Brownian 动力学默认为 body-only：6×6 有效迁移率 `M_eff` 来自完整胞体-纤毛确定性耦合系统，但热驱动只施加到胞体的三个平移和三个转动自由度；纤毛内部 Euler 角模态本身不接受热噪声。因此该方案不是完整耦合热平衡模型，不适用于研究纤毛内部模态的能量均分。选项 `brownian.pili_thermal`（v9.0.0，见下）为纤毛的慢弯曲模态加上热驱动。
 
 **力实现方案（v8.5.0）。** 每个 Brownian 区间 `dt_B` 开始时探测 `M_eff`，抽取 Euler–Maruyama 增量 `dU = L_eff * eta * sqrt(dt_B)`，并将其换算为恒定的广义热力 `f_th = M_eff \ (dU / dt_B)`，在整个区间内加到 ODE 右端项的胞体行上。胞体由耦合求解器推动，纤毛通过水动力与弹性耦合连续跟随——与它们跟随重力或马达扭矩的方式完全一致。两点实际影响：
 
@@ -261,6 +252,17 @@ SPD 修复和 Cholesky 分解在无量纲广义坐标中完成，再转换到 SI
 - `brownian.temperature`: 正的流体绝对温度，单位 K；启用布朗运动时必需。
 - `brownian.rng_seed`: 固定正整数种子，用于可复现运行。
 - `brownian.dt_B_ratio`: 布朗时间步相对于输出时间步的比例。
+- `brownian.pili_thermal`（`cfg.enable_pili_brown`，默认 `false`）：纤毛热涨落，见下。
+- `brownian.pili_mode_orders`（`cfg.pili_brown_orders`，默认 `2`）：每根纤毛接受热噪声的弯曲阶数。
+- `brownian.pili_tau_cut_s`（`cfg.pili_brown_tau_cut_s`，可选，默认不启用）：物理时间尺度门槛（单位秒）——自动保留所有松弛时间 `>= tau_cut_s` 的慢弯曲模态（推荐用于不等长多纤毛，默认开启偏振对保护）。
+- `brownian.pili_protect_pairs`（`cfg.pili_brown_protect_pairs`，可选）：当截断处能隙比 `< 1.15` 时自动扩充至下一个清晰能隙，避免劈开近简并偏振对。
+- `brownian.pili_rng_seeds`（`cfg.brown_pili_rng_seeds`，可选）：每根纤毛独立的正整数随机种子（与 `brownian.rng_seed` 互异）；在 `batch_repeat_brownian*.m` 批处理中自动为每次重复分配互不冲突的独立种子段。
+
+**纤毛热涨落（v9.0.0，v10.0.0 全面加固升级）。** 设 `brownian.pili_thermal = true` 后，纤毛的慢弯曲模态（默认为每根纤毛第一、二阶弯曲，每阶两个偏振方向）也接受热力。这些模态在初始状态由耦合算子计算一次。每个区间内，胞体与热模态上的热力按联合迁移率一起抽取，并通过受约束探测的中心线力密度及平衡轴向标量力矩密度（`brown_pili_tau`）精确实现，保留胞体–纤毛相关且不向非热化/扭转模态泄露能量，每个热模态的弹性能松弛到 `kT/2`。扭转和更高阶弯曲模态仍为确定性。该选项要求 `brownian.enable = true` 且至少有一根纤毛。
+
+- **在日志给出的双向窗口内选 `dt_B`。** 启动时的 `[BROWN]` 日志列出各热模态及最慢非热化弯曲模态（`tau_det`）的松弛时间。`dt_B` 上限不超过最快热模态松弛时间的四分之一（采用 `configs/config_example.json` 材料参数时，3 µm 纤毛取 0.002 s；`x_fast > 0.5` 时发出警告，`x_fast > 2.0` 默认拦截报错，除非显式设置 `cfg.allow_large_pili_dt_B = true`）；同时不应在固定阶数下把 `dt_B` 缩至远低于 `tau_det`（`dt_B / tau_det < 0.5` 时发出非绝热警告，如需更细步长请提高 `pili_mode_orders` 或降低 `pili_tau_cut_s`）。末段极短残余步长（`< 5% dt_B`）自动并入最后一个区间。
+- **输出。** `results.pili_modes` 包含模态幅值 `a`（`energy_kT = a.^2 / (2 kT)`，平衡均值 1/2）、总弯曲能与总扭转能（`elastic_energy_kT`）、各模态松弛时间、阶数、`dom_pilus`、`pilus_order`、`selection_mode`、`pilus_share`，以及运行期最大残差诊断（`max_pattern_resid`、`max_hold_pattern_resid`、`max_twist_row_resid`、`max_hold_force`）。`results.flow_state.brown_mode_force`、`brown_pili_force` 与 `brown_pili_tau` 保存每个输出时刻的模态力、中心线力密度及平衡轴向力矩密度，用于精确重绘流场。
+- **适用范围。** 本方案针对本征为直线、根部固支、无主动驱动的纤毛，并只在这类纤毛上验证过，且无重力、无背景流。`root_coupling = free_torsion`（可转动的鞭毛，无论有无马达）会直接报错；这类细胞请用 body-only 方案。本征曲率覆盖和主动力矩可以运行，但会给出警告：热模态取自被动的初始状态；中心线上的力只对本征为直线的纤毛才不引起扭转；这些情形下的能量均分没有验证过。使用前请检查 `elastic_energy_kT(2, :)`（扭转能）。抽取噪声时，比热模态更快的模态按已松弛处理，所以约 2 ms（3 µm 纤毛三阶弯曲的松弛时间）以内的胞体扩散不被解析。从时间间隔 `dt_B` 起，胞体扩散与线性理论一致；长时间下等于形状冻结的细胞的值（数值见 `docs/theory.zh-CN.md` §10.4）。把 `pili_mode_orders` 提到 3 需要约 0.0005 s 的 `dt_B`。
 
 **滞后 Jacobian（v8.5.1）。** Brownian 运行在每个 `dt_B` 节点重启 `ode15s`，而每次重启过去都要做一次稠密有限差分 Jacobian（额外 `n_ode` 次右端项计算，占 4 菌毛算例耗时的 70–85%）。自 v8.5.1 起复用上一次的精确 Jacobian（[`src/core/LaggedJacobian.m`](src/core/LaggedJacobian.m)）：它只进入隐式步的牛顿迭代矩阵，因此解与此前结果的差异保持在积分容差以内，而每个 Brownian 节点的耗时降低约 2–3.7 倍（1 根菌毛约 1.4 倍）。当 `ode15s` 在同一次调用中再次索要 Jacobian（牛顿失败）、发生 Euler 基旋转，或缓存已达 50 个节点时，会重新计算精确 Jacobian；若某个滞后段报错或异常提前停止，则以默认 Jacobian 重算该段。`simulation.log` 的 `[JAC]` 行和 `results.jacobian_reuse` 给出计数（`n_fresh`、`n_lagged`、`n_on_demand`、`n_invalidated`、`n_fallback`）。仅运行时选项（不写入 JSON）：`cfg.jacobian_reuse`（默认 `true`；`false` 与 v8.5.0 逐位一致）和 `cfg.jacobian_max_age`（默认 50 个节点）。确定性算例不受影响。
 
@@ -339,7 +341,7 @@ postprocess_cases()
 | JSON 批跑因重复 `case_name` 被跳过 | 非空 `case_name` 仅字母序首个 JSON 会运行；请使用唯一 `case_name` 或留空以自动时间戳目录。 |
 | `IllConditioned` 布朗迁移率告警（`M_eff_dimless rcond`） | v7.4.1+ 在无量纲迁移率上做诊断；若仍出现告警，多半是真实的病态几何/欧拉根问题，核对 §8、`simulation.log` 及 \(\theta\approx\pi\) 配置。 |
 | `NearSingularMatrix` 告警（`rcond < 1e-14`） | v8.0.1+：仅记录/告警，**不会单独中止**。中止需同时出现大后向残差（`> 1e-6`）→ `SingularMatrix`。查看 `results.diagnostics` / `[DIAG]` 日志。 |
-| 稠密迁移率上出现 `DissipationEigensolveFailure` | v8.0.1 后稠密路径应走 `eig`，一般不再出现。若仍出现，确认版本 ≥8.0.1 且矩阵并非意外变为稀疏。 |
+| 警告 `numerical_diagnostics:DissipationEigensolveFallback` | 无害。耗散检查默认用稠密 `eig`；只有算子是稀疏矩阵且超过 600 行时才尝试迭代 `eigs`，不收敛时给出该警告并回退到 `eig`。不影响计算。 |
 | `run_simulation:SilentPreviewDeadlock` 报错（v7.9.6+） | `cfg.silent = true` 且 `preview_initial = true` 时必须同时 `auto_confirm = true`（无头/并行 worker 无法应答交互式 `questdlg`）。设置 `auto_confirm = true` 或 `preview_initial = false`。 |
 | Linux 上 `VideoWriter` 报错 `"The specified profile is not valid."` | 改用 [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m)（§5.3）而非 `run_simulation.m`——`'MPEG-4'` 仅支持 Windows/Mac，HPC_Linux 分支会在 Linux 上自动切换为 `'Motion JPEG AVI'`。 |
 | 批跑过程中 `top` 里 worker 进程数量突然变少、整批卡死不动（Linux） | 大概率是 Linux OOM Killer；`parfor` 没有内置超时或掉线 worker 恢复机制。在 `batch_repeat_brownian_HPC_Linux.m`（§5.3）上，用实测得到的真实内存峰值重新标定 `mem_per_worker_gb`（不要用默认值），和/或缩小 `heavy_output_sample_idx` 覆盖范围。可用 `dmesg \| grep -i "killed process"` 或 `journalctl -k \| grep -i "out of memory"` 确认。 |

@@ -34,12 +34,15 @@
 %      Time integration and Brownian motion:
 %        T_obs [s], AbsTol, RelTol, delta [rad], tlim [s], dt [s],
 %        seg_per_um [1/um], enable_brown, Temper [K], dt_B [s],
-%        brown_rng_seed
+%        brown_rng_seed, enable_pili_brown, pili_brown_orders
 %      Output and flow-field controls:
 %        preview_initial, generate_animation, animation_fps,
 %        animation_skip, auto_confirm, compute_flowfield,
 %        flowfield_grid_spacing [um], flowfield_grid_range [um],
-%        flowfield_quiver_skip, flowfield_chunk_size
+%        flowfield_quiver_skip, flowfield_chunk_size,
+%        flowfield_stream_spacing [um], flowfield_stream_length [um]
+%        (the two stream fields are NaN when omitted, and the panel then
+%        uses a fraction of its shorter side)
 %      Background flow:
 %        background_flow.type, .U_max [m/s], .direction, .shear_axis,
 %        .shear_height_m [m]
@@ -63,12 +66,17 @@
 %      brownian.temperature -> Temper
 %      brownian.dt_B_ratio -> dt_B = dt*dt_B_ratio
 %      brownian.rng_seed -> brown_rng_seed
+%      brownian.pili_thermal -> enable_pili_brown (default false)
+%      brownian.pili_mode_orders -> pili_brown_orders (default 2)
+%      brownian.pili_rng_seeds -> brown_pili_rng_seeds (optional, default [])
 %      output.* -> preview_initial, generate_animation, animation_fps,
 %        animation_skip, auto_confirm, compute_flowfield
 %      flowfield.grid_spacing_um -> flowfield_grid_spacing
 %      flowfield.grid_range_um -> flowfield_grid_range
 %      flowfield.quiver_skip -> flowfield_quiver_skip
 %      flowfield.chunk_size -> flowfield_chunk_size
+%      flowfield.stream_spacing_um -> flowfield_stream_spacing (NaN if omitted)
+%      flowfield.stream_length_um -> flowfield_stream_length (NaN if omitted)
 %      background_flow.* -> fields of cfg.background_flow
 %
 %  Errors:
@@ -80,6 +88,8 @@
 %  Created: 2026-03-17
 %  Updated: 2026-07-13
 %  Updated: 2026-11-04 — v8.7.2: comment and message-text corrections only; no behavioural change.
+%  Updated: 2026-11-12 — v9.0.0: brownian.pili_thermal / brownian.pili_mode_orders.
+%  Updated: 2026-11-13 — optional flowfield.stream_spacing_um / stream_length_um.
 
 %% Read and decode JSON
 fid = fopen(json_path, 'r', 'n', 'UTF-8');
@@ -94,7 +104,7 @@ j = jsondecode(raw);
 cfg.case_name  = get_json(j, 'case_name', '');
 
 % Geometry mode: 'parametric' (default) or 'custom'
-cfg.geometry_mode = get_json(j, 'geometry_mode', 'parametric');
+cfg.geometry_mode = char(get_json(j, 'geometry_mode', 'parametric'));
 
 switch cfg.geometry_mode
     case 'custom'
@@ -118,7 +128,7 @@ switch cfg.geometry_mode
         % Initial orientation (C2) — overrides alpha_0 when set
         cfg.initial_orientation = get_json(jcg, 'initial_orientation', []);
 
-    otherwise
+    case 'parametric'
         % --- Parametric mode (default) ---
         jb = get_json(j, 'body', struct());
         cfg.minor_axis = get_json(jb, 'minor_axis', 0.4e-6);
@@ -163,6 +173,11 @@ switch cfg.geometry_mode
                 [cfg.Pili_Matrix, cfg.pili_ext] = parse_pili_config(jp_norm);
             end
         end
+
+    otherwise
+        error('load_sim_config:InvalidGeometryMode', ...
+            'geometry_mode must be ''parametric'' or ''custom'', got ''%s''.', ...
+            cfg.geometry_mode);
 end
 
 % Material
@@ -196,6 +211,11 @@ cfg.enable_brown     = logical(get_json(jbr, 'enable', false));
 cfg.Temper           = get_json(jbr, 'temperature', 293.15);
 dt_B_ratio           = get_json(jbr, 'dt_B_ratio', 0.5);
 cfg.dt_B             = cfg.dt * dt_B_ratio;
+% Pilus thermal fluctuations on the slow bending modes (v9.0.0; default off)
+cfg.enable_pili_brown        = logical(get_json(jbr, 'pili_thermal', false));
+cfg.pili_brown_orders        = get_json(jbr, 'pili_mode_orders', 2);
+cfg.pili_brown_tau_cut_s     = get_json(jbr, 'pili_tau_cut_s', []);
+cfg.pili_brown_protect_pairs = get_json(jbr, 'pili_protect_pairs', []);
 
 % Optional: positive scalar = fixed twister seed; omit / NaN / nonpositive = time-based default
 if isfield(jbr, 'rng_seed')
@@ -207,6 +227,13 @@ if isfield(jbr, 'rng_seed')
     end
 else
     cfg.brown_rng_seed = NaN;
+end
+
+% Optional: per-pilus thermal RNG seeds (one positive integer per pilus)
+if isfield(jbr, 'pili_rng_seeds') && ~isempty(jbr.pili_rng_seeds) && isnumeric(jbr.pili_rng_seeds)
+    cfg.brown_pili_rng_seeds = round(double(jbr.pili_rng_seeds(:)'));
+else
+    cfg.brown_pili_rng_seeds = [];
 end
 
 % Output / visualisation
@@ -224,6 +251,8 @@ cfg.flowfield_grid_spacing = get_json(jff, 'grid_spacing_um', 0.05);
 cfg.flowfield_grid_range   = get_json(jff, 'grid_range_um',   10.0);
 cfg.flowfield_quiver_skip  = get_json(jff, 'quiver_skip',     5);
 cfg.flowfield_chunk_size   = get_json(jff, 'chunk_size',      2000);
+cfg.flowfield_stream_spacing = optional_flow_scalar(jff, 'stream_spacing_um');
+cfg.flowfield_stream_length  = optional_flow_scalar(jff, 'stream_length_um');
 
 % Background flow
 jbg = get_json(j, 'background_flow', struct());
@@ -247,6 +276,21 @@ else
 end
 cfg.NT = round(cfg.T_obs / cfg.dt) + 1;
 
+end
+
+
+function value = optional_flow_scalar(s, name)
+%OPTIONAL_FLOW_SCALAR  Positive scalar, or NaN when the JSON field is omitted
+if ~isstruct(s) || ~isfield(s, name) || isempty(s.(name))
+    value = NaN;
+    return
+end
+value = s.(name);
+if ~isnumeric(value) || ~isscalar(value) || ~isfinite(value) || value <= 0
+    error('load_sim_config:BadFlowfield', ...
+        'flowfield.%s must be a positive finite scalar when it is set.', name);
+end
+value = double(value);
 end
 
 

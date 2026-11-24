@@ -4,10 +4,10 @@ English | [中文](theory.zh-CN.md)
 [Back to README](../README.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Updated:** 2026-11-11
-> **Version:** 8.8.0
+> **Updated:** 2026-11-24
+> **Version:** 10.1.0
 
-This document contains the model details that were formerly embedded in the long README. The repository entry page is now intentionally short; practical run instructions are in [`../USER_GUIDE.md`](../USER_GUIDE.md), and release history is in [`../CHANGELOG.md`](../CHANGELOG.md).
+This document describes the physical model and the numerical methods. Practical run instructions are in [`../USER_GUIDE.md`](../USER_GUIDE.md), and release history is in [`../CHANGELOG.md`](../CHANGELOG.md).
 
 ## 1. Physical Problem
 
@@ -83,10 +83,10 @@ where $V_{\mathrm{body}}$ is the capsule volume in parametric mode or the alpha-
 The root–body gap (dimensional) is
 
 ```math
-\mathrm{dis} = 1.1\,(\varepsilon_{\mathrm{body}} + \varepsilon_{\mathrm{pili}})\,L_0,
+\mathrm{dis} = 1.1\,(\varepsilon_{\mathrm{body}}L_0 + r_{\mathrm{pili}}),
 ```
 
-passed to `pili_building` / `custom_pili_building` to keep regularized kernels separated at the pilus root.
+passed to `pili_building` / `custom_pili_building` to keep regularized kernels separated at the pilus root. It uses the body regularization length of §5.1 and the physical pilus radius, so it does not depend on `hydro_radius_factor` (§5.2).
 
 Additional model inputs use the same reference scales:
 
@@ -212,6 +212,8 @@ with:
 \mathbf{L} = -\mathbf{B}\mathbf{A}\mathbf{Q}.
 ```
 
+Here \(\mathbf{Q}\) maps the generalised rates to point velocities and segment spin rates, \(\mathbf{A}\) maps those velocities to the force and torque densities on the fluid (the inverse of the grand mobility below, applied by linear solves and never formed), and \(\mathbf{B}\) collects the densities into the balance equations.
+
 Since v7.6.0, axial twist no longer uses a local RFT torsional resistance. The translational and axial-spin unknowns are coupled through the grand mobility:
 
 ```math
@@ -292,6 +294,18 @@ The main blocks are:
 because `m_s` is a torque density on segment `s`. Therefore the moment rows of `B_global` include both `sum(r x f)` and `sum(L_s m_s)`. This makes a force/torque-free swimmer exactly torque-free and yields the correct body counter-rotation for motor-driven or spinning pili.
 
 Solves use MATLAB decomposition / LU factorization rather than explicit matrix inversion.
+
+### 6.1 Fast Body-Frame Block Schur Complement and Frozen-Hydrodynamics Jacobian (v10.0.0)
+
+Because the cell body is rigid, its self-interaction RSM mobility block \(\mathbf{M}_{BB}^{\mathrm{loc}}\) (\(3N_{\mathrm{body}} \times 3N_{\mathrm{body}}\), symmetric positive definite) is constant in the body-local frame throughout the simulation. During initialization, `build_body_precomp` computes its Cholesky decomposition \(\mathbf{M}_{BB}^{\mathrm{loc}} = \mathbf{L}_{BB}\mathbf{L}_{BB}^{\mathsf T}\) and its action on the six rigid-body kinematic columns \(\mathbf{U}_{QB}^{\mathrm{loc}} = (\mathbf{M}_{BB}^{\mathrm{loc}})^{-1}\mathbf{Q}_{B,6}^{\mathrm{loc}}\) once. At every RHS evaluation, `build_coupled_lin_sys` transforms pilus coordinates and tangents into the body frame, assembles only the configuration-dependent blocks \((\mathbf{M}_{PB}, \mathbf{M}_{BP}, \mathbf{M}_{PP}, \mathbf{C}_{\mathrm{twist}}, \mathbf{M}_{\mathrm{twist}})\) via `build_pili_mobility_blocks`, and eliminates all \(3N_{\mathrm{body}}\) body unknowns algebraically via the block Schur complement
+
+```math
+\mathbf{S}_{PP} = \mathbf{M}_{PP} - \mathbf{M}_{PB}(\mathbf{M}_{BB}^{\mathrm{loc}})^{-1}\mathbf{M}_{BP}.
+```
+
+This reduces the per-step dense LU factorization from \(O((3N_{\mathrm{body}} + 3N_{\mathrm{pili}})^3)\) to \(O((3N_{\mathrm{pili}})^3)\) while remaining algebraically equivalent to the dense assembly (machine-precision agreement modulo conditioning, verified by `validation/cpc_performance_benchmark.m`). For bare-body runs (\(M = 0\)), the precomputed \(6\times 6\) resistance matrix is rotated directly into the laboratory frame (`99x` faster at \(N_{\mathrm{body}}=300\)).
+
+For stiff `ode15s` Newton iterations, the dominant \(O(N_k^4)\) stiffness arises from the local Kirchhoff elastic restoring moments \(\partial \mathbf{R}/\partial \mathbf{Z}\) while the hydrodynamic resistance \(\mathrm{lin\_sys}(\mathbf{Z})\) varies smoothly at \(O(1)\). `ode_coupled_jacobian` therefore assembles and LU-factors \(\mathrm{lin\_sys}(\mathbf{Z})\) once, evaluates \(\partial \mathbf{R}/\partial (\theta,\phi,\psi)\) using stride-3 banded graph colouring for local stencils (plus individual root columns and exact linearized motor torque–speed feedback), and computes the Jacobian via one multi-RHS back-substitution—achieving 75×–517× Jacobian speedups without altering the ODE RHS or local error control, with automatic fallback to finite-difference Jacobians if Newton fails. Across Brownian restarts, `LaggedJacobian` reuses the cached Jacobian up to `jacobian_max_age` intervals and refreshes via `ode_coupled_jacobian` on demand or after basis rotations.
 
 ## 7. Elastic Rod Moments
 
@@ -388,8 +402,10 @@ Background flow is evaluated as a prescribed steady velocity field and incorpora
 \mathbf{R}
 \leftarrow
 \mathbf{R}
-- \mathbf{B}\mathbf{A}^{-1}\mathbf{u}_{\mathrm{bg}}.
+- \mathbf{B}\mathbf{A}\,\mathbf{u}_{\mathrm{bg}},
 ```
+
+with the operator \(\mathbf{A}\) of §6: the fluid loads depend on the velocity relative to the background flow, \(\mathbf{A}(\mathbf{Q}\dot{\mathbf{z}} - \mathbf{u}_{\mathrm{bg}})\).
 
 Supported flow types are:
 
@@ -570,13 +586,15 @@ thermal force during an interval is part of the coupled dynamics, not a drift
 correction.
 
 **Scope of the Brownian approximation.**  The hydrodynamic drag of every
-pilus affects the probed 6 x 6 body mobility, but pilus internal Euler-angle
-coordinates receive no stochastic forcing.  Those modes evolve only under
-deterministic elasticity, hydrodynamics, active moments, motor torques, and
-the thermal force transmitted from the body.  Consequently this model is
-suitable for body translation/orientation diffusion when internal pilus
-thermal fluctuations are neglected; it is not a full coupled equilibrium
-process and cannot reproduce pilus-mode equipartition.
+pilus affects the probed 6 x 6 body mobility, but in the body-only scheme
+pilus internal Euler-angle coordinates receive no stochastic forcing.  Those
+modes evolve only under deterministic elasticity, hydrodynamics, active
+moments, motor torques, and the thermal force transmitted from the body.
+Consequently the body-only scheme is suitable for body translation/orientation
+diffusion when internal pilus thermal fluctuations are neglected; it is not a
+full coupled equilibrium process and cannot reproduce pilus-mode
+equipartition.  Section 10.4 describes the optional thermal forcing of the
+slow pilus bending modes (v9.0.0).
 
 **Known approximation — deterministic/stochastic operator consistency.**
 
@@ -609,6 +627,312 @@ units of \(T_0^{-1}\)) the spectral radius of the contraction matrix stayed
 (\(h\le1.7\times10^{-3}\)); same-seed trajectories agree with the fresh-Jacobian
 solution to \(\sim10^{-5}\) relative.  `cfg.jacobian_reuse=false` restores the
 8.5.0 behaviour bit-for-bit.
+
+### 10.4 Thermal fluctuations of the pili (v9.0.0)
+
+With `brownian.pili_thermal = true` (`cfg.enable_pili_brown`) the slowest
+bending modes of the pili receive thermal forces of their own.  By default
+these are the first and second bending order of every pilus, two
+polarisations each (`brownian.pili_mode_orders = 2`).  Twist and all higher
+bending orders stay deterministic.  The body-only scheme of §10.1–10.2 is
+unchanged and remains the default.
+
+**Thermal modes** (`init_pili_brownian_modes`, once per run, at the
+stress-free initial state).  Let \(\mathbf{x}\) collect the deviations of the
+material curvatures and of the twist from their intrinsic values at the
+interior joints of all pili (`pili_bending_coords`).  The elastic energy of
+the discrete Kirchhoff rod is exactly quadratic in these coordinates,
+
+```math
+E = \tfrac12\,\mathbf{x}^{\mathsf T}\mathbf{K}\,\mathbf{x},
+\qquad
+\mathbf{K} = \operatorname{diag}(w_K w_E),
+```
+
+with \(w_K = (1, 1, 1/(1+\sigma))\) and \(w_E = 1/(N\ell)\).  Probing the
+coupled system with a unit generalised force on each coordinate gives the
+curvature mobility, \(\dot{\mathbf{x}} = \mathbf{M}_x\mathbf{f}\); the body and
+all other joints are force-free in each probe, so \(\mathbf{M}_x\) contains the
+hydrodynamic coupling between filaments and with the moving body.  Free
+relaxation is \(\dot{\mathbf{x}} = -\mathbf{M}_x\mathbf{K}\mathbf{x}\), and with the
+symmetric part \(\mathbf{M}_s\)
+
+```math
+\mathbf{K}^{1/2}\mathbf{M}_s\mathbf{K}^{1/2}\,\mathbf{u}_j = \lambda_j\,\mathbf{u}_j,
+\qquad
+a_j = \mathbf{u}_j^{\mathsf T}\mathbf{K}^{1/2}\mathbf{x},
+\qquad
+E = \tfrac12\sum_j a_j^2 .
+```
+
+The \(n = 2\,n_o M\) slowest bending-dominated modes are the thermal modes
+(\(n_o\) bending orders, \(M\) pili).  They are modes of the whole cell: for
+several pili of equal length the same bending order of different pili is
+hybridised by the hydrodynamic coupling.  In equilibrium every mode holds
+\(k_BT/2\), i.e. \(\langle a_j^2\rangle = k_BT/(F_0L_0)\).  The mode patterns
+are stored per joint in the material frame, so they follow the pili and do
+not depend on the Euler basis.
+
+All numbers in this section are for the cell of
+`configs/config_example.json`: capsule with \(L_0 = 1.25\) µm and radius
+0.4 µm, \(E = 3.279\times10^{8}\) Pa, \(r_{\mathrm{pili}} = 3\) nm, hence
+\(EI = 2.09\times10^{-26}\) N m², \(T_0 = 2.94\) s and
+\(k_BT/(F_0L_0) = 0.2425\) at 293.15 K, in water (\(\mu = 10^{-3}\) Pa s).
+Relaxation times scale as \(\mu/EI\) and roughly as the fourth power of the
+filament length.
+
+| Cell (3 µm filaments, 30 segments) | Order 1 | Order 2 | Slowest mode without noise |
+| --- | --- | --- | --- |
+| Capsule + 1 filament | 0.210 s | 13.4 ms | 2.14 ms |
+| Capsule + 4 filaments | 0.075–0.62 s | 9.0–16.9 ms | 2.30 ms |
+
+**Joint mobility** (`compute_effective_coupled_brownian`, every interval).
+The thermal coordinates are
+\(\mathbf{y} = (\mathbf{X}_{cm}, \boldsymbol{\theta}_{body}, a_1,\ldots,a_n)\).
+The \((6+n)\times(6+n)\) mobility
+\(\dot{\mathbf{y}} = \mathbf{M}_{joint}\,(\mathbf{f}_{body}, \mathbf{g})\) is probed at
+the current state with six unit body loads and \(n\) unit modal forces.  A
+unit modal force \(g_j\) is the moment pattern
+\(\sqrt{w_K/w_E}\,\mathbf{u}_j\) on the bending rows of the coupled system.
+The matrix is symmetrised and checked for positive definiteness as in §10.1.
+
+Every pilus mode that is not thermalised — all twist modes and all faster
+bending modes of the mode analysis above — is held fixed in every probe:
+the holding forces \(\boldsymbol{\lambda}\) on those modes are chosen so that
+their amplitudes do not change,
+\(\mathbf{A}_{hold}^{\mathsf T}\dot{\mathbf{x}} = 0\).  The reason is a separation
+of time scales.  The deterministic modes relax within tens of microseconds
+(twist) to about 2 ms (third bending order), whereas the thermal modes
+live for 9 ms to 0.6 s.  A force on a thermal coordinate that also moves a
+fast mode is opposed by the elastic moment of that mode almost at once, so
+over the correlation time of the thermal modes the fast modes act as
+constraints, and the mobility that governs the thermal coordinates is the
+one with the fast modes held (the inverse of the resistance restricted to
+the thermal coordinates).  A probe that leaves them force-free returns the
+instantaneous mobility instead.  At the straight rest state the two agree
+on the modal block, because the modes are eigenvectors there.  On a bent
+filament they do not:
+
+- *Twist.*  A material-frame moment spins the segments of a bent filament
+  about their own axes.  This costs almost no viscous drag and rotates the
+  two curvature components in the material frame.  For the capsule with one
+  filament bent to a fifth of its thermal amplitude the free-twist modal
+  mobility is 14 to 196 times the bending relaxation rate.
+- *Fast bending modes.*  The rest-state mode patterns mix with the fast
+  bending modes once the filament is bent.  Along a thermal trajectory of
+  the same cell at 293.15 K a probe that holds the twist only overestimates
+  the first-order modal mobility by 16 % in the median and by a factor of
+  up to 5, and the response of the time integration over 0.2 ms falls short
+  of that probe by up to 50 %.  With every non-thermal mode held the probe
+  and the integration agree within 1–3 %.
+
+Noise drawn from an inflated mobility is too weak for the dissipation the
+integration actually produces (the fluctuation–dissipation balance is
+broken) and the thermal modes fall short of equipartition; this is why the
+complete hold is used.  The body block of \(\mathbf{M}_{joint}\) is therefore the
+body mobility with the non-thermal modes held and the thermal modes free.
+It lies between the fully flexible mobility of §10.1, which applies below
+the fast relaxation times, and the rigid-shape mobility, which is reached
+beyond the slowest thermal relaxation time.
+
+**Sampling** (`sample_brownian_coupled_force`).  With the joint mobility
+frozen at the interval start,
+
+```math
+\delta\mathbf{Y} = \mathbf{L}\,\boldsymbol{\eta}\sqrt{\Delta t_B},
+\qquad
+\mathbf{L}\mathbf{L}^{\mathsf T} = 2k_BT\,\mathbf{M}_{joint},
+\qquad
+\begin{pmatrix}\mathbf{f}_{th}\\ \mathbf{g}\end{pmatrix}
+= \mathbf{M}_{joint}^{-1}\,\frac{\delta\mathbf{Y}}{\Delta t_B},
+```
+
+with \(6+n\) normal deviates per interval.  The cross blocks of
+\(\mathbf{M}_{joint}\) carry the correlation between the body and the
+filaments.  As in §10.2 the forces are held for the whole interval and the
+Ito drift is generated by the mobility sampled along the trajectory.
+
+**Realisation of the thermal forces** (`pili_thermal_rhs`, `ode_coupled_rhs`
+Step 8e).  The modal forces are not applied as unconstrained white-noise
+moments (which would wind a bent filament into a helix).  Instead, every
+thermal force — the six body components as well as the modal forces — is
+accompanied by the exact hydrodynamic load that the pili carry in the
+constrained probe motion of that coordinate: the centreline force density
+\(\mathbf{f}_c = (\mathbf{A}\mathbf{Q}_{\mathrm{trans}}\,\mathbf{z}_c)_{pili}\)
+(stored in the body frame so it co-rotates with the cell) together with the
+balancing scalar axial torque density
+\(m_c = (\mathbf{A}\mathbf{Q}_{\mathrm{twist}}\,\mathbf{z}_c)\) applied along
+each segment's current tangent \(\mathbf{d}_3\) (\(c = 1,\ldots,6+n\)).  Their
+combined generalised force on the pilus rows reproduces the constrained probe
+right-hand side — the modal moment pattern together with the holding forces of
+all non-thermal modes — to machine precision (\(\sim 10^{-15}\)) even on
+strongly bent 3-D filaments.  Including the probe's balancing axial torque
+density cancels viscous spin drag without exciting twist (reducing twist
+energy on bent filaments by roughly two orders of magnitude and restoring
+monotone small-\(\Delta t_B\) covariance convergence).  Its resultant on the
+six body rows is not applied a second time (rows 1–6 of the load are set to
+zero); the modal part exerts no net force or torque on the cell.
+
+**Mode selection for unequal-length pili.**  By default the \(2\,n_o M\)
+slowest bending modes are kept (`pili_mode_orders`).  For cells with pili of
+unequal lengths (where \(\tau \propto L^4\)), an optional time-scale cutoff
+`brownian.pili_tau_cut_s` selects every bending mode with
+\(\tau_j \ge \tau_{\mathrm{cut}}\), and `brownian.pili_protect_pairs` expands
+the cut across near-degenerate clusters (gap ratio \(< 1.15\)) so a
+polarisation pair is never split.
+
+**Drift of the held loads.**  The implicit Ito drift of §10.2 presumes that
+the generalised force stays constant over the interval.  A centreline load
+that is held in the body frame does not have this property: as the filament
+moves, the arms and directors of the moment balance change, and so does the
+modal force that the load exerts.  Let \(g_j(\mathbf{P}_k;\mathbf{y})\) be the
+force on mode \(j\) exerted at configuration \(\mathbf{y}\) by the load pattern
+\(\mathbf{P}_k\) of mode \(k\) built at the interval start.  Expanding the
+displacement over one interval to second order and averaging over the
+thermal forces, \(\langle F_mF_n\rangle = 2k_BT(\mathbf{M}_{joint}^{-1})_{mn}/\Delta t_B\),
+gives
+
+```math
+\langle\delta\mathbf{Y}\rangle
+= k_BT\,\Delta t_B\left(\nabla_{\mathbf{y}}\!\cdot\mathbf{M}_{joint}
+  + \mathbf{M}_{joint}\,\mathbf{c}\right),
+\qquad
+c_j = \sum_{k=1}^{n}\frac{\partial g_j(\mathbf{P}_k;\mathbf{y})}{\partial a_k}.
+```
+
+The first term is the Ito drift of the thermal coordinates.  The second is
+an artefact of the load realisation: a spurious generalised force
+\(k_BT\,\mathbf{c}\).  For a single filament on the body axis it vanishes at
+the straight rest state and grows linearly with the deflection; at 293.15 K
+it acts like a stiffness change of about \(+4\,\%\) for the second bending
+order and \(-3\,\%\) for the first.  For filaments attached off the axis it
+does not vanish at rest: the body moves in the probe motion, so the loads
+have a component along the filament, whose moment changes at first order
+when the filament deflects.  For the capsule with four filaments
+\(c = -0.31\) for the symmetric first-order mode at rest, which would shift
+the mean of that mode by 0.15 of its r.m.s. thermal amplitude at 293.15 K.
+The body coordinates do not contribute, because the load co-rotates with
+the body and its resultant is not applied.  The sampler removes the
+artefact by adding \(-k_BT\,\mathbf{c}\) to the modal forces of the interval.
+\(\mathbf{c}\) is evaluated at the interval start by central differences along
+the kinematic directions of the thermal modes
+(\(\mathbf{z}_{probe}\mathbf{M}_{joint}^{-1}\) using the symmetrised,
+SPD-repaired \(\mathbf{M}_{joint}\), non-thermal modes held, body at rest);
+only the pilus moment-balance rows of the force operator have to be applied at
+the \(2n\) displaced states (via the matrix-free \(O(N_k)\) routine
+`apply_pili_B_force_rows` inside `compute_effective_coupled_brownian`,
+algebraically identical to `build_force_balance`), not the hydrodynamic
+mobility.  With this term the stationary distribution of the thermal modes is
+\(\exp(-E/k_BT)\) in the amplitudes \(a_j\), i.e. equipartition.
+
+**Brownian interval.**  The scheme is a coarse-grained effective model that
+relies on time-scale separation, so \(\Delta t_B\) must sit inside a two-sided
+window:
+
+- *Upper bound* (\(\Delta t_B \lesssim \tau_{\mathrm{slow}}/4\)): a force held
+  over \(\Delta t_B\) lowers the stationary variance of a mode of relaxation
+  rate \(\lambda\) by the factor \((2/x)\tanh(x/2)\), \(x = \lambda\Delta t_B\)
+  (0.5 % at \(x = 0.25\), 2 % at \(x = 0.5\)).  Keep \(\Delta t_B\) at or below
+  a quarter of the fastest thermal relaxation time, i.e. 0.002 s for the 3 µm
+  filaments of the table above (`run_simulation` warns for \(x > 0.5\) and
+  rejects \(x > 2.0\) unless overridden).
+- *Lower bound* (\(\Delta t_B \gtrsim \tau_{\mathrm{det}}\)): shrinking
+  \(\Delta t_B\) well below the slowest non-thermal bending relaxation time
+  \(\tau_{\mathrm{det}}\) (2.14–2.30 ms above) violates the adiabatic
+  elimination of the non-thermal bending modes (leaving a small residual drift
+  from \(\mathbf{M}_{yb}\) even though the balancing axial torque density keeps
+  the single-step covariance convergent and twist-free), so the scheme is not
+  intended to be verified by taking \(\Delta t_B \to 0\) at fixed
+  `pili_mode_orders` (`run_simulation` warns when
+  \(\Delta t_B / \tau_{\mathrm{det}} < 0.5\)).  If finer temporal resolution
+  is needed, raise `pili_mode_orders` or lower `pili_tau_cut_s` rather than
+  only reducing \(\Delta t_B\).
+
+**Body diffusion.**  The table gives the body diffusion coefficients of the
+linearised model (exact covariance recursion of the scheme,
+\(\Delta t_B = 0.002\) s).  \(\parallel\) and \(\perp\) refer to the long axis of
+the body; \(\boldsymbol{\mu}_{flex}\) is the fully flexible body mobility of
+§10.1 and \(\boldsymbol{\mu}_{rigid}\) the mobility of the cell with its
+filaments frozen in shape.
+
+| | 1 filament: \(D_{t\perp}\) | \(D_{r\perp}\) | 4 filaments: \(D_{t\parallel}\) | \(D_{t\perp}\) | \(D_{r\parallel}\) | \(D_{r\perp}\) |
+|---|---|---|---|---|---|---|
+| Lag \(\Delta t_B\), \(D / k_BT\mu_{flex}\): body-only noise | 0.97 | 0.87 | 0.91 | 0.95 | 0.64 | 0.88 |
+| Lag \(\Delta t_B\), \(D / k_BT\mu_{flex}\): orders 1–2 | 0.98 | 0.89 | 0.93 | 0.96 | 0.66 | 0.90 |
+| Long time, \(D / k_BT\mu_{rigid}\): body-only noise | 0.98 | 0.41 | 0.55 | 0.78 | 0.05 | 0.26 |
+| Long time, \(D / k_BT\mu_{rigid}\): orders 1–2 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+
+With the pilus modes thermalised, the thermal coordinates form a closed
+system that satisfies the fluctuation–dissipation relation: the noise is
+drawn from the mobility with which the system responds, and neither the
+noise nor the body motion feeds the deterministic modes.  The long-time
+diffusion then equals \(k_BT\,\boldsymbol{\mu}_{rigid}\), the value for a cell
+whose shape fluctuations average out, for any number of thermal orders.  In
+the body-only scheme the filaments receive no noise but still dissipate, so
+the long-time diffusion stays below that value — by a factor of 20 for the
+spin of the four-filament cell about its long axis.  At the lag of one
+Brownian interval the two schemes agree within 3 %.  Both lie below the
+fully flexible value because the modes faster than the interval have
+relaxed by then — through their elasticity in the body-only scheme, by
+construction (held in the probe) in the thermal scheme, where the body block
+of \(\mathbf{M}_{joint}\) is 0.90 (one filament, \(D_{r\perp}\)) and 0.70 (four
+filaments, \(D_{r\parallel}\)) of the fully flexible mobility.  The crossover from
+\(k_BT\,\boldsymbol{\mu}_{flex}\) within those relaxation times (at most about
+2 ms) is not resolved.
+
+**Scope.**  The scheme is built for passive, naturally straight filaments
+with clamped roots.  `root_coupling = free_torsion` is rejected: the spin of
+the filament about its root axis is a coordinate without elastic restoring
+moment that is neither thermalised nor held, and the joint mobility loses
+its symmetry and definiteness once the filament bends.  Intrinsic-curvature
+overrides and active moments are accepted with a warning: the thermal modes
+are those of the passive initial state, and the equipartition tests below
+do not cover these cases.
+
+**Acceptance (v9.0.0).**  Operator tests at the production resolution
+(306 body points, 30 segments per filament), for one and four filaments:
+joint-mobility asymmetry \(2.7\times10^{-4}\) and \(1.4\times10^{-3}\); modal
+diagonal within 0.2 % of the relaxation rates; response of the right-hand
+side to the thermal forces equal to \(\mathbf{M}_{joint}\mathbf{F}\) within
+\(3.7\times10^{-3}\); static deflection under a held modal force equal to the
+force within \(2.6\times10^{-3}\); relaxation rates measured from the ODE
+within 0.2 % of the eigenvalues; invariance under a change of Euler basis to
+better than \(10^{-7}\).  On six states of a thermal trajectory (one
+filament, 293.15 K) the response of the time integration is 0.97–1.00 of
+the probed mobility.  The mean displacement of the modes over one interval,
+measured for the four-filament cell at rest from pairs of integrations with
+opposite forces, equals \(k_BT\,\Delta t\,(\nabla\!\cdot\mathbf{M}_{joint} + \mathbf{M}_{joint}\mathbf{c})\)
+within 2 %, and the held-load term by itself is recovered with a factor of
+0.993.  The linear covariance recursion gives
+\(\langle a_j^2\rangle/k_BT\) between 0.996 and 1.000 for every thermal mode,
+against 0–0.51 for the body-only scheme.
+
+Monte-Carlo ensembles through `run_simulation` (116 body points,
+\(\Delta t_B = 0.002\) s, no gravity) give, over the stationary window,
+\(\langle a_j^2\rangle/k_BT\) as simulation / linear theory for the same
+window:
+
+| Ensemble | Runs | Order 1 | Order 2 |
+|---|---|---|---|
+| 1 filament, 293.15 K | 48 × 1.5 s | 1.044 ± 0.061 / 0.998 | 0.989 ± 0.016 / 0.998 |
+| 1 filament, 2.93 K | 24 × 1.2 s | 1.039 ± 0.106 / 0.997 | 0.992 ± 0.027 / 0.998 |
+| 4 filaments, 293.15 K | 24 × 1.0 s | 0.938 ± 0.050 / 0.957 | 0.976 ± 0.016 / 0.998 |
+| 4 filaments, 2.93 K | 24 × 1.0 s | 0.903 ± 0.063 / 0.957 | 1.012 ± 0.014 / 0.998 |
+| 1 filament, 293.15 K, body-only noise | 48 × 1.5 s | 0.403 ± 0.024 / 0.456 | 0.169 ± 0.002 / 0.174 |
+| 4 filaments, 293.15 K, body-only noise | 24 × 1.0 s | 0.267 ± 0.023 / 0.231 | 0.106 ± 0.002 / 0.104 |
+
+All eight values with pilus noise lie within 1.4 standard errors of the
+theory.  (The four-filament runs last 1.6 times the slowest relaxation time
+of 0.62 s, hence 0.957 instead of 1 for the first order.)  At 2.93 K, where
+the deflections are a tenth of those at 293.15 K, the body diffusion agrees
+with the linear theory at all lags (\(\chi^2\) = 28.9 and 20.3 for 24 values).
+At 293.15 K it deviates where the shape of the cell matters: the
+persistence length of this filament, \(EI/k_BT = 5.2\) µm, is
+comparable to its length of 3 µm, so the thermal deflections are not small,
+and a bent filament changes the mobility of the cell.  For four filaments the spin about the long axis at a lag of
+\(\Delta t_B\) is 0.937 ± 0.016 of the linear value, against 0.951 ± 0.008
+for the body block of \(\mathbf{M}_{joint}\) averaged over equilibrium shapes and
+0.990 ± 0.014 in the ensemble at 2.93 K.  Details: `CHANGELOG.md` (9.0.0).
 
 ## 11. Flow-Field Visualization
 
@@ -695,13 +1019,7 @@ in `results.diagnostics`.
 
 Detailed bug-fix history belongs in [`../CHANGELOG.md`](../CHANGELOG.md), not in this theory document.
 
-## 14. References
-
-- Cortez, R. (2005). The method of regularized Stokeslets.
-- Cortez, R. (2018). Regularized Stokeslet segments.
-- Walker, B. J. (2020). Elastic filament / bacterial appendage formulation used as the rod-model reference.
-
-## 15. Measured-gait active moment
+## 14. Measured-gait active moment
 
 The biflagellate swimmer in [`../chlamydomonas/`](../chlamydomonas/) does not use a prescribed traveling-wave moment. A measured planar gait is imposed as a known state and rate. The rigid-body velocity comes from the force and torque rows of the same coupled linear system as the forward solver (§6). The rod rows then give the internal active moment that makes that motion an exact solution of the discrete model,
 
@@ -709,7 +1027,18 @@ The biflagellate swimmer in [`../chlamydomonas/`](../chlamydomonas/) does not us
 \mathbf{M}_{\mathrm{act}} = \boldsymbol{\kappa}_{\mathrm{dev}} - \mathrm{lin\_sys}\,\dot{\mathbf{z}}.
 \]
 
-Only the bending component about \(\mathbf{d}_2\) is kept. `chlamy_inverse_moment` stores it as a Fourier series in time at each node. Closed-loop runs use the two-harmonic analytic fit from `chlamy_fit_moment`; flagellum 2 is the mirror image of flagellum 1. A beat-plane tilt rotates the moment about each flagellum's own root tangent, and the amplitude, phase and frequency ratio may differ between the two flagella. Settling and motor-driven cases do not take this path.
+Only the bending component about \(\mathbf{d}_2\) is kept. `chlamy_inverse_moment` stores it as a Fourier series in time at each node. Closed-loop runs use the two-harmonic analytic fit from `chlamy_fit_moment`; flagellum 2 is the mirror image of flagellum 1. A beat-plane tilt rotates the moment about each flagellum's own root tangent, and the amplitude, phase and frequency ratio may differ between the two flagella; an optional proximal 1ω+2ω out-of-plane bending envelope (`chlamy_make_perp_envelope`) acts along \(\mathbf{d}_3 \times \hat{\mathbf{n}}\) with strictly zero parasitic twist moment. Settling and motor-driven cases do not take this path.
+
+## 15. References
+
+- Cortez, R., Fauci, L. & Medovikov, A. (2005). The method of regularized Stokeslets in three dimensions: analysis, validation, and application to helical swimming. *Physics of Fluids* 17, 031504. Body RSM kernel.
+- Cortez, R. (2018). Regularized Stokeslet segments. *Journal of Computational Physics* 375, 783–796. Pilus RSS and rotlet segments.
+- Walker, B. J., Ishimoto, K. & Gaffney, E. A. (2020). Efficient simulation of filament elastohydrodynamics in three dimensions. *Physical Review Fluids* 5, 123103. Euler-angle rod formulation, adaptive basis, twist drag of a cylinder.
+- Maxian, O., Mogilner, A. & Donev, A. (2021). Integral-based spectral method for inextensible slender fibers in Stokes flow. *Physical Review Fluids* 6, 014102.
+- Maxian, O., Sprinkle, B., Peskin, C. S. & Donev, A. (2022). Hydrodynamics of a twisting, bending, inextensible fiber in Stokes flow. *Physical Review Fluids* 7, 074101.
+- Maxian, O., Sprinkle, B. & Donev, A. (2023). Bending fluctuations in semiflexible, inextensible, slender filaments in Stokes flow: towards a spectral discretization. *Journal of Chemical Physics* 158, 154114. The three Maxian et al. papers give the slender-body reference for the pilus hydrodynamic radius (§5.2).
+- Berg, H. C. & Turner, L. (1993). Torque generated by the flagellar motor of *Escherichia coli*. *Biophysical Journal* 65, 2201–2216.
+- Berg, H. C. (2003). The rotary motor of bacterial flagella. *Annual Review of Biochemistry* 72, 19–54. Linear torque–speed relation of the motor (§8).
 
 ## 16. License
 

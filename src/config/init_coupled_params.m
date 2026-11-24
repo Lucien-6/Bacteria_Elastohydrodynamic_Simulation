@@ -25,7 +25,9 @@ function params = init_coupled_params(varargin)
 %    'sigma'              Poisson ratio (default: 0.2)
 %    'rho_bac'            Bacterium density [kg/m^3] (default: 1180)
 %    'rho_fluid'          Fluid density [kg/m^3] (default: 998.232)
-%    'N_segments'         Scalar or per-pilus segment counts (default: 300)
+%    'N_segments'         Scalar or per-pilus segment counts, or [] to
+%                         derive max(round(length_um*seg_per_um), 10)
+%                         (default: [])
 %    'Pili_Matrix'        Parametric pili matrix, exactly [8 x M].
 %                         Stiffness is derived from global E and r_pili.
 %                         (default: [1;3;0;0;NaN;NaN;NaN;1])
@@ -61,6 +63,7 @@ function params = init_coupled_params(varargin)
 %      .Eg, .epsilon, .slenderness, .hydro_radius_factor, .sigma, .g_hat,
 %      .delta, .eps_body
 %      .quad_weights, .bg_flow, .brown_enabled, .brown_force_dimless
+%      .brown_pili, .brown_pili_force pilus thermal-mode data (off by default)
 %      .logf, .logf_file     caller-facing logging handles
 %
 %  Note:
@@ -94,6 +97,7 @@ function params = init_coupled_params(varargin)
 %           compute_pili_curvature operator (node-collocated stencil).
 %           2026-09-04 — v8.5.0 brown_force_dimless field initialised.
 %           2026-10-11 — pilus hydrodynamic radius factor (default sqrt(2)).
+%           2026-11-12 — v9.0.0 brown_pili / brown_pili_force fields initialised.
 %  Updated: 2026-10-11
 %  Updated: 2026-11-04 — v8.7.2: comment and message-text corrections only; no behavioural change.
 
@@ -112,7 +116,7 @@ addParameter(p, 'hydro_radius_factor', sqrt(2), ...
 addParameter(p, 'sigma',       0.2,    @isnumeric);
 addParameter(p, 'rho_bac',     1180.0, @isnumeric);
 addParameter(p, 'rho_fluid',   998.232, @isnumeric);
-addParameter(p, 'N_segments',  300,    @isnumeric);
+addParameter(p, 'N_segments',  [],     @isnumeric);
 addParameter(p, 'Pili_Matrix', [1; 3; 0; 0; NaN; NaN; NaN; 1], @isnumeric);
 addParameter(p, 'seg_per_um',  10,     @isnumeric);
 addParameter(p, 'delta',       pi/20,  @isnumeric);
@@ -154,6 +158,14 @@ params.brown_enabled  = p.Results.enable_brown;
 % deterministic runs and between intervals; ode_coupled_rhs subtracts it
 % from R_global(1:6).  run_simulation overwrites it at every interval start.
 params.brown_force_dimless = zeros(6, 1);
+% Pilus thermal fluctuations (v9.0.0).  Off by default.  run_simulation
+% replaces brown_pili by the mode set of init_pili_brownian_modes when
+% cfg.enable_pili_brown is true, and writes the thermal force density on the
+% pilus centrelines of the current Brownian interval into brown_pili_force
+% ([3 x N_nodes], body frame; empty = no thermal load on the pili).
+params.brown_pili       = struct('enabled', false, 'n_modes', 0);
+params.brown_pili_force = [];
+params.brown_pili_tau   = [];
 params.geometry_mode  = geometry_mode;
 
 % Store logger handles (injected by run_simulation; fallback to fprintf)
@@ -418,12 +430,20 @@ if M_pili > 0 && strcmp(geometry_mode, 'parametric')
         p.Results.major_axis, p.Results.minor_axis, dis, ...
         p.Results.E, p.Results.r_pili);
 
-    % Handle N_segments (scalar or vector)
+    % Handle N_segments (empty -> derive from length & seg_per_um; scalar or vector)
     N_segments_input = p.Results.N_segments;
-    if isscalar(N_segments_input)
+    if isempty(N_segments_input)
+        N_segments = max(round(Pili_Matrix(2, :) * p.Results.seg_per_um), 10);
+        N_segments = N_segments(:);
+    elseif isscalar(N_segments_input)
         N_segments = repmat(N_segments_input, M_pili, 1);
     else
         N_segments = N_segments_input(:);
+        if numel(N_segments) ~= M_pili
+            error('init_coupled_params:SegmentCountMismatch', ...
+                'N_segments length (%d) must match M_pili (%d).', ...
+                numel(N_segments), M_pili);
+        end
     end
     params.N_segments = N_segments;
 
@@ -914,6 +934,9 @@ end
 %  kept in params only so saved simulation_results.mat files stay
 %  structurally comparable.
 params.run_token = uint64(tic);
+
+%% Precompute rigid-body RSM Cholesky factor in body frame (for Block Schur acceleration)
+params.body_precomp = build_body_precomp(params.body_local, params.eps_body);
 
 %% Per-pilus placeholder (unused)
 %  params.dpsi1_prev is retained only for structural compatibility with

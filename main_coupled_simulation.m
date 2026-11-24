@@ -39,7 +39,10 @@
 %  Updated: 2026-11-04 — v8.7.2: comment corrections (run-mode notes, demo values); no behavioural change.
 %  Updated: 2026-11-11 — v8.7.3: version banner only; no behavioural change.
 %  Updated: 2026-11-11 — v8.8.0: version banner only; the Chlamydomonas driver is outside this file.
-%  Documentation release: 8.8.0 (2026-11-11) - see README.md / CHANGELOG.md
+%  Updated: 2026-11-12 — v9.0.0: cfg.enable_pili_brown / cfg.pili_brown_orders (thermal fluctuations of the slow pilus bending modes; default off).
+%  Updated: 2026-11-24 — v10.0.0: balancing axial torque density & unequal-length mode options (pili_brown_tau_cut_s / pili_brown_protect_pairs); Block Schur & fast Jacobian acceleration.
+%  Updated: 2026-11-24 — v10.1.0: BacEHD CPC deposit readiness, validation/save/Jacobian/HPC hardening, and zero project codeIssues.
+%  Documentation release: 10.1.0 (2026-11-24) - see README.md / CHANGELOG.md
 
 close all force;
 clear; clc;
@@ -267,6 +270,12 @@ else
     % thermal generalised body force in the coupled ODE (v8.5.0); the Ito
     % drift is implicit, so no drift option exists here.
     % Optional: cfg.brown_rng_seed = positive integer for fixed twister seed; omit = MMddHHmmss at run start
+    % Pilus thermal fluctuations (v9.0.0; need enable_brown = true): thermal
+    % noise on the first pili_brown_orders bending modes of every pilus.
+    % Keep dt_B below a quarter of the fastest thermal relaxation time
+    % printed in the log ([BROWN] lines).
+    cfg.enable_pili_brown = false;        % true = pili fluctuate thermally too
+    cfg.pili_brown_orders = 2;            % bending orders per pilus (1st and 2nd)
 
     % -------- Preview & Animation --------
     cfg.preview_initial    = true;

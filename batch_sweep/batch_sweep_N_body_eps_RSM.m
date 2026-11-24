@@ -156,6 +156,8 @@ if sweep_fid ~= -1
 end
 
 t_sweep_start = tic;
+sweep_eta = BatchEtaEstimator(n_total, 1, 'TicStart', t_sweep_start, ...
+    'PriorWeights', repelem((N_body_values(:) / max(N_body_values(1), 1)).^2.5, n_k));
 run_id = 0;
 rows_grid = nan(n_total, 6);
 
@@ -217,6 +219,20 @@ for iN = 1:n_N
                 steady_V_grid(iN, ik), walltime_grid(iN, ik));
             if status_grid(iN, ik) == "FAILED"
                 fprintf(sweep_fid, '         error: %s\n', errmsg_grid(iN, ik));
+            end
+        end
+
+        sweep_eta.markComplete(run_id, walltime_grid(iN, ik), status_grid(iN, ik) == "OK");
+        if run_id < n_total
+            est_sw = sweep_eta.estimate();
+            if isfinite(est_sw.eta_s)
+                fin_tag = '';
+                if est_sw.eta_s >= 60 && ~isempty(est_sw.finish_str)
+                    fin_tag = sprintf(' (~%s)', est_sw.finish_str);
+                end
+                fprintf('    [SWEEP] %d/%d done  |  Elapsed: %s  |  ETA: %s%s\n', ...
+                    run_id, n_total, format_duration(est_sw.elapsed_s, 'compact'), ...
+                    format_duration(est_sw.eta_s, 'compact'), fin_tag);
             end
         end
     end

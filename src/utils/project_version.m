@@ -16,12 +16,12 @@ function v = project_version()
 %    v = project_version()
 %
 %  Output:
-%    v - char row vector, e.g. '8.8.0'
+%    v - char row vector, e.g. '10.1.0'
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-07-03
-%  Updated: 2026-11-11
+%  Updated: 2026-11-24
 
-v = '8.8.0';
+v = '10.1.0';
 
 end

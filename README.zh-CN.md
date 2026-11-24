@@ -1,38 +1,46 @@
-# 细菌弹性流体动力学仿真
+# BacEHD — 细菌弹性流体动力学仿真
 
 [English](README.md) | 中文
 
+> **程序名称:** BacEHD（详见 [`cpc/PROGRAM_SUMMARY.md`](cpc/PROGRAM_SUMMARY.md) 与 [`CITATION.cff`](CITATION.cff)）  
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
-> **更新日期:** 2026-11-11
-> **版本:** 8.8.0
-> **运行环境:** 纯 MATLAB 工程；运行仿真不需要 Python 或 pip 依赖。
+> **更新日期:** 2026-11-24
+> **版本:** 10.1.0
+> **运行环境:** 纯基础 MATLAB（R2022a+，无需 Statistics Toolbox 或 Python 依赖）。
 
-本项目用于模拟刚性细菌胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的重力沉降动力学。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
+本项目用于模拟刚性细胞胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的动力学：重力沉降、马达力矩或主动力矩驱动的游动、背景流中的运动，以及布朗运动。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
 
 ## 核心能力
 
 - 支持参数化胶囊胞体或导入自定义胞体点云。
 - 支持参数化纤毛或导入自定义纤毛中心线。
-- RSM/RSS 混合流体力学模型，并包含非局部线段积分扭转迁移率、互易 Schur 互补耦合和物理标准 rotlet 缩放。
+- RSM/RSS 混合流体力学模型，并包含非局部线段积分扭转迁移率、互易 Schur 互补耦合和物理标准 rotlet 缩放，以及经标定的纤毛水动力半径（`material.hydro_radius_factor`）。
 - Kirchhoff 弹性杆模型，支持内禀曲率和主动力矩。
-- 可选 body-only 胞体布朗运动：胞体 6 自由度协方差来自完整胞体-纤毛耦合有效迁移率，并采用无量纲 SPD 修复及独立可复现随机流；每个区间的增量以恒定广义热力经耦合 ODE 实现（隐式 Ito 漂移、无根部折点）。纤毛内部弹性模态本身不接受热噪声。
+- 可选 body-only 胞体布朗运动：胞体 6 自由度协方差来自完整胞体-纤毛耦合有效迁移率，并采用无量纲 SPD 修复及独立可复现随机流；每个区间的增量以恒定广义热力经耦合 ODE 实现（隐式 Ito 漂移、无根部折点）。未开启下一项时，纤毛内部弹性模态本身不接受热噪声。
+- 可选纤毛热涨落（9.0.0+，10.0.0 全面加固，`brownian.pili_thermal`）：纤毛慢弯曲模态与胞体按联合迁移率共同抽取热力，并以受约束探测的中心线力密度及平衡轴向标量力矩密度（`brown_pili_tau`）精确实现，使热模态达到能量均分且扭转泄露可忽略。支持按时间尺度门槛筛选（`brownian.pili_tau_cut_s`）、近简并偏振对保护（`brownian.pili_protect_pairs`）及独立分纤毛随机流（`brownian.pili_rng_seeds`）。扭转和更高阶弯曲模态仍为确定性。适用于被动、本征为直线、根部固支的纤毛。见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md) §10.4。
+- 胞体框架 Block Schur 互补水动力预计算（`build_body_precomp`、`build_pili_mobility_blocks`）与快速冻结水动力三色雅可比（`ode_coupled_jacobian`，协同 `LaggedJacobian`），显著加速多纤毛与布朗仿真（10.0.0）。
+- 自动化 CPC 审稿人验证测试套件（[`cpc/run_cpc_tests.m`](cpc/run_cpc_tests.m)、[`cpc/PROGRAM_SUMMARY.md`](cpc/PROGRAM_SUMMARY.md)）、外部细长体/悬臂梁校验驱动（[`validation/`](validation/)）及 v10.0.0 性能加速基准（[`validation/cpc_performance_benchmark.m`](validation/cpc_performance_benchmark.m)）。
 - 可选背景流：关闭、均匀流或有限厚度剪切流。
 - 支持自由扭转根部边界条件和恒定马达力矩，用于马达驱动鞭毛。
-- 双鞭毛衣藻游动（8.8.0）：主动力矩由实测步态反推，可对拍动平面倾斜，也可分别改一根鞭毛的幅值、相位或频率。入口见 [`chlamydomonas/run_long_sym50.m`](chlamydomonas/run_long_sym50.m)。
+- 双鞭毛莱茵衣藻三维游动：在实测双波数 1ω+2ω 平面驱动基础上叠加 17° 手性拍平面倾角与零寄生扭矩近端 1ω+2ω 面外弯矩，复现 1–2 Hz 自旋与左手超螺旋轨迹。详见 [`chlamydomonas/README.zh-CN.md`](chlamydomonas/README.zh-CN.md) 与 [`chlamydomonas/cases/run_3d_helix_2s.m`](chlamydomonas/cases/run_3d_helix_2s.m)。
 - 支持 MATLAB 内联配置、JSON 配置和程序化批处理运行。
 - 支持面向论文图像的导出：MAT、CSV、日志、PNG、矢量 PDF、可选交互式 HTML 和 MP4 动画。
 - 可选**并行**批量驱动（[`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m)、[`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m)）：在已安装 **Parallel Computing Toolbox** 时使用 `parfor` 与自动池规模估计；无工具箱或池创建失败时自动回退为串行循环。
-- **Linux 超算集群运行支持**（7.10.0 新增）：[`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) / [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m) 是专为无图形界面、独占整节点的 Linux 集群加固的维护分支：平台自适应视频导出、Linux 原生 CPU/内存探测、并行池任务存储目录迁移到节点本地、抽样降低单 worker 内存占用、实时子任务进度上报。原有 Windows/交互式脚本不受影响。
+- **Linux 超算集群运行支持**：[`run_simulation.m`](run_simulation.m) 现已原生统一支持无界面/Linux 环境（经 `render_motion_animation.m` 平台自适应 MP4/AVI 导出、`.avi` 检测、`cfg.silent` 与 `DataQueue` 实时进度心跳）；[`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) 作为薄包装转发别名保留，向下兼容 [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m)（Linux 原生 CPU/内存探测、节点本地 `parpool` 存储与重型输出抽样）。
 
-- 推荐 MATLAB R2020b 或更新版本。
-- PNG 与 PDF 图像导出依赖 `exportgraphics`，MATLAB R2020a 起可用。
+## 环境要求
+
+- MATLAB R2022a 或更新版本；本项目在 Windows 11 R2026a 上开发测试，并在 Linux 超算 R2023a 上运行验证。更早版本不支持：每次运行用 `jsonencode(..., 'PrettyPrint', true)`（R2021a）写出 `config.json`，默认流场图使用 `clim`（R2022a）。流场色标采用纯基础 MATLAB 线性分位数插值，不依赖 Statistics and Machine Learning Toolbox。
+- PNG 与 PDF 图像由 `exportgraphics` 导出。
 - 可选交互式 HTML 图像导出需要 MATLAB R2026a 或更新版本。
 - 胶囊胞体表面布点需要 MATLAB Add-On / File Exchange 中 Anton Semechko 的 **S2 Sampling Toolbox**。安装后需确保 `ParticleSampleSphere`、`SpiralSampleSphere`、`IcosahedronMesh`、`QuadCubeMesh` 和 `SubdivideSphericalMesh` 在 MATLAB path 中。
 - 运行仿真不需要 Python / Conda / pip。详见 [`requirements.txt`](requirements.txt)。
 - **Parallel Computing Toolbox** 为可选依赖：在使用 [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) 与 [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m) 的默认并行分支时需要（`use_parallel = true`）。
 
 ## 快速开始
+
+运行前请把项目根目录设为 MATLAB 当前文件夹，或把它加入 MATLAB 路径。主脚本会自行添加项目根目录，但从根目录启动可以保证 JSON 相对路径和输出目录的位置明确。
 
 ### 方式 A：内联参数
 
@@ -54,7 +62,9 @@ config_file = 'configs/my_case.json';
 main_coupled_simulation
 ```
 
-自定义胞体和纤毛几何可参考 [`configs/config_custom_example.json`](configs/config_custom_example.json)；自由扭转马达鞭毛可参考 [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json)。接近真实的单根尾部鞭毛大肠杆菌游动案例（胞体 2.5 µm × 0.88 µm，左手螺旋鞭毛丝、螺距 2.22 µm，马达扭矩 1300 pN·nm）见 [`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json)。双鞭毛衣藻由实测步态驱动：在 MATLAB 中打开 [`chlamydomonas/run_long_sym50.m`](chlamydomonas/run_long_sym50.m)（对称，50 拍）或 [`chlamydomonas/run_long_asym50.m`](chlamydomonas/run_long_asym50.m)（拍动平面倾斜 17 度，第二根鞭毛较弱）后点 Run。
+自定义胞体和纤毛几何可参考 [`configs/config_custom_example.json`](configs/config_custom_example.json)；自由扭转马达鞭毛可参考 [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json)。接近真实的单根尾部鞭毛大肠杆菌游动案例（胞体 2.5 µm × 0.88 µm，左手螺旋鞭毛丝、螺距 2.22 µm，马达扭矩 1300 pN·nm）见 [`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json)。双鞭毛莱茵衣藻三维游动可在 MATLAB 中直接打开 [`chlamydomonas/cases/run_3d_helix_2s.m`](chlamydomonas/cases/run_3d_helix_2s.m)（三维螺旋游动，2.0 s）或 [`chlamydomonas/cases/run_planar_sym50.m`](chlamydomonas/cases/run_planar_sym50.m)（平面全对称参考，50 拍）后点 Run，完整说明见 [`chlamydomonas/README.zh-CN.md`](chlamydomonas/README.zh-CN.md)。
+
+本机专用的工况请复制到 `configs/` 下的本地路径（例如 `configs/my_case.json`）。仓库跟踪 `configs/` 下的示例 JSON，该目录不在 git 的忽略范围内，自建的工况文件会显示为未跟踪文件；运行结果写入已被忽略的 `output/`。
 
 ### 方式 C：程序化调用
 
@@ -97,19 +107,28 @@ cfg.auto_confirm = true;
 | [`src/config/init_coupled_params.m`](src/config/init_coupled_params.m) | 几何、无量纲化、布朗参数和模型参数初始化。 |
 | [`src/config/init_coupled_state.m`](src/config/init_coupled_state.m) | 初始状态向量构建。 |
 | [`src/core/ode_coupled_rhs.m`](src/core/ode_coupled_rhs.m) | 耦合弹性流体动力学 ODE 右端项。 |
-| [`src/core/LaggedJacobian.m`](src/core/LaggedJacobian.m) | Brownian `ode15s` 重启所用的滞后有限差分 Jacobian 句柄（v8.5.1）。 |
-| [`src/core/build_coupled_lin_sys.m`](src/core/build_coupled_lin_sys.m) | 耦合线性系统组装。 |
+| [`src/core/ode_coupled_jacobian.m`](src/core/ode_coupled_jacobian.m) | 面向 `ode15s` 的快速冻结水动力三色雅可比（10.0.0）。 |
+| [`src/core/LaggedJacobian.m`](src/core/LaggedJacobian.m) | Brownian `ode15s` 重启所用的滞后雅可比句柄，默认由 `ode_coupled_jacobian` 刷新并自动回退有限差分。 |
+| [`src/core/build_body_precomp.m`](src/core/build_body_precomp.m) | 胞体局部框架下刚体 RSM 块的 Cholesky 预计算，用于 Block Schur 加速（10.0.0）。 |
+| [`src/core/build_pili_mobility_blocks.m`](src/core/build_pili_mobility_blocks.m) | Block Schur 路径所用的胞体框架非 BB 水动力迁移率子块（10.0.0）。 |
+| [`src/core/build_coupled_lin_sys.m`](src/core/build_coupled_lin_sys.m) | 耦合线性系统组装（Block Schur 快速路径 + 稠密 LU 路径）。 |
+| [`src/core/build_force_balance.m`](src/core/build_force_balance.m) | 耦合系统的力/力矩平衡算子，从组装中拆出（9.0.0）。 |
 | [`src/physics/compute_pili_curvature.m`](src/physics/compute_pili_curvature.m) | 共享的节点共位二阶曲率/扭转算子（用于力矩与 `kb0`）。 |
 | [`src/physics/compute_pili_elastic_moments.m`](src/physics/compute_pili_elastic_moments.m) | Kirchhoff 弹性恢复力矩及根部边界规则。 |
 | [`src/physics/compute_effective_body_brownian.m`](src/physics/compute_effective_body_brownian.m) | 完整耦合有效胞体迁移率、Brownian 协方差因子与无量纲迁移率。 |
 | [`src/physics/sample_brownian_body_force.m`](src/physics/sample_brownian_body_force.m) | 每个 Brownian 区间的广义热力（布朗增量的力实现）。 |
+| [`src/physics/init_pili_brownian_modes.m`](src/physics/init_pili_brownian_modes.m) | 接受热噪声的纤毛慢弯曲模态（支持按阶数或 `tau_cut_s` 筛选及偏振对保护，9.0.0–10.0.0）。 |
+| [`src/physics/compute_effective_coupled_brownian.m`](src/physics/compute_effective_coupled_brownian.m) | 胞体与纤毛热模态联合迁移率、中心线力与平衡轴向力矩模板（`P_load`/`P_tau`）及无矩阵漂移系数（9.0.0–10.0.0）。 |
+| [`src/physics/sample_brownian_coupled_force.m`](src/physics/sample_brownian_coupled_force.m) | 每个 Brownian 区间内胞体与纤毛慢模态的热力及平衡轴向力矩抽样（9.0.0–10.0.0）。 |
+| [`src/physics/pili_thermal_rhs.m`](src/physics/pili_thermal_rhs.m) | 纤毛热力密度与平衡轴向力矩密度在耦合系统右端项中的贡献（9.0.0–10.0.0）。 |
 | [`src/physics/background_flow_velocity.m`](src/physics/background_flow_velocity.m) | 共享背景流速度求值器（求解器与流场绘图共用）。 |
 | [`src/visualization/compute_plot_flowfield.m`](src/visualization/compute_plot_flowfield.m) | 在实际达到的终止时间进行末状态流场计算与图像导出。 |
 | [`post_processing/render_flowfield_from_results.m`](post_processing/render_flowfield_from_results.m) | 从 v8.7.0 的 `simulation_results.mat` 重算末状态、指定时刻或全时序流场动画。 |
 | [`src/visualization/render_motion_animation.m`](src/visualization/render_motion_animation.m) | 共用的四面板运动动画渲染器（3D 与 XZ 总览，加上跟随质心的 3D 与 XZ 窗口，含图例、比例尺、腰部一侧的深绿色短标记、带播放速度的时间戳）：图形对象只创建一次，逐帧仅更新数据；输出分阶段耗时日志。跟随窗口的刻度间隔不细于 0.5 μm。 |
 | [`src/visualization/add_gravity_indicator_outside.m`](src/visualization/add_gravity_indicator_outside.m) | 预览图、汇总图和动画图共用的重力箭头标注（可选参数 `head_scale`）。 |
-| [`chlamydomonas/chlamy_run_case.m`](chlamydomonas/chlamy_run_case.m) | 一次衣藻算例：实测步态力矩，可选拍动平面倾斜和单根鞭毛驱动（8.8.0）。 |
-| [`chlamydomonas/chlamy_swim_analysis.m`](chlamydomonas/chlamy_swim_analysis.m) | 已完成衣藻算例的前进速度、自旋，以及螺旋螺距、半径和轴倾角。 |
+| [`chlamydomonas/chlamy_run_preset.m`](chlamydomonas/chlamy_run_preset.m) | 莱茵衣藻三维/平面标准预设入口（详见 [`chlamydomonas/README.zh-CN.md`](chlamydomonas/README.zh-CN.md)）。 |
+| [`chlamydomonas/core/chlamy_run_case.m`](chlamydomonas/core/chlamy_run_case.m) | 通用衣藻算例运行器：实测步态表 + 三维面外弯矩与手性倾角覆写。 |
+| [`chlamydomonas/core/chlamy_swim_analysis.m`](chlamydomonas/core/chlamy_swim_analysis.m) | 解缠 SO(3) 自旋、多圈螺旋参数、胞体间隙与三维轨道后处理分析。 |
 
 ## 文档导航
 

@@ -83,10 +83,7 @@ if CPN > 0
     CLoc(:, 2) = repmat(TempY', Turns, 1);
     CLoc(:, 3) = repmat(TempZ', Turns, 1);
 else
-    CDis  = NaN;
-    CLoc  = NaN(3, 3);
-    Turns = 0;
-    TN    = 0;
+    CLoc  = zeros(0, 3);
 end
 
 %% Concatenate all surface points (left cap, cylinder, right cap)

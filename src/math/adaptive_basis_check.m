@@ -22,8 +22,9 @@
 %    theta/phi/psi blocks in Z_new and params_new.rot{k} are updated
 %    together.  Callers must therefore capture and retain both Z_new and
 %    params_new; using either output with its pre-update counterpart makes
-%    the Euler angles and basis inconsistent.  An SVD polar projection,
-%    U*V', re-orthogonalises rot_new.
+%    the Euler angles and basis inconsistent.  An SVD polar projection
+%    re-orthogonalises rot_new and is restricted to det +1, so the stored
+%    basis stays right-handed with the pi rotation above.
 %
 %    Numerical safeguards use 1e-12 for a degenerate averaged rotation
 %    axis and warn when the post-rotation angular margin is below
@@ -52,6 +53,7 @@
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
 %  Updated: 2026-07-12
+%  Updated: 2026-11-18 — SVD cleanup keeps det(rot) = +1.
 
 %% Initialise
 delta  = params.delta;
@@ -144,13 +146,14 @@ for k = 1:M
         new_margin = min([theta_new; pi - theta_new]);
         if new_margin < delta / 2
             logf_h = get_basis_logf(params);
-            logf_h(sprintf(['[ODE] WARNING: Pili %d basis rotation insufficient. ' ...
+            logf_h(['[ODE] WARNING: Pili %d basis rotation insufficient. ' ...
                 'Post-rotation min(theta, pi-theta) = %.4f < delta/2 = %.4f. ' ...
-                'ODE event will re-trigger.\n'], k, new_margin, delta/2));
-            warning_msg = sprintf( ...
-                'Pili %d: basis rotation was insufficient. Post-rotation min(theta, pi-theta) = %.4f < delta/2 = %.4f. ODE event will re-trigger.', ...
+                'ODE event will re-trigger.\n'], k, new_margin, delta/2);
+            warning('adaptive_basis_check:InsufficientRotation', ...
+                ['Pili %d: basis rotation was insufficient. ', ...
+                 'Post-rotation min(theta, pi-theta) = %.4f < delta/2 = %.4f. ', ...
+                 'ODE event will re-trigger.'], ...
                 k, new_margin, delta/2);
-            warning('adaptive_basis_check:InsufficientRotation', warning_msg);
         end
 
         % Update state vector
@@ -158,9 +161,13 @@ for k = 1:M
         Z_new(idx+N_k    : idx+2*N_k-1) = phi_new;
         Z_new(idx+2*N_k  : idx+3*N_k-1) = psi_new;
 
-        % Update rotation matrix (re-orthogonalise to prevent accumulated
-        % floating-point drift from repeated matrix multiplications).
+        % Re-orthogonalise against drift from repeated multiplications.
+        % Singular values are descending, so a negative determinant is
+        % corrected on the smallest mode and the result stays a rotation.
         [U_rot, ~, V_rot] = svd(rot_k_new);
+        if det(U_rot * V_rot') < 0
+            U_rot(:, 3) = -U_rot(:, 3);
+        end
         rot_k_new = U_rot * V_rot';
         params_new.rot{k} = rot_k_new;
 

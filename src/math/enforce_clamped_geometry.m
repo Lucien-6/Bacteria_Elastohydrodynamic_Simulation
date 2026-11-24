@@ -56,6 +56,10 @@ end
 
 %% Unpack body orientation
 q      = Z(4:7);
+q_norm = norm(q);
+if q_norm > 0
+    q = q / q_norm;
+end
 R_body = quat_to_rotmat(q);
 
 %% Correct each pilus's first-segment Euler angles

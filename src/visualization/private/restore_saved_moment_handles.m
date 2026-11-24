@@ -9,15 +9,14 @@ function params = restore_saved_moment_handles(params)
 %         is not on the path of a post-processing session.  The folder is
 %         added to the path here.
 %      2. Results written by earlier versions store a handle to a NESTED
-%         function (chlamy_table_moment_fun/moment_fun or
-%         chlamy_moment_fun/moment_fun).  MATLAB saves only a snapshot of the
-%         parent workspace for such a handle and runs the CURRENT source
-%         text, so the handle fails ("undefined variable") once the source
-%         file has been edited.  Such handles are rebuilt here from the
-%         saved workspace values with the stand-alone evaluators
-%         chlamy_table_moment_eval / chlamy_moment_eval.  Optional values
-%         missing from an old snapshot (n_loc, amp, phase, freq_ratio) take the
-%         symmetric-drive defaults, which is what those versions computed.
+%         function (chlamy_table_moment_fun/moment_fun).  MATLAB saves only a
+%         snapshot of the parent workspace for such a handle and runs the
+%         CURRENT source text, so the handle fails ("undefined variable") once
+%         the source file has been edited.  Such handles are rebuilt here from
+%         the saved workspace values with chlamy_table_moment_eval.  Optional
+%         values missing from an old snapshot (n_loc, amp, phase, freq_ratio)
+%         take the symmetric-drive defaults, which is what those versions
+%         computed.
 %
 %    Known workspace shapes for chlamy_table_moment_fun/moment_fun:
 %      - Earliest saves close over the whole table: fields tab, k
@@ -25,6 +24,9 @@ function params = restore_saved_moment_handles(params)
 %        (and optionally n_loc, amp, phase, fratio / freq_ratio, opt)
 %      - Current saves use an anonymous handle that already stores par by
 %        value; those are left unchanged after the path is set.
+%
+%    Legacy single-k chlamy_moment_fun nested handles are no longer rebuilt
+%    (the simplified pathway was removed 2026-11-23).
 %
 %  Syntax:
 %    params = restore_saved_moment_handles(params)
@@ -37,7 +39,7 @@ function params = restore_saved_moment_handles(params)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-11-11
-%  Updated: 2026-11-11 — rebuild from saved tab+k workspace of Fit-1p00A era
+%  Updated: 2026-11-23 — drop legacy chlamy_moment_fun restore path
 
 if ~isfield(params, 'am_cfg') || ~iscell(params.am_cfg)
     return
@@ -58,6 +60,8 @@ for k = 1:numel(params.am_cfg)
     end
     if ~path_ready && isfolder(chlamy_dir)
         addpath(chlamy_dir);
+        core_dir = fullfile(chlamy_dir, 'core');
+        if isfolder(core_dir), addpath(core_dir); end
         path_ready = true;
     end
     info = functions(am.fun);
@@ -74,9 +78,10 @@ for k = 1:numel(params.am_cfg)
             params.am_cfg{k}.fun = @(t, ~, N_k, d1, d2, d3, d1N, d2N, d3N) ...
                 chlamy_table_moment_eval(par, t, N_k, d1, d2, d3, d1N, d2N, d3N);
         case 'chlamy_moment_fun/moment_fun'
-            par = wave_par(ws);
-            params.am_cfg{k}.fun = @(t, ~, N_k, ~, ~, ~, ~, ~, ~) ...
-                chlamy_moment_eval(par, t, N_k);
+            error('restore_saved_moment_handles:LegacyMomentRemoved', ...
+                ['Flagellum %d uses the removed single-k chlamy_moment_fun ', ...
+                 'pathway. Re-run with moment_table (chlamy_fit_moment / ', ...
+                 'chlamy_table_moment_fun).'], k);
         otherwise
             continue
     end
@@ -137,24 +142,6 @@ if isfield(ws, 'opt') && isstruct(ws.opt)
     if ~isfield(par, 'freq_ratio') && isfield(opt, 'freq_ratio')
         par.freq_ratio = opt.freq_ratio;
     end
-end
-end
-
-
-function par = wave_par(ws)
-if isfield(ws, 'par') && isstruct(ws.par) && isfield(ws.par, 'q_star')
-    par = ws.par;
-    return
-end
-need = {'q_star', 'w_star', 'kw', 'phi', 's_taper'};
-check_fields(ws, need, 'chlamy_moment_fun');
-par = struct('q_star', ws.q_star, 'w_star', ws.w_star, 'kw', ws.kw, ...
-    'phi', ws.phi, 's_taper', ws.s_taper, 'standing', false, 'root_env', []);
-if isfield(ws, 'standing')
-    par.standing = logical(ws.standing);
-end
-if isfield(ws, 'root_env')
-    par.root_env = ws.root_env;
 end
 end
 

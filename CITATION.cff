@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use BacEHD in your research, please cite it using this metadata."
+title: "BacEHD: Coupled Elastohydrodynamic and Brownian Simulation of Rigid Cell Bodies with Flexible Pili and Flagella"
+short-title: "BacEHD"
+version: "10.1.0"
+date-released: "2026-11-24"
+license: "MIT"
+type: software
+authors:
+  - name: "Lucien"
+    email: "lucien-6@qq.com"
+keywords:
+  - "elastohydrodynamics"
+  - "Stokes flow"
+  - "regularized Stokeslets"
+  - "Kirchhoff rod"
+  - "Brownian dynamics"
+  - "bacterial motility"
+  - "pili"
+  - "flagella"
+  - "MATLAB"

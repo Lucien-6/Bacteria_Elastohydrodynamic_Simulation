@@ -1,5 +1,5 @@
 ﻿function [kappa1, kappa2, kappa3] = compute_pili_elastic_moments( ...
-        d1, d2, d3, N_k, sigma, kb0_k, root_coupling_k) %#ok<INUSD>  (retained for interface stability, see Note)
+        d1, d2, d3, N_k, sigma, kb0_k, root_coupling_k, d1N, d2N, d3N) %#ok<INUSD>  (retained for interface stability, see Note)
 %COMPUTE_PILI_ELASTIC_MOMENTS  Elastic curvature deviation for one pilus
 %
 %  Description:
@@ -73,7 +73,11 @@
 %  compute_pili_curvature returns [(N_k+1) x 3] = [kappa_1, kappa_2, kappa_3]
 %  using compute_node_directors for the nodal frames and a segment-
 %  difference derivative collocated with each node (see its header).
-kappa_raw = compute_pili_curvature(d1, d2, d3, N_k);
+if nargin >= 10 && ~isempty(d1N)
+    kappa_raw = compute_pili_curvature(d1, d2, d3, N_k, d1N, d2N, d3N);
+else
+    kappa_raw = compute_pili_curvature(d1, d2, d3, N_k);
+end
 
 %% Curvature components minus intrinsic curvature
 kappa1_full = kappa_raw(:, 1) - kb0_k(:, 1);

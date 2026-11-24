@@ -14,6 +14,393 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [10.1.0] — 2026-11-24
+
+**BacEHD** CPC submission readiness, full-project code-review hardening,
+single-engine HPC unification, and base-MATLAB portability release.  No
+physical equations or verified numerical results change.
+
+### Added
+
+- **CPC publication & reviewer deposit metadata**: formal program title
+  **BacEHD**, [`CITATION.cff`](CITATION.cff), and
+  [`cpc/PROGRAM_SUMMARY.md`](cpc/PROGRAM_SUMMARY.md) (16 standard Elsevier
+  CPC fields with measured runtimes and restrictions).
+- **Performance & numerical equivalence benchmark**
+  ([`validation/cpc_performance_benchmark.m`](validation/cpc_performance_benchmark.m),
+  wired into [`validation/run_cpc_external_checks.m`](validation/run_cpc_external_checks.m)
+  via `'IncludeBenchmark', true`): measures Block Schur RHS speedups
+  (up to 105× bare capsule, 2.1×–3.8× single pilus, 1.5×–2.1× four pili),
+  3-colour frozen-hydrodynamics Jacobian speedups (66×–517×), and
+  end-to-end deterministic (9.4×) and Brownian (5.3×) speedups with
+  trajectory equivalence (`< 4e-6` relative end-position difference).
+- **Expanded CPC reviewer test suite** (`cpc/run_cpc_tests.m`, 18 built-in
+  checks + 2 external checks, all passing in ~22 s): adds Block Schur vs
+  dense LU equivalence (`schur_equivalence`), v10.0.0 pilus thermal
+  operator & balancing axial torque self-checks (`pili_thermal_*`),
+  full `load_sim_config` → `validate_simulation_params` → `run_simulation`
+  end-to-end smoke (`end_to_end_pipeline`), and 3-D *Chlamydomonas*
+  `dry_run` (`chlamy_3d_dry_run`), plus expected reference output in
+  `cpc/README.md`.
+- **Elsevier CPC figure style unification**: `plot_cpc_external_checks.py`,
+  `plot_nature_figures.py`, and `plot_clamped_bending_modes.py` unified to
+  Elsevier CPC print widths (90 / 140 / 190 mm) and lowercase parenthesised
+  panel labels `(a), (b), ...`, with a new `fig_performance_benchmark`
+  two-panel figure and zero hardcoded local paths.
+
+### Changed
+
+- **Unified HPC/Linux engine**: all headless/Linux features (`.avi` output
+  detection, `render_motion_animation` AVI/MP4 switching, `cfg.silent`,
+  `progress_queue`/`progress_tag` DataQueue heartbeats) now live in
+  `run_simulation.m`; `run_simulation_HPC_Linux.m` is a thin
+  backward-compatible forwarding alias to `run_simulation.m`, eliminating
+  2450-line fork duplication.
+- **Zero Statistics Toolbox dependency on R2022a–R2024b**: replaced
+  `prctile(samples, 99)` in `compute_plot_flowfield.m` and
+  `render_flowfield_engine.m` with exact pure base-MATLAB linear percentile
+  interpolation (`percentile_linear`).
+- **Self-contained public scripts & docs**: `post_processing/pilus_mode_relaxation_pili1.m`
+  no longer depends on gitignored `paper_cases/` or `test/`; `docs/theory.md`
+  and `docs/theory.zh-CN.md` add §6.1 (Block Schur & 3-colour Jacobian) and
+  move *Measured-gait active moment* ahead of *References*.
+
+### Fixed
+
+- **`init_coupled_params` & `cpc/run_cpc_tests` segment count**: changed
+  default `N_segments` in `init_coupled_params.m` from hardcoded `300` to
+  `[]` (derived as `max(round(length_um * seg_per_um), 10)` when omitted),
+  fixing a bug where `cpc/run_cpc_tests.m` over-discretised 3 µm test
+  filaments into 300 segments instead of 30.
+- **Parameter & geometry validation gaps**: hardened
+  `validate_simulation_params.m`, `validate_custom_geometry.m`,
+  `parse_pili_config.m`, and `load_sim_config.m` to reject invalid
+  `geometry_mode` strings, `NaN`/`Inf`/non-scalar numeric inputs (including
+  `T_obs`, `dt`, `E`, `delta`, `alpha_0`, `site_index`), and
+  `active_moment.type == 'custom'` entries missing a `.fun` handle.
+- **`save_sim_config.m` heterogeneous pili & UTF-8 export**: resets
+  `p_entry = struct()` per pilus, validates `Pili_Matrix(1,k)`, supports
+  heterogeneous `pili_ext` field sets without struct-assignment errors or
+  field leakage, and writes UTF-8 JSON via `fprintf(fid, '%s', json_str)`.
+- **`run_simulation.m` logging, fallback & time tolerances**: guards
+  pre-validation logging of `custom_geometry.body_points_file`, fixes
+  custom-mode pilus count and `tau_cut_s` log lines, prevents
+  `jac_fallback` from swallowing non-Jacobian fatal errors while resetting
+  the timeout timer/closures on retry, and uses relative tolerances
+  `1e-12 * max(1, |T|)` / `1e-14 * max(1, |T|)` for dimensionless time checks.
+- **`ode_coupled_jacobian.m`**: guards unlimited motors (`om_max <= 0` or
+  `Inf`) against division by zero, adds `am_cfg.is_nonlocal` support for
+  non-local custom active moments, validates `motor_cfg.type`, and adds
+  `isfield` fallbacks in `apply_Ainv_u_local`.
+- **Batch CPU-core probe & numerical hygiene**: synced the physical-core
+  `feature('numCores')` fix (no longer halving) to `batch_repeat_brownian.m`
+  and `batch_run_from_json.m`; reset `build_coupled_lin_sys` solve-check
+  counter per `params.run_token`; added defensive unit-quaternion
+  normalisation in `enforce_clamped_geometry.m`; fixed `adaptive_basis_check.m`
+  logger format passing; removed hardcoded local paths from Python figure
+  scripts and broken `run_long_sym50.m`/`run_long_asym50.m` references in
+  `docs/index.html` and `requirements.txt`.
+- **Static analysis & repo hygiene**: cleared all remaining `codeIssues`
+  messages across all 170 project `.m` files (0 errors, 0 warnings, 0 info),
+  added `__pycache__/` and `*.pyc` to `.gitignore`, and removed macOS
+  `__MACOSX` resource-fork folders from `chlamydomonas/Refers/`.
+
+---
+
+## [10.0.0] — 2026-11-24
+
+Major release combining **pilus thermal-fluctuation physics & engineering
+hardening**, **body-frame Block Schur & frozen-hydrodynamics Jacobian
+acceleration**, **CPC validation suite**, **adaptive ETA/progress
+reporting**, and **2-D in-plane flow-field streamlines**.  With
+`brownian.pili_thermal = false` (default) deterministic and body-only
+Brownian trajectories remain compatible; saved historical `.mat` files
+without `flow_state.brown_pili_tau` continue to redraw cleanly.
+
+### Added
+
+- **Balancing axial torque density for pilus thermal loads**
+  (`build_coupled_lin_sys` exports `hydro.AQ_twist_scalar`;
+  `compute_effective_coupled_brownian` builds `info.P_tau`;
+  `sample_brownian_coupled_force` outputs `info.tau_pili` and optional 5th
+  output `tau_pili`; `pili_thermal_rhs` applies `tau_axial .* d3` along
+  current segment tangents with `G(1:6) = 0`; persisted in
+  `results.flow_state.brown_pili_tau` and restored by
+  `flowfield_state_data`).  Reproduces the full constrained probe right-hand
+  side to machine precision (`~1e-15`) even on strongly bent 3-D filaments,
+  eliminating the ~3.3 % bent-state instantaneous modal mismatch and ~141 %
+  transient twist-rate leak, cutting bent-state twist energy by 2–4 orders
+  of magnitude, and restoring monotone small-`dt_B` covariance convergence.
+- **Unequal-length pilus mode selection & pair protection**
+  (`init_pili_brownian_modes` optional 4th argument `opts`, JSON
+  `brownian.pili_tau_cut_s` / `cfg.pili_brown_tau_cut_s` and
+  `brownian.pili_protect_pairs` / `cfg.pili_brown_protect_pairs`).
+  `tau_cut_s` selects all bending modes with relaxation time
+  `tau_s >= tau_cut_s`; `protect_pairs` expands the cut across
+  near-degenerate clusters (`gap_ratio < 1.15`) so polarisation pairs are
+  never split.  Adds `dom_pilus`, `pilus_order`, and `selection_mode`
+  metadata to `params.brown_pili` and `results.pili_modes`.
+- **Full-space pilus thermal diagnostics**
+  (`compute_effective_coupled_brownian` / `results.pili_modes`): tracks
+  `hold_pattern_resid`, `twist_row_resid`, `hold_force`, and their run-time
+  maxima (`max_pattern_resid`, `max_hold_pattern_resid`,
+  `max_twist_row_resid`, `max_hold_force`).
+- **Two-sided Brownian time-step guards** (`run_simulation*.m`): rejects
+  severely oversized `dt_B` (`x_fast > 2.0`, overridable via
+  `cfg.allow_large_pili_dt_B = true`) and warns when `dt_B` drops below half
+  the slowest non-thermal bending relaxation time (`x_hold < 0.5`).
+- **Body-frame Block Schur complement acceleration**
+  (`src/core/build_body_precomp.m`, `src/core/build_pili_mobility_blocks.m`,
+  `build_coupled_lin_sys.m`): precomputes the Cholesky factorisation of the
+  rigid-body RSM block `M_BB` once in the body frame, reducing per-step
+  hydrodynamic factorisation from `O((3*N_body + 3*N_pili)^3)` to
+  `O((3*N_pili)^3)` (and bare-body solves to a single 6×6 rotation).
+- **Fast frozen-hydrodynamics Jacobian**
+  (`src/core/ode_coupled_jacobian.m`, integrated with `LaggedJacobian.m`):
+  single-LU 3-colour banded perturbation of elastic/active moments with
+  exact linearised motor feedback and quaternion kinematics, plus automatic
+  escalation to exact finite differences if Newton requests a third refresh.
+- **Operator vectorisation & matrix-free helpers**: 3-colour sparse
+  curvature Jacobian in `pili_bending_rates.m`, batched `pagesvd` polar
+  projection in `compute_node_directors.m`, and `O(N_k)` matrix-free
+  `apply_pili_B_force_rows` (including axial torque columns) for held-load
+  drift in `compute_effective_coupled_brownian.m`.
+- **CPC validation suite & external physics checks**
+  (`cpc/run_cpc_tests.m`, `cpc/README.md`, `validation/`): automated checks
+  covering Stokes sphere settling, Stokes–Einstein mobilities, capsule
+  resistance formulas, uniform flow, signed motor speed, filament sinking,
+  Johnson slender-body helical propulsion, and cantilever relaxation.
+- **Adaptive progress & ETA estimators**
+  (`src/utils/ProgressEstimator.m`, `BatchEtaEstimator.m`,
+  `ode_progress_output.m`, `format_duration.m`): unified wall-clock timeout,
+  atomic `progress.txt` heartbeats, and DataQueue progress aggregation.
+- **2-D in-plane flow-field streamlines & modular rendering engine**
+  (`src/visualization/render_flowfield_engine.m`,
+  `flowfield_plane_streamlines.m`, `flowfield_frame_window.m`,
+  `flowfield_stream_overrides.m`, `check_flowfield_streamlines.m`) with
+  optional JSON `flowfield.stream_spacing_um` and
+  `flowfield.stream_length_um`.
+- **Structured 3-D *Chlamydomonas* swimmer layout** (`chlamydomonas/core/`,
+  `chlamydomonas/cases/`, `chlamydomonas/plotting/`, `chlamydomonas/data/`,
+  `chlamydomonas/chlamy_run_preset.m`).
+
+### Changed & Fixed
+
+- **Non-thermal hold conditioning & drift order**
+  (`compute_effective_coupled_brownian.m`): added symmetric diagonal
+  preconditioning and `check_linear_solve` / finiteness checks for `T_hh`
+  (reducing rest-state condition number from `~1.3e5` to `1.0`); moved
+  `M_joint` symmetrisation, SPD projection, and `rcond` check ahead of
+  `W = z_probe / M_joint` and `load_drift` (removing a ~1 % held-load drift
+  inconsistency); added an Euler-angle step safety cap on `h_fd`.
+- **Block Schur residual check parity** (`build_coupled_lin_sys.m`): the
+  Block Schur fast path now honours `want_hydro` for full backward residual
+  checking, matching the dense LU path.
+- **Mode selection safety & curved-pilus guards**
+  (`init_pili_brownian_modes.m`, `validate_simulation_params.m`): checked
+  `numel(sel) < n_modes` (`InsufficientBendingModes`), stored `bp.U_sel`
+  for `draw_thermal_eta` (which now validates against `params.M_pili`),
+  refined `NotDissipative` messaging for strongly curved 3-D geometry, and
+  added warnings for curved parametric (`Pili_Matrix(1,:) > 1`) and
+  non-zero `kb0` filaments under `enable_pili_brown`.
+- **Per-pilus RNG seed reproducibility & batch independence**
+  (`load_sim_config.m`, `save_sim_config.m`, `validate_simulation_params.m`,
+  `run_simulation*.m`, `batch_repeat_brownian*.m`): wired optional
+  `brownian.pili_rng_seeds` through JSON snapshots, `brownian_rng_seed.txt`,
+  validation, and collision-free per-repeat allocation in both parallel
+  (`parfor`) and serial batch branches; stripped transient
+  `params.brown_pili_streams` handles before saving `simulation_results.mat`.
+- **Tail-step merging & clean returned `params`** (`run_simulation*.m`):
+  used integer step indexing for `T_brown_next` and absorbed tiny closing
+  remainders (`< 5 %` of `dt_B`) into the final interval to avoid
+  `~1/sqrt(dt_rem)` thermal-force spikes; rendered the final flow field with
+  a local copy `params_flow` so the returned `params` remains cleared and
+  matches the saved `.mat`.
+
+### Documentation
+
+- `project_version.m` bumped to `10.0.0` (`2026-11-24`); README (EN/ZH),
+  USER_GUIDE (EN/ZH), theory (EN/ZH, §10.4), `requirements.txt`,
+  `docs/index.html`, `docs/presentation.html`, `run_simulation*.m`, and
+  `main_coupled_simulation.m` updated.
+
+---
+
+## [9.0.0] — 2026-11-12
+
+Optional thermal fluctuations of the pili: the first Brownian scheme of the
+project in which the filaments themselves are thermalised.  **With the
+option off (the default) every result is unchanged bit for bit**, and no
+existing configuration or interface changes.
+
+### Added
+
+- **Pilus thermal fluctuations** (`brownian.pili_thermal` in JSON,
+  `cfg.enable_pili_brown`; default `false`).  The slowest bending modes of
+  the pili receive thermal forces of their own: by default the first and
+  second bending order of every pilus, two polarisations each
+  (`brownian.pili_mode_orders` / `cfg.pili_brown_orders`, default `2`).
+  Twist and higher bending orders stay deterministic.  The option needs
+  `brownian.enable = true` and at least one pilus.  Theory: `docs/theory.md`
+  §10.4.
+- **Thermal modes.**  `init_pili_brownian_modes` computes the slow
+  elastohydrodynamic bending modes of the whole cell once per run, at the
+  stress-free initial state, from the coupled operator
+  (`pili_bending_coords`, `pili_bending_rates`).  The log lists the
+  relaxation time of every thermal order and of the slowest mode left
+  without noise.
+- **Joint sampling.**  At the start of each Brownian interval
+  `compute_effective_coupled_brownian` probes the joint mobility of the six
+  body coordinates and the mode amplitudes, and
+  `sample_brownian_coupled_force` draws the body force and the modal forces
+  from it (6 + n normal deviates per interval).  The forces are constant
+  over the interval, as in the body-only scheme.  Every pilus mode without
+  noise (all twist modes and all faster bending modes) is held fixed in the
+  probe: those modes relax within 2 ms, so over the lifetime of a thermal
+  mode they act as constraints.
+- **Centreline load.**  Every thermal force — body components and modal
+  forces — is accompanied by a force density on the pilus centrelines
+  (`pili_thermal_rhs`, step 8e of `ode_coupled_rhs`): the viscous load the
+  pili carry in the constrained probe motion.  It is held in the body
+  frame; its resultant on the cell is not applied a second time.  With this
+  load the time integration responds with the probed mobility, and the
+  noise does not excite the modes without noise.  `build_coupled_lin_sys`
+  exports `hydro.AQ_trans` for this.
+- **Held-load drift.**  A load held in the body frame exerts a modal force
+  that changes as the filament moves.  Averaged over the thermal forces
+  this leaves a spurious modal force `kT * c`,
+  `c_j = sum_k d g_j(P_k) / d a_k`, which the sampler removes
+  (`info.load_drift`, `info.g_drift`).  `c` is evaluated by central
+  differences with the new `build_force_balance`, the force/moment-balance
+  operator moved unchanged out of `build_coupled_lin_sys`.
+- **Output.**  `results.pili_modes` (from `pili_mode_amplitudes`) holds the
+  mode amplitudes `a`, the mode energies `energy_kT`, the bending and
+  twist energy of the pili `elastic_energy_kT`, and `tau_s`, `rate_per_s`,
+  `order`, `pilus_share` and `kT_dimless`.  `results.flow_state.brown_mode_force`
+  and `results.flow_state.brown_pili_force` store the modal forces and the
+  thermal load on the pili at every saved output, and
+  `flowfield_state_data` restores them for flow-field redraws.
+- **Checks.**  `validate_simulation_params` rejects the option without
+  `enable_brown`, a non-integer order count, and any pilus with
+  `root_coupling = free_torsion` (also refused by
+  `init_pili_brownian_modes:FreeTorsion`): with a free-torsion root the
+  joint mobility becomes indefinite once the filament bends.  It warns for
+  more than two orders, for a cell without pili, for a background flow, for
+  an intrinsic-curvature override and for an active moment.
+  `run_simulation` warns (`run_simulation:PiliBrownTimeStep`) when `dt_B`
+  is too long for the fastest thermal mode, and
+  `init_pili_brownian_modes:SmallGap` when the thermal modes are not well
+  separated from the modes without noise.
+
+### Usage
+
+- Keep `dt_B` at or below a quarter of the fastest thermal relaxation time
+  printed in the `[BROWN]` log lines: 0.002 s for 3 µm pili with the
+  material of `configs/config_example.json` (`E = 3.279e8` Pa,
+  `r_pili = 3e-9` m, `EI = 2.09e-26` N m²).  All numbers of this entry are
+  for that material and its capsule (`major_axis = 1.25e-6`,
+  `minor_axis = 0.4e-6`); relaxation times scale as `1/EI`.
+- Cost per Brownian interval of 0.002 s, single thread, at the production
+  resolution (306 body points, 30 segments per pilus): 1.6 s with one pilus
+  (2.0 s body-only) and 13 s with four pili (7 s body-only).
+- The scheme is for passive, naturally straight pili with clamped roots.
+  Rotating flagella (`free_torsion`) need the body-only scheme.
+
+### Acceptance
+
+- **Regression.**  A Brownian run with one pilus, a deterministic run and a
+  Brownian run without pili reproduce the trajectories, states and thermal
+  forces computed before the change with zero difference.
+- **Operator tests** at the production resolution (306 body points, 30
+  segments per pilus), one and four pili: joint-mobility asymmetry
+  2.7e-4 and 1.4e-3; response of the right-hand side to the thermal forces
+  within 3.7e-3 of the joint mobility times the forces; relaxation rates
+  measured from the ODE within 0.2 % of the eigenvalues; static deflection
+  under a constant modal force within 2.6e-3 of that force; twist energy
+  below 1e-20 of the bending energy.  On six states of a thermal trajectory
+  (one pilus, 293 K) the response of the time integration is 0.97 to 1.00
+  of the probed mobility.  The linear covariance recursion gives a
+  stationary `<a^2>/kT` of 0.996 to 1.000 per thermal mode (0 to 0.51
+  body-only) and a long-time body diffusion equal to kT times the
+  rigid-shape mobility.
+- **Thermal increments and drift.**  Regenerating the normal deviates of
+  each realisation from its seed, the mode amplitudes after the first
+  interval equal the sampled increments within 0.4 % at 2.93 K (one and
+  four pili).  At 293 K the second bending order moves 3 % less than the
+  linear increment within one interval of 0.002 s, a finite-amplitude
+  effect.  The mean displacement of the modes over an interval, measured
+  for the four-pilus cell at rest from pairs of integrations with opposite
+  forces, equals the Ito drift plus the held-load term within 2 %; the
+  held-load term by itself is recovered with a factor of 0.993, and the
+  variance of the displacement within 0.1 %.
+- **Monte Carlo** through `run_simulation` (`N_body = 100`, which gives 116
+  body points, against 306 points for `N_body = 300` in the operator tests;
+  30 segments per pilus, `dt_B` = 0.002 s, no gravity; capsule with one and
+  with four 3 µm pili).  The table gives `<a^2>/kT` over the stationary window,
+  as simulation / linear theory of the same scheme, with the standard
+  error over realisations and the deviation in standard errors.
+
+  | Ensemble | Runs | Order 1 | Order 2 |
+  | --- | --- | --- | --- |
+  | 1 pilus, 2.93 K, pilus noise | 24 x 1.2 s | 1.039 ± 0.106 / 0.997 (+0.4) | 0.992 ± 0.027 / 0.998 (−0.2) |
+  | 1 pilus, 293 K, pilus noise | 48 x 1.5 s | 1.044 ± 0.061 / 0.998 (+0.8) | 0.989 ± 0.016 / 0.998 (−0.6) |
+  | 1 pilus, 293 K, body-only | 48 x 1.5 s | 0.403 ± 0.024 / 0.456 (−2.2) | 0.169 ± 0.002 / 0.174 (−2.8) |
+  | 4 pili, 2.93 K, pilus noise | 24 x 1.0 s | 0.903 ± 0.063 / 0.957 (−0.9) | 1.012 ± 0.014 / 0.998 (+1.0) |
+  | 4 pili, 293 K, pilus noise | 24 x 1.0 s | 0.938 ± 0.050 / 0.957 (−0.4) | 0.976 ± 0.016 / 0.998 (−1.4) |
+  | 4 pili, 293 K, body-only | 24 x 1.0 s | 0.267 ± 0.023 / 0.231 (+1.6) | 0.106 ± 0.002 / 0.104 (+1.0) |
+
+  All eight values with pilus noise are within 1.4 standard errors of the
+  theory, at both temperatures.  The bending energy of the pili is
+  2.04 ± 0.07 kT with one pilus and 7.67 ± 0.19 kT with four at 293 K
+  (theory for the same windows 2.00 and 7.82); the twist energy is below
+  1e-6 of it.  The four-pilus runs last 1.6 times the slowest relaxation
+  time (0.62 s), which is why the theory value of the first order is 0.957.
+- **Two earlier variants failed this test** at 293 K and were replaced
+  before release.  A probe that held only the twist gave 0.935 ± 0.054 and
+  0.945 ± 0.014 with one pilus and 0.789 ± 0.038 and 0.936 ± 0.016 with
+  four (up to 4.5 standard errors low): on a bent filament its mobility is
+  larger than the one the integration responds with, so the noise was too
+  weak.  Holding every mode without noise, without the drift term, gave
+  1.063 ± 0.061 and 0.951 ± 0.015 with one pilus (second order 3.1
+  standard errors low).
+- **Body diffusion** (same ensembles; body-frame MSD / (2 lag) at lags
+  0.002, 0.01, 0.05 and 0.2 s against the linear theory, 24 values per
+  ensemble).  At 2.93 K both cells agree with the linear theory (chi-square
+  28.9 and 20.3 for 24 values; one value and none beyond two standard
+  errors).  At 293 K three values per pilus-noise ensemble lie beyond two
+  standard errors, the largest being the spin about the long axis: with one
+  pilus at a lag of 0.2 s (0.619 ± 0.044 against 0.779; body-only
+  0.699 ± 0.053) and with four pili at a lag of 0.002 s (0.451 ± 0.007
+  against 0.481, a ratio of 0.937 ± 0.016).  These are finite-amplitude
+  effects, not sampling errors: the persistence length of this
+  pilus is 5.2 µm against a length of 3 µm, and bent pili change the
+  mobility of the cell.  Averaged over equilibrium shapes of the four-pilus
+  cell at 293 K, the spin entry of the body block of the joint mobility is
+  0.951 ± 0.008 of its rest-state value, and the ensemble at 2.93 K gives
+  0.990 ± 0.014.  At a lag of 0.2 s the pilus noise raises the transverse
+  rotational diffusivity of the one-pilus cell from 0.107 to 0.150 rad²/s
+  (theory 0.106 and 0.148), and the spin of the four-pilus cell about its
+  long axis from 0.058 to 0.164 rad²/s (theory 0.052 and 0.127).
+- The acceptance scripts (`test/pb_*.m`, `test/pba_*.m`, `test/pbv_*.m`)
+  and their output (`output/test_pb/`) are in directories that git ignores.
+
+### Compatibility
+
+- No new toolbox.  Configuration snapshots contain the two new JSON fields
+  only when the option is on.  Results written before 9.0.0, and runs
+  without the option, have no thermal load on the pili and redraw as
+  before.
+
+### Documentation
+
+- `project_version.m` bumped to 9.0.0 (2026-11-12); README (EN/ZH),
+  USER_GUIDE (EN/ZH), theory (EN/ZH, new §10.4), `requirements.txt`, the
+  project website (release card and version strings), the presentation
+  version strings, and the headers of `run_simulation*.m` and
+  `main_coupled_simulation.m` updated.
+
+---
+
 ## [8.8.0] — 2026-11-11
 
 Biflagellate *Chlamydomonas* swimmer driven by the active moment inverted
@@ -714,7 +1101,9 @@ unchanged.
   sibling headings only, as required by the Keep-a-Changelog layout; `MD013`
   line length off) and `.markdownlint-cli2.jsonc` (third-party
   `MATLAB Add-On/` documentation and generated `output*/` folders are not
-  linted).  `markdownlint-cli2` reports 0 issues for the project documents.
+  linted).  The two config files were briefly removed later and are restored
+  with 9.0.0 so `markdownlint-cli2` again reports 0 issues for the project
+  documents.
 
 ### Documentation
 

@@ -38,7 +38,7 @@ ds = ell_k / N_k;
 
 % Tangent vectors in rot_k basis, then transform to lab frame
 [~, ~, d3_basis] = pili_directors(theta, phi, zeros(N_k, 1));
-d3_lab = (rot_k' * d3_basis')';    % [N_k x 3]
+d3_lab = d3_basis * rot_k;         % [N_k x 3]
 
 % Cumulative integration from root (vectorised)
 X = [x_root(:)'; x_root(:)' + ds * cumsum(d3_lab, 1)];

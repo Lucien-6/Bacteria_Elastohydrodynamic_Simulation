@@ -1,4 +1,4 @@
-function kappa_raw = compute_pili_curvature(d1, d2, d3, N_k)
+function kappa_raw = compute_pili_curvature(d1, d2, d3, N_k, d1N, d2N, d3N)
 %COMPUTE_PILI_CURVATURE  Raw nodal curvature / twist of one discrete pilus
 %
 %  Description:
@@ -51,8 +51,14 @@ function kappa_raw = compute_pili_curvature(d1, d2, d3, N_k)
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-09-04
 
-%% Node-centred directors (shared SVD-projected interpolation)
-[d1N, d2N, d3N] = compute_node_directors(d1, d2, d3, N_k);
+%% Node-centred directors (reuse precomputed if all three are provided)
+if nargin >= 7 && ~isempty(d1N) && ~isempty(d2N) && ~isempty(d3N)
+    d1N_use = d1N;
+    d2N_use = d2N;
+    d3N_use = d3N;
+else
+    [d1N_use, d2N_use, d3N_use] = compute_node_directors(d1, d2, d3, N_k);
+end
 
 %% Segment-difference derivatives collocated with interior nodes
 if N_k < 2
@@ -73,8 +79,8 @@ d2ds = [dd2(1, :); dd2; dd2(end, :)];
 d3ds = [dd3(1, :); dd3; dd3(end, :)];
 
 %% Curvature components (Kirchhoff definitions)
-kappa_raw = [dot(d3N, d2ds, 2), ...
-             dot(d1N, d3ds, 2), ...
-             dot(d2N, d1ds, 2)];
+kappa_raw = [dot(d3N_use, d2ds, 2), ...
+             dot(d1N_use, d3ds, 2), ...
+             dot(d2N_use, d1ds, 2)];
 
 end

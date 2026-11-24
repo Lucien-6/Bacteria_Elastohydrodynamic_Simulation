@@ -53,14 +53,14 @@ if c < -1.0 + 1e-12
     % u and v are nearly anti-parallel: 180-degree rotation
     % Find a vector perpendicular to u to use as rotation axis
     if abs(u(1)) < 0.9
-        axis = cross(u, [1; 0; 0]);
+        rot_axis = cross(u, [1; 0; 0]);
     else
-        axis = cross(u, [0; 1; 0]);
+        rot_axis = cross(u, [0; 1; 0]);
     end
-    axis = axis / norm(axis);
+    rot_axis = rot_axis / norm(rot_axis);
 
     % 180-degree Rodrigues formula: R = 2 * k * k' - I
-    R = 2 * (axis * axis') - eye(3);
+    R = 2 * (rot_axis * rot_axis') - eye(3);
     return;
 end
 

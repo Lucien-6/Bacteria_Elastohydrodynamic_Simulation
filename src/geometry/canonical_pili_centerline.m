@@ -199,9 +199,7 @@ for polish = 1:n_polish
         mean(trial_lengths);
     if rel_spread < best_spread
         best_spread = rel_spread;
-        best_chord = chord_trial;
         best_nodes = nodes_trial;
-        best_residual = abs(res_trial);
     end
 end
 

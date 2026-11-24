@@ -56,18 +56,34 @@ function validate_simulation_params(cfg, logf_h)
 %           (validate_pili_shape_params); v8.4.0 stall diagnostic uses the
 %           RSS torsional drag 2*pi*mu*eps^2*L and free-bearing wording.
 %  Updated: 2026-11-04 — v8.7.2: comment and message-text corrections only; no behavioural change.
+%  Updated: 2026-11-12 — v9.0.0: enable_pili_brown / pili_brown_orders checks
+%           (reject free_torsion; warn for curvature override / active moment /
+%           background flow / no pili / orders > 2).
 
 if nargin < 2 || isempty(logf_h)
     logf_h = @(varargin) [];   % no-op fallback
 end
 
+% The message lists grow by a few entries inside loops over the pili; their
+% final length is not known in advance, so preallocation does not apply.
+%#ok<*AGROW>
 errs  = {};
 warns = {};
 
 %% ---- Geometry mode dispatch ----
 geometry_mode = 'parametric';
 if isfield(cfg, 'geometry_mode') && ~isempty(cfg.geometry_mode)
-    geometry_mode = cfg.geometry_mode;
+    if ischar(cfg.geometry_mode) || (isstring(cfg.geometry_mode) && isscalar(cfg.geometry_mode))
+        geometry_mode = char(cfg.geometry_mode);
+    else
+        errs{end+1} = sprintf('geometry_mode must be ''parametric'' or ''custom'', got %s.', ...
+            class(cfg.geometry_mode));
+        geometry_mode = '';
+    end
+end
+if ~isempty(geometry_mode) && ~any(strcmp(geometry_mode, {'parametric', 'custom'}))
+    errs{end+1} = sprintf('geometry_mode must be ''parametric'' or ''custom'', got ''%s''.', ...
+        geometry_mode);
 end
 
 if strcmp(geometry_mode, 'custom')
@@ -97,7 +113,7 @@ if strcmp(geometry_mode, 'custom')
                         'Parametric pili parameters must not be used in custom mode.'];
     end
 
-else
+elseif strcmp(geometry_mode, 'parametric')
     %% ---- Parametric mode validation (existing checks) ----
 
     % initial_orientation is custom-mode-only
@@ -113,29 +129,32 @@ else
                         'Custom geometry parameters must not be used in parametric mode.'];
     end
 
-    % Body geometry (guarded field access)
-    if isfield(cfg, 'minor_axis') && isnumeric(cfg.minor_axis) && ~isnan(cfg.minor_axis)
-        if cfg.minor_axis <= 0
-            errs{end+1} = 'minor_axis must be > 0.';
+    % Body geometry (guarded field access; reject NaN/Inf/non-scalar)
+    minor_valid = false;
+    if isfield(cfg, 'minor_axis') && ~isempty(cfg.minor_axis)
+        if ~isnumeric(cfg.minor_axis) || ~isscalar(cfg.minor_axis) || ...
+                ~isfinite(cfg.minor_axis) || cfg.minor_axis <= 0
+            errs{end+1} = 'minor_axis must be a finite scalar > 0.';
+        else
+            minor_valid = true;
         end
     end
-    if isfield(cfg, 'major_axis') && isnumeric(cfg.major_axis) && ~isnan(cfg.major_axis)
-        if cfg.major_axis <= 0
-            errs{end+1} = 'major_axis must be > 0.';
-        elseif isfield(cfg, 'minor_axis') && isnumeric(cfg.minor_axis) ...
-                && ~isnan(cfg.minor_axis) && cfg.minor_axis > 0 ...
-                && cfg.major_axis < cfg.minor_axis
+    if isfield(cfg, 'major_axis') && ~isempty(cfg.major_axis)
+        if ~isnumeric(cfg.major_axis) || ~isscalar(cfg.major_axis) || ...
+                ~isfinite(cfg.major_axis) || cfg.major_axis <= 0
+            errs{end+1} = 'major_axis must be a finite scalar > 0.';
+        elseif minor_valid && cfg.major_axis < cfg.minor_axis
             errs{end+1} = sprintf('major_axis (%.2e) must be >= minor_axis (%.2e).', ...
                 cfg.major_axis, cfg.minor_axis);
         end
     end
-    if isfield(cfg, 'N_body') && isnumeric(cfg.N_body) && ~isnan(cfg.N_body)
-        if cfg.N_body < 10
-            errs{end+1} = sprintf('N_body = %d is too small for capsule geometry (minimum 10).', ...
-                cfg.N_body);
-        end
-        % P4: O(N^2) distance matrix in init_coupled_params may exhaust memory
-        if cfg.N_body > 2000
+    if isfield(cfg, 'N_body') && ~isempty(cfg.N_body)
+        if ~isnumeric(cfg.N_body) || ~isscalar(cfg.N_body) || ...
+                ~isfinite(cfg.N_body) || cfg.N_body < 10
+            errs{end+1} = sprintf('N_body must be a finite scalar >= 10 (got %s).', ...
+                mat2str(cfg.N_body));
+        elseif cfg.N_body > 2000
+            % P4: O(N^2) distance matrix in init_coupled_params may exhaust memory
             warns{end+1} = sprintf(['N_body = %d > 2000: O(N^2) distance matrix in ', ...
                 'init_coupled_params may exhaust memory (~%.0f MB for the body block).'], ...
                 cfg.N_body, cfg.N_body^2 * 8 / 1e6);
@@ -152,15 +171,18 @@ else
             errs{end+1} = sprintf('Pili_Matrix must have exactly 8 rows, got %d.', size(PM, 1));
         else
             for kk = 1:size(PM, 2)
-                if PM(2, kk) <= 0
-                    errs{end+1} = sprintf('Pili %d: length (row 2) must be > 0, got %g.', ...
+                if ~isfinite(PM(2, kk)) || PM(2, kk) <= 0
+                    errs{end+1} = sprintf('Pili %d: length (row 2) must be finite and > 0, got %g.', ...
                         kk, PM(2, kk));
                 end
-                if PM(8, kk) < 1 || PM(8, kk) > 14 || floor(PM(8, kk)) ~= PM(8, kk)
+                if ~all(isfinite(PM(3:4, kk)))
+                    errs{end+1} = sprintf('Pili %d: deflection angles (rows 3-4) must be finite.', kk);
+                end
+                if ~isfinite(PM(8, kk)) || PM(8, kk) < 1 || PM(8, kk) > 14 || floor(PM(8, kk)) ~= PM(8, kk)
                     errs{end+1} = sprintf('Pili %d: attachment site (row 8) must be integer 1-14, got %g.', ...
                         kk, PM(8, kk));
                 end
-                if PM(1, kk) < 1 || PM(1, kk) > 5 || floor(PM(1, kk)) ~= PM(1, kk)
+                if ~isfinite(PM(1, kk)) || PM(1, kk) < 1 || PM(1, kk) > 5 || floor(PM(1, kk)) ~= PM(1, kk)
                     errs{end+1} = sprintf('Pili %d: type (row 1) must be integer 1-5, got %g.', ...
                         kk, PM(1, kk));
                 else
@@ -239,26 +261,33 @@ end
 %% ---- Common validations (both modes) ----
 
 % Simulation time
-if isfield(cfg, 'T_obs') && isnumeric(cfg.T_obs) && ~isempty(cfg.T_obs)
-    if cfg.T_obs <= 0
-        errs{end+1} = 'T_obs must be > 0.';
+t_obs_valid = false;
+if isfield(cfg, 'T_obs') && ~isempty(cfg.T_obs)
+    if ~isnumeric(cfg.T_obs) || ~isscalar(cfg.T_obs) || ~isfinite(cfg.T_obs) || cfg.T_obs <= 0
+        errs{end+1} = 'T_obs must be a finite scalar > 0.';
+    else
+        t_obs_valid = true;
     end
 end
-if isfield(cfg, 'dt') && isnumeric(cfg.dt) && ~isempty(cfg.dt)
-    if cfg.dt <= 0
-        errs{end+1} = 'dt (output time step) must be > 0.';
-    elseif isfield(cfg, 'T_obs') && isnumeric(cfg.T_obs) && ~isempty(cfg.T_obs) && cfg.dt > cfg.T_obs
+if isfield(cfg, 'dt') && ~isempty(cfg.dt)
+    if ~isnumeric(cfg.dt) || ~isscalar(cfg.dt) || ~isfinite(cfg.dt) || cfg.dt <= 0
+        errs{end+1} = 'dt (output time step) must be a finite scalar > 0.';
+    elseif t_obs_valid && cfg.dt > cfg.T_obs
         errs{end+1} = sprintf('dt = %g > T_obs = %g: output step exceeds total time.', ...
             cfg.dt, cfg.T_obs);
     end
 end
 
 % Material
-if isfield(cfg, 'E') && isnumeric(cfg.E) && ~isempty(cfg.E) && cfg.E <= 0
-    errs{end+1} = 'Young''s modulus E must be > 0.';
+if isfield(cfg, 'E') && ~isempty(cfg.E)
+    if ~isnumeric(cfg.E) || ~isscalar(cfg.E) || ~isfinite(cfg.E) || cfg.E <= 0
+        errs{end+1} = 'Young''s modulus E must be a finite scalar > 0.';
+    end
 end
-if isfield(cfg, 'r_pili') && isnumeric(cfg.r_pili) && ~isempty(cfg.r_pili) && cfg.r_pili <= 0
-    errs{end+1} = 'Pili radius r_pili must be > 0.';
+if isfield(cfg, 'r_pili') && ~isempty(cfg.r_pili)
+    if ~isnumeric(cfg.r_pili) || ~isscalar(cfg.r_pili) || ~isfinite(cfg.r_pili) || cfg.r_pili <= 0
+        errs{end+1} = 'Pili radius r_pili must be a finite scalar > 0.';
+    end
 end
 if isfield(cfg, 'hydro_radius_factor') && ~isempty(cfg.hydro_radius_factor)
     hrf = cfg.hydro_radius_factor;
@@ -270,32 +299,39 @@ if isfield(cfg, 'hydro_radius_factor') && ~isempty(cfg.hydro_radius_factor)
             'sqrt(e) = 1.649 (exact translation vs slender-body theory).'], hrf);
     end
 end
-if isfield(cfg, 'sigma_p') && isnumeric(cfg.sigma_p) && ~isempty(cfg.sigma_p)
-    if cfg.sigma_p < 0 || cfg.sigma_p >= 0.5
-        errs{end+1} = sprintf('Poisson ratio sigma_p = %g outside valid range [0, 0.5).', ...
-            cfg.sigma_p);
+if isfield(cfg, 'sigma_p') && ~isempty(cfg.sigma_p)
+    if ~isnumeric(cfg.sigma_p) || ~isscalar(cfg.sigma_p) || ~isfinite(cfg.sigma_p) || ...
+            cfg.sigma_p < 0 || cfg.sigma_p >= 0.5
+        errs{end+1} = sprintf('Poisson ratio sigma_p = %s outside valid finite range [0, 0.5).', ...
+            mat2str(cfg.sigma_p));
     end
 end
 
 % Fluid
-if isfield(cfg, 'mu') && isnumeric(cfg.mu) && ~isempty(cfg.mu) && cfg.mu <= 0
-    errs{end+1} = 'Dynamic viscosity mu must be > 0.';
+if isfield(cfg, 'mu') && ~isempty(cfg.mu)
+    if ~isnumeric(cfg.mu) || ~isscalar(cfg.mu) || ~isfinite(cfg.mu) || cfg.mu <= 0
+        errs{end+1} = 'Dynamic viscosity mu must be a finite scalar > 0.';
+    end
 end
 
 % Numerics
-if isfield(cfg, 'tlim') && isnumeric(cfg.tlim) && ~isempty(cfg.tlim) && cfg.tlim <= 0
-    errs{end+1} = 'ODE timeout tlim must be > 0.';
+if isfield(cfg, 'tlim') && ~isempty(cfg.tlim)
+    if ~isnumeric(cfg.tlim) || ~isscalar(cfg.tlim) || ~isfinite(cfg.tlim) || cfg.tlim <= 0
+        errs{end+1} = 'ODE timeout tlim must be a finite scalar > 0.';
+    end
 end
-if isfield(cfg, 'animation_fps') && isnumeric(cfg.animation_fps) ...
-        && ~isempty(cfg.animation_fps) && cfg.animation_fps <= 0
-    errs{end+1} = 'animation_fps must be > 0.';
+if isfield(cfg, 'animation_fps') && ~isempty(cfg.animation_fps)
+    if ~isnumeric(cfg.animation_fps) || ~isscalar(cfg.animation_fps) || ...
+            ~isfinite(cfg.animation_fps) || cfg.animation_fps <= 0
+        errs{end+1} = 'animation_fps must be a finite scalar > 0.';
+    end
 end
 
-% P2: delta (Euler-angle singularity threshold) — was unchecked; extreme
-% values (delta <= 0 or >= pi/4) break singularity_event in run_simulation.
-if isfield(cfg, 'delta') && isnumeric(cfg.delta) && ~isempty(cfg.delta) && isfinite(cfg.delta)
-    if cfg.delta <= 0
-        errs{end+1} = sprintf('delta = %g must be > 0 (Euler-angle singularity margin).', cfg.delta);
+% P2: delta (Euler-angle singularity threshold) — reject NaN/Inf/<=0; warn >= pi/4
+if isfield(cfg, 'delta') && ~isempty(cfg.delta)
+    if ~isnumeric(cfg.delta) || ~isscalar(cfg.delta) || ~isfinite(cfg.delta) || cfg.delta <= 0
+        errs{end+1} = sprintf('delta = %s must be a finite scalar > 0 (Euler-angle singularity margin).', ...
+            mat2str(cfg.delta));
     elseif cfg.delta >= pi/4
         warns{end+1} = sprintf(['delta = %g >= pi/4 (%.4f): singularity event may trigger ', ...
             'prematurely, shrinking the ODE integration step. Recommended: pi/20 ~ pi/10.'], ...
@@ -319,21 +355,23 @@ elseif strcmp(geometry_mode, 'custom') ...
         && (~isfield(cfg, 'initial_orientation') || isempty(cfg.initial_orientation))
     alpha0_used = true;
 end
-if alpha0_used ...
-        && isfield(cfg, 'alpha_0') && isnumeric(cfg.alpha_0) ...
-        && ~isempty(cfg.alpha_0) && isfinite(cfg.alpha_0)
-    if cfg.alpha_0 < -pi/2 || cfg.alpha_0 > pi/2
-        errs{end+1} = sprintf('alpha_0 = %.4f rad is outside valid range [-pi/2, pi/2].', ...
-            cfg.alpha_0);
+if alpha0_used && isfield(cfg, 'alpha_0') && ~isempty(cfg.alpha_0)
+    if ~isnumeric(cfg.alpha_0) || ~isscalar(cfg.alpha_0) || ~isfinite(cfg.alpha_0) || ...
+            cfg.alpha_0 < -pi/2 || cfg.alpha_0 > pi/2
+        errs{end+1} = sprintf('alpha_0 = %s rad must be a finite scalar in [-pi/2, pi/2].', ...
+            mat2str(cfg.alpha_0));
     end
 end
 
 % Brownian
 if isfield(cfg, 'enable_brown') && logical(cfg.enable_brown)
-    if isfield(cfg, 'dt_B') && isnumeric(cfg.dt_B) && ~isempty(cfg.dt_B) && cfg.dt_B <= 0
-        errs{end+1} = 'Brownian time step dt_B must be > 0 when enable_brown = true.';
+    if isfield(cfg, 'dt_B') && ~isempty(cfg.dt_B)
+        if ~isnumeric(cfg.dt_B) || ~isscalar(cfg.dt_B) || ~isfinite(cfg.dt_B) || cfg.dt_B <= 0
+            errs{end+1} = 'Brownian time step dt_B must be a finite scalar > 0 when enable_brown = true.';
+        end
     end
-    if ~isfield(cfg, 'Temper') || ~isnumeric(cfg.Temper) || ~isfinite(cfg.Temper) || cfg.Temper <= 0
+    if ~isfield(cfg, 'Temper') || ~isnumeric(cfg.Temper) || ~isscalar(cfg.Temper) || ...
+            ~isfinite(cfg.Temper) || cfg.Temper <= 0
         errs{end+1} = 'Temper must be a finite positive temperature [K] when enable_brown = true.';
     end
 end
@@ -417,8 +455,9 @@ if isfield(cfg, 'background_flow') && isstruct(cfg.background_flow)
         errs{end+1} = sprintf('background_flow.type must be one of {off, uniform, shear_z}, got ''%s''.', bg_type);
     end
     if ~strcmp(bg_type, 'off')
-        if ~isfield(bg, 'U_max') || ~isnumeric(bg.U_max) || bg.U_max <= 0
-            errs{end+1} = 'background_flow.U_max must be > 0 when flow is enabled.';
+        if ~isfield(bg, 'U_max') || ~isnumeric(bg.U_max) || ~isscalar(bg.U_max) || ...
+                ~isfinite(bg.U_max) || bg.U_max <= 0
+            errs{end+1} = 'background_flow.U_max must be a finite scalar > 0 when flow is enabled.';
         end
         direction_valid = isfield(bg, 'direction') && isnumeric(bg.direction) ...
             && isreal(bg.direction) && numel(bg.direction) == 3 ...
@@ -428,8 +467,9 @@ if isfield(cfg, 'background_flow') && isstruct(cfg.background_flow)
                 'non-zero 3-element vector when flow is enabled.'];
         end
         if strcmp(bg_type, 'shear_z')
-            if ~isfield(bg, 'shear_height_m') || ~isnumeric(bg.shear_height_m) || bg.shear_height_m <= 0
-                errs{end+1} = 'background_flow.shear_height_m must be > 0 for shear_z flow.';
+            if ~isfield(bg, 'shear_height_m') || ~isnumeric(bg.shear_height_m) || ...
+                    ~isscalar(bg.shear_height_m) || ~isfinite(bg.shear_height_m) || bg.shear_height_m <= 0
+                errs{end+1} = 'background_flow.shear_height_m must be a finite scalar > 0 for shear_z flow.';
             end
             shear_axis_valid = isfield(bg, 'shear_axis') && isnumeric(bg.shear_axis) ...
                 && isreal(bg.shear_axis) && numel(bg.shear_axis) == 3 ...
@@ -452,6 +492,116 @@ if isfield(cfg, 'background_flow') && isstruct(cfg.background_flow)
     if ~strcmp(bg_type, 'off') && isfield(cfg, 'enable_brown') && logical(cfg.enable_brown)
         warns{end+1} = ['Background flow + Brownian: flow is deterministic; ' ...
             'diffusion tensor computed without flow contribution.'];
+    end
+end
+
+% Pilus thermal fluctuations (v9.0.0)
+if isfield(cfg, 'enable_pili_brown') && ~isempty(cfg.enable_pili_brown) ...
+        && logical(cfg.enable_pili_brown)
+    if ~(isfield(cfg, 'enable_brown') && logical(cfg.enable_brown))
+        errs{end+1} = ['enable_pili_brown = true requires enable_brown = true ', ...
+            '(body Brownian must be on for the joint sampler).'];
+    end
+    orders = 2;
+    if isfield(cfg, 'pili_brown_orders') && ~isempty(cfg.pili_brown_orders)
+        orders = cfg.pili_brown_orders;
+    end
+    if isfield(cfg, 'pili_brown_tau_cut_s') && ~isempty(cfg.pili_brown_tau_cut_s)
+        tc_val = cfg.pili_brown_tau_cut_s;
+        if ~(isnumeric(tc_val) && isscalar(tc_val) && isfinite(tc_val) && tc_val > 0)
+            errs{end+1} = 'pili_brown_tau_cut_s must be a positive finite scalar [s].';
+        end
+    end
+    if ~(isnumeric(orders) && isscalar(orders) && isfinite(orders) ...
+            && orders >= 1 && orders == floor(orders))
+        errs{end+1} = 'pili_brown_orders must be a positive integer.';
+    elseif orders > 2 && ~(isfield(cfg, 'pili_brown_tau_cut_s') && ~isempty(cfg.pili_brown_tau_cut_s))
+        warns{end+1} = sprintf(['pili_brown_orders = %g > 2: only the first two ', ...
+            'bending orders have been verified; a shorter Brownian interval is needed.'], orders);
+    end
+    n_pili = 0;
+    if strcmp(geometry_mode, 'custom')
+        if isfield(cfg, 'custom_geometry') && isstruct(cfg.custom_geometry) ...
+                && isfield(cfg.custom_geometry, 'pili')
+            n_pili = numel(cfg.custom_geometry.pili);
+        end
+    elseif isfield(cfg, 'Pili_Matrix') && ~isempty(cfg.Pili_Matrix)
+        n_pili = size(cfg.Pili_Matrix, 2);
+    end
+    if n_pili == 0
+        warns{end+1} = ['enable_pili_brown = true but the cell has no pili; ', ...
+            'the body-only Brownian scheme will be used.'];
+    end
+    if isfield(cfg, 'background_flow') && isstruct(cfg.background_flow)
+        bg_t = 'off';
+        if isfield(cfg.background_flow, 'type') && ~isempty(cfg.background_flow.type)
+            bg_t = char(cfg.background_flow.type);
+        end
+        if ~strcmp(bg_t, 'off')
+            warns{end+1} = ['enable_pili_brown = true with a background flow: the thermal modes are ', ...
+                'those of the quiescent stress-free state.'];
+        end
+    end
+    % The scheme is built and validated for passive, naturally straight,
+    % clamped filaments.  A free-torsion root adds a spin coordinate that is
+    % neither thermalised nor held; the joint mobility then loses symmetry
+    % and definiteness as soon as the filament bends, so it is rejected.
+    pe_all = collect_pili_ext(cfg);
+    n_free = 0;  n_shape = 0;  n_active = 0;
+    for kk = 1:numel(pe_all)
+        if strcmp(ext_type(pe_all(kk), 'root_coupling', 'clamped'), 'free_torsion')
+            n_free = n_free + 1;
+        end
+        if any(strcmp(ext_type(pe_all(kk), 'intrinsic_curvature', 'frozen'), {'constant', 'helix'}))
+            n_shape = n_shape + 1;
+        end
+        if ~strcmp(ext_type(pe_all(kk), 'active_moment', 'off'), 'off')
+            n_active = n_active + 1;
+        end
+    end
+    if n_free > 0
+        errs{end+1} = sprintf(['enable_pili_brown = true is not supported with root_coupling = ', ...
+            'free_torsion (%d filament(s)): the thermal scheme requires clamped roots. Use ', ...
+            'enable_pili_brown = false (body-only Brownian scheme) for rotating flagella.'], n_free);
+    end
+    if n_shape > 0
+        warns{end+1} = sprintf(['enable_pili_brown = true with an intrinsic_curvature override ', ...
+            '(%d filament(s)): the thermal modes are computed at the initial state, which is not ', ...
+            'the stress-free shape; the scheme is validated for naturally straight filaments only.'], n_shape);
+    end
+    if n_active > 0
+        warns{end+1} = sprintf(['enable_pili_brown = true with an active moment (%d filament(s)): ', ...
+            'the thermal modes are those of the passive rest state; the scheme is validated for ', ...
+            'passive filaments only.'], n_active);
+    end
+    % Parametric curved pili (types 2-5: parabolic, circular, sinusoidal, spiral)
+    if ~strcmp(geometry_mode, 'custom') && isfield(cfg, 'Pili_Matrix') ...
+            && ~isempty(cfg.Pili_Matrix) && size(cfg.Pili_Matrix, 1) >= 1
+        n_curved_type = nnz(cfg.Pili_Matrix(1, :) > 1);
+        if n_curved_type > 0
+            warns{end+1} = sprintf(['enable_pili_brown = true with curved parametric pilus ', ...
+                'geometry (%d filament(s) with type > 1): the thermal centreline-load scheme ', ...
+                'is validated for naturally straight filaments only.'], n_curved_type);
+        end
+    end
+    % Optional per-pilus thermal RNG seeds validation
+    if isfield(cfg, 'brown_pili_rng_seeds') && ~isempty(cfg.brown_pili_rng_seeds) && n_pili > 0
+        ps_raw = cfg.brown_pili_rng_seeds;
+        if ~isnumeric(ps_raw) || numel(ps_raw) ~= n_pili || ...
+                any(~isfinite(ps_raw(:))) || any(ps_raw(:) <= 0) || ...
+                any(ps_raw(:) ~= floor(ps_raw(:)))
+            errs{end+1} = sprintf(['brown_pili_rng_seeds must be %d positive finite integer ', ...
+                'seed(s) (one per pilus).'], n_pili);
+        else
+            ps_vec = round(double(ps_raw(:)'));
+            if numel(unique(ps_vec)) ~= n_pili
+                errs{end+1} = 'brown_pili_rng_seeds entries must all be distinct.';
+            elseif isfield(cfg, 'brown_rng_seed') && isnumeric(cfg.brown_rng_seed) ...
+                    && isscalar(cfg.brown_rng_seed) && isfinite(cfg.brown_rng_seed) ...
+                    && cfg.brown_rng_seed > 0 && any(ps_vec == round(double(cfg.brown_rng_seed)))
+                errs{end+1} = 'brown_pili_rng_seeds must not collide with brown_rng_seed.';
+            end
+        end
     end
 end
 
@@ -532,6 +682,28 @@ function errs = validate_pili_shape_params(pm_col, kk, errs)
     end
 end
 
+function pe = collect_pili_ext(cfg)
+%COLLECT_PILI_EXT  Per-pilus extension structs of the configuration (may be empty)
+    pe = struct([]);
+    if isfield(cfg, 'pili_ext') && isstruct(cfg.pili_ext) && ~isempty(cfg.pili_ext)
+        pe = cfg.pili_ext(:);
+    end
+end
+
+function t = ext_type(pe, field, default_type)
+%EXT_TYPE  Type string of one per-pilus extension field (string or struct with .type)
+    t = default_type;
+    if ~isfield(pe, field) || isempty(pe.(field))
+        return;
+    end
+    val = pe.(field);
+    if ischar(val) || isstring(val)
+        t = char(val);
+    elseif isstruct(val) && isfield(val, 'type') && ~isempty(val.type)
+        t = char(val.type);
+    end
+end
+
 function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
 %VALIDATE_PILI_EXT  Validate per-pilus extended fields (intrinsic_curvature,
 %                   active_moment, root_coupling, motor_torque).
@@ -583,9 +755,9 @@ function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
             end
             if strcmp(ic_type, 'constant')
                 if isstruct(ic_val) && isfield(ic_val, 'kappa')
-                    if numel(ic_val.kappa) ~= 3
+                    if ~isnumeric(ic_val.kappa) || numel(ic_val.kappa) ~= 3 || any(~isfinite(ic_val.kappa(:)))
                         errs{end+1} = sprintf(['Pili %d: intrinsic_curvature.kappa must be ', ...
-                            '3-element, got %d.'], kk, numel(ic_val.kappa));
+                            'a finite numeric 3-element vector.'], kk);
                     end
                 else
                     errs{end+1} = sprintf(['Pili %d: intrinsic_curvature ''constant'' ', ...
@@ -629,11 +801,14 @@ function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
                 end
                 if strcmp(am_type, 'traveling_wave')
                     if ~isfield(am_val, 'amplitude_Nm') || ~isnumeric(am_val.amplitude_Nm) ...
+                            || ~isscalar(am_val.amplitude_Nm) || ~isfinite(am_val.amplitude_Nm) ...
                             || am_val.amplitude_Nm < 0
-                        errs{end+1} = sprintf('Pili %d: active_moment.amplitude_Nm must be >= 0.', kk);
+                        errs{end+1} = sprintf('Pili %d: active_moment.amplitude_Nm must be a finite scalar >= 0.', kk);
                     end
-                    if ~isfield(am_val, 'omega_Hz') || ~isnumeric(am_val.omega_Hz) || am_val.omega_Hz <= 0
-                        errs{end+1} = sprintf('Pili %d: active_moment.omega_Hz must be > 0.', kk);
+                    if ~isfield(am_val, 'omega_Hz') || ~isnumeric(am_val.omega_Hz) ...
+                            || ~isscalar(am_val.omega_Hz) || ~isfinite(am_val.omega_Hz) ...
+                            || am_val.omega_Hz <= 0
+                        errs{end+1} = sprintf('Pili %d: active_moment.omega_Hz must be a finite scalar > 0.', kk);
                     end
                     if isfield(am_val, 'wavenumber') && isnumeric(am_val.wavenumber) && am_val.wavenumber < 0
                         warns{end+1} = sprintf(['Pili %d: active_moment.wavenumber = %.4g is ', ...
@@ -648,6 +823,11 @@ function [errs, warns] = validate_pili_ext(pili_ext, M_pili, errs, warns, aux)
                         if ~isnumeric(am_val.phase_rad) || ~isscalar(am_val.phase_rad) || ~isfinite(am_val.phase_rad)
                             errs{end+1} = sprintf('Pili %d: active_moment.phase_rad must be a finite scalar.', kk);
                         end
+                    end
+                elseif strcmp(am_type, 'custom')
+                    if ~isfield(am_val, 'fun') || ~isa(am_val.fun, 'function_handle')
+                        errs{end+1} = sprintf(['Pili %d: active_moment ''custom'' requires a ', ...
+                            'function handle in .fun (note: saved JSON snapshots strip .fun).'], kk);
                     end
                 end
             else

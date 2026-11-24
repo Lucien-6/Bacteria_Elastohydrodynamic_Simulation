@@ -1,9 +1,59 @@
+# ==============================================================================
+# Simulation & batch outputs
+# ==============================================================================
 output/
 output_old/
+batch sweep/
+batch_sweep/*.log
+batch_sweep/batch_repeat_summary_*.txt
+batch_sweep/batch_config_snapshot_*.json
+
+# ==============================================================================
+# Local development, publication-only sweeps & legacy archives
+# ==============================================================================
 test/
 paper_cases/
+_legacy/
+
+# ==============================================================================
+# Copyrighted reference papers, external datasets & Add-On packaging cache
+# ==============================================================================
+references/
+# Gutierrez Dryad archive (copyrighted PDFs + paths exceeding Windows MAX_PATH)
+chlamydomonas/Refers/
+# Keep MATLAB Add-On .m sources and LICENSE.md, ignore installer zip/preview cache
+MATLAB Add-On/**/resources/
+
+# ==============================================================================
+# MATLAB temporary & autosave files
+# ==============================================================================
+*.asv
+*.m~
+*.autosave
+*.slxc
+slprj/
+matlab_crash_dump.*
+
+# ==============================================================================
+# Python & linter caches / virtual environments
+# ==============================================================================
+__pycache__/
+*.py[cod]
 .ruff_cache/
 .mypy_cache/
+.pytest_cache/
+.venv/
+venv/
+
+# ==============================================================================
+# IDE, agent & OS metadata
+# ==============================================================================
 .understand-anything/
-# Gutierrez Dryad archive. Absolute paths exceed the Windows MAX_PATH limit.
-chlamydomonas/Refers/
+.cursor/
+.vscode/
+.idea/
+__MACOSX/
+._*
+.DS_Store
+Thumbs.db
+Desktop.ini

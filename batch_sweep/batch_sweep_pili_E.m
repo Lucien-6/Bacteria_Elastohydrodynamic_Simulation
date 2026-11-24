@@ -117,6 +117,7 @@ end
 
 %% ---- Execute sweep ----
 t_sweep_start = tic;
+sweep_eta = BatchEtaEstimator(n_runs, 1, 'TicStart', t_sweep_start);
 
 for ii = 1:n_runs
     cfg_i           = cfg_base;
@@ -150,6 +151,20 @@ for ii = 1:n_runs
             ii, n_runs, E_values(ii), run_status(ii), run_walltime(ii));
         if run_status(ii) == "FAILED"
             fprintf(sweep_fid, '         error: %s\n', run_errmsg(ii));
+        end
+    end
+
+    sweep_eta.markComplete(ii, run_walltime(ii), run_status(ii) == "OK");
+    if ii < n_runs
+        est_sw = sweep_eta.estimate();
+        if isfinite(est_sw.eta_s)
+            fin_tag = '';
+            if est_sw.eta_s >= 60 && ~isempty(est_sw.finish_str)
+                fin_tag = sprintf(' (~%s)', est_sw.finish_str);
+            end
+            fprintf('  [SWEEP] %d/%d done  |  Elapsed: %s  |  ETA: %s%s\n', ...
+                ii, n_runs, format_duration(est_sw.elapsed_s, 'compact'), ...
+                format_duration(est_sw.eta_s, 'compact'), fin_tag);
         end
     end
 end

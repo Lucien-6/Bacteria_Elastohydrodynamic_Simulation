@@ -746,6 +746,8 @@ hold(ax_ov, 'off');
 stage_s.setup = toc(t_stage);
 
 %% ---- Frame loop: update data only ----
+% Separate loop timer so one-time prepass/setup overhead does not skew frame ETA.
+t_frame_loop = tic;
 for fi = 1:n_frames
     ti = frame_indices(fi);
 
@@ -841,7 +843,7 @@ for fi = 1:n_frames
 
     % In-place progress bar (console only) - suppressed in silent mode
     if ~silent
-        render_progress_bar('[ANIM]   ', fi, n_frames, t_anim_start);
+        render_progress_bar('[ANIM]   ', fi, n_frames, t_frame_loop);
     end
 
     % Log animation progress to file every 10% (file-only, no console echo)

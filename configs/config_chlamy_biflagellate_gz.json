@@ -11,9 +11,9 @@
         "shape_mode = 'gutierrez').",
         "Mirror symmetry: the -Y flagellum has the mirrored rest shape (chlamy_flagellum_cw_gz.csv)",
         "and phase_rad = pi, so its curvature is the exact mirror of the +Y flagellum.",
-        "The traveling_wave entries below are PLACEHOLDERS (phase, frequency).  The beat is driven by the",
-        "custom moment of chlamydomonas/chlamy_moment_fun.m (Q, lambda_rel, s_taper chosen in Stage 2),",
-        "injected by chlamydomonas/chlamy_run_case.m with ov.moment, because JSON cannot hold function handles.",
+        "The traveling_wave entries below are PLACEHOLDERS.  The beat is driven by the tracked",
+        "measured-gait table chlamydomonas/data/fit_1p00A.mat (with optional 3-D out-of-plane",
+        "envelope) injected by chlamydomonas/core/chlamy_run_case.m or chlamydomonas/chlamy_run_preset.m.",
         "Benchmarks: mean swimming speed ~ 100-128 um/s at 50 Hz in the literature; the measured cells of",
         "Qin et al. 2015 in water (58-66 Hz) swim at about 165-189 um/s."
     ],

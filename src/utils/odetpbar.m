@@ -1,97 +1,155 @@
-﻿function status = odetpbar(t, y, flag)
-%ODETPBAR  Professional ODE integration progress bar (OutputFcn for ode15s)
+﻿function status = odetpbar(t, ~, flag, ctx)
+%ODETPBAR  Adaptive ODE integration progress bar (OutputFcn for ode15s)
 %
 %  Description:
-%    Displays a real-time text progress bar during ode15s integration.
-%    Shows a visual bar, percentage, elapsed time, and estimated time
-%    remaining (ETA).  Updates are throttled to avoid excessive console
-%    output.  Self-contained — no external dependencies.
+%    Displays a real-time text progress bar during ode15s integration with
+%    percentage, elapsed time, and adaptive cost-rate EWMA ETA (plus
+%    estimated wall-clock finish time for runs longer than 1 min).
+%
+%    Supports both:
+%      - Legacy 3-argument OutputFcn call: odetpbar(t, y, flag)
+%        Correctly anchors progress at segment start t(1) (fixing multi-
+%        segment t0 != 0 distortion) and uses an internal ProgressEstimator.
+%      - Global-context 4-argument call: odetpbar(t, y, flag, ctx)
+%        Displays true global progress across multi-segment integrations
+%        (Brownian intervals, Euler-basis rotations) using a shared
+%        ProgressEstimator handle passed in ctx.estimator.
+%
+%    In headless / redirected sessions (~usejava('desktop')), automatically
+%    switches from in-place '\b' redraws to throttled newline-delimited
+%    status lines so log files never accumulate backspace garbage.
 %
 %  Syntax:
 %    status = odetpbar(t, y, flag)
+%    status = odetpbar(t, y, flag, ctx)
 %
 %  Inputs:
 %    t    - Scalar or vector of current time values (provided by ode15s)
-%    y    - Current state vector (not used; required by OutputFcn interface)
-%    flag - Integration stage string:
-%             ''      normal step (update display)
-%             'init'  called at start of integration (initialise state)
-%             'done'  called at end of integration (print final newline)
+%    y    - Current state vector (unused; required by OutputFcn interface)
+%    flag - Integration stage string: '' (step), 'init', or 'done'
+%    ctx  - (Optional) struct with fields:
+%             .estimator      ProgressEstimator handle covering [0, T_total]
+%             .T_total        Global target dimensionless time
+%             .throttle_init  Logical: defer initial draw for short segments
+%                             (default false)
 %
 %  Outputs:
-%    status - 0  continue integration
-%             1  halt (not used here; always returns 0)
-%
-%  Usage:
-%    opts = odeset('OutputFcn', @odetpbar);
-%    sol  = ode15s(odefun, tspan, y0, opts);
-%
-%  Display format:
-%    [ODE]   [==============................]  46.7%  Elapsed: 12.3 s  ETA: 14.0 s
-%
-%  Note:
-%    drawnow is required so that fprintf output is flushed to the Command
-%    Window during ode15s execution.  Without it MATLAB buffers the output
-%    and nothing is visible until the solver returns.
+%    status - Always 0 (continue integration)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-02-06
-%  Updated: 2026-07-12
+%  Updated: 2026-11-24
 
 status = 0;
-persistent tf tstart prev_len last_upd;
+persistent local_est prev_len last_upd last_t_cur is_desktop_cached;
 
-BAR_W    = 30;       % Progress bar width (characters)
-THROTTLE = 0.25;     % Min seconds between display updates
+BAR_W           = 30;     % Progress bar width (characters)
+THROTTLE_TTY    = 0.25;   % Min seconds between in-place desktop refreshes
+THROTTLE_BATCH  = 15.0;   % Min seconds between appended lines in non-desktop mode
+
+if isempty(is_desktop_cached)
+    is_desktop_cached = usejava('desktop');
+end
+if isempty(prev_len)
+    prev_len = 0;
+end
+is_tty   = is_desktop_cached;
+throttle = THROTTLE_TTY;
+if ~is_tty
+    throttle = THROTTLE_BATCH;
+end
+
+if nargin < 4
+    ctx = [];
+end
+has_ctx = isstruct(ctx) && isfield(ctx, 'estimator') && ~isempty(ctx.estimator);
+throttle_init = has_ctx && isfield(ctx, 'throttle_init') && logical(ctx.throttle_init);
 
 if isempty(flag)
     % ===== Normal integration step =====
-    now_s = toc(tstart);
-    if ~isempty(last_upd) && (now_s - last_upd) < THROTTLE
-        status = 0;
+    if isempty(t)
+        return;
+    end
+    t_cur = t(end);
+    last_t_cur = t_cur;
+
+    est = active_estimator(has_ctx, ctx, local_est);
+    if isempty(est)
+        return;
+    end
+    now_s = toc(est.tic_start);
+    est.update(t_cur, now_s);
+
+    if ~isempty(last_upd) && (now_s - last_upd) < throttle
         return;
     end
 
-    pct = min(100, 100 * mean(t) / tf);
-    msg = build_msg(pct, now_s, BAR_W);
-
-    % Overwrite previous line
-    if ~isempty(prev_len) && prev_len > 0
-        fprintf(repmat('\b', 1, prev_len));
-    end
-    fprintf('%s', msg);
-    prev_len = numel(msg);
+    info = est.estimate(now_s);
+    msg  = build_msg(info, BAR_W, false);
+    prev_len = emit_line(msg, prev_len, is_tty, false);
     last_upd = now_s;
-    drawnow;
-
-    status = 0;
+    drawnow limitrate;
 
 else
     switch flag
         case 'init'
-            tstart   = tic;
-            tf       = max(t);
-            last_upd = [];
+            t0 = 0;
+            tf = 1;
+            if ~isempty(t)
+                t0 = t(1);
+                tf = t(end);
+            end
+            last_t_cur = t0;
+            prev_len   = 0;
 
-            msg = build_msg(0, 0, BAR_W);
-            fprintf('%s', msg);
-            prev_len = numel(msg);
-            drawnow;
+            if has_ctx
+                est = ctx.estimator;
+                now_s = toc(est.tic_start);
+                est.update(t0, now_s);
+            else
+                local_est = ProgressEstimator(tf, 'StartWork', t0, ...
+                    'TauMin', 10.0, 'TauMax', 300.0, 'Gamma', 0.25, ...
+                    'WarmupSec', 0.5, 'WarmupPct', 0.5);
+                est   = local_est;
+                now_s = 0.0;
+            end
+
+            if throttle_init
+                % Short intermediate segment: do not draw unless it runs past throttle
+                last_upd = now_s;
+            else
+                info = est.estimate(now_s);
+                msg  = build_msg(info, BAR_W, false);
+                prev_len = emit_line(msg, 0, is_tty, false);
+                last_upd = now_s;
+                drawnow limitrate;
+            end
 
         case 'done'
-            elapsed = toc(tstart);
-
-            % Overwrite with final 100% bar
-            if ~isempty(prev_len) && prev_len > 0
-                fprintf(repmat('\b', 1, prev_len));
+            est = active_estimator(has_ctx, ctx, local_est);
+            if ~isempty(est)
+                now_s = toc(est.tic_start);
+                if ~isempty(last_t_cur) && isfinite(last_t_cur)
+                    est.update(last_t_cur, now_s);
+                end
+                info = est.estimate(now_s);
+                is_complete = (info.pct >= 99.999);
+                if prev_len > 0 || ~throttle_init || is_complete
+                    msg = build_msg(info, BAR_W, is_complete);
+                    emit_line(msg, prev_len, is_tty, true);
+                    drawnow;
+                end
+            elseif prev_len > 0 && is_tty
+                fprintf('\n');
+                drawnow;
             end
-            bar_done = repmat('=', 1, BAR_W);
-            msg = sprintf('[ODE]   [%s] 100.0%%  Elapsed: %s', ...
-                bar_done, fmt_dur(elapsed));
-            fprintf('%s\n', msg);
-            drawnow;
 
-            tf = []; tstart = []; prev_len = []; last_upd = [];
+            if ~has_ctx
+                local_est = [];
+            end
+            prev_len   = 0;
+            last_upd   = [];
+            last_t_cur = [];
 
         otherwise
             error('odetpbar:UnknownFlag', 'Unknown flag: %s', flag);
@@ -105,31 +163,64 @@ end
 %  LOCAL HELPER FUNCTIONS
 % =========================================================================
 
-function msg = build_msg(pct, elapsed_s, bar_w)
-%BUILD_MSG  Construct formatted progress bar string
-    filled  = round(pct / 100 * bar_w);
-    bar_str = [repmat('=', 1, filled), repmat('.', 1, bar_w - filled)];
-
-    if pct > 0.5 && elapsed_s > 0.5
-        eta_s = elapsed_s * (100 - pct) / pct;
-        msg = sprintf('[ODE]   [%s] %5.1f%%  Elapsed: %s  ETA: %s', ...
-            bar_str, pct, fmt_dur(elapsed_s), fmt_dur(eta_s));
+function est = active_estimator(has_ctx, ctx, local_est)
+    if has_ctx
+        est = ctx.estimator;
     else
-        msg = sprintf('[ODE]   [%s] %5.1f%%  Elapsed: %s', ...
-            bar_str, pct, fmt_dur(elapsed_s));
+        est = local_est;
     end
 end
 
 
-function s = fmt_dur(t)
-%FMT_DUR  Convert seconds to human-readable duration string
-    if t < 0
-        s = '-- s';
-    elseif t < 60
-        s = sprintf('%.1f s', t);
-    elseif t < 3600
-        s = sprintf('%d min %.0f s', floor(t/60), mod(t, 60));
+function new_len = emit_line(msg, prev_len, is_tty, end_with_newline)
+    if is_tty
+        if ~isempty(prev_len) && prev_len > 0
+            fprintf(repmat('\b', 1, prev_len));
+        end
+        fprintf('%s', msg);
+        extra = 0;
+        if ~isempty(prev_len)
+            extra = prev_len - numel(msg);
+        end
+        if extra > 0
+            fprintf('%s', repmat(' ', 1, extra));
+            if ~end_with_newline
+                fprintf(repmat('\b', 1, extra));
+            end
+        end
+        if end_with_newline
+            fprintf('\n');
+            new_len = 0;
+        else
+            new_len = numel(msg);
+        end
     else
-        s = sprintf('%d h %d min', floor(t/3600), floor(mod(t, 3600)/60));
+        fprintf('%s\n', msg);
+        new_len = 0;
+    end
+end
+
+
+function msg = build_msg(info, bar_w, is_complete)
+%BUILD_MSG  Construct formatted progress bar string
+    pct     = min(100.0, max(0.0, info.pct));
+    filled  = min(bar_w, max(0, round(pct / 100.0 * bar_w)));
+    bar_str = [repmat('=', 1, filled), repmat('.', 1, bar_w - filled)];
+    elap_str = format_duration(info.elapsed_s, 'compact');
+
+    if is_complete
+        msg = sprintf('[ODE]   [%s] 100.0%%  Elapsed: %s', bar_str, elap_str);
+    elseif isfield(info, 'eta_s') && isfinite(info.eta_s)
+        eta_str = format_duration(info.eta_s, 'compact');
+        if info.eta_s >= 60 && isfield(info, 'finish_str') && ~isempty(info.finish_str)
+            msg = sprintf('[ODE]   [%s] %5.1f%%  Elapsed: %s  ETA: %s (~%s)', ...
+                bar_str, pct, elap_str, eta_str, info.finish_str);
+        else
+            msg = sprintf('[ODE]   [%s] %5.1f%%  Elapsed: %s  ETA: %s', ...
+                bar_str, pct, elap_str, eta_str);
+        end
+    else
+        msg = sprintf('[ODE]   [%s] %5.1f%%  Elapsed: %s  ETA: --', ...
+            bar_str, pct, elap_str);
     end
 end

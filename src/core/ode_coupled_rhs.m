@@ -21,6 +21,10 @@ function [dZ, flow_hydro] = ode_coupled_rhs(t, Z, params)
 %      8a.    Subtract the Brownian thermal generalised body force held
 %           constant over the current Brownian interval (if enabled)
 %      8b.    Subtract per-pili active internal moments (if enabled)
+%      8e.    Subtract the thermal forces on the slow pilus bending modes
+%           (centreline force density held in the body frame over the
+%           current Brownian interval; if pilus thermal fluctuations are
+%           enabled)
 %      8d.    Record free-torsion motor rows and torque-law data
 %      8c.    Subtract the background-flow contribution (if enabled);
 %           Step 8d intentionally precedes Step 8c in the implementation
@@ -65,6 +69,8 @@ function [dZ, flow_hydro] = ode_coupled_rhs(t, Z, params)
 %           v8.5.0 — Step 8a: Brownian thermal generalised force realised
 %           through the coupled RHS (params.brown_force_dimless).
 %  Updated: 2026-11-04 — v8.7.2: comment and message-text corrections only; no behavioural change.
+%  Updated: 2026-11-12 — v9.0.0: Step 8e, thermal forces on the slow pilus
+%           bending modes (params.brown_pili_force); inactive unless enabled.
 
 %% Extract frequently used parameters
 if ~isscalar(t) || ~isfinite(t) || any(~isfinite(Z(:)))
@@ -114,8 +120,11 @@ end
 %% Steps 1-7: Build coupled linear system (geometry + hydrodynamics + root BC)
 has_bg_flow = ~strcmp(params.bg_flow.type, 'off');
 want_flow_hydro = nargout >= 2;
-if has_bg_flow || want_flow_hydro
-    [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params);
+has_pili_thermal = isfield(params, 'brown_pili_force') && ~isempty(params.brown_pili_force);
+if want_flow_hydro
+    [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params, 'full');
+elseif has_bg_flow || has_pili_thermal
+    [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params, 'rhs_light');
 else
     [lin_sys, geom] = build_coupled_lin_sys(Z, params);
 end
@@ -140,27 +149,34 @@ end
 % torque is NOT added to R_global in this loop; R_global is assembled as the
 % motor-free baseline RHS and the stall-curve torque is resolved exactly in
 % Step 9.
-motor_rows    = [];   % moment-balance row index (segment-1 psi_1 row) per motor
-motor_obs     = zeros(n_state, 0);  % omega_rel = motor_obs(:,i)' * z_dot per motor
-motor_tau     = [];   % constant motor torque (dimensionless)
-motor_ommax   = [];   % stall speed (dimensionless)
+motor_rows    = zeros(M_pili, 1);       % segment-1 psi_1 row per motor
+motor_obs     = zeros(n_state, M_pili); % omega_rel = motor_obs(:,i)' * z_dot
+motor_tau     = zeros(M_pili, 1);       % constant motor torque (dimensionless)
+motor_ommax   = zeros(M_pili, 1);       % stall speed (dimensionless)
+n_motor_found = 0;
 
 row_offset = 6;
 col_state  = 6;       % running offset to locate each pilus's dpsi_1 column
+has_cached_dN = isfield(geom, 'd1N_basis') && numel(geom.d1N_basis) >= M_pili;
 for k = 1:M_pili
     N_k = N_segs(k);
+    d1_k = geom.d1_basis{k};
+    d2_k = geom.d2_basis{k};
+    d3_k = geom.d3_basis{k};
+    if has_cached_dN && ~isempty(geom.d1N_basis{k})
+        d1N_k = geom.d1N_basis{k};
+        d2N_k = geom.d2N_basis{k};
+        d3N_k = geom.d3N_basis{k};
+    else
+        [d1N_k, d2N_k, d3N_k] = compute_node_directors(d1_k, d2_k, d3_k, N_k);
+    end
     [kappa1, kappa2, kappa3] = compute_pili_elastic_moments( ...
-        geom.d1_basis{k}, geom.d2_basis{k}, geom.d3_basis{k}, ...
-        N_k, sigma, params.kb0{k}, rc{k});
+        d1_k, d2_k, d3_k, N_k, sigma, params.kb0{k}, rc{k}, d1N_k, d2N_k, d3N_k);
     idx_k = row_offset + (1:3*N_k)';
     R_global(idx_k) = reshape([kappa1'; kappa2'; kappa3'], [], 1);
 
     %% Step 8b: Subtract active internal moments (per-pili, time-varying)
     if ~strcmp(params.am_cfg{k}.type, 'off')
-        d1_k  = geom.d1_basis{k};
-        d2_k  = geom.d2_basis{k};
-        d3_k  = geom.d3_basis{k};
-        [d1N_k, d2N_k, d3N_k] = compute_node_directors(d1_k, d2_k, d3_k, N_k);
         M_act = coupled_active_moment(t, k, N_k, d1_k, d2_k, d3_k, ...
                                       d1N_k, d2N_k, d3N_k, params.am_cfg{k}, rc{k});
         R_global(idx_k) = R_global(idx_k) - M_act(:);
@@ -205,10 +221,11 @@ for k = 1:M_pili
                 obs(4:6)                    = -d3_1_lab;
                 obs(col_state + N_k + 1)    = cos(theta_1);   % dphi_1
                 obs(col_state + 2*N_k + 1)  = 1;              % dpsi_1
-                motor_rows(end+1)    = row_offset + 3;          %#ok<AGROW>
-                motor_obs(:, end+1)  = obs;                     %#ok<AGROW>
-                motor_tau(end+1)     = mc_k.torque_dimless;     %#ok<AGROW>
-                motor_ommax(end+1)   = mc_k.max_omega_dimless;  %#ok<AGROW>
+                n_motor_found = n_motor_found + 1;
+                motor_rows(n_motor_found)   = row_offset + 3;
+                motor_obs(:, n_motor_found) = obs;
+                motor_tau(n_motor_found)    = mc_k.torque_dimless;
+                motor_ommax(n_motor_found)  = mc_k.max_omega_dimless;
             otherwise
                 error('ode_coupled_rhs:UnknownMotorType', ...
                     ['Pili %d: motor_cfg.type = ''%s'' is not implemented in RHS. ', ...
@@ -218,6 +235,24 @@ for k = 1:M_pili
 
     row_offset = row_offset + 3 * N_k;
     col_state  = col_state  + 3 * N_k;
+end
+
+%% Step 8e: Thermal forces on the slow pilus bending modes (v9.0.0)
+%  With pilus thermal fluctuations enabled, sample_brownian_coupled_force
+%  draws one generalised force per thermal bending mode at the start of each
+%  Brownian interval and stores the equivalent force density on the pilus
+%  centrelines here (body frame, held over the interval; the body carries
+%  the opposite net force and torque, see pili_thermal_rhs).  It follows the
+%  sign convention of every applied force (enters R with a minus sign).
+%  Root rows are overwritten by the boundary-condition step below.  The
+%  field is empty for deterministic and body-only Brownian runs.
+if has_pili_thermal
+    pili_tau_in = [];
+    if isfield(params, 'brown_pili_tau') && ~isempty(params.brown_pili_tau)
+        pili_tau_in = params.brown_pili_tau;
+    end
+    R_global = R_global - pili_thermal_rhs(params.brown_pili_force, ...
+        geom.R_body, hydro.B_global, params, pili_tau_in, geom.d3);
 end
 
 %% Step 8c: Subtract background flow contribution
@@ -268,7 +303,11 @@ end
 %  system with a unique solution (see solve_motor_self_consistent).  This
 %  replaces the former lagged persistent cache and makes the RHS a pure
 %  function of (t, Z).
-n_motor = numel(motor_rows);
+motor_rows  = motor_rows(1:n_motor_found);
+motor_obs   = motor_obs(:, 1:n_motor_found);
+motor_tau   = motor_tau(1:n_motor_found);
+motor_ommax = motor_ommax(1:n_motor_found);
+n_motor = n_motor_found;
 if any(~isfinite(R_global))
     error('numerical_diagnostics:NonFiniteRhs', ...
         'RHS vector R_global must be finite.');
@@ -358,13 +397,44 @@ end
 function back = apply_Ainv_u(u_bg, hydro)
 %APPLY_AINV_U  Compute B_global * Ainv * u_bg for background flow coupling
 %
-%  Prefers the reusable LU decomposition (hydro.dM_weighted) built by
-%  build_coupled_lin_sys to skip a second full factorisation of the
-%  mobility matrix; falls back to the raw matrix for backward
-%  compatibility if the field is absent.
+%  Supports both the fast body-frame Block Schur path (hydro.block_schur)
+%  and the full dense LU path (hydro.dM_weighted).
     n_t = hydro.n_trans;
     u_t = u_bg(1:n_t);
     u_w = u_bg(n_t+1:end);
+
+    if isfield(hydro, 'block_schur') && ~isempty(hydro.block_schur)
+        bs = hydro.block_schur;
+        R  = bs.R_body;
+        u_t_bf = reshape(R' * reshape(u_t, 3, []), n_t, 1);
+
+        if bs.nP == 0
+            f_bf = bs.dM_BB \ u_t_bf;
+            Au   = reshape(R * reshape(f_bf, 3, []), n_t, 1);
+            back = hydro.B_global * Au;
+            return;
+        end
+
+        uB = u_t_bf(1:bs.nB);
+        uP = u_t_bf(bs.nB+1:end);
+        vB = bs.dM_BB \ uB;
+        fP = bs.dS_PP \ (uP - bs.M_PB * vB);
+        fB = vB - bs.U_BP * fP;
+        Minv_u_bf = [fB; fP];
+
+        rhs_w   = u_w - hydro.C_twist_reverse * Minv_u_bf;
+        m_twist = hydro.dS_twist \ rhs_w;
+        Au_t_bf = Minv_u_bf - hydro.Minv_C_twist * m_twist;
+        Au_t    = reshape(R * reshape(Au_t_bf, 3, []), n_t, 1);
+
+        Ns = numel(m_twist);
+        Au_tw = zeros(3 * Ns, 1);
+        Au_tw(1:3:end) = hydro.d3_all_lab(:, 1) .* m_twist;
+        Au_tw(2:3:end) = hydro.d3_all_lab(:, 2) .* m_twist;
+        Au_tw(3:3:end) = hydro.d3_all_lab(:, 3) .* m_twist;
+        back = hydro.B_global * [Au_t; Au_tw];
+        return;
+    end
 
     if isfield(hydro, 'dM_weighted') && ~isempty(hydro.dM_weighted)
         Ainv = hydro.dM_weighted;

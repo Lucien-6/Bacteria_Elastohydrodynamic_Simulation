@@ -5,12 +5,15 @@ function spec = flowfield_state_data(results, params, index, kind)
 %    Checks the version-1 flow_state history and returns the complete state,
 %    a parameter copy, and the one recorded Brownian force for that output.
 %    Every output, including the last, uses flow_state.brown_force(:,index).
+%    When the run used pilus thermal fluctuations (v9.0.0) the thermal load
+%    on the pili, flow_state.brown_pili_force(:,index), is restored as well.
 %
 %  Syntax:
 %    spec = flowfield_state_data(results, params, index, kind)
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-10-28
+%  Updated: 2026-11-12 — v9.0.0: thermal load on the pili
 
 if ~isfield(results, 'flow_state') || ~isstruct(results.flow_state) || ...
         ~isfield(results.flow_state, 'version') || results.flow_state.version ~= 1
@@ -93,6 +96,43 @@ if isfield(params_out, 'brown_enabled') && ~params_out.brown_enabled
     force = zeros(6, 1);
 end
 params_out.brown_force_dimless = force(:);
+
+% Thermal load on the pili (v9.0.0+).  Files written before that version,
+% and runs without pilus thermal fluctuations, have no such load.
+params_out.brown_pili_force = [];
+params_out.brown_pili_tau   = [];
+if isfield(params_out, 'brown_pili') && isstruct(params_out.brown_pili) && ...
+        isfield(params_out.brown_pili, 'enabled') && params_out.brown_pili.enabled && ...
+        isfield(fs, 'brown_pili_force') && ~isempty(fs.brown_pili_force)
+    n_rows_pf = 3 * (sum(params.N_segments(:)) + params.M_pili);
+    if size(fs.brown_pili_force, 1) ~= n_rows_pf || size(fs.brown_pili_force, 2) ~= n_times
+        error('flowfield_state_data:InconsistentHistory', ...
+            'flow_state.brown_pili_force does not match the pilus nodes.');
+    end
+    pili_force = fs.brown_pili_force(:, index);
+    if any(~isfinite(pili_force))
+        error('flowfield_state_data:NonFiniteState', ...
+            'Saved thermal pilus force at output %d is not finite.', index);
+    end
+    if any(pili_force)
+        params_out.brown_pili_force = reshape(pili_force, 3, []);
+    end
+    if isfield(fs, 'brown_pili_tau') && ~isempty(fs.brown_pili_tau)
+        n_rows_pt = sum(params.N_segments(:));
+        if size(fs.brown_pili_tau, 1) ~= n_rows_pt || size(fs.brown_pili_tau, 2) ~= n_times
+            error('flowfield_state_data:InconsistentHistory', ...
+                'flow_state.brown_pili_tau does not match the pilus segments.');
+        end
+        pili_tau = fs.brown_pili_tau(:, index);
+        if any(~isfinite(pili_tau))
+            error('flowfield_state_data:NonFiniteState', ...
+                'Saved thermal pilus axial torque at output %d is not finite.', index);
+        end
+        if any(pili_tau)
+            params_out.brown_pili_tau = pili_tau(:);
+        end
+    end
+end
 for k = 1:params.M_pili
     params_out.rot{k} = fs.rot{k}(:, :, index);
 end

@@ -1,31 +1,23 @@
-# User Guide — Bacteria Elastohydrodynamic Simulation
+# User Guide — BacEHD (Bacteria Elastohydrodynamic Simulation)
 
 English | [中文](USER_GUIDE.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Version:** 8.8.0
-> **Updated:** 2026-11-11
+> **Version:** 10.1.0
+> **Updated:** 2026-11-24
 
 This guide is for running simulations, choosing the right configuration path, finding outputs, and post-processing completed cases. For model equations and derivations, see [`docs/theory.md`](docs/theory.md). For release history, see [`CHANGELOG.md`](CHANGELOG.md).
-
-Release note: v8.8.0 adds a biflagellate *Chlamydomonas* swimmer whose active moment is inverted from a measured gait (cell 1p00 A, 57.8 Hz) and fitted with two harmonics. Open [`chlamydomonas/run_long_sym50.m`](chlamydomonas/run_long_sym50.m) or [`chlamydomonas/run_long_asym50.m`](chlamydomonas/run_long_asym50.m) and press Run. The second script tilts both beat planes by 17 degrees about their own root tangents and scales the oscillating moment of flagellum 2 by 0.85. `chlamy_swim_analysis` reports forward speed, spin about the long axis, and the helical pitch, radius and axis tilt. Settling, *E. coli* and Brownian cases are unchanged. v8.7.3 adds the XY plane (Z = Z_cm) to the flow-field figure. The end-of-run figure and every redraw are six panels (3-D XZ/YZ/XY on top, 2-D XZ/YZ/XY below) on a 2500 x 1400 canvas, with the colour bar beside panel f and light from [1, -1, 1]. The 99th-percentile colour scale includes the XY samples, so a redraw of an older figure can use a different colour limit. `render_flowfield_from_results` accepts `opts.drop_first_frame` (default false) to leave saved output 1 out of `times`, `animation` and `all`, and an animation prints one Compute bar and one Video bar. Saved Chlamydomonas runs whose active moment is a nested function handle from before 2026-11-11 can be redrawn. The ODE and `results.flow_state` are unchanged. v8.7.2 is a documentation and comment-accuracy release: the solver, ODE trajectories and saved results are unchanged. It corrects outdated or wrong source comments, rewords the motor-speed pre-flight warning (it concerns the zero-torque speed, not stall), removes the obsolete `src/utils/verify_migration.m`, and drops the long version-notes section from the README (release history lives in `CHANGELOG.md`). v8.7.1 revises the flow-field figure. The cell interior is blank, the axes cover the body and flagellum, and the outline is a smooth surface section. The time at 0.0001 s resolution is the figure title, and the colour bar sits beside panel d. The ODE trajectory is unchanged. v8.7.0 saves `results.flow_state` at every stored output and adds `render_flowfield_from_results` for a final flow panel, selected times, or a full-sequence animation. Results saved before 8.7.0 cannot reconstruct a flow field. v8.6.6 corrects custom-body surface reconstruction, so a summary figure or animation shows the full body instead of a single facet, sets a 0.5 μm minimum tick spacing on the co-moving windows, and replaces the two body stripes with one short dark-green patch on one side of the waist. The ODE is unchanged and parametric results are unchanged. A custom body whose reconstructed surface changes also changes its enclosed volume, the volume-based length scale, and the sinking force when the cell is not neutrally buoyant. v8.6.5 adds a realistic single-polar-flagellum *E. coli* example (custom geometry, neutrally buoyant, `T_obs = 1 s`); the solver is unchanged and the results of existing cases are unchanged. v8.6.3 refined the animation: the co-moving windows are sized per axis from the reach of the bacterium (no longer cubes) and carry no scale bar, two dark stripes on the body make a roll about the long axis visible, and the four panels are arranged automatically on the canvas; simulation results are unchanged. v8.6.2 gives the motion animation a publication-oriented four-panel layout (3-D and XZ overviews plus co-moving 3-D and XZ windows with ticks and grid, legend, 2-μm scale bars, time stamp with playback speed; the YZ panel is removed); simulation results are unchanged. v8.6.0 speeds up the motion-animation rendering (graphics objects are created once and only updated per frame) and adds `render_animation_from_results` to re-render the animation from saved results; simulation results and video content are unchanged. v8.5.2 calibrates the pilus hydrodynamic radius (`material.hydro_radius_factor`, default `sqrt(2)`; see §4, §7 and `docs/theory.md` §5.2): the axial-twist drag of a straight pilus is now the no-slip-cylinder value instead of half of it and the translational pilus mobility is within about 3 % of slender-body theory, so the default results of pili-bearing cases change slightly (set `hydro_radius_factor = 1` to reproduce 8.5.1); pilus-free runs are unaffected. v8.5.1 re-uses the last exact finite-difference Jacobian across the `ode15s` restarts of Brownian runs, making a Brownian node about 2–3.7× cheaper for multi-pilus cases (about 1.4× for one pilus) within the integration tolerance (see §8; `cfg.jacobian_reuse = false` restores v8.5.0 bit-for-bit); it also cleans up the code-analyzer messages of the run scripts, fixes `verify_migration.m` and adds Markdown lint configuration. v8.5.0 changes how body-only Brownian motion is applied — each interval's thermal increment is realised as a constant generalised force acting through the coupled ODE instead of a displacement kick followed by root re-projection, which removes the spurious pilus root kink at every Brownian node and makes the Ito drift implicit (see §8). Brownian trajectories therefore differ from earlier versions even for the same seed; deterministic runs are unchanged. The type-2 parabolic pilus template is now anchored exactly at the origin (its first node was previously offset by ~4 nm/K). v8.4.0 corrects the `free_torsion` root twist equation — the motor torque is now balanced by the torsional drag of the whole filament instead of the first segment only, so steady rotor speeds of motor-driven runs drop by roughly the segment count $N$ relative to earlier versions (see §7); the pre-flight stall diagnostic uses the matching drag coefficient. v8.3.0 makes the pilus curvature stencil node-collocated and second-order accurate, and turns all 14 parametric attachment-site maps into proper rotations with a right-handed `deflection_x`. Planar pili (types 1-4, `deflection_x = 0`) are placed exactly as before; conical-spiral pili at sites 1, 2, 5, 7, 10, 11, 14 and any pilus with non-zero `deflection_x` now have the intended (previously mirrored) handedness — flip the sign of spiral parameter `c` or of `deflection_x` if a configuration was tuned against the old geometry. v8.2.0 was a physics-correctness update. The flagellar motor uses a signed linear torque-speed law in the rotor speed relative to the body with a documented sign convention (see §7); the flow-field post-processor accounts for the background flow; `shape_params` of pilus types 2-5 are validated up front; and the units of curvature/moment inputs are documented (§4). v8.1.0 extended batch post-processing (`postprocess_cases`): 3-D translational MSD fit on \(0<\tau\le T/2\), plus XZ-plane rotational diffusion \(D_\mathrm{rot}\) from MSAD.
-
-v8.0.1 hardened runtime numerical diagnostics: dense dissipation checks use full `eig`; isolated near-singularity (`rcond < 1e-14`) warns as `NearSingularMatrix`; `SingularMatrix` aborts only under the joint gate of a large backward residual (`> 1e-6`) and near-singular `rcond`. Diagnostic snapshots store `rcond_near_singular_threshold`.
-
-v8.0.0 introduced weighted-reciprocal translation/twist hydrodynamics for unequal segment lengths, equal-chord canonical custom-pilus geometry, objective full-director initialisation, dimensionless Brownian SPD repair, true-duration remainder kicks, isolated Brownian random streams, strict incompressible-shear validation, saved partial timeout returns, and run-scoped numerical diagnostics.
-
-Breaking configuration changes (since 8.0.0): `Pili_Matrix` must contain exactly eight rows; per-pilus `bending_stiffness` is no longer supported; and `shear_z.direction` must be orthogonal to `shear_z.shear_axis`. A segment timeout now saves the achieved trajectory and returns normally with `results.completed=false` and `termination_reason='timeout'`; callers must not use that partial trajectory for steady-state statistics.
 
 ## 1. Before You Run
 
 ### Requirements
 
-- MATLAB R2020b or later is recommended.
+- MATLAB R2022a or later. The project is developed and tested with R2026a on Windows 11 and R2023a on Linux HPC. Earlier releases are not supported: every run writes `config.json` with `jsonencode(..., 'PrettyPrint', true)` (R2021a), and the flow-field figure, which is on by default, uses `clim` (R2022a). Flow-field percentile scaling uses pure base MATLAB (no Statistics Toolbox dependency).
 - PNG and PDF exports use `exportgraphics`; optional interactive HTML exports require MATLAB R2026a or later.
 - Capsule body surface generation requires Anton Semechko's **S2 Sampling Toolbox** from MATLAB Add-On Explorer / File Exchange.
 - No Python, Conda, or pip environment is required. [`requirements.txt`](requirements.txt) documents this explicitly.
 - **Parallel Computing Toolbox** is optional: needed for the default parallel branches of [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) and [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m) (`use_parallel = true`).
-- **Running on a Linux HPC cluster (v8.2.0+):** use [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) / [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m) instead of the originals — see §5.3.
+- **Running on a Linux HPC cluster (since 7.10.0):** use [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) / [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m) instead of the originals — see §5.3.
 
 ### Recommended Working Folder
 
@@ -46,21 +38,19 @@ This keeps relative paths for JSON configs, geometry files, and outputs predicta
 | Import custom body and pili geometry | Use [`configs/config_custom_example.json`](configs/config_custom_example.json). |
 | Test a free-torsion motor-driven flagellum | Use [`configs/config_motor_flagella_example.json`](configs/config_motor_flagella_example.json). |
 | Simulate a realistic *E. coli* (one polar flagellum, motor-driven) | Use [`configs/config_ecoli_single_flagellum.json`](configs/config_ecoli_single_flagellum.json); regenerate its geometry with [`geometry/generate_ecoli_geometry.m`](geometry/generate_ecoli_geometry.m). |
-| Simulate a biflagellate *Chlamydomonas* from a measured gait | Open [`chlamydomonas/run_long_sym50.m`](chlamydomonas/run_long_sym50.m) or [`chlamydomonas/run_long_asym50.m`](chlamydomonas/run_long_asym50.m) and press Run. |
+| Simulate a biflagellate *Chlamydomonas* in 3-D | Open [`chlamydomonas/cases/run_3d_helix_2s.m`](chlamydomonas/cases/run_3d_helix_2s.m) or [`chlamydomonas/cases/run_planar_sym50.m`](chlamydomonas/cases/run_planar_sym50.m) and press Run (see [`chlamydomonas/README.md`](chlamydomonas/README.md)). |
 | Run many cases without prompts | Call [`run_simulation.m`](run_simulation.m) with `cfg.auto_confirm = true`. |
 
 ### Chlamydomonas biflagellate
 
-The geometry is [`configs/config_chlamy_biflagellate_gz.json`](configs/config_chlamy_biflagellate_gz.json): a 5 µm by 4 µm spheroid, two clamped flagella, and a 13 degree angle between each root tangent and the cell axis. The JSON traveling-wave moment is not the drive. `chlamy_run_case` replaces it with `output/chlamy_inverse/fit_1p00A.mat`, the two-harmonic fit of the moment inverted from the measured gait of cell 1p00 A at 57.8 Hz. If that file is missing, rebuild it with `chlamy_inverse_moment` and `chlamy_fit_moment`; the waveforms are under `chlamydomonas/Refers/`.
-
-In the MATLAB desktop, open either script and press Run. Each script finds the project root from its own path.
+The geometry is [`configs/config_chlamy_biflagellate_gz.json`](configs/config_chlamy_biflagellate_gz.json): a 5 µm by 4 µm spheroid, two clamped flagella, and a 13 degree angle between each root tangent and the cell axis. The JSON traveling-wave moment is a placeholder replaced by `chlamydomonas/data/fit_1p00A.mat` (dual-k 1ω+2ω measured-gait fit at 57.75 Hz) plus optional 3-D out-of-plane bending (`chlamydomonas/core/chlamy_make_perp_envelope.m`). See [`chlamydomonas/README.md`](chlamydomonas/README.md) for the full physics, parameters, and benchmarks.
 
 ```matlab
-run('chlamydomonas/run_long_sym50.m')    % symmetric breaststroke, 50 beats, with animation
-run('chlamydomonas/run_long_asym50.m')   % 17 degree tilt; flagellum 2 amplitude 0.85
+run('chlamydomonas/cases/run_3d_helix_2s.m')    % 3-D helical swimming, 2.0 s, with animation
+run('chlamydomonas/cases/run_planar_sym50.m')   % Coplanar symmetric reference, 50 beats, with animation
 ```
 
-`tilt_deg`, `drive_amp`, `drive_phase` and `drive_freq_ratio` are the per-flagellum overrides of `chlamy_run_case`. `drive_amp` scales only the oscillating part of the moment. The long scripts save `swim_analysis.mat` beside the run.
+`tilt_deg`, `drive_amp`, `drive_phase`, `drive_freq_ratio`, `drive_amp_perp`, and `perp_sign` are the per-flagellum overrides of `chlamy_run_case`. Each preset writes `swim_analysis.mat` beside the run.
 
 ## 3. Run with Inline Parameters
 
@@ -84,7 +74,7 @@ config_file = 'configs/my_case.json';
 main_coupled_simulation
 ```
 
-The repository tracks example JSON files under `configs/`. Copy them to paths such as `configs/my_case.json` for local edits. Only `output/` is listed in `.gitignore`.
+The repository tracks example JSON files under `configs/`. Copy them to paths such as `configs/my_case.json` for local edits. Files under `configs/` are not ignored by git, so a private case file shows up as untracked; run products go to `output/`, which is ignored.
 
 ### JSON Sections by Geometry Mode
 
@@ -109,11 +99,11 @@ The `material` section also accepts the optional key `hydro_radius_factor` (defa
 
 | Field | Allowed values | Source |
 | --- | --- | --- |
-| `intrinsic_curvature` | bare string (`frozen`, `zero`, `constant`, `helix`) **or** struct with `.type` (v7.9.0 P7) | `validate_simulation_params.m` |
+| `intrinsic_curvature` | bare string (`frozen`, `zero`, `constant`, `helix`) **or** struct with `.type` | `validate_simulation_params.m` |
 | `intrinsic_curvature` (`constant`) | struct with 3-element `kappa` | `validate_simulation_params.m` |
 | `intrinsic_curvature` (`helix`) | struct with finite scalar `kappa_d2`, `kappa_d3` | `validate_simulation_params.m` |
-| `active_moment` | bare string (`off`, `traveling_wave`, `custom`) **or** struct with `.type` (v7.9.0 P7) | `validate_simulation_params.m` |
-| `motor_torque` | bare string (`off`, `constant`) **or** struct with `.type` (v7.9.0 P7/P8) | `validate_simulation_params.m` |
+| `active_moment` | bare string (`off`, `traveling_wave`, `custom`) **or** struct with `.type` | `validate_simulation_params.m` |
+| `motor_torque` | bare string (`off`, `constant`) **or** struct with `.type` | `validate_simulation_params.m` |
 | `background_flow.type` | `off`, `uniform`, `shear_z` | `coupled_background_flow.m` |
 | `root_coupling` | `clamped`, `free_torsion` | `build_coupled_lin_sys.m` |
 
@@ -138,21 +128,22 @@ value on pili of different `length_um` describes different physical
 curvatures.  With `intrinsic_curvature = "frozen"` (default) the reference
 curvature is taken from the initial geometry and no unit conversion is needed.
 
-### Pre-flight Parameter Checks (v7.9.0)
+### Pre-flight Parameter Checks
 
-[`validate_simulation_params.m`](src/config/validate_simulation_params.m) runs before initialisation and aggregates all errors into a single report. Notable checks added or tightened in v7.9.0:
+[`validate_simulation_params.m`](src/config/validate_simulation_params.m) runs before initialisation and aggregates all errors into a single report. The checks that most often stop a run:
 
 | Check | Condition | Severity |
 | --- | --- | --- |
-| `pili_ext` count consistency (P1) | `numel(pili_ext)` != number of pili (parametric: `size(Pili_Matrix,2)`; custom: `numel(custom_geometry.pili)`) | error |
-| `delta` range (P2) | `delta <= 0` | error |
-| `delta` range (P2) | `delta >= pi/4` (premature singularity event) | warning |
-| `N_body` upper bound (P4) | `N_body > 2000` (`O(N^2)` memory) | warning |
-| Background-flow orthogonality (P5) | `shear_z` requires finite nonzero vectors and `abs(dot(direction_hat,shear_axis_hat)) <= 1e-12` | error |
-| `alpha_0` range (P6/A1) | outside `[-pi/2, pi/2]`; enforced in parametric mode and custom mode with empty `initial_orientation` | error |
-| `AbsTol` / `RelTol` wording (P9) | outside `(0, 1]`; recommended `1e-6 ~ 1e-3` | warning |
+| `Pili_Matrix` shape | not exactly eight rows (one column per pilus); a ninth, per-pilus stiffness row is rejected because all pili share one `E` and `r_pili` | error |
+| `pili_ext` count consistency | `numel(pili_ext)` != number of pili (parametric: `size(Pili_Matrix,2)`; custom: `numel(custom_geometry.pili)`) | error |
+| `delta` range | `delta <= 0` | error |
+| `delta` range | `delta >= pi/4` (premature singularity event) | warning |
+| `N_body` upper bound | `N_body > 2000` (`O(N^2)` memory) | warning |
+| Background-flow orthogonality | `shear_z` requires finite nonzero `direction` and `shear_axis` with `abs(dot(direction_hat,shear_axis_hat)) <= 1e-12` | error |
+| `alpha_0` range | outside `[-pi/2, pi/2]`; enforced in parametric mode and custom mode with empty `initial_orientation` | error |
+| `AbsTol` / `RelTol` range | outside `(0, 1]`; recommended `1e-6 ~ 1e-3` | warning |
 
-Brownian JSON fields mapped by [`load_sim_config.m`](src/config/load_sim_config.m): `brownian.enable`, `brownian.temperature` -> `Temper`, `brownian.rng_seed`, `brownian.dt_B_ratio`.
+Brownian JSON fields mapped by [`load_sim_config.m`](src/config/load_sim_config.m): `brownian.enable`, `brownian.temperature` -> `Temper`, `brownian.rng_seed`, `brownian.dt_B_ratio`, `brownian.pili_thermal` -> `enable_pili_brown`, `brownian.pili_mode_orders` -> `pili_brown_orders`.
 
 The authoritative schemas are the tracked example files and the loader implementation in [`src/config/load_sim_config.m`](src/config/load_sim_config.m).
 
@@ -174,7 +165,7 @@ When those sweep drivers run, CSV/MAT summary products are written under **`batc
 
 From the repository root, open [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m). It runs independent repeats of the **same** Brownian-on configuration into `output/<case_name_base>/001`, `002`, … (zero-padded).
 
-- **Parallel (default):** `use_parallel = true` runs a `parfor` loop when **Parallel Computing Toolbox** is licensed and a `parpool` can be created. Worker count is limited by `max_resource_frac` (default `0.75`) applied to probed physical cores and to available RAM via `mem_per_worker_gb`. If PCT is missing or pool creation fails, the driver **warns and falls back** to the legacy serial `for` loop.
+- **Parallel (default):** `use_parallel = true` runs a `parfor` loop when **Parallel Computing Toolbox** is licensed and a `parpool` can be created. Worker count is limited by `max_resource_frac` (default `0.90`) applied to probed physical cores and to available RAM via `mem_per_worker_gb` (default `2.5`). If PCT is missing or pool creation fails, the driver **warns and falls back** to the legacy serial `for` loop.
 - **Serial:** `use_parallel = false` keeps the pre-v7.4 single-threaded loop (use this for strict reproducibility checks against older behaviour).
 - **RNG / seeds:** In parallel mode, `brown_rng_seed_mode = 'fixed'` sets `cfg.brown_rng_seed = rng_seed_base + k` per repeat. For `'timestamp'`, the script assigns a clock-derived base plus `k` so workers cannot share the same wall-clock seed. In **serial** `'timestamp'` mode, `cfg.brown_rng_seed` is still omitted each run (same policy as a single interactive `run_simulation` call).
 - **Worker console silence (parallel only):** the parfor branch sets `cfg_k.silent = true`, so each worker's `run_simulation` writes its full log to `output/<case>/<NNN>/simulation.log` only and does **not** echo to the shared stdout. This prevents ~15000 interleaved `[ODE] Segment N completed` lines from burying the useful `[k/100] OK` progress lines. Custom-geometry runs are fully silent on workers as of v7.9.5. The serial branch is unchanged (verbose) so interactive debugging remains informative.
@@ -194,9 +185,9 @@ From the repository root, run [`batch_sweep/batch_run_from_json.m`](batch_sweep/
 run('batch_sweep/batch_run_from_json.m');
 ```
 
-### 5.3 Linux HPC cluster batch (`batch_repeat_brownian_HPC_Linux.m`, v8.2.0+)
+### 5.3 Linux HPC cluster batch (`batch_repeat_brownian_HPC_Linux.m`, since 7.10.0)
 
-For headless, single-node-exclusive Linux HPC cluster execution, use [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) / [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m) instead of the originals. This is a maintained fork, not auto-synced with `run_simulation.m` / `batch_repeat_brownian.m` — any future physics/algorithm fix to the originals must be ported here manually. Usage is otherwise identical to §5.1 (same `case_name_base` / `n_repeats` / `brown_rng_seed_mode` / inline-or-JSON config settings).
+For headless, single-node-exclusive Linux HPC cluster execution, use [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m). Since v10.0.0, all Linux/headless engine features (platform-aware AVI/MP4 video export, `.avi` detection, `cfg.silent`, and `DataQueue` progress heartbeats) live directly in `run_simulation.m`, and [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) is a thin backward-compatible forwarding wrapper to `run_simulation.m`. Usage is otherwise identical to §5.1 (same `case_name_base` / `n_repeats` / `brown_rng_seed_mode` / inline-or-JSON config settings).
 
 Differences from `batch_repeat_brownian.m`:
 
@@ -261,12 +252,13 @@ $$\tau_{\mathrm{eff}} = \tau_{\mathrm{motor}}\left(1 - \frac{\omega_{\mathrm{rel
 
 Set `brownian.enable` in JSON or `cfg.enable_brown` in MATLAB.
 
-Brownian dynamics is body-only: the 6×6 effective mobility `M_eff` is
-obtained from the complete coupled body-pili deterministic system, but
+By default Brownian dynamics is body-only: the 6×6 effective mobility `M_eff`
+is obtained from the complete coupled body-pili deterministic system, but
 thermal forcing is applied only to the body's three translations and three
 rotations.  Pili internal Euler-angle modes receive no thermal noise of their
 own.  This is not a full coupled thermal-equilibrium model and should not be
-used to study pilus-mode equipartition.
+used to study pilus-mode equipartition.  The option `brownian.pili_thermal`
+(v9.0.0, below) adds thermal forcing of the slow pilus bending modes.
 
 **Force realisation (v8.5.0).**  Each Brownian interval `dt_B` starts by
 probing `M_eff`, drawing the Euler–Maruyama increment
@@ -304,6 +296,60 @@ Important options:
 - `brownian.temperature`: positive fluid temperature in Kelvin; required when Brownian dynamics are enabled.
 - `brownian.rng_seed`: fixed positive seed for reproducible runs.
 - `brownian.dt_B_ratio`: Brownian time step relative to output step.
+- `brownian.pili_thermal` (`cfg.enable_pili_brown`, default `false`): thermal fluctuations of the pili, see below.
+- `brownian.pili_mode_orders` (`cfg.pili_brown_orders`, default `2`): number of bending orders per pilus that receive thermal noise.
+- `brownian.pili_tau_cut_s` (`cfg.pili_brown_tau_cut_s`, optional, default unset): time-scale cutoff in seconds — keeps every bending mode with relaxation time `>= tau_cut_s` (recommended for unequal-length pili; enables pair protection by default).
+- `brownian.pili_protect_pairs` (`cfg.pili_brown_protect_pairs`, optional): expand the mode cut across near-degenerate clusters (`gap_ratio < 1.15`) so a polarisation pair is never split.
+- `brownian.pili_rng_seeds` (`cfg.brown_pili_rng_seeds`, optional): positive integer seeds (one per pilus, distinct from `brownian.rng_seed`) for independent per-pilus thermal streams; automatically assigned non-overlapping blocks across repeats in `batch_repeat_brownian*.m`.
+
+**Thermal fluctuations of the pili (v9.0.0, upgraded in v10.0.0).**  With
+`brownian.pili_thermal = true` the slow bending modes of the pili (by default
+the first and second bending orders of every pilus, two polarisations each)
+receive thermal forces of their own.  The modes are computed once from the
+coupled operator at the initial state.  In every interval the thermal forces
+on the body and on these modes are drawn together from the joint mobility and
+realised through the constrained probe's centreline force density together
+with its balancing scalar axial torque density (`brown_pili_tau`), so body–
+filament correlations are kept, non-thermal modes are not kicked, and each
+thermal mode relaxes to an elastic energy of `kT/2`.  Twist and higher
+bending modes stay deterministic.  The option needs `brownian.enable = true`
+and at least one pilus.
+
+- **Choose `dt_B` inside the two-sided window printed in the log.**  The
+  `[BROWN]` lines at start-up list the relaxation times of the thermal modes
+  and the slowest non-thermal bending mode (`tau_det`).  Keep `dt_B` at or
+  below a quarter of the fastest thermal relaxation time (0.002 s for 3 µm
+  filaments with `configs/config_example.json` material; `run_simulation`
+  warns for `x_fast > 0.5` and rejects `x_fast > 2.0` unless
+  `cfg.allow_large_pili_dt_B = true`), and do not shrink `dt_B` well below
+  `tau_det` without raising `pili_mode_orders` or lowering `pili_tau_cut_s`
+  (`run_simulation` warns when `dt_B / tau_det < 0.5`).  Tiny closing
+  remainders (`< 5 %` of `dt_B`) are absorbed into the final interval.
+- **Outputs.**  `results.pili_modes` holds the mode amplitudes `a`
+  (`energy_kT = a.^2 / (2 kT)`, equilibrium mean 1/2), total bending and
+  twist energies (`elastic_energy_kT`), relaxation times, orders,
+  `dom_pilus`, `pilus_order`, `selection_mode`, `pilus_share`, and run-time
+  maximum diagnostics (`max_pattern_resid`, `max_hold_pattern_resid`,
+  `max_twist_row_resid`, `max_hold_force`).
+  `results.flow_state.brown_mode_force`, `brown_pili_force`, and
+  `brown_pili_tau` store the modal forces, centreline force density, and
+  balancing axial torque density at every output for exact flow-field redraws.
+- **Limits.**  The scheme is built and verified for naturally straight,
+  clamped, passive filaments without gravity or background flow.
+  `root_coupling = free_torsion` (a rotating flagellum, with or without
+  motor) is rejected with an error; use the body-only scheme for such
+  cells.  Intrinsic-curvature overrides and active moments run with a
+  warning: the thermal modes are those of the passive initial state, a
+  force on the centreline leaves the twist untouched only for a naturally
+  straight filament, and equipartition has not been verified there; check
+  `elastic_energy_kT(2, :)` (twist) before relying on such a run.
+  Modes faster than the thermal ones are treated as already relaxed when
+  the noise is drawn, so the body diffusion below about 2 ms (the
+  relaxation time of the third bending order of a 3 µm filament) is not
+  resolved.  From the lag `dt_B` on it follows the linear theory, and at
+  long times it equals the value for a cell of frozen shape
+  (`docs/theory.md` §10.4 gives the numbers).  Raising `pili_mode_orders`
+  to 3 needs `dt_B` of about 0.0005 s.
 
 **Lagged Jacobian (v8.5.1).**  Brownian runs restart `ode15s` at every
 `dt_B` node, and every restart used to pay a dense finite-difference
@@ -400,7 +446,7 @@ Results go to one Excel workbook plus a multi-panel summary figure (PNG, PDF, op
 | JSON batch skipped as duplicate `case_name` | Only the alphabetically first JSON with that non-empty `case_name` runs; assign unique `case_name` values or leave empty for auto timestamp folders. |
 | `IllConditioned` Brownian mobility warning (`M_eff_dimless rcond`) | v7.4.1+ diagnoses the dimensionless mobility; residual warnings mean genuinely ill-conditioned kinematics/hydrodynamics — cross-check Euler roots (\(\theta\approx\pi\)), body geometry, and `simulation.log` (see §8). |
 | `NearSingularMatrix` warning (`rcond < 1e-14`) | v8.0.1+: recorded only; does **not** abort by itself. Abort requires joint large backward residual (`> 1e-6`) → `SingularMatrix`. Check `results.diagnostics` / `[DIAG]` log lines. |
-| `DissipationEigensolveFailure` on dense mobility | Should not appear after v8.0.1 (dense path uses `eig`). If seen, confirm you are on ≥8.0.1 and that mobility is not unexpectedly sparse. |
+| Warning `numerical_diagnostics:DissipationEigensolveFallback` | Harmless. The dissipation check uses the dense `eig`; the iterative `eigs` is tried only for a sparse operator with more than 600 rows, and if it does not converge the check falls back to `eig` with this warning. The run is not affected. |
 | `run_simulation:SilentPreviewDeadlock` error (v7.9.6+) | `cfg.silent = true` with `preview_initial = true` requires `auto_confirm = true` (a headless/parallel worker cannot answer the interactive `questdlg`). Set `auto_confirm = true` or `preview_initial = false`. |
 | `VideoWriter` `"The specified profile is not valid."` on Linux | Use [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) (§5.3) instead of `run_simulation.m` — `'MPEG-4'` is Windows/Mac-only; the HPC_Linux fork switches to `'Motion JPEG AVI'` on Linux automatically. |
 | Worker process count drops mid-batch (`top`), batch hangs indefinitely (Linux) | Likely the Linux OOM-killer; `parfor` has no built-in timeout / dead-worker recovery. On `batch_repeat_brownian_HPC_Linux.m` (§5.3), calibrate `mem_per_worker_gb` from a real measured peak RSS (not the default) and/or reduce `heavy_output_sample_idx` coverage. Confirm with `dmesg \| grep -i "killed process"` or `journalctl -k \| grep -i "out of memory"`. |

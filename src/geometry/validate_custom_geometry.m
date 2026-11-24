@@ -45,6 +45,7 @@ function [errs_out, warns_out] = validate_custom_geometry(custom_cfg, errs, warn
 %  Updated: 2026-07-13
 
 %% ---- Body point cloud file ----
+%#ok<*AGROW>
 if ~isfield(custom_cfg, 'body_points_file') || isempty(custom_cfg.body_points_file)
     errs{end+1} = 'custom_geometry.body_points_file is required but not specified.';
     errs_out  = errs;
@@ -75,7 +76,6 @@ end
 
 %% ---- Attachment sites (handle cell/struct polymorphism) ----
 n_sites = 0;
-sites = [];
 if isfield(custom_cfg, 'attachment_sites') && ~isempty(custom_cfg.attachment_sites)
     try
         sites = normalise_json_struct_array(custom_cfg.attachment_sites);
@@ -140,7 +140,7 @@ if isfield(custom_cfg, 'attachment_sites') && ~isempty(custom_cfg.attachment_sit
                 [warn_msg_list] = check_site_geometry( ...
                     body_pts, sites(s).position(:), sites(s).direction(:), s, labels{s});
                 for mm = 1:numel(warn_msg_list)
-                    warns{end+1} = warn_msg_list{mm}; %#ok<AGROW>
+                    warns{end+1} = warn_msg_list{mm};
                 end
             end
         end
@@ -148,8 +148,6 @@ if isfield(custom_cfg, 'attachment_sites') && ~isempty(custom_cfg.attachment_sit
 end
 
 %% ---- Pili configurations ----
-pili_cfg = [];
-n_pili = 0;
 if isfield(custom_cfg, 'pili') && ~isempty(custom_cfg.pili)
     try
         pili_cfg = normalise_json_struct_array(custom_cfg.pili);
@@ -184,23 +182,27 @@ if isfield(custom_cfg, 'pili') && ~isempty(custom_cfg.pili)
         % Site index
         if ~isfield(pili_cfg(k), 'site_index') || isempty(pili_cfg(k).site_index)
             errs{end+1} = sprintf('Custom pili %d: .site_index is required.', k);
-        elseif ~isnumeric(pili_cfg(k).site_index) || ...
+        elseif ~isnumeric(pili_cfg(k).site_index) || ~isscalar(pili_cfg(k).site_index) || ...
+                ~isfinite(pili_cfg(k).site_index) || ...
+                floor(pili_cfg(k).site_index) ~= pili_cfg(k).site_index || ...
                 pili_cfg(k).site_index < 1 || ...
                 pili_cfg(k).site_index > n_sites
             errs{end+1} = sprintf( ...
-                'Custom pili %d: .site_index = %g is out of range [1, %d].', ...
-                k, pili_cfg(k).site_index, n_sites);
+                'Custom pili %d: .site_index must be an integer in [1, %d], got %s.', ...
+                k, n_sites, mat2str(pili_cfg(k).site_index));
         end
 
-        % Deflection angles (optional, scalar check)
+        % Deflection angles (optional, finite scalar check)
         if isfield(pili_cfg(k), 'deflection_z') && ~isempty(pili_cfg(k).deflection_z)
-            if ~isnumeric(pili_cfg(k).deflection_z) || ~isscalar(pili_cfg(k).deflection_z)
-                errs{end+1} = sprintf('Custom pili %d: deflection_z must be a scalar.', k);
+            if ~isnumeric(pili_cfg(k).deflection_z) || ~isscalar(pili_cfg(k).deflection_z) || ...
+                    ~isfinite(pili_cfg(k).deflection_z)
+                errs{end+1} = sprintf('Custom pili %d: deflection_z must be a finite scalar.', k);
             end
         end
         if isfield(pili_cfg(k), 'deflection_x') && ~isempty(pili_cfg(k).deflection_x)
-            if ~isnumeric(pili_cfg(k).deflection_x) || ~isscalar(pili_cfg(k).deflection_x)
-                errs{end+1} = sprintf('Custom pili %d: deflection_x must be a scalar.', k);
+            if ~isnumeric(pili_cfg(k).deflection_x) || ~isscalar(pili_cfg(k).deflection_x) || ...
+                    ~isfinite(pili_cfg(k).deflection_x)
+                errs{end+1} = sprintf('Custom pili %d: deflection_x must be a finite scalar.', k);
             end
         end
 
@@ -243,9 +245,9 @@ end
 %% ---- L_0 override / L_0_suggest_mode ----
 if isfield(custom_cfg, 'L_0_override') && ~isempty(custom_cfg.L_0_override)
     if ~isnumeric(custom_cfg.L_0_override) || ~isscalar(custom_cfg.L_0_override) || ...
-            custom_cfg.L_0_override <= 0
+            ~isfinite(custom_cfg.L_0_override) || custom_cfg.L_0_override <= 0
         errs{end+1} = sprintf( ...
-            'custom_geometry.L_0_override must be a positive scalar, got %s.', ...
+            'custom_geometry.L_0_override must be a positive finite scalar, got %s.', ...
             mat2str(custom_cfg.L_0_override));
     end
 end

@@ -44,6 +44,17 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %                      r_pili (v8.5.2).  sqrt(2) gives the exact no-slip
 %                      cylinder twist drag and translation within ~3 %;
 %                      sqrt(e) gives exact translation; 1 reproduces <= 8.5.1.
+%                    cfg.enable_pili_brown - logical (default false; JSON
+%                      brownian.pili_thermal).  With Brownian motion enabled,
+%                      also applies thermal noise to the slow bending modes
+%                      of the pili (v9.0.0; init_pili_brownian_modes,
+%                      sample_brownian_coupled_force).  false keeps the
+%                      body-only scheme bit-for-bit.
+%                    cfg.pili_brown_orders - positive integer (default 2;
+%                      JSON brownian.pili_mode_orders).  Bending orders per
+%                      pilus and polarisation that receive noise; dt_B must
+%                      stay below about a quarter of the fastest thermal
+%                      relaxation time reported in the log.
 %
 %  Errors raised while running are captured by a top-level try/catch and
 %  logged to simulation.log as a [FATAL] block (identifier, message, full
@@ -66,7 +77,11 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %                 a struct of lagged-Jacobian counters (enabled, n_fresh,
 %                 n_lagged, n_on_demand, n_age_refresh, n_invalidated,
 %                 n_fallback, n_fd_rhs); only .enabled = false when the
-%                 cache is not used.
+%                 cache is not used.  With pilus thermal fluctuations,
+%                 pili_modes holds the thermal bending modes: a [n_modes x
+%                 NT] amplitudes, energy_kT (a^2/2 in kT; equilibrium mean
+%                 1/2), elastic_energy_kT [2 x NT] (total bending; twist),
+%                 rate_per_s, tau_s, order, pilus_share, kT_dimless.
 %    params     - Model, discretisation, dimensional data, and scale factors;
 %                 logger handles are removed before return/save; [] if aborted.
 %    output_dir - Created run directory; '' if aborted before allocation.
@@ -76,16 +91,23 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %    Creates <current-folder>/output/<case_name>/ (or a timestamped variant)
 %    and writes config.json, simulation.log, simulation_results.mat, and
 %    timeseries.csv.  Optional products include brownian_rng_seed.txt,
-%    initial_pose.{png,pdf,html}, bacteria_3d_motion.mp4,
-%    flowfield_panels.{png,pdf,html}, and summary_plot.{png,pdf,html};
-%    HTML export depends on MATLAB release support.  Existing-output and
-%    preview dialogs may be shown unless cfg.auto_confirm suppresses them.
+%    initial_pose.{png,pdf,html}, bacteria_3d_motion.{mp4,avi} (platform
+%    aware via render_motion_animation), flowfield_panels.{png,pdf,html},
+%    and summary_plot.{png,pdf,html}; HTML export depends on MATLAB release
+%    support.  Existing-output and preview dialogs may be shown unless
+%    cfg.auto_confirm suppresses them.  Optional cfg.progress_queue /
+%    cfg.progress_tag send throttled DataQueue heartbeats for silent batch
+%    runs, and cfg.brown_pili_rng_seeds supplies independent per-pilus RNG
+%    streams when cfg.enable_pili_brown is enabled.
 %    Brownian draws use an isolated stream and do not modify MATLAB's global
 %    RNG state.  Since v8.5.0 the body-only Brownian increment of each
 %    interval dt_B is realised as a constant thermal generalised force acting
 %    through the coupled ODE (sample_brownian_body_force) rather than as a
 %    displacement kick, so pili follow the body continuously and the Ito
-%    drift is generated implicitly.  On timeout, MAT/CSV/config/log data are
+%    drift is generated implicitly.  With cfg.enable_pili_brown (v9.0.0) the
+%    same interval also carries thermal forces on the slow pilus bending
+%    modes, sampled jointly with the body force from the joint mobility and
+%    applied as a force density on the pilus centrelines.  On timeout, MAT/CSV/config/log data are
 %    saved while animation and flow-field generation are skipped.
 %
 %  Author:  Lucien (lucien-6@qq.com)
@@ -113,7 +135,17 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %  Updated: 2026-11-04 — v8.7.2: comment and log/warning-text corrections only; no behavioural change.
 %  Updated: 2026-11-11 — v8.7.3: flow-field figure is XZ/YZ/XY (2x3); this file's solver path is unchanged.
 %  Updated: 2026-11-11 — v8.8.0: version banner only; the Chlamydomonas driver is outside this file.
-%  Log banner version: 8.8.0 (2026-11-11) - emitted via project_version(); keep README / CHANGELOG in sync
+%  Updated: 2026-11-12 — v9.0.0: optional thermal fluctuations of the slow pilus bending
+%           modes (cfg.enable_pili_brown); the default path is unchanged bit-for-bit.
+%  Updated: 2026-11-13 — repair an initial Euler pole before the operator check.
+%  Updated: 2026-11-24 — v10.0.0: balancing axial torque density for pilus thermal loads
+%           (brown_pili_tau), unequal-length pili tau_cut_s / protect_pairs mode selection,
+%           two-sided dt_B guards, tiny tail-step merge, clean .mat / returned params,
+%           Block Schur & frozen-hydrodynamics Jacobian acceleration.
+%  Updated: 2026-11-24 — v10.1.0: unified Linux/HPC .avi support, relative time tolerances,
+%           scoped Jacobian fallback with timer reset, and pre-validation log guards.
+%
+%  Log banner version: 10.1.0 (2026-11-24) - emitted via project_version(); keep README / CHANGELOG in sync
 %
 %  Path policy: defensive addpath calls here allow run_simulation(cfg) without
 %  main_coupled_simulation.m.  Standalone drivers in batch_sweep/ and
@@ -142,6 +174,8 @@ geometry_mode          = get_cfg_field(cfg, 'geometry_mode', 'parametric');
 % Used by batch parallel runs to prevent N_workers stdout interleaving.
 % Not a physical parameter — omit from JSON; inject at runtime only.
 silent                 = logical(get_cfg_field(cfg, 'silent', false));
+progress_queue         = get_cfg_field(cfg, 'progress_queue', []);
+progress_tag           = get_cfg_field(cfg, 'progress_tag', []);
 
 % Layered silence (v7.9.4): in addition to the dual_log console-echo gate above,
 % suppress (a) direct fprintf calls in this function, (b) odetpbar/render_progress_bar
@@ -164,7 +198,6 @@ else
     major_axis             = NaN;
     N_body                 = NaN;
 end
-alpha_0                = cfg.alpha_0;
 Pili_Matrix            = cfg.Pili_Matrix;
 seg_per_um             = cfg.seg_per_um;
 E                      = cfg.E;
@@ -183,6 +216,9 @@ dt                     = cfg.dt;
 enable_brown           = cfg.enable_brown;
 Temper                 = cfg.Temper;
 dt_B                   = cfg.dt_B;
+% Pilus thermal fluctuations on the slow bending modes (v9.0.0; default off)
+enable_pili_brown      = logical(get_cfg_field(cfg, 'enable_pili_brown', false));
+pili_brown_orders      = get_cfg_field(cfg, 'pili_brown_orders', 2);
 preview_initial        = cfg.preview_initial;
 generate_animation     = cfg.generate_animation;
 animation_fps          = cfg.animation_fps;
@@ -260,7 +296,8 @@ if enable_brown
     cfg.brown_rng_seed = brown_rng_seed_used;
 end
 
-if strcmp(geometry_mode, 'parametric') && size(Pili_Matrix, 2) > 0
+n_pili = size(Pili_Matrix, 2) * strcmp(geometry_mode, 'parametric');
+if n_pili > 0
     pili_lengths_um = Pili_Matrix(2, :);
     N_segments      = round(pili_lengths_um * seg_per_um);
     N_segments      = max(N_segments, 10);
@@ -287,7 +324,7 @@ end
 if exist(output_dir, 'dir')
     existing_files = dir(fullfile(output_dir, '*.*'));
     existing_files = existing_files(~[existing_files.isdir]);
-    data_exts = {'.mat', '.csv', '.png', '.pdf', '.html', '.mp4', '.log', '.json', '.txt'};
+    data_exts = {'.mat', '.csv', '.png', '.pdf', '.html', '.mp4', '.avi', '.log', '.json', '.txt'};
     has_data  = any(cellfun(@(ext) any(endsWith({existing_files.name}, ext)), data_exts));
 
     if has_data
@@ -400,17 +437,30 @@ if enable_brown
 end
 
 % --- Log all parameters ---
+% Assigned here, after the output-directory abort return: an earlier
+% assignment would be unread on that path.
+alpha_0 = cfg.alpha_0;
 if strcmp(geometry_mode, 'parametric')
     logf('[PARAMS] Body: a = %.2f um, b = %.2f um, N_body = %d, alpha_0 = %.4f rad (%.1f deg)\n', ...
         major_axis*1e6, minor_axis*1e6, N_body, alpha_0, rad2deg(alpha_0));
 else
     logf('[PARAMS] Body: N_body from file, alpha_0 = %.4f rad (%.1f deg)\n', ...
         alpha_0, rad2deg(alpha_0));
-    logf('[PARAMS] Custom body: %s\n', custom_geometry_cfg.body_points_file);
+    custom_body_path = get_cfg_field(custom_geometry_cfg, 'body_points_file', '<missing>');
+    logf('[PARAMS] Custom body: %s\n', char(custom_body_path));
 end
 logf('[PARAMS] Geometry mode: %s\n', geometry_mode);
-logf('[PARAMS] Pili: M = %d, seg_per_um = %d, method = RSS+Rotlet\n', ...
-    size(Pili_Matrix, 2), seg_per_um);
+if strcmp(geometry_mode, 'custom')
+    n_custom_pili_log = 0;
+    if isstruct(custom_geometry_cfg) && isfield(custom_geometry_cfg, 'pili') && ~isempty(custom_geometry_cfg.pili)
+        n_custom_pili_log = numel(custom_geometry_cfg.pili);
+    end
+    logf('[PARAMS] Pili: M = %d (custom), seg_per_um = %g, method = RSS+Rotlet\n', ...
+        n_custom_pili_log, seg_per_um);
+else
+    logf('[PARAMS] Pili: M = %d, seg_per_um = %g, method = RSS+Rotlet\n', ...
+        size(Pili_Matrix, 2), seg_per_um);
+end
 for kk = 1:size(Pili_Matrix, 2)
     logf('[PARAMS]   Pili %d: type=%d, L=%.1f um, site=%d, N_seg=%d\n', ...
         kk, Pili_Matrix(1,kk), Pili_Matrix(2,kk), ...
@@ -473,7 +523,11 @@ logf('[PARAMS] Fluid: mu = %.2e Pa*s, rho_bac = %.1f kg/m^3, rho_fluid = %.3f kg
     mu, rho_bac, rho_fluid);
 logf('[PARAMS] Simulation: T_obs = %.1f s, dt = %.2e s, NT = %d, AbsTol = %.0e, RelTol = %.0e\n', ...
     T_obs, dt, NT, AbsTol, RelTol);
-logf('[PARAMS] Numerics: delta = pi/%.0f rad, timeout = %d s\n', pi/delta, tlim);
+if isnumeric(delta) && isscalar(delta) && isfinite(delta) && delta > 0
+    logf('[PARAMS] Numerics: delta = pi/%.0f rad, timeout = %.4g s\n', pi/delta, tlim);
+else
+    logf('[PARAMS] Numerics: delta = %s rad, timeout = %.4g s\n', mat2str(delta), tlim);
+end
 logf('[PARAMS] Preview: %s\n', mat2str(preview_initial));
 logf('[PARAMS] Animation: fps = %d, skip = %d\n', animation_fps, animation_skip);
 logf('[PARAMS] Flowfield: grid = %.2f um, range = %.1f um, quiver_skip = %d\n', ...
@@ -483,6 +537,17 @@ logf('[PARAMS] Brownian: enable = %s, Temper = %.2f K, dt_B = %.4f s, scheme = c
 if enable_brown
     logf('[PARAMS] Brownian RNG: seed = %d (isolated mt19937ar), saved for reproducibility\n', ...
         brown_rng_seed_used);
+    if enable_pili_brown
+        if isfield(cfg, 'pili_brown_tau_cut_s') && ~isempty(cfg.pili_brown_tau_cut_s)
+            logf('[PARAMS] Brownian pili: thermal noise on bending modes with tau >= %.4g s\n', ...
+                cfg.pili_brown_tau_cut_s);
+        else
+            logf('[PARAMS] Brownian pili: thermal noise on bending orders 1..%d of every pilus (2 polarisations each)\n', ...
+                pili_brown_orders);
+        end
+    else
+        logf('[PARAMS] Brownian pili: off (thermal noise on the body only)\n');
+    end
 end
 logf('[PARAMS] Auto-confirm: %s\n', mat2str(auto_confirm));
 if isempty(strtrim(case_name))
@@ -551,12 +616,125 @@ end
 
 logf('[INIT] Building initial state vector...\n');
 Z0 = init_coupled_state(params, logf);
+% A rest tangent on the body z axis (capsule sites 5, 8, 10, 12, 14, ...)
+% starts at an Euler pole.  The 1/sin(theta) rows are then O(1e12).  With
+% several BLAS threads that chart is singular to working precision and the
+% probe solution is non-finite, so the run dies before the time loop can
+% repair it.  Repair the chart first.  The loop repeats the same check.
+[Z0, params, init_rotated] = adaptive_basis_check(Z0, params);
+if any(init_rotated)
+    for kk = 1:numel(init_rotated)
+        if init_rotated(kk)
+            logf('[INIT] Basis rotation for pili %d before the initial operator check.\n', kk);
+        end
+    end
+end
 numerical_diagnostics_state('reset');
 initial_health = check_coupled_system_health(Z0, params, 'initial state');
 logf(['[DIAG] Initial rcond = %.3e | reciprocity = %.3e | ', ...
       'min dissipation eigenvalue = %.3e\n'], ...
     initial_health.rcond, initial_health.weighted_reciprocity_residual, ...
     initial_health.min_dissipation_eigenvalue);
+
+% ---- Pilus thermal modes (v9.0.0) ----
+%  The slowest elastohydrodynamic bending modes of the pili are computed
+%  once from the coupled operator at the stress-free initial state.  They are
+%  stored per joint in the material frame, so they follow the pili and are
+%  not affected by Euler-basis changes during the run.
+pili_brown_enabled = enable_brown && enable_pili_brown && params.M_pili > 0;
+if enable_brown && enable_pili_brown && params.M_pili == 0
+    logf('[BROWN] Pilus thermal fluctuations requested but the cell has no pili; body-only scheme is used.\n');
+end
+if pili_brown_enabled
+    bp_opts = struct();
+    if isfield(cfg, 'pili_brown_tau_cut_s') && ~isempty(cfg.pili_brown_tau_cut_s)
+        bp_opts.tau_cut_s = cfg.pili_brown_tau_cut_s;
+    end
+    if isfield(cfg, 'pili_brown_protect_pairs') && ~isempty(cfg.pili_brown_protect_pairs)
+        bp_opts.protect_pairs = cfg.pili_brown_protect_pairs;
+    end
+    params.brown_pili = init_pili_brownian_modes(Z0, params, pili_brown_orders, bp_opts);
+    x_fast = dt_B * max(params.brown_pili.rate) / params.scales.T_0;
+    logf(['[BROWN]   dt_B / fastest thermal relaxation time = %.3f ', ...
+          '(stationary-variance factor (2/x)tanh(x/2) = %.4f)\n'], ...
+        x_fast, (2 / x_fast) * tanh(x_fast / 2));
+    allow_large_pili_dt_B = logical(get_cfg_field(cfg, 'allow_large_pili_dt_B', false));
+    if x_fast > 2.0 && ~allow_large_pili_dt_B
+        err_dt_msg = sprintf(['dt_B = %.4g s is %.2fx the fastest thermal pilus relaxation ', ...
+            'time (%.4g s, x_fast = %.2f > 2.0); mode energies would be severely under-predicted ', ...
+            '(factor %.3f). Set dt_B <= %.4g s (or cfg.allow_large_pili_dt_B = true to override).'], ...
+            dt_B, x_fast, min(params.brown_pili.tau_s), x_fast, ...
+            (2 / x_fast) * tanh(x_fast / 2), 0.25 * min(params.brown_pili.tau_s));
+        logf('[BROWN] ERROR: %s\n', err_dt_msg);
+        error('run_simulation:PiliBrownTimeStepTooLarge', '%s', err_dt_msg);
+    elseif x_fast > 0.5
+        logf(['[BROWN] WARNING: dt_B = %.4g s exceeds half of the fastest thermal relaxation ', ...
+              'time (%.4g s); the mode energies will be under-predicted by more than 2 %%. ', ...
+              'Use dt_B <= %.4g s.\n'], dt_B, min(params.brown_pili.tau_s), ...
+              0.25 * min(params.brown_pili.tau_s));
+        warning('run_simulation:PiliBrownTimeStep', ...
+            'dt_B = %.4g s exceeds half of the fastest thermal pilus relaxation time (%.4g s).', ...
+            dt_B, min(params.brown_pili.tau_s));
+    end
+    if isfinite(params.brown_pili.next_rate)
+        x_hold = dt_B * params.brown_pili.next_rate / params.scales.T_0;
+        tau_det_slow = params.scales.T_0 / params.brown_pili.next_rate;
+        logf('[BROWN]   dt_B / slowest deterministic bending relaxation time = %.3f (tau_det = %.4g s)\n', ...
+            x_hold, tau_det_slow);
+        if x_hold < 0.5
+            logf(['[BROWN] WARNING: dt_B = %.4g s is shorter than half of the slowest ', ...
+                  'non-thermal bending relaxation time (%.4g s, x_hold = %.3f < 0.5); ', ...
+                  'non-thermal modes may not relax adiabatically within one interval ', ...
+                  '(avoid shrinking dt_B well below tau_det; increase pili_brown_orders if finer resolution is needed).\n'], ...
+                  dt_B, tau_det_slow, x_hold);
+            warning('run_simulation:PiliBrownTimeStepTooSmall', ...
+                ['dt_B = %.4g s is shorter than half of the slowest non-thermal bending ', ...
+                 'relaxation time (%.4g s); adiabatic scale separation may degrade.'], ...
+                dt_B, tau_det_slow);
+        end
+    end
+    % Optional per-pilus streams.  Absent -> the single joint stream above,
+    % unchanged.  Present -> rng_stream supplies only the 6 body deviates
+    % (so a body-only run with the same seed draws the same numbers) and
+    % each pilus stream supplies that filament's curvature noise.
+    if isfield(cfg, 'brown_pili_rng_seeds') && ~isempty(cfg.brown_pili_rng_seeds)
+        pili_seeds = round(double(cfg.brown_pili_rng_seeds(:)'));
+        if numel(pili_seeds) ~= params.M_pili || any(~isfinite(pili_seeds)) || any(pili_seeds <= 0)
+            error('run_simulation:BadPiliSeeds', ...
+                'brown_pili_rng_seeds must be %d positive finite seeds, one per pilus.', ...
+                params.M_pili);
+        end
+        if numel(unique([pili_seeds, brown_rng_seed_used])) ~= params.M_pili + 1
+            error('run_simulation:BadPiliSeeds', ...
+                'Body seed and the %d pilus seeds must all be different.', params.M_pili);
+        end
+        pili_streams = cell(1, params.M_pili);
+        for k_seed = 1:params.M_pili
+            pili_streams{k_seed} = RandStream('mt19937ar', 'Seed', pili_seeds(k_seed));
+        end
+        params.brown_pili_streams = pili_streams;
+        params.brown_pili_rng_seeds = pili_seeds;
+        logf('[BROWN] Body RNG seed = %d (shared with a body-only run that uses this seed)\n', ...
+            brown_rng_seed_used);
+        logf('[BROWN] Pilus thermal RNG seeds = %s\n', mat2str(pili_seeds));
+        % Append per-pilus seeds to brownian_rng_seed.txt for reproducibility
+        seed_txt_pili = fullfile(output_dir, 'brownian_rng_seed.txt');
+        fid_seed_p = fopen(seed_txt_pili, 'a', 'n', 'UTF-8');
+        if fid_seed_p ~= -1
+            fprintf(fid_seed_p, 'pili_rng_seeds: %s\n', mat2str(pili_seeds));
+            fclose(fid_seed_p);
+        end
+    end
+end
+n_brown_modes = params.brown_pili.n_modes;
+% Rows of the saved thermal pilus load (3 per pilus node; 0 when off)
+if pili_brown_enabled
+    n_brown_pili_rows     = 3 * (sum(params.N_segments(:)) + params.M_pili);
+    n_brown_pili_tau_rows = sum(params.N_segments(:));
+else
+    n_brown_pili_rows     = 0;
+    n_brown_pili_tau_rows = 0;
+end
 
 t_init_elapsed = toc(t_init_start);
 
@@ -872,6 +1050,9 @@ end
 
 if enable_brown
     results.brown_rng_seed = brown_rng_seed_used;
+    if isfield(params, 'brown_pili_rng_seeds') && ~isempty(params.brown_pili_rng_seeds)
+        results.brown_pili_rng_seeds = params.brown_pili_rng_seeds;
+    end
 end
 
 % Flow-field reconstruction history. Saved on every run, whether or not a
@@ -884,6 +1065,33 @@ results.flow_state.version = 1;
 results.flow_state.Z = zeros(nZ_flow, NT);
 results.flow_state.Z(:, 1) = Z0(:);
 results.flow_state.brown_force = zeros(6, NT);
+% Modal thermal forces of the pili (v9.0.0); [0 x NT] when the option is off.
+results.flow_state.brown_mode_force = zeros(n_brown_modes, NT);
+% Force density on the pilus centrelines that carried those modal forces
+% (body frame, node-major); the flow-field reconstruction applies it as is.
+results.flow_state.brown_pili_force = zeros(n_brown_pili_rows, NT);
+results.flow_state.brown_pili_tau   = zeros(n_brown_pili_tau_rows, NT);
+if pili_brown_enabled
+    % Amplitudes of the thermal bending modes at every output.  The elastic
+    % energy of mode j is a_j^2/2 in F_0*L_0; equilibrium mean kT/2.
+    kT_dimless_modes = 1.380649e-23 * Temper / (params.scales.F_0 * params.scales.L_0);
+    results.pili_modes.a          = zeros(n_brown_modes, NT);
+    results.pili_modes.elastic_energy_kT = zeros(2, NT);
+    [results.pili_modes.a(:, 1), ~, results.pili_modes.elastic_energy_kT(:, 1)] = ...
+        pili_mode_amplitudes(Z0, params);
+    results.pili_modes.kT_dimless = kT_dimless_modes;
+    results.pili_modes.rate_per_s = params.brown_pili.rate / params.scales.T_0;
+    results.pili_modes.tau_s      = params.brown_pili.tau_s;
+    results.pili_modes.order       = params.brown_pili.order;
+    results.pili_modes.dom_pilus   = params.brown_pili.dom_pilus;
+    results.pili_modes.pilus_order = params.brown_pili.pilus_order;
+    results.pili_modes.selection_mode = params.brown_pili.selection_mode;
+    results.pili_modes.pilus_share = params.brown_pili.pilus_share;
+    results.pili_modes.units.a    = ['dimensionless mode amplitude; elastic energy a^2/2 in F_0*L_0, ', ...
+        'energy in kT = a^2 / (2*kT_dimless)'];
+    results.pili_modes.units.elastic_energy_kT = ['total elastic energy of all pili in kT: ', ...
+        'row 1 bending, row 2 twist'];
+end
 results.flow_state.rot = cell(M_pili, 1);
 for k = 1:M_pili
     results.flow_state.rot{k} = zeros(3, 3, NT);
@@ -893,6 +1101,15 @@ results.flow_state.units.Z = 'dimensionless ODE state (lengths in L_0, angles in
 results.flow_state.units.rot = 'pilus local basis; rows map lab-frame vectors into the basis';
 results.flow_state.units.brown_force = ['dimensionless generalised thermal force, ', ...
     'same units as params.brown_force_dimless'];
+results.flow_state.units.brown_mode_force = ['dimensionless generalised force applied to each ', ...
+    'thermal pilus bending mode over the interval (F_0*L_0): thermal force plus the held-load ', ...
+    'drift compensation; empty when pilus thermal fluctuations are off'];
+results.flow_state.units.brown_pili_force = ['dimensionless thermal force density at the pilus ', ...
+    'nodes in the body frame, [3*N_nodes x NT] node-major (params.brown_pili_force(:)); ', ...
+    'empty when pilus thermal fluctuations are off'];
+results.flow_state.units.brown_pili_tau = ['dimensionless balancing scalar axial torque density ', ...
+    'on the pilus segments in the material frame, [N_seg_all x NT]; ', ...
+    'empty when pilus thermal fluctuations are off'];
 results.flow_state.brownian_endpoint_convention = 'closing_interval';
 results.flow_state.state_dimension = nZ_flow;
 results.flow_state.n_times = NT;
@@ -901,6 +1118,9 @@ results.flow_state.n_times = NT;
 clear odetpbar;                    % Reset persistent vars from prior runs
 clear ode_coupled_rhs;             % Harmless guard: ode_coupled_rhs keeps no persistent state (pure function of t, Z, params)
 tic_total        = tic;
+ode_eta          = ProgressEstimator(T_obs_dimless, ...
+    'TicStart', tic_total, 'TauMin', 15.0, 'TauMax', 600.0, ...
+    'Gamma', 0.25, 'WarmupSec', 0.5, 'WarmupPct', 0.2);
 T_achieved       = 0;
 last_Z           = Z0;
 current_time_ind = 1;
@@ -911,21 +1131,43 @@ seg_dtstar       = [];          % Dimensionless time advanced per segment
 termination_reason = 'completed';
 timed_out          = false;
 
+% ---- Solver acceleration options (Jacobian & linear-solve check cadence) ----
+%  cfg.jacobian_mode (default 'frozen_hydro'):
+%    'frozen_hydro' - Fast frozen-hydrodynamics Jacobian (ode_coupled_jacobian.m):
+%                     evaluates lin_sys once + 3-colour sparse dR/dZ.  Only the
+%                     Newton iteration matrix changes, not the ODE RHS or error
+%                     control; automatic fallback to default FD Jacobian if a
+%                     segment fails or stops prematurely.
+%    'fd'           - Legacy ode15s default finite-difference Jacobian.
+%  cfg.solve_check_mode (default 'periodic'):
+%    'periodic'     - Periodic full backward-residual check on the large multi-RHS
+%                     mobility solve (finiteness still checked on every call).
+%    'strict'       - Full backward-residual check on every RHS evaluation.
+jacobian_mode = lower(char(get_cfg_field(cfg, 'jacobian_mode', 'frozen_hydro')));
+if ~ismember(jacobian_mode, {'frozen_hydro', 'fd'})
+    error('run_simulation:InvalidJacobianMode', ...
+        'cfg.jacobian_mode must be ''frozen_hydro'' or ''fd'', got ''%s''.', jacobian_mode);
+end
+use_frozen_jac = strcmp(jacobian_mode, 'frozen_hydro');
+
+params.solve_check_mode = lower(char(get_cfg_field(cfg, 'solve_check_mode', 'periodic')));
+if isfield(cfg, 'solve_check_stride') && ~isempty(cfg.solve_check_stride)
+    params.solve_check_stride = cfg.solve_check_stride;
+end
+
 % ---- Lagged Jacobian for ode15s (v8.5.1; Brownian runs only) ----
 %  Brownian runs restart ode15s at every dt_B node and each restart pays a
-%  dense finite-difference Jacobian (n_ode extra RHS calls).  The lagged
-%  Jacobian re-uses the last exact FD Jacobian (see LaggedJacobian.m); it
-%  affects only the Newton iteration matrix, not the discrete equations or
-%  the error control.  Runtime option cfg.jacobian_reuse (default true);
-%  set false to reproduce the previous behaviour bit-for-bit.
-%  cfg.jacobian_max_age (default 50) caps the cache age in Brownian nodes.
+%  Jacobian evaluation.  LaggedJacobian re-uses the last Jacobian across
+%  segments and delegates refreshes to ode_coupled_jacobian when enabled.
 jac_reuse_enabled = params.brown_enabled && ...
     logical(get_cfg_field(cfg, 'jacobian_reuse', true));
 jac_cache = [];
 if jac_reuse_enabled
     jac_cache = LaggedJacobian(get_cfg_field(cfg, 'jacobian_max_age', 50));
-    logf('[JAC] Lagged Jacobian enabled (max age = %d Brownian nodes)\n', ...
-        jac_cache.max_age);
+    logf('[JAC] Lagged Jacobian enabled (max age = %d Brownian nodes, refresh = %s)\n', ...
+        jac_cache.max_age, jacobian_mode);
+elseif use_frozen_jac
+    logf('[JAC] Frozen-hydrodynamics Jacobian enabled (ode_coupled_jacobian, auto-fallback to FD)\n');
 end
 
 % Segment-level [ODE] announcements are throttled to avoid flooding
@@ -953,11 +1195,23 @@ end
 %  gradient along the trajectory (no finite-difference correction).
 if params.brown_enabled
     dt_B_dimless   = dt_B / params.scales.T_0;
+    brown_tol      = dt_B_dimless * 1e-8;
     T_brown_last   = 0;
     T_brown_next   = min(dt_B_dimless, T_obs_dimless);
-    logf(['[BROWN] Body-only Brownian dynamics enabled ', ...
-          '(constant 6-DOF thermal generalised force per interval, ', ...
-          'coupled effective mobility probe at each interval start)\n']);
+    if T_obs_dimless - T_brown_next > brown_tol && ...
+            T_obs_dimless - T_brown_next < 0.05 * dt_B_dimless
+        T_brown_next = T_obs_dimless;
+    end
+    if pili_brown_enabled
+        logf(['[BROWN] Brownian dynamics of the body and %d slow pilus bending modes enabled ', ...
+              '(constant thermal generalised force per interval on %d coordinates, ', ...
+              'joint coupled mobility probe at each interval start)\n'], ...
+            n_brown_modes, 6 + n_brown_modes);
+    else
+        logf(['[BROWN] Body-only Brownian dynamics enabled ', ...
+              '(constant 6-DOF thermal generalised force per interval, ', ...
+              'coupled effective mobility probe at each interval start)\n']);
+    end
     logf('[BROWN] dt_B = %.4f s = %.4e T*\n', dt_B, dt_B_dimless);
     logf(['[BROWN] Ito drift: IMPLICIT (constant-force realisation along the ', ...
           'coupled trajectory reproduces kB*T*div(M) to O(dt_B))\n']);
@@ -965,7 +1219,6 @@ if params.brown_enabled
     brown_log_interval  = 100;
     brown_step_sizes_s  = [];
     brown_force_active  = false;  % true while an interval's force is held
-    brown_tol           = dt_B_dimless * 1e-8;
 else
     dt_B_dimless = Inf;
     T_brown_last = 0;
@@ -974,7 +1227,16 @@ else
     brown_force_active = false;
     brown_tol          = 0;
 end
+pili_max_pattern_resid      = 0;
+pili_max_hold_pattern_resid = 0;
+pili_max_twist_row_resid    = 0;
+pili_max_hold_force         = 0;
 params.brown_force_dimless = zeros(6, 1);
+params.brown_pili_force    = [];
+params.brown_pili_tau      = [];
+brown_mode_force_active    = zeros(n_brown_modes, 1);
+brown_pili_force_active    = zeros(n_brown_pili_rows, 1);
+brown_pili_tau_active      = zeros(n_brown_pili_tau_rows, 1);
 
 while T_achieved < T_obs_dimless
     Z = last_Z;
@@ -1010,8 +1272,20 @@ while T_achieved < T_obs_dimless
     if params.brown_enabled && ~brown_force_active && ...
             T_achieved < T_obs_dimless - brown_tol
         dt_B_step = (T_seg_target - T_achieved) * params.scales.T_0;   % [s]
-        [f_th_dimless, brown_info] = sample_brownian_body_force( ...
-            Z, params, dt_B_step, brown_rng_stream);
+        if pili_brown_enabled
+            % Body + slow pilus bending modes (v9.0.0+): 6 + n_modes deviates
+            [f_th_dimless, brown_mode_force_active, params.brown_pili_force, brown_info, params.brown_pili_tau] = ...
+                sample_brownian_coupled_force(Z, params, dt_B_step, brown_rng_stream);
+            brown_pili_force_active     = params.brown_pili_force(:);
+            brown_pili_tau_active       = params.brown_pili_tau(:);
+            pili_max_pattern_resid      = max(pili_max_pattern_resid, brown_info.pattern_resid);
+            pili_max_hold_pattern_resid = max(pili_max_hold_pattern_resid, brown_info.hold_pattern_resid);
+            pili_max_twist_row_resid    = max(pili_max_twist_row_resid, brown_info.twist_row_resid);
+            pili_max_hold_force         = max(pili_max_hold_force, brown_info.hold_force);
+        else
+            [f_th_dimless, brown_info] = sample_brownian_body_force( ...
+                Z, params, dt_B_step, brown_rng_stream);
+        end
         params.brown_force_dimless = f_th_dimless;
         brown_force_active = true;
         if jac_reuse_enabled
@@ -1032,14 +1306,28 @@ while T_achieved < T_obs_dimless
     % clears params.brown_force_dimless before output samples are written;
     % those samples keep the force that produced them.
     flow_interval_force = params.brown_force_dimless(:);
+    flow_interval_mode_force = brown_mode_force_active(:);
+    flow_interval_pili_force = brown_pili_force_active(:);
+    flow_interval_pili_tau   = brown_pili_tau_active(:);
 
     % Setup ODE solver
     tstart_ode   = tic;
     eventFunc    = @(t_ev, Z_ev) singularity_event(t_ev, Z_ev, params, tstart_ode, tlim);
-    % Always install the timeout OutputFcn.  In silent mode it omits only
-    % the progress-bar rendering, not the wall-clock interrupt.
+    % Always install the unified OutputFcn: enforces wall-clock timeout,
+    % updates the shared adaptive ProgressEstimator, writes atomic
+    % progress.txt heartbeats every 10 s, and (when provided) sends
+    % throttled DataQueue heartbeats every 30 s.
+    prog_ctx = struct('estimator',     ode_eta, ...
+                      'file',          fullfile(output_dir, 'progress.txt'), ...
+                      'T_total',       T_obs_dimless, ...
+                      'seg',           segment_count, ...
+                      'interval_s',    10.0, ...
+                      'throttle_init', params.brown_enabled && ~log_this_segment, ...
+                      'queue',         progress_queue, ...
+                      'tag',           progress_tag, ...
+                      'hb_interval_s', 30.0);
     progressFunc = @(t_p, y_p, fl_p, varargin) ...
-        timeout_output(t_p, y_p, fl_p, tstart_ode, tlim, silent);
+        ode_progress_output(t_p, y_p, fl_p, tstart_ode, tlim, silent, prog_ctx);
 
     ode_ops = odeset('OutputFcn',  progressFunc, ...
                      'Events',     eventFunc, ...
@@ -1056,17 +1344,33 @@ while T_achieved < T_obs_dimless
     end
 
     if jac_reuse_enabled
-        % Lagged Jacobian.  Any solver error, or a premature stop that is
-        % neither an event nor a timeout, re-runs the segment from the same
+        jac_fresh_before = jac_cache.n_fresh;
+    else
+        jac_fresh_before = 0;
+    end
+
+    t_target_tol = 1e-12 * max(1, abs(T_seg_target));
+    if jac_reuse_enabled
+        % Lagged Jacobian.  Jacobian/solver errors, or a premature stop that is
+        % neither an event nor a timeout, re-run the segment from the same
         % initial state with ode15s' default Jacobian (safety net).
-        jac_cache.beginSegment(dZ_func);
+        if use_frozen_jac
+            jac_cache.beginSegment(dZ_func, @(t_j, Z_j) ode_coupled_jacobian(t_j, Z_j, params));
+        else
+            jac_cache.beginSegment(dZ_func, []);
+        end
         ode_ops_jac = odeset(ode_ops, 'Jacobian', ...
             @(t_j, Z_j) jac_cache.evaluate(t_j, Z_j));
         try
             sol = ode15s(dZ_func, [T_achieved, T_seg_target], Z, ode_ops_jac);
             jac_fallback = isempty(sol.xe) && ...
-                sol.x(end) < T_seg_target - 1e-12 && toc(tstart_ode) < tlim;
+                sol.x(end) < T_seg_target - t_target_tol && toc(tstart_ode) < tlim;
         catch ME_jac
+            if any(startsWith(ME_jac.identifier, {'numerical_diagnostics:', ...
+                    'solve_motor_self_consistent:', 'ode_coupled_rhs:', ...
+                    'reconstruct_geometry:', 'pili_thermal_rhs:'}))
+                rethrow(ME_jac);
+            end
             jac_fallback = true;
             logf('[JAC] WARNING: ode15s with lagged Jacobian failed (%s); re-running the segment with the default Jacobian.\n', ...
                 ME_jac.message);
@@ -1075,6 +1379,39 @@ while T_achieved < T_obs_dimless
             jac_cache.noteFallback();
             logf('[JAC] Segment %d re-run with default finite-difference Jacobian.\n', ...
                 segment_count);
+            tstart_ode   = tic;
+            eventFunc    = @(t_ev, Z_ev) singularity_event(t_ev, Z_ev, params, tstart_ode, tlim);
+            progressFunc = @(t_p, y_p, fl_p, varargin) ...
+                ode_progress_output(t_p, y_p, fl_p, tstart_ode, tlim, silent, prog_ctx);
+            ode_ops      = odeset(ode_ops, 'OutputFcn', progressFunc, 'Events', eventFunc);
+            sol = ode15s(dZ_func, [T_achieved, T_seg_target], Z, ode_ops);
+        end
+    elseif use_frozen_jac
+        % Non-Brownian frozen-hydrodynamics Jacobian with automatic FD fallback.
+        ode_ops_jac = odeset(ode_ops, 'Jacobian', ...
+            @(t_j, Z_j) ode_coupled_jacobian(t_j, Z_j, params));
+        try
+            sol = ode15s(dZ_func, [T_achieved, T_seg_target], Z, ode_ops_jac);
+            jac_fallback = isempty(sol.xe) && ...
+                sol.x(end) < T_seg_target - t_target_tol && toc(tstart_ode) < tlim;
+        catch ME_jac
+            if any(startsWith(ME_jac.identifier, {'numerical_diagnostics:', ...
+                    'solve_motor_self_consistent:', 'ode_coupled_rhs:', ...
+                    'reconstruct_geometry:', 'pili_thermal_rhs:'}))
+                rethrow(ME_jac);
+            end
+            jac_fallback = true;
+            logf('[JAC] WARNING: ode15s with frozen-hydrodynamics Jacobian failed (%s); re-running the segment with the default Jacobian.\n', ...
+                ME_jac.message);
+        end
+        if jac_fallback
+            logf('[JAC] Segment %d re-run with default finite-difference Jacobian.\n', ...
+                segment_count);
+            tstart_ode   = tic;
+            eventFunc    = @(t_ev, Z_ev) singularity_event(t_ev, Z_ev, params, tstart_ode, tlim);
+            progressFunc = @(t_p, y_p, fl_p, varargin) ...
+                ode_progress_output(t_p, y_p, fl_p, tstart_ode, tlim, silent, prog_ctx);
+            ode_ops      = odeset(ode_ops, 'OutputFcn', progressFunc, 'Events', eventFunc);
             sol = ode15s(dZ_func, [T_achieved, T_seg_target], Z, ode_ops);
         end
     else
@@ -1088,7 +1425,7 @@ while T_achieved < T_obs_dimless
 
     % Check if event was triggered
     stopped_by_timeout_output = seg_wall >= tlim && ...
-        sol.x(end) < T_seg_target - 1e-14;
+        sol.x(end) < T_seg_target - 1e-14 * max(1, abs(T_seg_target));
     timeout_this_segment = stopped_by_timeout_output;
     if ~isempty(sol.xe)
         event_ids = unique(sol.ie(:)');
@@ -1116,9 +1453,14 @@ while T_achieved < T_obs_dimless
     T_achieved = sol.x(end);
     Z_end      = sol.y(:, end);
 
-    % Record segment timing for ETA estimation
+    % Record segment timing for adaptive / two-component ETA estimation
     seg_walltimes(end+1) = seg_wall;            %#ok<AGROW>
     seg_dtstar(end+1)    = T_achieved - T_prev; %#ok<AGROW>
+    is_jac_refresh = jac_reuse_enabled && (jac_cache.n_fresh > jac_fresh_before);
+    ode_eta.update(T_achieved, toc(tic_total));
+    if ~timeout_this_segment
+        ode_eta.recordSegment(seg_wall, is_jac_refresh);
+    end
 
     % Renormalise quaternion
     q_end         = Z_end(4:7);
@@ -1138,13 +1480,27 @@ while T_achieved < T_obs_dimless
         if T_achieved >= T_seg_target - brown_tol
             dt_B_step = (T_achieved - T_brown_last) * params.scales.T_0;
             params.brown_force_dimless = zeros(6, 1);
+            params.brown_pili_force    = [];
+            params.brown_pili_tau      = [];
+            brown_mode_force_active    = zeros(n_brown_modes, 1);
+            brown_pili_force_active    = zeros(n_brown_pili_rows, 1);
+            brown_pili_tau_active      = zeros(n_brown_pili_tau_rows, 1);
             brown_force_active = false;
 
             brown_kick_count   = brown_kick_count + 1;
             T_brown_last       = T_achieved;
             brown_step_sizes_s(end+1) = dt_B_step; %#ok<AGROW>
             if T_brown_last < T_obs_dimless - brown_tol
-                T_brown_next = min(T_brown_last + dt_B_dimless, T_obs_dimless);
+                T_brown_next = min((brown_kick_count + 1) * dt_B_dimless, T_obs_dimless);
+                if T_brown_next <= T_brown_last + brown_tol
+                    T_brown_next = min(T_brown_last + dt_B_dimless, T_obs_dimless);
+                end
+                % Absorb tiny remainder (< 5% of dt_B) into the closing interval
+                % to avoid an artificially amplified ~1/sqrt(dt_rem) thermal force.
+                if T_obs_dimless - T_brown_next > brown_tol && ...
+                        T_obs_dimless - T_brown_next < 0.05 * dt_B_dimless
+                    T_brown_next = T_obs_dimless;
+                end
             else
                 T_brown_next = Inf;
             end
@@ -1166,7 +1522,8 @@ while T_achieved < T_obs_dimless
     end
 
     % Evaluate at output time points
-    mask     = ts_dimless <= T_achieved + 1e-14;
+    t_ach_tol = 1e-14 * max(1, abs(T_achieved));
+    mask     = ts_dimless <= T_achieved + t_ach_tol;
     valid_ts = ts_dimless(mask);
     valid_ts = valid_ts(current_time_ind+1 : end);
 
@@ -1195,15 +1552,22 @@ while T_achieved < T_obs_dimless
             end
             results.flow_state.Z(:, ti) = Z_i(:);
             results.flow_state.brown_force(:, ti) = flow_interval_force;
+            results.flow_state.brown_mode_force(:, ti) = flow_interval_mode_force;
+            results.flow_state.brown_pili_force(:, ti) = flow_interval_pili_force;
+            results.flow_state.brown_pili_tau(:, ti)   = flow_interval_pili_tau;
+            if pili_brown_enabled
+                [results.pili_modes.a(:, ti), ~, results.pili_modes.elastic_energy_kT(:, ti)] = ...
+                    pili_mode_amplitudes(Z_i, params);
+            end
         end
     end
 
-    current_time_ind = find(ts_dimless <= T_achieved + 1e-14, 1, 'last');
+    current_time_ind = find(ts_dimless <= T_achieved + t_ach_tol, 1, 'last');
 
     % A timeout can occur between requested output nodes.  Preserve the exact
     % terminal state as the final sample before truncating preallocated arrays.
     if timeout_this_segment
-        if abs(results.t_dimless(current_time_ind) - T_achieved) > 1e-14
+        if abs(results.t_dimless(current_time_ind) - T_achieved) > t_ach_tol
             ti = current_time_ind + 1;
             results.t_dimless(ti) = T_achieved;
             [X_cm_i, q_i, ~] = unpack_state(Z_end, N_segs);
@@ -1216,6 +1580,13 @@ while T_achieved < T_obs_dimless
             end
             results.flow_state.Z(:, ti) = Z_end(:);
             results.flow_state.brown_force(:, ti) = flow_interval_force;
+            results.flow_state.brown_mode_force(:, ti) = flow_interval_mode_force;
+            results.flow_state.brown_pili_force(:, ti) = flow_interval_pili_force;
+            results.flow_state.brown_pili_tau(:, ti)   = flow_interval_pili_tau;
+            if pili_brown_enabled
+                [results.pili_modes.a(:, ti), ~, results.pili_modes.elastic_energy_kT(:, ti)] = ...
+                    pili_mode_amplitudes(Z_end, params);
+            end
             current_time_ind = ti;
         end
         timed_out = true;
@@ -1224,18 +1595,48 @@ while T_achieved < T_obs_dimless
             segment_count, T_achieved);
     end
 
-    % Log progress with ETA
+    % Log progress with adaptive ETA (throttled in Brownian mode to match segment log)
     progress_pct = min(100, T_achieved / T_obs_dimless * 100);
     elapsed_ode  = toc(tic_total);
 
-    if progress_pct > 0 && progress_pct < 100
-        eta_ode_s = elapsed_ode * (100 - progress_pct) / progress_pct;
-        logf('[ODE]   Progress: %.1f%% | Elapsed: %s | ETA: %s\n', ...
-            progress_pct, format_duration(elapsed_ode), ...
-            format_duration(eta_ode_s));
+    if params.brown_enabled && ~timed_out && T_achieved < T_obs_dimless
+        rem_t_dimless  = max(0, T_obs_dimless - T_achieved);
+        rem_total_segs = max(0, ceil(rem_t_dimless / dt_B_dimless - 1e-9));
+        if jac_reuse_enabled
+            nodes_until_ref = max(1, jac_cache.max_age - jac_cache.age);
+            if rem_total_segs >= nodes_until_ref
+                rem_jac_segs = 1 + floor((rem_total_segs - nodes_until_ref) / max(jac_cache.max_age, 1));
+            else
+                rem_jac_segs = 0;
+            end
+            rem_norm_segs = max(0, rem_total_segs - rem_jac_segs);
+            eta_info = ode_eta.estimate(elapsed_ode, rem_norm_segs, rem_jac_segs);
+        else
+            eta_info = ode_eta.estimate(elapsed_ode, rem_total_segs, 0);
+        end
     else
-        logf('[ODE]   Progress: %.1f%% | Elapsed: %s\n', ...
-            progress_pct, format_duration(elapsed_ode));
+        eta_info = ode_eta.estimate(elapsed_ode);
+    end
+
+    if log_this_segment || timed_out || progress_pct >= 100
+        if progress_pct > 0 && progress_pct < 100 && isfinite(eta_info.eta_s)
+            logf('[ODE]   Progress: %.1f%% | Elapsed: %s | ETA: %s\n', ...
+                progress_pct, format_duration(elapsed_ode), ...
+                ProgressEstimator.formatEtaWithRange(eta_info));
+        else
+            logf('[ODE]   Progress: %.1f%% | Elapsed: %s\n', ...
+                progress_pct, format_duration(elapsed_ode));
+        end
+    end
+
+    % Send throttled DataQueue heartbeat between short Brownian segments too
+    if ~isempty(progress_queue) && ode_eta.shouldSendHeartbeat(30.0, elapsed_ode)
+        try
+            send(progress_queue, struct('type', 'heartbeat', 'tag', progress_tag, ...
+                'pct', eta_info.pct, 'elapsed', elapsed_ode, ...
+                'eta', eta_info.eta_s, 'finish', eta_info.finish_str));
+        catch
+        end
     end
 
     if timed_out
@@ -1249,6 +1650,8 @@ elapsed_total = toc(tic_total);
 % not look like an integration still in progress. The last output keeps
 % its own recorded force in flow_state.brown_force(:,end).
 params.brown_force_dimless = zeros(6, 1);
+params.brown_pili_force    = [];
+params.brown_pili_tau      = [];
 
 % Remove every uncomputed preallocated sample before diagnostics,
 % post-processing, persistence, and visualisation.
@@ -1257,6 +1660,22 @@ results.X_cm      = results.X_cm(:, 1:current_time_ind);
 results.q         = results.q(:, 1:current_time_ind);
 results.flow_state.Z = results.flow_state.Z(:, 1:current_time_ind);
 results.flow_state.brown_force = results.flow_state.brown_force(:, 1:current_time_ind);
+results.flow_state.brown_mode_force = results.flow_state.brown_mode_force(:, 1:current_time_ind);
+results.flow_state.brown_pili_force = results.flow_state.brown_pili_force(:, 1:current_time_ind);
+results.flow_state.brown_pili_tau   = results.flow_state.brown_pili_tau(:, 1:current_time_ind);
+if pili_brown_enabled
+    results.pili_modes.a = results.pili_modes.a(:, 1:current_time_ind);
+    results.pili_modes.elastic_energy_kT = results.pili_modes.elastic_energy_kT(:, 1:current_time_ind);
+    results.pili_modes.energy_kT = 0.5 * results.pili_modes.a.^2 / results.pili_modes.kT_dimless;
+    results.pili_modes.max_pattern_resid      = pili_max_pattern_resid;
+    results.pili_modes.max_hold_pattern_resid = pili_max_hold_pattern_resid;
+    results.pili_modes.max_twist_row_resid    = pili_max_twist_row_resid;
+    results.pili_modes.max_hold_force         = pili_max_hold_force;
+    logf(['[BROWN] Pilus thermal run-time max diagnostics: pattern_resid = %.2e | ', ...
+          'hold_resid = %.2e | twist_row_resid = %.2e | hold_force = %.3f\n'], ...
+        pili_max_pattern_resid, pili_max_hold_pattern_resid, ...
+        pili_max_twist_row_resid, pili_max_hold_force);
+end
 for k = 1:M_pili
     results.X_pili{k} = results.X_pili{k}(:, :, 1:current_time_ind);
     results.flow_state.rot{k} = results.flow_state.rot{k}(:, :, 1:current_time_ind);
@@ -1282,25 +1701,25 @@ if jac_reuse_enabled
 else
     results.jacobian_reuse = struct('enabled', false);
 end
-diag = results.diagnostics;
+diagnostics = results.diagnostics;
 logf(['[DIAG] Max backward residual = %.3e (warn %.1e, err %.1e) | ', ...
       'min rcond = %.3e (warn %.1e, near-sing %.1e; joint-abort with resid err) | ', ...
       'max reciprocity residual = %.3e (err %.1e) | ', ...
       'min dissipation eigenvalue = %.3e (rel err %.1e)\n'], ...
-    diag.max_backward_residual, ...
-    diag.backward_residual_warning_threshold, ...
-    diag.backward_residual_error_threshold, ...
-    diag.min_rcond, ...
-    diag.rcond_warning_threshold, ...
-    diag.rcond_near_singular_threshold, ...
-    diag.max_weighted_reciprocity_residual, ...
-    diag.reciprocity_error_threshold, ...
-    diag.min_dissipation_eigenvalue, ...
-    diag.dissipation_error_relative_threshold);
+    diagnostics.max_backward_residual, ...
+    diagnostics.backward_residual_warning_threshold, ...
+    diagnostics.backward_residual_error_threshold, ...
+    diagnostics.min_rcond, ...
+    diagnostics.rcond_warning_threshold, ...
+    diagnostics.rcond_near_singular_threshold, ...
+    diagnostics.max_weighted_reciprocity_residual, ...
+    diagnostics.reciprocity_error_threshold, ...
+    diagnostics.min_dissipation_eigenvalue, ...
+    diagnostics.dissipation_error_relative_threshold);
 logf(['[DIAG] Check counts: linear_solve = %d | rcond = %d | ', ...
       'hydrodynamic = %d\n'], ...
-    diag.linear_solve_count, diag.rcond_check_count, ...
-    diag.hydrodynamic_check_count);
+    diagnostics.linear_solve_count, diagnostics.rcond_check_count, ...
+    diagnostics.hydrodynamic_check_count);
 
 requested_generate_animation = generate_animation;
 requested_compute_flowfield  = compute_flowfield;
@@ -1440,8 +1859,11 @@ logf('[SAVE] Flow-state history: version %d | %d states x %d outputs | force con
 logf('[SAVE] Flow-state final sample vs last_Z max |diff| = %.3e\n', ...
     max(abs(results.flow_state.Z(:, end) - last_Z(:))));
 
-% Remove function handles before saving (not serialisable to .mat)
+% Remove non-serialisable handles / transient RNG stream objects before saving
 params = rmfield(params, {'logf', 'logf_file'});
+if isfield(params, 'brown_pili_streams')
+    params = rmfield(params, 'brown_pili_streams');
+end
 
 mat_file = fullfile(output_dir, 'simulation_results.mat');
 save(mat_file, 'results', 'params', '-v7.3');
@@ -1806,8 +2228,23 @@ if compute_flowfield
     flow_opts.grid_range_um   = flowfield_grid_range;
     flow_opts.quiver_skip     = flowfield_quiver_skip;
     flow_opts.chunk_size      = flowfield_chunk_size;
-    params.brown_force_dimless = results.flow_state.brown_force(:, end);
-    compute_plot_flowfield(last_Z, params, output_dir, run_id, logf, flow_opts, T_achieved, silent);
+    stream_spacing_um = get_cfg_field(cfg, 'flowfield_stream_spacing', NaN);
+    stream_length_um = get_cfg_field(cfg, 'flowfield_stream_length', NaN);
+    if isnumeric(stream_spacing_um) && isscalar(stream_spacing_um) && isfinite(stream_spacing_um)
+        flow_opts.stream_spacing_um = stream_spacing_um;
+    end
+    if isnumeric(stream_length_um) && isscalar(stream_length_um) && isfinite(stream_length_um)
+        flow_opts.stream_length_um = stream_length_um;
+    end
+    params_flow = params;
+    params_flow.brown_force_dimless = results.flow_state.brown_force(:, end);
+    if pili_brown_enabled && any(results.flow_state.brown_pili_force(:, end))
+        params_flow.brown_pili_force = reshape(results.flow_state.brown_pili_force(:, end), 3, []);
+    end
+    if pili_brown_enabled && any(results.flow_state.brown_pili_tau(:, end))
+        params_flow.brown_pili_tau = results.flow_state.brown_pili_tau(:, end);
+    end
+    compute_plot_flowfield(last_Z, params_flow, output_dir, run_id, logf, flow_opts, T_achieved, silent);
     t_flow_elapsed = toc(t_flow_start);
     logf('[FLOW] Flow field visualisation completed in %s\n\n', format_duration(t_flow_elapsed));
 elseif timed_out && requested_compute_flowfield
@@ -2024,39 +2461,6 @@ function v = get_field_default(S, fname, default_val)
         v = S.(fname);
     else
         v = default_val;
-    end
-end
-
-function str = format_duration(seconds)
-%FORMAT_DURATION  Convert elapsed seconds to human-readable string
-%  Examples:
-%    format_duration(3.7)    -> '3.7 s'
-%    format_duration(125.3)  -> '2 min 5.3 s'
-%    format_duration(3725.1) -> '1 h 2 min 5.1 s'
-    if seconds < 0
-        str = '-- s';
-        return;
-    end
-    h = floor(seconds / 3600);
-    m = floor(mod(seconds, 3600) / 60);
-    s = mod(seconds, 60);
-    if h > 0
-        str = sprintf('%d h %d min %.1f s', h, m, s);
-    elseif m > 0
-        str = sprintf('%d min %.1f s', m, s);
-    else
-        str = sprintf('%.1f s', s);
-    end
-end
-
-function status = timeout_output(t, y, flag, tstart, tlim, silent)
-%TIMEOUT_OUTPUT  Stop ode15s when the segment wall-clock limit is reached
-    if toc(tstart) >= tlim
-        status = 1;
-    elseif silent
-        status = 0;
-    else
-        status = odetpbar(t, y, flag);
     end
 end
 

@@ -10,9 +10,9 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 %      (a) 3D view with XZ flow-field surface + 3D bacterium
 %      (b) 3D view with YZ flow-field surface + 3D bacterium
 %      (c) 3D view with XY flow-field surface + 3D bacterium
-%      (d) 2D XZ flow field (speed and normalised arrows)
-%      (e) 2D YZ flow field (speed and normalised arrows)
-%      (f) 2D XY flow field (speed and normalised arrows)
+%      (d) 2D XZ flow field (speed and in-plane streamlines)
+%      (e) 2D YZ flow field (speed and in-plane streamlines)
+%      (f) 2D XY flow field (speed and in-plane streamlines)
 %
 %    This procedure has no return value.  It creates a visible figure,
 %    writes flowfield_panels.png, flowfield_panels.pdf, and, when
@@ -34,6 +34,7 @@ function compute_plot_flowfield(Z_final, params, output_dir, run_id, logf, flow_
 %  Created: 2026-03-06
 %  Updated: 2026-10-28 — shared flow-field evaluation and panel layout
 %  Updated: 2026-11-11 — added the XY plane (2x3 layout)
+%  Updated: 2026-11-13 — 2D panels draw in-plane streamlines
 
 if nargin < 6 || isempty(flow_opts), flow_opts = struct(); end
 if nargin < 7 || isempty(t_final), t_final = 0; end
@@ -81,11 +82,29 @@ if isempty(samples)
     cmax = 1;
     return
 end
-cmax = prctile(samples, 99);
+cmax = percentile_linear(samples, 99);
 if ~(isfinite(cmax) && cmax > 0)
     cmax = max(samples);
 end
 if ~(isfinite(cmax) && cmax > 0)
     cmax = 1;
+end
+end
+
+
+function val = percentile_linear(x, p)
+%PERCENTILE_LINEAR  Base-MATLAB linear percentile matching prctile(x, p).
+%  Avoids Statistics Toolbox dependency on MATLAB R2020b-R2024b (e.g. HPC R2023a).
+xs = sort(x(:));
+n  = numel(xs);
+pos = (p / 100) * n + 0.5;
+if pos <= 1
+    val = xs(1);
+elseif pos >= n
+    val = xs(n);
+else
+    lo = floor(pos);
+    hi = ceil(pos);
+    val = xs(lo) + (pos - lo) * (xs(hi) - xs(lo));
 end
 end

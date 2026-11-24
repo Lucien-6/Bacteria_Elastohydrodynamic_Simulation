@@ -129,6 +129,8 @@ all_rows  = cell(N, 1);
 n_ok      = 0;
 n_err     = 0;
 n_skip    = 0;
+t_pp_loop = tic;
+pp_case_ewma = NaN;
 
 for i = 1:N
     % Cancellation check
@@ -137,20 +139,26 @@ for i = 1:N
         break;
     end
 
+    t_case_i = tic;
     folder_path = case_folders{i};
     [~, folder_name] = fileparts(folder_path);
 
     % Progress bar — start of case
     pct_start = (i - 1) / N;
+    eta_tag = '';
+    if isfinite(pp_case_ewma) && i <= N
+        eta_rem = pp_case_ewma * (N - i + 1);
+        eta_tag = sprintf('  |  ETA: %s', pp_fmt_dur(eta_rem));
+    end
     waitbar(pct_start, hWB, ...
-        sprintf('[%d / %d]  Loading  »  %s', i, N, folder_name));
+        sprintf('[%d / %d]  Loading  »  %s%s', i, N, folder_name, eta_tag));
     fprintf('      [%d/%d]  %s\n', i, N, folder_name);
 
     % Load, compute, build row
     try
         data   = load_case_data(folder_path);
         waitbar(pct_start + 0.4/N, hWB, ...
-            sprintf('[%d / %d]  Computing  »  %s', i, N, folder_name));
+            sprintf('[%d / %d]  Computing  »  %s%s', i, N, folder_name, eta_tag));
         mets   = compute_metrics(data);
         row    = build_result_row(folder_name, folder_path, data, mets);
         row.Status = 'OK';
@@ -172,16 +180,28 @@ for i = 1:N
     end
 
     all_rows{i} = row;
+    dt_case = toc(t_case_i);
+    if strcmp(row.Status, 'OK')
+        if isnan(pp_case_ewma)
+            pp_case_ewma = dt_case;
+        else
+            pp_case_ewma = 0.7 * pp_case_ewma + 0.3 * dt_case;
+        end
+    end
 
     % Progress bar — end of case
+    eta_done_tag = '';
+    if isfinite(pp_case_ewma) && i < N
+        eta_done_tag = sprintf('  |  ETA: %s', pp_fmt_dur(pp_case_ewma * (N - i)));
+    end
     waitbar(i / N, hWB, ...
-        sprintf('[%d / %d]  Done  »  %s', i, N, folder_name));
+        sprintf('[%d / %d]  Done  »  %s%s', i, N, folder_name, eta_done_tag));
     fprintf('\n');
 end
 
 fprintf('      %s\n', repmat('-', 1, 56));
-fprintf('      Completed : %d OK,  %d TIMEOUT/SKIPPED,  %d ERROR(S)\n\n', ...
-    n_ok, n_skip, n_err);
+fprintf('      Completed : %d OK,  %d TIMEOUT/SKIPPED,  %d ERROR(S)  (Elapsed: %s)\n\n', ...
+    n_ok, n_skip, n_err, pp_fmt_dur(toc(t_pp_loop)));
 
 %% ---- Step 4: Export to Excel + summary figures -----------------------
 fprintf('[4/4] Exporting to Excel and summary figures ...\n');
@@ -848,8 +868,6 @@ C_OK_ODD     = rgb2xl([212, 239, 223]);    % pale green (odd rows)
 C_OK_EVEN    = rgb2xl([232, 248, 238]);    % lighter green (even rows)
 C_ERROR_BG   = rgb2xl([250, 219, 216]);    % pale red
 C_WARN_BG    = rgb2xl([253, 243, 207]);    % pale amber
-C_WHITE      = rgb2xl([255, 255, 255]);
-C_CASE_BG    = rgb2xl([245, 245, 245]);    % very light grey for Case Name col
 
 last_col = col_letter(n_cols);
 
@@ -938,14 +956,22 @@ try
             brd = all_rng.Borders.Item(bid);
             brd.LineStyle = 1;   % xlContinuous
             brd.Weight    = 2;   % xlThin
-        catch; end
+        catch ME_border
+            warning('postprocess_cases:excelBorder', ...
+                'Could not set Excel border %d: %s', bid, ME_border.message);
+        end
     end
 
     % ---- Auto-fit column widths -----------------------------------------
     ws.Columns.AutoFit();
 
     % ---- Cap Source Folder column width to 50 pts -----------------------
-    try ws.Columns.Item(2).ColumnWidth = 50; catch; end
+    try
+        ws.Columns.Item(2).ColumnWidth = 50;
+    catch ME_width
+        warning('postprocess_cases:excelColumnWidth', ...
+            'Could not cap the Source Folder column width: %s', ME_width.message);
+    end
 
     % ---- Freeze top 2 rows (after layout — must run last before Save) --
     % Invisible Excel often ignores FreezePanes unless the window is active;
@@ -967,11 +993,11 @@ try
     % ---- Save and close -------------------------------------------------
     wb.Save();
     wb.Close(false);
-    wb = [];  
+    wb = [];   %#ok<NASGU>  release COM workbook handle before quitting Excel
 
     xl.Quit();
     xl.delete();
-    xl = [];  
+    xl = [];
     drawnow;
 
 catch ME
@@ -982,7 +1008,8 @@ catch ME
             xl.Quit();
             xl.delete();
         end
-    catch; end
+    catch
+    end
     rethrow(ME);
 end
 end
@@ -1140,7 +1167,7 @@ hFig = figure( ...
     'WindowStyle',     'modal', ...
     'Color',           C_FIG_BG, ...
     'Position',        [100 100 FIG_W FIG_H], ...
-    'KeyPressFcn',     @(~, evt) dlg_keypress(hFig, evt));
+    'KeyPressFcn',     @(src, evt) dlg_keypress(src, evt));
 movegui(hFig, 'center');
 
 setappdata(hFig, 'n_cases',   n_cases);
@@ -1351,4 +1378,26 @@ end
 head_len = floor((max_len - 3) / 2);
 tail_len = max_len - 3 - head_len;
 out = [in(1:head_len) '...' in(end-tail_len+1:end)];
+end
+
+
+function s = pp_fmt_dur(seconds_in)
+%PP_FMT_DUR  Duration formatter with fallback when src/utils is not on path.
+if exist('format_duration', 'file') == 2
+    s = format_duration(seconds_in, 'compact');
+    return;
+end
+if ~isfinite(seconds_in) || seconds_in < 0
+    s = '--';
+elseif seconds_in < 59.95
+    s = sprintf('%.1f s', seconds_in);
+else
+    ts = round(seconds_in);
+    if ts < 3600
+        s = sprintf('%d min %02d s', floor(ts / 60), mod(ts, 60));
+    else
+        tm = round(ts / 60);
+        s = sprintf('%d h %02d min', floor(tm / 60), mod(tm, 60));
+    end
+end
 end

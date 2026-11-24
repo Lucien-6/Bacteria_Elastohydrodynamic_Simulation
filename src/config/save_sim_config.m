@@ -15,6 +15,8 @@
 %        are removed because JSON cannot represent function handles.
 %      - A Brownian RNG seed is omitted when Brownian motion is disabled or
 %        the seed is absent/nonpositive, and therefore reloads as NaN.
+%      - Streamline spacing and length are omitted when unset, and reload
+%        as NaN.  The panel then uses a fraction of its shorter side.
 %      - Floating-point values follow MATLAB jsonencode/jsondecode semantics.
 %      - Runtime-only fields, including silent, progress_queue, progress_tag,
 %        logger handles, and any other fields outside the schema written
@@ -35,6 +37,8 @@
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-03-17
 %  Updated: 2026-07-12
+%  Updated: 2026-11-12 — v9.0.0: brownian.pili_thermal / pili_mode_orders
+%  Updated: 2026-11-13 — optional flowfield stream_spacing_um / stream_length_um
 
 %% Build nested structure matching config_example.json layout
 j.case_name    = cfg.case_name;
@@ -94,13 +98,21 @@ switch cfg.geometry_mode
             j.body.eps_body = cfg.eps_body;
         end
 
-        % Pili: convert [8 x M] matrix back to struct array
+        % Pili: convert [8 x M] matrix back to struct array (or cell array if heterogeneous)
         M = size(cfg.Pili_Matrix, 2);
         type_names = {'linear', 'parabolic', 'circular', 'sinusoidal', 'spiral'};
-        pili_arr = [];
+        pili_cells = cell(1, M);
         for k = 1:M
-            p_entry.type        = type_names{cfg.Pili_Matrix(1, k)};
-            p_entry.length_um   = cfg.Pili_Matrix(2, k);
+            p_entry = struct();
+            type_idx = cfg.Pili_Matrix(1, k);
+            if ~(isnumeric(type_idx) && isscalar(type_idx) && isfinite(type_idx) && ...
+                    type_idx >= 1 && type_idx <= numel(type_names) && floor(type_idx) == type_idx)
+                error('save_sim_config:InvalidPiliType', ...
+                    'Pili %d: Pili_Matrix(1, %d) must be integer 1-%d, got %g.', ...
+                    k, k, numel(type_names), type_idx);
+            end
+            p_entry.type         = type_names{type_idx};
+            p_entry.length_um    = cfg.Pili_Matrix(2, k);
             p_entry.deflection_z = cfg.Pili_Matrix(3, k);
             p_entry.deflection_x = cfg.Pili_Matrix(4, k);
             sp = cfg.Pili_Matrix(5:7, k)';
@@ -135,16 +147,26 @@ switch cfg.geometry_mode
                 end
             end
 
-            if isempty(pili_arr)
-                pili_arr = p_entry;
-            else
-                pili_arr(end+1) = p_entry; %#ok<AGROW>
-            end
+            pili_cells{k} = p_entry;
         end
-        if isempty(pili_arr)
+        if M == 0
             j.pili = [];
         else
-            j.pili = pili_arr;
+            % Pack as struct array when all entries share identical field sets,
+            % otherwise keep cell array so jsonencode serialises heterogeneous pili.
+            f0 = fieldnames(pili_cells{1});
+            same_fields = true;
+            for k = 2:M
+                if ~isequal(fieldnames(pili_cells{k}), f0)
+                    same_fields = false;
+                    break;
+                end
+            end
+            if same_fields
+                j.pili = [pili_cells{:}];
+            else
+                j.pili = pili_cells;
+            end
         end
 end
 
@@ -181,6 +203,31 @@ if logical(cfg.enable_brown) && isfield(cfg, 'brown_rng_seed') ...
         && isfinite(cfg.brown_rng_seed) && cfg.brown_rng_seed > 0
     j.brownian.rng_seed = cfg.brown_rng_seed;
 end
+% Pilus thermal fluctuations (v9.0.0): written only when switched on, so the
+% snapshot of every other run keeps its previous layout.
+if isfield(cfg, 'enable_pili_brown') && ~isempty(cfg.enable_pili_brown) ...
+        && logical(cfg.enable_pili_brown)
+    j.brownian.pili_thermal = true;
+    if isfield(cfg, 'pili_brown_orders') && ~isempty(cfg.pili_brown_orders)
+        j.brownian.pili_mode_orders = cfg.pili_brown_orders;
+    else
+        j.brownian.pili_mode_orders = 2;
+    end
+    if isfield(cfg, 'pili_brown_tau_cut_s') && ~isempty(cfg.pili_brown_tau_cut_s) ...
+            && isnumeric(cfg.pili_brown_tau_cut_s) && isscalar(cfg.pili_brown_tau_cut_s) ...
+            && isfinite(cfg.pili_brown_tau_cut_s) && cfg.pili_brown_tau_cut_s > 0
+        j.brownian.pili_tau_cut_s = double(cfg.pili_brown_tau_cut_s);
+    end
+    if isfield(cfg, 'pili_brown_protect_pairs') && ~isempty(cfg.pili_brown_protect_pairs)
+        j.brownian.pili_protect_pairs = logical(cfg.pili_brown_protect_pairs);
+    end
+    if isfield(cfg, 'brown_pili_rng_seeds') && ~isempty(cfg.brown_pili_rng_seeds) ...
+            && isnumeric(cfg.brown_pili_rng_seeds) ...
+            && all(isfinite(cfg.brown_pili_rng_seeds(:))) ...
+            && all(cfg.brown_pili_rng_seeds(:) > 0)
+        j.brownian.pili_rng_seeds = round(double(cfg.brown_pili_rng_seeds(:)'));
+    end
+end
 
 j.output.preview_initial    = cfg.preview_initial;
 j.output.generate_animation = cfg.generate_animation;
@@ -204,6 +251,14 @@ j.flowfield.grid_spacing_um = cfg.flowfield_grid_spacing;
 j.flowfield.grid_range_um   = cfg.flowfield_grid_range;
 j.flowfield.quiver_skip     = cfg.flowfield_quiver_skip;
 j.flowfield.chunk_size      = cfg.flowfield_chunk_size;
+if isfield(cfg, 'flowfield_stream_spacing') && isnumeric(cfg.flowfield_stream_spacing) ...
+        && isscalar(cfg.flowfield_stream_spacing) && isfinite(cfg.flowfield_stream_spacing)
+    j.flowfield.stream_spacing_um = cfg.flowfield_stream_spacing;
+end
+if isfield(cfg, 'flowfield_stream_length') && isnumeric(cfg.flowfield_stream_length) ...
+        && isscalar(cfg.flowfield_stream_length) && isfinite(cfg.flowfield_stream_length)
+    j.flowfield.stream_length_um = cfg.flowfield_stream_length;
+end
 
 %% Write JSON
 json_str = jsonencode(j, 'PrettyPrint', true);
@@ -212,7 +267,7 @@ if fid == -1
     warning('save_sim_config:WriteError', 'Cannot write config file: %s', json_path);
     return;
 end
-fwrite(fid, json_str, 'char');
+fprintf(fid, '%s', json_str);
 fclose(fid);
 
 end

@@ -43,21 +43,23 @@ classdef LaggedJacobian < handle
     end
 
     properties (SetAccess = private)
-        cache            = [];   % cached exact Jacobian
+        cache            = [];   % cached Jacobian
         rhs_fun          = [];   % RHS handle used for finite differences
+        fast_jac_fun     = [];   % optional fast analytical/frozen-hydro Jacobian handle
         calls_in_segment = 0;    % Jacobian requests in the current ode15s call
         age              = 0;    % Brownian nodes since the cache was computed
-        n_fresh          = 0;    % exact Jacobians computed
+        n_fresh          = 0;    % fresh Jacobians computed
         n_lagged         = 0;    % requests answered from the cache
         n_on_demand      = 0;    % refreshes triggered by a second request
         n_age_refresh    = 0;    % refreshes triggered by cache age
         n_invalidated    = 0;    % explicit invalidations (basis rotation)
         n_fallback       = 0;    % segments re-run with the default Jacobian
         n_fd_rhs         = 0;    % RHS calls spent on finite differences
+        n_fast_jac       = 0;    % fresh Jacobians computed via fast_jac_fun
     end
 
     methods
-        function obj = LaggedJacobian(max_age)
+        function obj = LaggedJacobian(max_age, fast_jac_fun)
             if nargin >= 1 && ~isempty(max_age)
                 if ~(isnumeric(max_age) && isscalar(max_age) && ...
                         isfinite(max_age) && max_age >= 1)
@@ -66,11 +68,17 @@ classdef LaggedJacobian < handle
                 end
                 obj.max_age = double(max_age);
             end
+            if nargin >= 2 && ~isempty(fast_jac_fun)
+                obj.fast_jac_fun = fast_jac_fun;
+            end
         end
 
-        function beginSegment(obj, rhs_fun)
+        function beginSegment(obj, rhs_fun, fast_jac_fun)
         %BEGINSEGMENT  Call before each ode15s call.
             obj.rhs_fun = rhs_fun;
+            if nargin >= 3
+                obj.fast_jac_fun = fast_jac_fun;
+            end
             obj.calls_in_segment = 0;
         end
 
@@ -106,16 +114,25 @@ classdef LaggedJacobian < handle
                 elseif too_old && ~isempty(obj.cache)
                     obj.n_age_refresh = obj.n_age_refresh + 1;
                 end
-                f0 = obj.rhs_fun(t, y);
-                Jn = LaggedJacobian.fd_jacobian(obj.rhs_fun, t, y, f0);
+                % Use fast_jac_fun for normal refreshes; if Newton still
+                % requests a 3rd Jacobian within the same segment, escalate
+                % to exact finite differences as a built-in safety net.
+                use_fast = ~isempty(obj.fast_jac_fun) && (obj.calls_in_segment <= 2);
+                if use_fast
+                    Jn = obj.fast_jac_fun(t, y);
+                    obj.n_fast_jac = obj.n_fast_jac + 1;
+                else
+                    f0 = obj.rhs_fun(t, y);
+                    Jn = LaggedJacobian.fd_jacobian(obj.rhs_fun, t, y, f0);
+                    obj.n_fd_rhs = obj.n_fd_rhs + 1 + numel(y);
+                end
                 if ~all(isfinite(Jn(:)))
                     error('LaggedJacobian:NonFinite', ...
-                        'Finite-difference Jacobian contains non-finite entries.');
+                        'Jacobian contains non-finite entries.');
                 end
                 obj.cache = Jn;
                 obj.age = 0;
                 obj.n_fresh = obj.n_fresh + 1;
-                obj.n_fd_rhs = obj.n_fd_rhs + 1 + numel(y);
             else
                 obj.n_lagged = obj.n_lagged + 1;
             end
@@ -129,7 +146,8 @@ classdef LaggedJacobian < handle
                 'n_on_demand', obj.n_on_demand, ...
                 'n_age_refresh', obj.n_age_refresh, ...
                 'n_invalidated', obj.n_invalidated, ...
-                'n_fallback', obj.n_fallback, 'n_fd_rhs', obj.n_fd_rhs);
+                'n_fallback', obj.n_fallback, 'n_fd_rhs', obj.n_fd_rhs, ...
+                'n_fast_jac', obj.n_fast_jac);
         end
     end
 

@@ -72,9 +72,10 @@ X_body_lab = (R_body * params.body_local)' + X_cm(:)';   % [N_body x 3]
 
 %% Pili geometry
 M = params.M_pili;
-X_pili   = cell(M, 1);
-d1_lab   = cell(M, 1);   d2_lab   = cell(M, 1);   d3_lab   = cell(M, 1);
-d1_basis = cell(M, 1);   d2_basis = cell(M, 1);   d3_basis = cell(M, 1);
+X_pili    = cell(M, 1);
+d1_lab    = cell(M, 1);   d2_lab    = cell(M, 1);   d3_lab    = cell(M, 1);
+d1_basis  = cell(M, 1);   d2_basis  = cell(M, 1);   d3_basis  = cell(M, 1);
+d1N_basis = cell(M, 1);   d2N_basis = cell(M, 1);   d3N_basis = cell(M, 1);
 
 for k = 1:M
     N_k   = params.N_segments(k);
@@ -88,31 +89,37 @@ for k = 1:M
     % Root position in lab frame
     x_root = X_cm + R_body * params.r_local{k};
 
-    % Node positions
-    X_k        = pili_spatial_coords(x_root, theta_k, phi_k, rot_k, ell_k, N_k);
-    X_pili{k}  = X_k;
-
-    % Directors in rot_k basis
+    % Directors in rot_k basis (computed once and reused for positions + lab)
     [d1b, d2b, d3b] = pili_directors(theta_k, phi_k, psi_k);
     d1_basis{k} = d1b;
     d2_basis{k} = d2b;
     d3_basis{k} = d3b;
 
     % Directors in lab frame
-    d1_lab{k} = (rot_k' * d1b')';
-    d2_lab{k} = (rot_k' * d2b')';
-    d3_lab{k} = (rot_k' * d3b')';
+    d1_lab{k} = d1b * rot_k;
+    d2_lab{k} = d2b * rot_k;
+    d3_lab{k} = d3b * rot_k;
+
+    % Node positions directly from d3_lab (avoids duplicate trig in pili_spatial_coords)
+    ds_k = ell_k / N_k;
+    X_pili{k} = [x_root(:)'; x_root(:)' + ds_k * cumsum(d3_lab{k}, 1)];
+
+    % Nodal directors in rot_k basis (cached once per RHS for B_global, elastic & active moments)
+    [d1Nb, d2Nb, d3Nb] = compute_node_directors(d1b, d2b, d3b, N_k);
+    d1N_basis{k} = d1Nb;
+    d2N_basis{k} = d2Nb;
+    d3N_basis{k} = d3Nb;
 end
 
 %% Concatenate all points
 N_body_pts = size(X_body_lab, 1);
-N_pili_pts = sum(cellfun(@(x) size(x, 1), X_pili));
+N_pili_pts = sum(params.N_segments(:)) + M;
 X_all = zeros(N_body_pts + N_pili_pts, 3);
 X_all(1:N_body_pts, :) = X_body_lab;
 
 pt_idx = N_body_pts + 1;
 for k = 1:M
-    n_pts = size(X_pili{k}, 1);
+    n_pts = params.N_segments(k) + 1;
     X_all(pt_idx : pt_idx + n_pts - 1, :) = X_pili{k};
     pt_idx = pt_idx + n_pts;
 end
@@ -129,6 +136,9 @@ geom.d3          = d3_lab;
 geom.d1_basis    = d1_basis;
 geom.d2_basis    = d2_basis;
 geom.d3_basis    = d3_basis;
+geom.d1N_basis   = d1N_basis;
+geom.d2N_basis   = d2N_basis;
+geom.d3N_basis   = d3N_basis;
 geom.X_all       = X_all;
 geom.pili_angles = pili_angles;
 

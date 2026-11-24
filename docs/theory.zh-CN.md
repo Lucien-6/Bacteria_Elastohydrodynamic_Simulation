@@ -4,10 +4,10 @@
 [返回中文 README](../README.zh-CN.md)
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **更新日期:** 2026-11-11
-> **版本:** 8.8.0
+> **更新日期:** 2026-11-24
+> **版本:** 10.1.0
 
-本文档承接原长版 README 中的理论、模型和数值方法说明。仓库首页现在保持精简；实际运行步骤见 [`../USER_GUIDE.md`](../USER_GUIDE.md)，版本历史见 [`../CHANGELOG.md`](../CHANGELOG.md)。
+本文档说明物理模型和数值方法。实际运行步骤见 [`../USER_GUIDE.md`](../USER_GUIDE.md)，版本历史见 [`../CHANGELOG.md`](../CHANGELOG.md)。
 
 ## 1. 物理问题
 
@@ -66,10 +66,10 @@ F_{\mathrm{sink}} = (\rho_{\mathrm{bac}} - \rho_{\mathrm{fluid}})\, V_{\mathrm{b
 根部与胞体间隙（有量纲）为
 
 ```math
-\mathrm{dis} = 1.1\,(\varepsilon_{\mathrm{body}} + \varepsilon_{\mathrm{pili}})\,L_0,
+\mathrm{dis} = 1.1\,(\varepsilon_{\mathrm{body}}L_0 + r_{\mathrm{pili}}),
 ```
 
-传入 `pili_building` / `custom_pili_building`，避免纤毛根部正则化核重叠。
+传入 `pili_building` / `custom_pili_building`，避免纤毛根部正则化核重叠。式中用的是 §5.1 的胞体正则化长度和纤毛的物理半径，因此间隙与 `hydro_radius_factor`（§5.2）无关。
 
 其他物理输入使用同一套尺度：
 
@@ -195,6 +195,8 @@ c_a[\mathbf{x}_0]_{\times}
 \mathbf{L} = -\mathbf{B}\mathbf{A}\mathbf{Q}.
 ```
 
+其中 \(\mathbf{Q}\) 把广义速率映射为各点速度和各段自旋角速度；\(\mathbf{A}\) 把这些速度映射为作用在流体上的力密度和扭矩密度（即下文大迁移率的逆，由线性求解施加，不显式构造）；\(\mathbf{B}\) 把这些密度汇总进各平衡方程。
+
 自 v7.6.0 起，轴向扭转不再使用局部 RFT 扭转阻力。平动与轴向自旋未知量通过如下大迁移率耦合：
 
 ```math
@@ -267,6 +269,18 @@ c_a[\mathbf{x}_0]_{\times}
 因为 `m_s` 是第 `s` 段上的扭矩密度。因此 `B_global` 的力矩行同时包含 `sum(r x f)` 与 `sum(L_s m_s)`。这使受力/力矩自由的游动体严格力矩为零，并使马达驱动或自旋纤毛给出正确的胞体反向旋转。
 
 求解使用 MATLAB decomposition / LU 分解，不显式计算矩阵逆。
+
+### 6.1 胞体框架 Block Schur 互补与冻结水动力三色雅可比（v10.0.0）
+
+由于胞体为刚体，其自相互作用 RSM 迁移率块 \(\mathbf{M}_{BB}^{\mathrm{loc}}\)（\(3N_{\mathrm{body}} \times 3N_{\mathrm{body}}\)，对称正定）在胞体局部坐标系中恒定不变。初始化阶段由 `build_body_precomp` 一次性完成 Cholesky 分解 \(\mathbf{M}_{BB}^{\mathrm{loc}} = \mathbf{L}_{BB}\mathbf{L}_{BB}^{\mathsf T}\) 并预求 6 列刚体运动学作用 \(\mathbf{U}_{QB}^{\mathrm{loc}} = (\mathbf{M}_{BB}^{\mathrm{loc}})^{-1}\mathbf{Q}_{B,6}^{\mathrm{loc}}\)。在每次 RHS 评估中，`build_coupled_lin_sys` 将纤毛坐标与切向量转入胞体框架，通过 `build_pili_mobility_blocks` 仅组装随构型变化的分块 \((\mathbf{M}_{PB}, \mathbf{M}_{BP}, \mathbf{M}_{PP}, \mathbf{C}_{\mathrm{twist}}, \mathbf{M}_{\mathrm{twist}})\)，并通过分块 Schur 互补代数消去全部 \(3N_{\mathrm{body}}\) 个胞体未知量：
+
+```math
+\mathbf{S}_{PP} = \mathbf{M}_{PP} - \mathbf{M}_{PB}(\mathbf{M}_{BB}^{\mathrm{loc}})^{-1}\mathbf{M}_{BP}.
+```
+
+该 reformulation 将每步稠密 LU 分解复杂度从 \(O((3N_{\mathrm{body}} + 3N_{\mathrm{pili}})^3)\) 降至 \(O((3N_{\mathrm{pili}})^3)\)，且与稠密路径严格代数等价（在条件数对应的机器精度内一致，见 `validation/cpc_performance_benchmark.m`）。无纤毛算例（\(M=0\)）则直接旋转预计算的 \(6\times 6\) 阻力矩阵（\(N_{\mathrm{body}}=300\) 时提速约 99×）。
+
+对于刚性 `ode15s` 牛顿迭代，主导的 \(O(N_k^4)\) 刚性来自局部 Kirchhoff 弹性恢复力矩 \(\partial \mathbf{R}/\partial \mathbf{Z}\)，而水动力阻力算子 \(\mathrm{lin\_sys}(\mathbf{Z})\) 仅以 \(O(1)\) 平滑变化。因此 `ode_coupled_jacobian` 仅组装并 LU 分解一次 \(\mathrm{lin\_sys}(\mathbf{Z})\)，对局部模板采用步长 3 图着色（3-colour）求 \(\partial \mathbf{R}/\partial(\theta,\phi,\psi)\)（同时逐列处理根段并包含精确线性化马达扭矩–转速反馈），通过单次多右端回代得到雅可比矩阵，实现 75×–517× 雅可比加速，且不改变 ODE 右端函数和误差控制；如牛顿迭代失败则自动回退有限差分雅可比。布朗分段重启期间，`LaggedJacobian` 在 `jacobian_max_age` 步内复用缓存雅可比，并按需或在换基后通过 `ode_coupled_jacobian` 刷新。
 
 ## 7. 弹性杆力矩
 
@@ -363,8 +377,10 @@ $\dot\psi_1 + \cos\theta_1\dot\phi_1$ 是 Walker Euler 角运动学中第 1 段�
 \mathbf{R}
 \leftarrow
 \mathbf{R}
-- \mathbf{B}\mathbf{A}^{-1}\mathbf{u}_{\mathrm{bg}}.
+- \mathbf{B}\mathbf{A}\,\mathbf{u}_{\mathrm{bg}},
 ```
+
+其中 \(\mathbf{A}\) 即 §6 的算子：流体载荷取决于相对背景流的速度，\(\mathbf{A}(\mathbf{Q}\dot{\mathbf{z}} - \mathbf{u}_{\mathrm{bg}})\)。
 
 支持的背景流类型包括：
 
@@ -473,7 +489,7 @@ k_B T\,\nabla\!\cdot\!\mathbf{M}\,\Delta t_B
 
 即 \(k_BT\) 乘以平动–转动耦合块反对称部分的轴向量。当 \(\mathbf{M}_{TR}\) 对称时为零，特别是跟踪点处有对称中心的物体（无菌毛的胶囊体、对称布置的菌毛）；当 \(\mathbf{X}_{cm}\) 不是细胞的流体力学中心时不为零：此时胞体转动，跟踪点向该中心松弛。其量级约为 \(2D_R\) 乘以偏移量；对默认胶囊体加一根 3 um 菌毛，约为 0.02 um/s（约为沉降速度的 15%）。该矢量固定在体坐标系中，对取向平均为零，不产生长时间净漂移。力实现格式会自动产生这一项，因为它沿区间积分的是实际的 \(\mathbf{M}(\theta(t))\)；对 \(\mathbf{M}_{TR}\neq0\) 的二维刚体，按代码实现做的蒙特卡洛检验在 1.3 个标准误内复现了 \(k_BT\,\mathbf{R}\mathbf{J}\mathbf{b}\)，\(\mathbf{M}_{TR}=0\) 时为零。因此无需额外添加，如前所述，再加显式的 \(k_BT\,\nabla\!\cdot\!\mathbf{M}\) 会重复计入。区间内纤毛在热力作用下变形导致的 \(\mathbf{M}_{\mathrm{eff}}\) 变化属于耦合动力学本身，而非漂移修正。
 
-**Brownian 近似的适用范围。** 所有纤毛的水动力拖曳都会影响探测得到的 6 x 6 胞体迁移率，但纤毛内部 Euler 角自由度不接受随机驱动，只在确定性弹性、水动力、主动力矩、马达力矩以及由胞体传递而来的热力作用下演化。因此，该模型适合在忽略纤毛内部热涨落时研究胞体质心和取向扩散；它不是完整耦合热平衡过程，也不能再现纤毛内部模态的能量均分。
+**Brownian 近似的适用范围。** 所有纤毛的水动力拖曳都会影响探测得到的 6 x 6 胞体迁移率，但在 body-only 方案中，纤毛内部 Euler 角自由度不接受随机驱动，只在确定性弹性、水动力、主动力矩、马达力矩以及由胞体传递而来的热力作用下演化。因此，body-only 方案适合在忽略纤毛内部热涨落时研究胞体质心和取向扩散；它不是完整耦合热平衡过程，也不能再现纤毛内部模态的能量均分。可选的纤毛慢弯曲模态热驱动见 §10.4（v9.0.0）。
 
 **已知近似 —— 确定性算子与随机算子的一致性。**
 
@@ -484,6 +500,108 @@ k_B T\,\nabla\!\cdot\!\mathbf{M}\,\Delta t_B
 ### 10.3 Brownian ODE 重启中的滞后 Jacobian（v8.5.1）
 
 本小节只涉及时间积分器，§10.1–10.2 的模型不变。每个 Brownian 区间都会重启 `ode15s`。对隐式 BDF/NDF 步 \(\mathbf{y}_{n+1}-\gamma h\,\mathbf{f}(\mathbf{y}_{n+1})=\boldsymbol{\psi}\)，求解器用修正牛顿迭代，迭代矩阵为 \(\mathbf{W}=\mathbf{I}-\gamma h\,\tilde{\mathbf{J}}\)，其中 \(\tilde{\mathbf{J}}\) 是 \(\partial\mathbf{f}/\partial\mathbf{y}\) 的任意近似。迭代收敛当且仅当 \(\rho\big(\mathbf{I}-\mathbf{W}^{-1}\mathbf{W}_\text{true}\big)<1\)；收敛后无论 \(\tilde{\mathbf{J}}\) 取何值，求解的都是同一个隐式方程，局部误差估计与步长/阶数选择均基于收敛后的解。因此陈旧的 \(\tilde{\mathbf{J}}\) 只改变收敛速度，不改变离散格式。每次重启重新做稠密有限差分 Jacobian 需要 \(n_\text{ode}\) 次右端项计算，是 Brownian 节点耗时的主要部分（4 菌毛约 70–85%），因此复用上一次的精确 Jacobian（`LaggedJacobian.m`）：当 `ode15s` 在同一次调用中第二次索要 \(\mathbf{J}\)（牛顿失败）、Euler 基旋转之后、以及缓存达到 `cfg.jacobian_max_age` 个节点时刷新。在 4 菌毛验证算例（N_body = 200，5 段/µm，刚性 \(|\lambda|_\max\approx9\times10^{7}\)，单位 \(T_0^{-1}\)）中，实际步长（\(h\le1.7\times10^{-3}\)）下，缓存至多 64 个节点的 Jacobian 对应的收缩矩阵谱半径 \(\le0.17\)；同种子轨迹与新鲜 Jacobian 的解相差约 \(10^{-5}\) 相对量。`cfg.jacobian_reuse=false` 与 8.5.0 逐位一致。
+
+### 10.4 纤毛的热涨落（v9.0.0）
+
+设 `brownian.pili_thermal = true`（`cfg.enable_pili_brown`）后，纤毛最慢的弯曲模态也接受热力。默认是每根纤毛的第一、二阶弯曲，每阶两个偏振方向（`brownian.pili_mode_orders = 2`）。扭转和更高阶弯曲仍为确定性。§10.1–10.2 的 body-only 方案不变，仍是默认方案。
+
+**热模态**（`init_pili_brownian_modes`，每次运行在无应力初始状态计算一次）。记 \(\mathbf{x}\) 为所有纤毛内部节点处材料曲率和扭率相对其本征值的偏差（`pili_bending_coords`）。离散 Kirchhoff 杆的弹性能在这组坐标下严格为二次型：
+
+```math
+E = \tfrac12\,\mathbf{x}^{\mathsf T}\mathbf{K}\,\mathbf{x},
+\qquad
+\mathbf{K} = \operatorname{diag}(w_K w_E),
+```
+
+其中 \(w_K = (1, 1, 1/(1+\sigma))\)，\(w_E = 1/(N\ell)\)。对每个坐标施加单位广义力探测耦合系统，得到曲率迁移率 \(\dot{\mathbf{x}} = \mathbf{M}_x\mathbf{f}\)；每次探测中胞体和其余节点都不受力，所以 \(\mathbf{M}_x\) 包含纤毛之间以及纤毛与运动胞体之间的水动力耦合。自由松弛为 \(\dot{\mathbf{x}} = -\mathbf{M}_x\mathbf{K}\mathbf{x}\)。取对称部分 \(\mathbf{M}_s\)：
+
+```math
+\mathbf{K}^{1/2}\mathbf{M}_s\mathbf{K}^{1/2}\,\mathbf{u}_j = \lambda_j\,\mathbf{u}_j,
+\qquad
+a_j = \mathbf{u}_j^{\mathsf T}\mathbf{K}^{1/2}\mathbf{x},
+\qquad
+E = \tfrac12\sum_j a_j^2 .
+```
+
+最慢的 \(n = 2\,n_o M\) 个以弯曲为主的模态是热模态（\(n_o\) 为弯曲阶数，\(M\) 为纤毛根数）。它们是整个细胞的模态：多根等长纤毛的同阶弯曲会被水动力耦合混合。平衡时每个模态的能量为 \(k_BT/2\)，即 \(\langle a_j^2\rangle = k_BT/(F_0L_0)\)。模态形状按节点存放在材料坐标系中，随纤毛一起运动，与 Euler 基的选择无关。
+
+本节的数值都对应 `configs/config_example.json` 的细胞：胶囊 \(L_0 = 1.25\) µm、半径 0.4 µm，\(E = 3.279\times10^{8}\) Pa，\(r_{\mathrm{pili}} = 3\) nm，于是 \(EI = 2.09\times10^{-26}\) N m²，\(T_0 = 2.94\) s，293.15 K 时 \(k_BT/(F_0L_0) = 0.2425\)；流体为水（\(\mu = 10^{-3}\) Pa s）。松弛时间与 \(\mu/EI\) 成正比，并大致与纤毛长度的四次方成正比。
+
+| 细胞（3 µm 纤毛，30 段） | 一阶 | 二阶 | 不加噪声的最慢模态 |
+| --- | --- | --- | --- |
+| 胶囊 + 1 根 | 0.210 s | 13.4 ms | 2.14 ms |
+| 胶囊 + 4 根 | 0.075–0.62 s | 9.0–16.9 ms | 2.30 ms |
+
+**联合迁移率**（`compute_effective_coupled_brownian`，每个区间计算一次）。热坐标为 \(\mathbf{y} = (\mathbf{X}_{cm}, \boldsymbol{\theta}_{body}, a_1,\ldots,a_n)\)。在当前状态下用 6 个单位胞体载荷和 \(n\) 个单位模态力探测，得到 \((6+n)\times(6+n)\) 迁移率 \(\dot{\mathbf{y}} = \mathbf{M}_{joint}\,(\mathbf{f}_{body}, \mathbf{g})\)。单位模态力 \(g_j\) 是耦合系统弯曲行上的力矩分布 \(\sqrt{w_K/w_E}\,\mathbf{u}_j\)。矩阵的对称化和正定检查与 §10.1 相同。
+
+每次探测都固定所有不加噪声的纤毛模态，即上述模态分析中的全部扭转模态和全部更快的弯曲模态：对这些模态施加保持力 \(\boldsymbol{\lambda}\)，使它们的幅值不变，\(\mathbf{A}_{hold}^{\mathsf T}\dot{\mathbf{x}} = 0\)。这样做的依据是时间尺度分离。确定性模态的松弛时间从几十微秒（扭转）到约 2 ms（三阶弯曲），热模态的寿命则为 9 ms 到 0.6 s。作用在热坐标上的力如果同时带动了某个快模态，该模态的弹性力矩几乎立刻就把它顶回去；所以在热模态的相关时间内，快模态相当于约束，支配热坐标的是固定快模态时的迁移率（阻力矩阵限制在热坐标上的逆）。让快模态不受力的探测给出的是瞬时迁移率。在直线静止状态，两者在模态块上相同，因为模态此时正是本征向量。纤毛弯曲后两者不同：
+
+- *扭转。* 材料坐标系中的力矩会让弯曲纤毛的各段绕自身轴线自转。自转几乎没有粘性阻力，却使两个曲率分量在材料坐标系中互相转换。胶囊加 1 根纤毛、弯曲幅度为热幅度的五分之一时，不固定扭转得到的模态迁移率是弯曲松弛速率的 14 到 196 倍。
+- *快弯曲模态。* 纤毛弯曲后，静止状态的模态形状会与快弯曲模态混合。同一细胞在 293.15 K 的一条热轨迹上，只固定扭转的探测把一阶模态迁移率高估了 16%（中位数），最大达 5 倍；时间积分在 0.2 ms 内的实际响应比该探测低，最多低 50%。固定全部非热模态后，探测与时间积分相差 1–3%。
+
+按偏大的迁移率抽取的噪声，相对于时间积分实际产生的耗散偏弱（涨落–耗散平衡被破坏），热模态达不到能量均分；因此采用完整的固定。于是 \(\mathbf{M}_{joint}\) 的胞体块是“非热模态固定、热模态自由”时的胞体迁移率。它介于 §10.1 的完全柔性迁移率（适用于比快松弛时间更短的时间）和刚性形状迁移率（观测时间超过最慢热松弛时间后达到）之间。
+
+**抽样**（`sample_brownian_coupled_force`）。以区间起点冻结的联合迁移率为准：
+
+```math
+\delta\mathbf{Y} = \mathbf{L}\,\boldsymbol{\eta}\sqrt{\Delta t_B},
+\qquad
+\mathbf{L}\mathbf{L}^{\mathsf T} = 2k_BT\,\mathbf{M}_{joint},
+\qquad
+\begin{pmatrix}\mathbf{f}_{th}\\ \mathbf{g}\end{pmatrix}
+= \mathbf{M}_{joint}^{-1}\,\frac{\delta\mathbf{Y}}{\Delta t_B},
+```
+
+每个区间消耗 \(6+n\) 个正态随机数。\(\mathbf{M}_{joint}\) 的交叉块给出胞体与纤毛之间的相关。与 §10.2 相同，力在整个区间内保持恒定，Ito 漂移由沿轨迹采样到的迁移率产生。
+
+**热力的实现**（`pili_thermal_rhs`，`ode_coupled_rhs` 第 8e 步）。模态力不以无约束白噪声力矩的形式施加（那样会把弯曲纤毛拧成螺旋）。实际做法是：每个热力（6 个胞体分量和各模态力）都配有该坐标受约束探测运动中纤毛所受的完整粘性载荷——即胞体坐标系下的中心线力密度 \(\mathbf{f}_c = (\mathbf{A}\mathbf{Q}_{\mathrm{trans}}\,\mathbf{z}_c)_{pili}\)（区间内随胞体共同转动），以及沿各段当前切向 \(\mathbf{d}_3\) 施加的平衡轴向标量力矩密度 \(m_c = (\mathbf{A}\mathbf{Q}_{\mathrm{twist}}\,\mathbf{z}_c)\)，\(c = 1,\ldots,6+n\)。二者合并后在纤毛行上的广义力可在机器精度（\(\sim 10^{-15}\)）下精确复现受约束探测右端项（模态力矩分布与所有非热模态的保持力），即便在大变形 3D 弯曲纤毛上也是如此。保留探测运动自带的平衡轴向力矩密度可抵消弯曲纤毛的粘性搓转阻力而不激发扭转（将弯曲状态下的扭转能再降约两个数量级，并恢复小 \(\Delta t_B\) 下的单调协方差收敛）。该载荷在 6 个胞体行上的合力不重复施加（第 1–6 行置零）；模态部分对整个细胞不产生净力和净力矩。
+
+**不等长多纤毛的模态筛选。** 默认按 `pili_mode_orders` 选取最慢的 \(2\,n_o M\) 个弯曲模态。对包含不等长纤毛的细胞（松弛时间 \(\tau \propto L^4\)），可使用可选的时间尺度门槛 `brownian.pili_tau_cut_s` 选取所有满足 \(\tau_j \ge \tau_{\mathrm{cut}}\) 的慢弯曲模态，并可通过 `brownian.pili_protect_pairs` 在能隙比 \(< 1.15\) 时自动扩充截断边界，避免劈开近简并偏振对。
+
+**保持载荷带来的漂移。** §10.2 中隐式产生 Ito 漂移的前提，是广义力在区间内保持不变。固定在胞体坐标系中的中心线载荷不满足这一点：纤毛运动时，力矩平衡中的力臂和标架随之改变，载荷产生的模态力也跟着变。记 \(g_j(\mathbf{P}_k;\mathbf{y})\) 为区间起点构造的第 \(k\) 个模态的载荷 \(\mathbf{P}_k\) 在构型 \(\mathbf{y}\) 下对模态 \(j\) 的力。把一个区间内的位移展开到二阶，并对热力求平均（\(\langle F_mF_n\rangle = 2k_BT(\mathbf{M}_{joint}^{-1})_{mn}/\Delta t_B\)），得到
+
+```math
+\langle\delta\mathbf{Y}\rangle
+= k_BT\,\Delta t_B\left(\nabla_{\mathbf{y}}\!\cdot\mathbf{M}_{joint}
+  + \mathbf{M}_{joint}\,\mathbf{c}\right),
+\qquad
+c_j = \sum_{k=1}^{n}\frac{\partial g_j(\mathbf{P}_k;\mathbf{y})}{\partial a_k}.
+```
+
+第一项是热坐标的 Ito 漂移。第二项是载荷实现方式带来的假象：一个多余的广义力 \(k_BT\,\mathbf{c}\)。对位于胞体轴线上的单根纤毛，它在直线静止状态为零，随变形线性增大；293.15 K 时其效果相当于二阶弯曲的刚度变化约 \(+4\%\)，一阶约 \(-3\%\)。对不在轴线上的纤毛，它在静止状态就不为零：探测运动中胞体在动，载荷带有沿纤毛方向的分量，纤毛一偏转，这部分载荷的力矩就有一阶变化。胶囊加 4 根纤毛时，静止状态下对称的一阶模态 \(c = -0.31\)；不补偿的话，293.15 K 时该模态的均值会偏移其热幅度（均方根）的 0.15。胞体坐标没有贡献，因为载荷随胞体转动，且其合力不施加。抽样时在该区间的模态力上加 \(-k_BT\,\mathbf{c}\)，把这一项消去。\(\mathbf{c}\) 在区间起点沿各热模态的运动学方向（使用对称化并正定修复后的 \(\mathbf{M}_{joint}\) 计算 \(\mathbf{z}_{probe}\mathbf{M}_{joint}^{-1}\)，非热模态固定，胞体不动）用中心差分计算；在 \(2n\) 个位移后的状态上无需重建水动力迁移率或完整稠密矩阵，而是通过 `compute_effective_coupled_brownian` 内部与 `build_force_balance` 代数等价的 \(O(N_k)\) 无矩阵子程序 `apply_pili_B_force_rows` 直接计算纤毛力矩平衡行。加上这一项后，热模态的平稳分布是幅值 \(a_j\) 上的 \(\exp(-E/k_BT)\)，即能量均分。
+
+**Brownian 区间。** 本方案是建立在时间尺度分离基础上的粗粒化有效模型，因此 \(\Delta t_B\) 需落在双向合理窗口内：
+
+- *上限*（\(\Delta t_B \lesssim \tau_{\mathrm{slow}}/4\)）：力在 \(\Delta t_B\) 内保持恒定，会使松弛速率为 \(\lambda\) 的模态平稳方差乘以 \((2/x)\tanh(x/2)\)，\(x = \lambda\Delta t_B\)（\(x = 0.25\) 时低 0.5%，\(x = 0.5\) 时低 2%）。\(\Delta t_B\) 应不超过最快热模态松弛时间的四分之一，对上表的 3 µm 纤毛即 0.002 s（`run_simulation` 在 \(x > 0.5\) 时发出警告，\(x > 2.0\) 时默认拦截报错）。
+- *下限*（\(\Delta t_B \gtrsim \tau_{\mathrm{det}}\)）：若固定 `pili_mode_orders` 而将 \(\Delta t_B\) 缩小至远低于最慢非热化弯曲模态的松弛时间 \(\tau_{\mathrm{det}}\)（上表为 2.14–2.30 ms），单步内非热化弯曲模态来不及绝热松弛（即便平衡轴向力矩密度已保证单步协方差单调收敛且无扭转泄露，仍会残留少量来自 \(\mathbf{M}_{yb}\) 的漂移误差）；因此本方案不能通过固定模态数而盲目令 \(\Delta t_B \to 0\) 来检验收敛性（当 \(\Delta t_B / \tau_{\mathrm{det}} < 0.5\) 时 `run_simulation` 会发出警告）。如需更细时间分辨率，应同步提高 `pili_mode_orders` 或降低 `pili_tau_cut_s`。
+
+**胞体扩散。** 下表是线性化模型的胞体扩散系数（本方案的精确协方差递推，\(\Delta t_B = 0.002\) s）。\(\parallel\) 和 \(\perp\) 相对胞体长轴；\(\boldsymbol{\mu}_{flex}\) 是 §10.1 的完全柔性胞体迁移率，\(\boldsymbol{\mu}_{rigid}\) 是纤毛形状冻结时细胞的迁移率。
+
+| | 1 根：\(D_{t\perp}\) | \(D_{r\perp}\) | 4 根：\(D_{t\parallel}\) | \(D_{t\perp}\) | \(D_{r\parallel}\) | \(D_{r\perp}\) |
+|---|---|---|---|---|---|---|
+| 时间间隔 \(\Delta t_B\)，\(D / k_BT\mu_{flex}\)：只对胞体加噪声 | 0.97 | 0.87 | 0.91 | 0.95 | 0.64 | 0.88 |
+| 时间间隔 \(\Delta t_B\)，\(D / k_BT\mu_{flex}\)：一、二阶 | 0.98 | 0.89 | 0.93 | 0.96 | 0.66 | 0.90 |
+| 长时间，\(D / k_BT\mu_{rigid}\)：只对胞体加噪声 | 0.98 | 0.41 | 0.55 | 0.78 | 0.05 | 0.26 |
+| 长时间，\(D / k_BT\mu_{rigid}\)：一、二阶 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+
+纤毛模态热化后，热坐标构成一个满足涨落–耗散关系的封闭系统：噪声按系统实际响应的迁移率抽取，噪声和胞体运动都不向确定性模态输入能量。这时长时间扩散等于 \(k_BT\,\boldsymbol{\mu}_{rigid}\)，即形状涨落被平均掉之后的值，与热化的阶数无关。body-only 方案中纤毛没有噪声却仍在耗散，所以长时间扩散低于该值；4 根纤毛的细胞绕长轴的自转低到二十分之一。在一个 Brownian 区间的时间间隔上，两种方案相差不超过 3%。两者都低于完全柔性的值，因为比区间更快的模态此时已经松弛：body-only 方案中靠弹性松弛，热涨落方案中则按定义处理（探测时固定）；后者 \(\mathbf{M}_{joint}\) 的胞体块是完全柔性迁移率的 0.90（1 根，\(D_{r\perp}\)）和 0.70（4 根，\(D_{r\parallel}\)）。从 \(k_BT\,\boldsymbol{\mu}_{flex}\) 过渡到该值发生在这些松弛时间之内（最长约 2 ms），本方案不解析这一过程。
+
+**适用范围。** 本方案针对被动、本征为直线、根部固支的纤毛。`root_coupling = free_torsion` 会被拒绝：纤毛绕根部轴线的自转是一个没有弹性回复力矩的坐标，既不加噪声也不被固定，纤毛一旦弯曲，联合迁移率就失去对称性和正定性。本征曲率覆盖和主动力矩可以使用但会给出警告：热模态取自被动的初始状态，下面的能量均分检验不覆盖这些情形。
+
+**验收（v9.0.0）。** 在生产分辨率下（306 个胞体点，每根纤毛 30 段）对 1 根和 4 根纤毛做了算子检验：联合迁移率不对称度 \(2.7\times10^{-4}\) 和 \(1.4\times10^{-3}\)；模态对角元与松弛速率相差不超过 0.2%；右端项对热力的响应与 \(\mathbf{M}_{joint}\mathbf{F}\) 相差不超过 \(3.7\times10^{-3}\)；恒定模态力下的静态变形与该力相差不超过 \(2.6\times10^{-3}\)；由 ODE 测得的松弛速率与本征值相差不超过 0.2%；更换 Euler 基后的差别小于 \(10^{-7}\)。在一条热轨迹的 6 个状态上（1 根纤毛，293.15 K），时间积分的响应是探测迁移率的 0.97–1.00。对静止状态的 4 根纤毛细胞，用正反两个方向的力各积分一次，测出各模态在一个区间内的平均位移：它与 \(k_BT\,\Delta t\,(\nabla\!\cdot\mathbf{M}_{joint} + \mathbf{M}_{joint}\mathbf{c})\) 相差不超过 2%，其中保持载荷这一项单独复现的系数为 0.993。线性协方差递推给出每个热模态的 \(\langle a_j^2\rangle/k_BT\) 在 0.996 到 1.000 之间，body-only 方案为 0–0.51。
+
+通过 `run_simulation` 运行的蒙特卡洛系综（116 个胞体点，\(\Delta t_B = 0.002\) s，无重力）在平稳时间窗内给出的 \(\langle a_j^2\rangle/k_BT\) 如下，格式为“模拟值 / 同一时间窗的线性理论值”：
+
+| 系综 | 运行 | 一阶 | 二阶 |
+|---|---|---|---|
+| 1 根，293.15 K | 48 × 1.5 s | 1.044 ± 0.061 / 0.998 | 0.989 ± 0.016 / 0.998 |
+| 1 根，2.93 K | 24 × 1.2 s | 1.039 ± 0.106 / 0.997 | 0.992 ± 0.027 / 0.998 |
+| 4 根，293.15 K | 24 × 1.0 s | 0.938 ± 0.050 / 0.957 | 0.976 ± 0.016 / 0.998 |
+| 4 根，2.93 K | 24 × 1.0 s | 0.903 ± 0.063 / 0.957 | 1.012 ± 0.014 / 0.998 |
+| 1 根，293.15 K，只对胞体加噪声 | 48 × 1.5 s | 0.403 ± 0.024 / 0.456 | 0.169 ± 0.002 / 0.174 |
+| 4 根，293.15 K，只对胞体加噪声 | 24 × 1.0 s | 0.267 ± 0.023 / 0.231 | 0.106 ± 0.002 / 0.104 |
+
+加纤毛噪声的 8 个值与理论值的偏差都不超过 1.4 倍标准误差。（4 根纤毛的运行时长是最慢松弛时间 0.62 s 的 1.6 倍，所以一阶的理论值是 0.957 而不是 1。）2.93 K 时变形只有 293.15 K 时的十分之一，胞体扩散在所有时间间隔上都与线性理论一致（24 个值的 \(\chi^2\) 为 28.9 和 20.3）。293.15 K 时，凡是细胞形状起作用的地方就有偏差：该纤毛的持久长度 \(EI/k_BT = 5.2\) µm，与其长度 3 µm 相当，热变形并不小，而弯曲的纤毛会改变细胞的迁移率。4 根纤毛时，时间间隔为 \(\Delta t_B\) 的绕长轴自转扩散是线性值的 0.937 ± 0.016；\(\mathbf{M}_{joint}\) 的胞体块对平衡形状取平均给出 0.951 ± 0.008，2.93 K 的系综给出 0.990 ± 0.014。详见 `CHANGELOG.md`（9.0.0）。
 
 ## 11. 流场可视化
 
@@ -564,13 +682,7 @@ c_t \sim 4\pi\mu r_{\mathrm{pili}}^2.
 
 详细缺陷修复和版本历史属于 [`../CHANGELOG.md`](../CHANGELOG.md)，不再放在理论文档中。
 
-## 14. 参考文献
-
-- Cortez, R. (2005). The method of regularized Stokeslets.
-- Cortez, R. (2018). Regularized Stokeslet segments.
-- Walker, B. J. (2020). Elastic filament / bacterial appendage formulation used as the rod-model reference.
-
-## 15. 实测步态主动力矩
+## 14. 实测步态主动力矩
 
 [`../chlamydomonas/`](../chlamydomonas/) 中的双鞭毛游动模型不使用预先给定的行波力矩。实测平面步态作为已知的状态和速率代入。刚体速度来自与正向求解器相同的耦合线性系统的力、力矩行（§6）。杆的各行则给出使该运动成为离散模型精确解的内主动力矩
 
@@ -578,7 +690,18 @@ c_t \sim 4\pi\mu r_{\mathrm{pili}}^2.
 \mathbf{M}_{\mathrm{act}} = \boldsymbol{\kappa}_{\mathrm{dev}} - \mathrm{lin\_sys}\,\dot{\mathbf{z}}.
 \]
 
-只保留绕 \(\mathbf{d}_2\) 的弯曲分量。`chlamy_inverse_moment` 把它存成每个节点上的时间傅里叶级数。闭环算例使用 `chlamy_fit_moment` 的二次谐波解析拟合；鞭毛 2 是鞭毛 1 的镜像。拍动平面倾斜把力矩绕每根鞭毛自己的根部切线转动，两根鞭毛的幅值、相位和频率比可以不同。沉降和马达驱动算例不走这条路径。
+只保留绕 \(\mathbf{d}_2\) 的弯曲分量。`chlamy_inverse_moment` 把它存成每个节点上的时间傅里叶级数。闭环算例使用 `chlamy_fit_moment` 的二次谐波解析拟合；鞭毛 2 是鞭毛 1 的镜像。拍动平面倾斜把力矩绕每根鞭毛自己的根部切线转动，两根鞭毛的幅值、相位和频率比可以不同；可选的近端 1ω+2ω 面外弯矩包络（`chlamy_make_perp_envelope`）沿 \(\mathbf{d}_3 \times \hat{\mathbf{n}}\) 施加且严格零寄生扭矩。沉降和马达驱动算例不走这条路径。
+
+## 15. 参考文献
+
+- Cortez, R., Fauci, L. & Medovikov, A. (2005). The method of regularized Stokeslets in three dimensions: analysis, validation, and application to helical swimming. *Physics of Fluids* 17, 031504. 胞体 RSM 核函数。
+- Cortez, R. (2018). Regularized Stokeslet segments. *Journal of Computational Physics* 375, 783–796. 纤毛 RSS 与 rotlet 线段。
+- Walker, B. J., Ishimoto, K. & Gaffney, E. A. (2020). Efficient simulation of filament elastohydrodynamics in three dimensions. *Physical Review Fluids* 5, 123103. Euler 角弹性杆列式、自适应基、圆柱的扭转阻力。
+- Maxian, O., Mogilner, A. & Donev, A. (2021). Integral-based spectral method for inextensible slender fibers in Stokes flow. *Physical Review Fluids* 6, 014102.
+- Maxian, O., Sprinkle, B., Peskin, C. S. & Donev, A. (2022). Hydrodynamics of a twisting, bending, inextensible fiber in Stokes flow. *Physical Review Fluids* 7, 074101.
+- Maxian, O., Sprinkle, B. & Donev, A. (2023). Bending fluctuations in semiflexible, inextensible, slender filaments in Stokes flow: towards a spectral discretization. *Journal of Chemical Physics* 158, 154114. 以上三篇 Maxian 等的论文给出纤毛水动力半径的细长体参考值（§5.2）。
+- Berg, H. C. & Turner, L. (1993). Torque generated by the flagellar motor of *Escherichia coli*. *Biophysical Journal* 65, 2201–2216.
+- Berg, H. C. (2003). The rotary motor of bacterial flagella. *Annual Review of Biochemistry* 72, 19–54. 马达的线性扭矩–转速关系（§8）。
 
 ## 16. 许可证
 

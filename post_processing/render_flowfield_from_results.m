@@ -26,6 +26,7 @@ function info = render_flowfield_from_results(mat_file, mode, requested_times_s,
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-10-28
 %  Updated: 2026-11-11 — opts.drop_first_frame
+%  Updated: 2026-11-13 — optional stream_spacing_um and stream_length_um
 
 info = [];
 this_file = mfilename('fullpath');
@@ -91,8 +92,7 @@ end
 fprintf('Results file : %s\n', mat_file);
 fprintf('Mode         : %s\n', char(mode));
 fprintf('Drop first   : %d\n', logical(opts.drop_first_frame));
-info = call_saved_flowfield(S.results, S.params, out_dir, opts, ...
-    fullfile(proj_root, 'src', 'visualization'));
+info = call_saved_flowfield(S.results, S.params, out_dir, opts);
 end
 
 
@@ -105,7 +105,10 @@ if ~isfile(cfg_json)
 end
 try
     jc = jsondecode(fileread(cfg_json));
-catch
+catch ME
+    warning('render_flowfield_from_results:BadConfigJson', ...
+        'Could not read %s (%s). Using 30 fps and a stride of 1.', ...
+        cfg_json, ME.message);
     return
 end
 if isfield(jc, 'output')
@@ -126,7 +129,9 @@ function opts = apply_flow_defaults(opts, flow)
 pairs = {'grid_spacing_um', 'grid_spacing_um'; ...
          'grid_range_um', 'grid_range_um'; ...
          'quiver_skip', 'quiver_skip'; ...
-         'chunk_size', 'chunk_size'};
+         'chunk_size', 'chunk_size'; ...
+         'stream_spacing_um', 'stream_spacing_um'; ...
+         'stream_length_um', 'stream_length_um'};
 for n = 1:size(pairs, 1)
     target = pairs{n, 1};
     source = pairs{n, 2};
