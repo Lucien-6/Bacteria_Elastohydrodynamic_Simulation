@@ -4,7 +4,7 @@ English | [中文](README.zh-CN.md)
 
 > **Program title:** BacEHD (see [`cpc/PROGRAM_SUMMARY.md`](cpc/PROGRAM_SUMMARY.md) and [`CITATION.cff`](CITATION.cff))  
 > **Authors:** Shangping Lu (Lucien, [lucien-6@qq.com](mailto:lucien-6@qq.com)), Kun Zhao ([kzhao@uestc.edu.cn](mailto:kzhao@uestc.edu.cn))  
-> **Repository / Archive:** [GitHub](https://github.com/Lucien-6/Bacteria_Elastohydrodynamic_Simulation) | Zenodo DOI: [10.5281/zenodo.24529867](https://doi.org/10.5281/zenodo.24529867)  
+> **Repository / Archive:** [GitHub](https://github.com/Lucien-6/Bacteria_Elastohydrodynamic_Simulation) | Zenodo DOI: [10.5281/zenodo.24531456](https://doi.org/10.5281/zenodo.24531456)  
 > **Created:** 2026-02-06  
 > **Updated:** 2026-11-25  
 > **Version:** 10.2.2  

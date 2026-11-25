@@ -6,7 +6,7 @@ Ready-to-paste *Computer Physics Communications* (CPC) Program Summary metadata 
 
 - **Program title:** BacEHD
 - **CPC Library link to program files:** *(to be assigned by Elsevier CPC upon acceptance)*
-- **Developer's repository link:** https://github.com/Lucien-6/Bacteria_Elastohydrodynamic_Simulation (Zenodo archive: https://doi.org/10.5281/zenodo.24529867)
+- **Developer's repository link:** https://github.com/Lucien-6/Bacteria_Elastohydrodynamic_Simulation (Zenodo archive: https://doi.org/10.5281/zenodo.24531456)
 - **Code Ocean capsule:** *(optional)*
 - **Licensing provisions:** MIT License (see `LICENSE`; bundled third-party S2 Sampling Toolbox by Anton Semechko is also MIT licensed — see `MATLAB Add-On/Suite of functions to perform uniform sampling of a sphere/LICENSE.md`).
 - **Programming language:** MATLAB (R2022a or later; developed and tested on R2026a on Windows 11 and R2023a on Linux HPC). No Python or external compiled MEX dependencies are required to run simulations.

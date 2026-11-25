@@ -7,7 +7,7 @@ date-released: "2026-11-25"
 license: "MIT"
 type: software
 repository-code: "https://github.com/Lucien-6/Bacteria_Elastohydrodynamic_Simulation"
-doi: "10.5281/zenodo.24529867"
+doi: "10.5281/zenodo.24531456"
 authors:
   - family-names: "Lu"
     given-names: "Shangping"

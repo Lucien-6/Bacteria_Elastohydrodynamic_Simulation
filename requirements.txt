@@ -3,7 +3,7 @@
 # Release: 10.2.2 (2026-11-25)
 # Authors: Shangping Lu (Lucien, lucien-6@qq.com), Kun Zhao (kzhao@uestc.edu.cn)
 # Repository: https://github.com/Lucien-6/Bacteria_Elastohydrodynamic_Simulation
-# Zenodo DOI: 10.5281/zenodo.24529867
+# Zenodo DOI: 10.5281/zenodo.24531456
 # License: MIT (see LICENSE)
 #
 # Full release history and bug-fix records are maintained in CHANGELOG.md.
