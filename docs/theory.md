@@ -5,7 +5,7 @@ English | [中文](theory.zh-CN.md)
 
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Updated:** 2026-11-24
-> **Version:** 10.1.0
+> **Version:** 10.2.1
 
 This document describes the physical model and the numerical methods. Practical run instructions are in [`../USER_GUIDE.md`](../USER_GUIDE.md), and release history is in [`../CHANGELOG.md`](../CHANGELOG.md).
 

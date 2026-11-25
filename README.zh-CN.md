@@ -6,7 +6,7 @@
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **创建日期:** 2026-02-06  
 > **更新日期:** 2026-11-24
-> **版本:** 10.1.0
+> **版本:** 10.2.1
 > **运行环境:** 纯基础 MATLAB（R2022a+，无需 Statistics Toolbox 或 Python 依赖）。
 
 本项目用于模拟刚性细胞胞体与一根或多根柔性纤毛 / 鞭毛在低雷诺数 Stokes 流中的动力学：重力沉降、马达力矩或主动力矩驱动的游动、背景流中的运动，以及布朗运动。胞体通过表面正则化 Stokeslet 点云表示；每根纤毛作为不可伸长 Kirchhoff 弹性杆，并通过正则化 Stokeslet 线段法与流体耦合。
@@ -26,6 +26,7 @@
 - 双鞭毛莱茵衣藻三维游动：在实测双波数 1ω+2ω 平面驱动基础上叠加 17° 手性拍平面倾角与零寄生扭矩近端 1ω+2ω 面外弯矩，复现 1–2 Hz 自旋与左手超螺旋轨迹。详见 [`chlamydomonas/README.zh-CN.md`](chlamydomonas/README.zh-CN.md) 与 [`chlamydomonas/cases/run_3d_helix_2s.m`](chlamydomonas/cases/run_3d_helix_2s.m)。
 - 支持 MATLAB 内联配置、JSON 配置和程序化批处理运行。
 - 支持面向论文图像的导出：MAT、CSV、日志、PNG、矢量 PDF、可选交互式 HTML 和 MP4 动画。
+- 高性能六面板三维/二维流线流场重建与动画（`render_flowfield_from_results`，10.2.0）：直接复用 Block Schur 力系数求解、三平面合批 FP64 GPU/BLAS3 速度核（`use_gpu = 'auto'`）、精确解析胶囊截线、线程池并行流线预计算（`use_parallel = 'auto'`）以及轻量缓存（~1.6 MiB/帧，2 GiB 可存 ~1,300 帧）。
 - 可选**并行**批量驱动（[`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m)、[`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m)）：在已安装 **Parallel Computing Toolbox** 时使用 `parfor` 与自动池规模估计；无工具箱或池创建失败时自动回退为串行循环。
 - **Linux 超算集群运行支持**：[`run_simulation.m`](run_simulation.m) 现已原生统一支持无界面/Linux 环境（经 `render_motion_animation.m` 平台自适应 MP4/AVI 导出、`.avi` 检测、`cfg.silent` 与 `DataQueue` 实时进度心跳）；[`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) 作为薄包装转发别名保留，向下兼容 [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m)（Linux 原生 CPU/内存探测、节点本地 `parpool` 存储与重型输出抽样）。
 
@@ -36,7 +37,7 @@
 - 可选交互式 HTML 图像导出需要 MATLAB R2026a 或更新版本。
 - 胶囊胞体表面布点需要 MATLAB Add-On / File Exchange 中 Anton Semechko 的 **S2 Sampling Toolbox**。安装后需确保 `ParticleSampleSphere`、`SpiralSampleSphere`、`IcosahedronMesh`、`QuadCubeMesh` 和 `SubdivideSphericalMesh` 在 MATLAB path 中。
 - 运行仿真不需要 Python / Conda / pip。详见 [`requirements.txt`](requirements.txt)。
-- **Parallel Computing Toolbox** 为可选依赖：在使用 [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) 与 [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m) 的默认并行分支时需要（`use_parallel = true`）。
+- **Parallel Computing Toolbox**（及可选 CUDA GPU）为可选依赖：用于批量并行扫描（`batch_sweep/`）以及多帧流场动画自动加速（`use_gpu = 'auto'`、`use_parallel = 'auto'`），无工具箱或无 GPU 时自动回退为串行 CPU。
 
 ## 快速开始
 

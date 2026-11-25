@@ -40,6 +40,19 @@ if nargin < 6 || isempty(flow_opts), flow_opts = struct(); end
 if nargin < 7 || isempty(t_final), t_final = 0; end
 if nargin < 8 || isempty(silent),  silent  = false; end
 
+need_precomp = ~isfield(params, 'body_precomp') || ~isstruct(params.body_precomp) || ...
+    isempty(params.body_precomp) || ~isfield(params.body_precomp, 'dM_BB') || ...
+    size(params.body_precomp.dM_BB, 1) ~= 3 * params.N_body;
+if need_precomp && ...
+        isfield(params, 'body_local') && ~isempty(params.body_local) && ...
+        isfield(params, 'eps_body') && ~isempty(params.eps_body)
+    try
+        params.body_precomp = build_body_precomp(params.body_local, params.eps_body);
+    catch
+        params.body_precomp = [];
+    end
+end
+
 t_flow_start = tic;
 hydro = flowfield_from_saved_state(Z_final, params, t_final, logf);
 planes = flowfield_grid_velocity(hydro, params, flow_opts, logf, silent);

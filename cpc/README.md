@@ -1,6 +1,6 @@
 # BacEHD — CPC Reviewer Package
 
-Short, self-contained verification and benchmark suite for the *Computer Physics Communications* (CPC) deposit of **BacEHD** (`v10.1.0`). Long Brownian ensembles and publication sweeps are not repeated here; this package verifies every core physical law, v10.0.0+ numerical acceleration, thermal operator, and full end-to-end workflow in seconds to a couple of minutes.
+Short, self-contained verification and benchmark suite for the *Computer Physics Communications* (CPC) deposit of **BacEHD** (`v10.2.1`). Long Brownian ensembles and publication sweeps are not repeated here; this package verifies every core physical law, v10.0.0+ numerical acceleration, thermal operator, and full end-to-end workflow in seconds to a couple of minutes.
 
 See [`PROGRAM_SUMMARY.md`](PROGRAM_SUMMARY.md) for the formatted CPC Program Summary metadata.
 
@@ -53,7 +53,7 @@ Reference output on MATLAB R2026a (Windows 11, PCWIN64) for `run_cpc_tests('Skip
 
 ```text
 ================================================================
-  BacEHD v10.1.0 — CPC Reviewer Verification Suite
+  BacEHD v10.2.1 — CPC Reviewer Verification Suite
   Platform: MATLAB 26.1.0.3346908 (R2026a) Update 5 on PCWIN64
 ================================================================
   sphere                 V / V_Stokes                 +0.998413  (expected +1 +/- 0.01)  PASS
@@ -74,7 +74,7 @@ Reference output on MATLAB R2026a (Windows 11, PCWIN64) for `run_cpc_tests('Skip
   pili_thermal_sampler   SPD & finite sampler flag    +1  (expected +1 +/- 0)  PASS
   end_to_end_pipeline    JSON->run_simulation flag    +1  (expected +1 +/- 0)  PASS
   chlamy_3d_dry_run      3-D Chlamydomonas dry_run    +1  (expected +1 +/- 0)  PASS
-BacEHD v10.1.0 CPC tests PASS in ~22 s.
+BacEHD v10.2.1 CPC tests PASS in ~22 s.
 ```
 
 ---

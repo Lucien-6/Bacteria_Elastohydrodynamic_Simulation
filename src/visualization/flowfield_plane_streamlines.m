@@ -1,5 +1,5 @@
 function curves = flowfield_plane_streamlines(h_vec, v_vec, Uh, Uv, mask, ...
-    origin, spacing_um, length_um, plane_name)
+    origin, spacing_um, length_um, plane_name, skip_check)
 %FLOWFIELD_PLANE_STREAMLINES  Evenly spaced integral curves of one plane
 %
 %  Description:
@@ -23,6 +23,7 @@ function curves = flowfield_plane_streamlines(h_vec, v_vec, Uh, Uv, mask, ...
 %    curves = flowfield_plane_streamlines(h_vec, v_vec, Uh, Uv, mask, ...
 %        origin, spacing_um, length_um)
 %    curves = flowfield_plane_streamlines(..., plane_name)
+%    curves = flowfield_plane_streamlines(..., plane_name, skip_check)
 %
 %  Output fields:
 %    x, y         - NaN-separated polyline coordinates [um]
@@ -34,11 +35,19 @@ function curves = flowfield_plane_streamlines(h_vec, v_vec, Uh, Uv, mask, ...
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-11-13
+%  Updated: 2026-11-24 — zero-copy backward trace, endpoint sample reuse,
+%           inlined RK2 sampling, dilated fine-grid O(1) collision filter,
+%           reusable loop-stamp buffer, and batch bin updates
 
 if nargin < 9 || isempty(plane_name)
     plane_name = 'plane';
 end
+if nargin < 10 || isempty(skip_check)
+    skip_check = false;
+end
 plane_name = char(plane_name);
+skip_check = logical(skip_check);
+
 [h_vec, v_vec, Uh, Uv, mask, origin, spacing_um, length_um, dh, dv] = ...
     validate_inputs(h_vec, v_vec, Uh, Uv, mask, origin, ...
     spacing_um, length_um, plane_name);
@@ -57,7 +66,9 @@ if n_keep == 0
     return
 end
 curves = pack_curves(kept, n_keep, spacing_um, length_um, grid.ds, grid.d_stop);
-check_result(curves, h_vec, v_vec, mask, plane_name);
+if ~skip_check
+    check_result(curves, h_vec, v_vec, mask, plane_name);
+end
 end
 
 
@@ -253,28 +264,84 @@ function [kept, n_keep] = place_curves(grid, seeds)
 n_seeds = size(seeds, 1);
 kept = cell(n_seeds, 1);
 n_keep = 0;
-bins = cell(grid.nCv, grid.nCh);
+
+nCh = grid.nCh;
+nCv = grid.nCv;
+bins_x = cell(nCv * nCh, 1);
+bins_y = cell(nCv * nCh, 1);
+% Padded 1-cell-dilated fine occupancy bitmap at loop_tol resolution:
+% occ_dilated(iv2 + 1, ih2 + 1) == false mathematically guarantees no kept
+% sample lies within < loop_tol of (h2, v2), skipping bin checks in O(1).
+occ_dilated = false(grid.nLoopV + 2, grid.nLoopH + 2);
+% Reusable stamp array for self-loop detection (avoids per-ray allocation)
+visit_stamp = zeros(grid.nLoopV, grid.nLoopH, 'int32');
+ray_id = int32(0);
+
 seed_pad = ceil(sqrt(grid.seed_d2) / grid.d_stop) + 1;
+inv_dstop = 1 / grid.d_stop;
+bin_h0 = grid.bin_h0;
+bin_v0 = grid.bin_v0;
+h0 = grid.h0;
+v0 = grid.v0;
+inv_loop = 1 / grid.loop_tol;
+nLoopH = grid.nLoopH;
+nLoopV = grid.nLoopV;
+nLV2 = nLoopV + 2;
+empty_blk = zeros(0, 2);
+
 for s = 1:n_seeds
     h = seeds(s, 1);
     v = seeds(s, 2);
-    [ih, iv] = bin_index(grid, h, v);
-    if closest_d2(bins, h, v, ih, iv, grid, seed_pad) < grid.seed_d2
+    ih = floor((h - bin_h0) * inv_dstop + 1e-12) + 1;
+    iv = floor((v - bin_v0) * inv_dstop + 1e-12) + 1;
+    if ih < 1, ih = 1; elseif ih > nCh, ih = nCh; end
+    if iv < 1, iv = 1; elseif iv > nCv, iv = nCv; end
+    if has_point_within(bins_x, bins_y, h, v, ih, iv, nCh, nCv, seed_pad, grid.seed_d2)
         continue
     end
-    fwd = trace_ray(grid, h, v, bins, zeros(0, 2));
+
+    ray_id = ray_id + int32(1);
+    [fwd, visit_stamp] = trace_ray(grid, h, v, 1.0, bins_x, bins_y, ...
+        occ_dilated, empty_blk, visit_stamp, ray_id);
     blockers = forward_blockers(fwd, grid.d_stop);
-    back = grid;
-    back.U = -grid.U;
-    back.V = -grid.V;
-    bwd = trace_ray(back, h, v, bins, blockers);
+    ray_id = ray_id + int32(1);
+    [bwd, visit_stamp] = trace_ray(grid, h, v, -1.0, bins_x, bins_y, ...
+        occ_dilated, blockers, visit_stamp, ray_id);
+
     poly = join_rays(bwd, fwd);
     if size(poly, 1) < 2 || polyline_length(poly) < grid.d_stop
         continue
     end
     n_keep = n_keep + 1;
     kept{n_keep} = poly;
-    bins = store_curve(bins, poly, grid);
+
+    % Batch-insert polyline points into spatial bins
+    px = poly(:, 1);
+    py = poly(:, 2);
+    ih_b = min(max(floor((px - bin_h0) * inv_dstop + 1e-12) + 1, 1), nCh);
+    iv_b = min(max(floor((py - bin_v0) * inv_dstop + 1e-12) + 1, 1), nCv);
+    lin_b = iv_b + (ih_b - 1) * nCv;
+    [u_lin, ~, ic] = unique(lin_b);
+    for m = 1:numel(u_lin)
+        li = u_lin(m);
+        sel = (ic == m);
+        bins_x{li} = [bins_x{li}; px(sel)];
+        bins_y{li} = [bins_y{li}; py(sel)];
+    end
+
+    % Batch-mark 3x3 dilated fine occupancy cells
+    ih_l = min(max(floor((px - h0) * inv_loop + 1e-12) + 1, 1), nLoopH);
+    iv_l = min(max(floor((py - v0) * inv_loop + 1e-12) + 1, 1), nLoopV);
+    base_lin = (iv_l + 1) + ih_l * nLV2;
+    occ_dilated(base_lin)            = true;
+    occ_dilated(base_lin - 1)        = true;
+    occ_dilated(base_lin + 1)        = true;
+    occ_dilated(base_lin - nLV2)     = true;
+    occ_dilated(base_lin - nLV2 - 1) = true;
+    occ_dilated(base_lin - nLV2 + 1) = true;
+    occ_dilated(base_lin + nLV2)     = true;
+    occ_dilated(base_lin + nLV2 - 1) = true;
+    occ_dilated(base_lin + nLV2 + 1) = true;
 end
 kept = kept(1:n_keep);
 end
@@ -335,11 +402,10 @@ end
 
 function tri = arrowhead(poly, spacing_um)
 %ARROWHEAD  Triangle centred on the arc-length midpoint, pointing downstream.
-[mid, d] = curve_midpoint(poly);
-arc = polyline_length(poly);
+[mid, d, arc_len] = curve_midpoint(poly);
 head_len = 0.35 * spacing_um;
-if head_len > 0.8 * arc
-    head_len = 0.8 * arc;
+if head_len > 0.8 * arc_len
+    head_len = 0.8 * arc_len;
 end
 half_w = 0.42 * head_len;
 normal = [-d(2), d(1)];
@@ -349,11 +415,12 @@ tri = [tip; base + normal * half_w; base - normal * half_w];
 end
 
 
-function [mid, direction] = curve_midpoint(poly)
+function [mid, direction, arc_len] = curve_midpoint(poly)
 %CURVE_MIDPOINT  Point and downstream tangent at half the arc length
 seg = hypot(diff(poly(:, 1)), diff(poly(:, 2)));
 arc = [0; cumsum(seg)];
-half = 0.5 * arc(end);
+arc_len = arc(end);
+half = 0.5 * arc_len;
 k = find(arc >= half - 1e-12, 1, 'first');
 if isempty(k) || k < 2
     k = size(poly, 1);
@@ -427,173 +494,233 @@ end
 end
 
 
-function pts = trace_ray(grid, h, v, bins, blockers)
+function [pts, visit_stamp] = trace_ray(grid, h, v, dir_sign, bins_x, bins_y, ...
+    occ_dilated, blockers, visit_stamp, ray_id)
 %TRACE_RAY  RK2 until the boundary, the arc cap, a loop, or another curve
-%  Another curve stops the ray only when the two actually meet.  The gap is
-%  a few steps, so a continuation does not show a break of half a spacing.
+%  Inlines bilinear interpolation and reuses endpoint velocity samples on
+%  the next step for identical RK2 trajectories with 1/3 fewer lookups.
+
+U = grid.U;
+V = grid.V;
+h0 = grid.h0;
+v0 = grid.v0;
+inv_dh = 1 / grid.dh;
+inv_dv = 1 / grid.dv;
+nH = grid.nH;
+nV = grid.nV;
+nHm1 = nH - 1;
+nVm1 = nV - 1;
 ds = grid.ds;
-pts = zeros(grid.n_max, 2);
-pts(1, :) = [h, v];
+n_max = grid.n_max;
+length_um = grid.length_um;
+length_lim = length_um - 1e-12;
+d_stop = grid.d_stop;
+bin_h0 = grid.bin_h0;
+bin_v0 = grid.bin_v0;
+inv_dstop = 1 / d_stop;
+nCh = grid.nCh;
+nCv = grid.nCv;
+loop_tol = grid.loop_tol;
+inv_loop = 1 / loop_tol;
+loop2 = loop_tol * loop_tol;
+nLoopH = grid.nLoopH;
+nLoopV = grid.nLoopV;
+recent_n = grid.loop_recent;
+
+pts = zeros(n_max, 2);
+pts(1, 1) = h;
+pts(1, 2) = v;
 n = 1;
 arc = 0;
-[cur_ih, cur_iv] = loop_index(grid, h, v);
-recent_n = grid.loop_recent;
-buf = zeros(recent_n, 2);
+
+% Initial direction sample at the seed (reused by step 1)
+fh = (h - h0) * inv_dh;
+fv = (v - v0) * inv_dv;
+if fh < 0 || fv < 0 || fh > nHm1 || fv > nVm1
+    pts = pts(1, :);
+    return
+end
+ih = floor(fh) + 1;
+iv = floor(fv) + 1;
+if ih >= nH, ih = nHm1; th = 1; else, th = fh - (ih - 1); end
+if iv >= nV, iv = nVm1; tv = 1; else, tv = fv - (iv - 1); end
+i00 = iv + (ih - 1) * nV;
+i10 = i00 + nV;
+om_th = 1 - th;  om_tv = 1 - tv;
+u_val = om_tv * (om_th * U(i00) + th * U(i10)) + tv * (om_th * U(i00 + 1) + th * U(i10 + 1));
+w_val = om_tv * (om_th * V(i00) + th * V(i10)) + tv * (om_th * V(i00 + 1) + th * V(i10 + 1));
+sp = hypot(u_val, w_val);
+if ~(sp > 1e-8)
+    pts = pts(1, :);
+    return
+end
+inv_sp = dir_sign / sp;
+u1 = u_val * inv_sp;
+w1 = w_val * inv_sp;
+
+cur_ih = floor((h - h0) * inv_loop + 1e-12) + 1;
+cur_iv = floor((v - v0) * inv_loop + 1e-12) + 1;
+if cur_ih < 1, cur_ih = 1; elseif cur_ih > nLoopH, cur_ih = nLoopH; end
+if cur_iv < 1, cur_iv = 1; elseif cur_iv > nLoopV, cur_iv = nLoopV; end
+
+buf_h = zeros(recent_n, 1);
+buf_v = zeros(recent_n, 1);
 n_left = 0;
-closed = false(grid.nLoopV, grid.nLoopH);
-loop2 = grid.loop_tol ^ 2;
+
 has_block = ~isempty(blockers);
-while arc < grid.length_um - 1e-12 && n < grid.n_max
-    step = min(ds, grid.length_um - arc);
-    [u1, w1, ok] = sample_dir(grid, h, v);
-    if ~ok
+if has_block
+    blk_x = blockers(:, 1);
+    blk_y = blockers(:, 2);
+    blk_xmin = min(blk_x) - loop_tol;
+    blk_xmax = max(blk_x) + loop_tol;
+    blk_ymin = min(blk_y) - loop_tol;
+    blk_ymax = max(blk_y) + loop_tol;
+end
+
+while arc < length_lim && n < n_max
+    step = length_um - arc;
+    if ds < step
+        step = ds;
+    end
+
+    % RK2 midpoint sample
+    hm = h + 0.5 * step * u1;
+    vm = v + 0.5 * step * w1;
+    fh = (hm - h0) * inv_dh;
+    fv = (vm - v0) * inv_dv;
+    if fh < 0 || fv < 0 || fh > nHm1 || fv > nVm1
         break
     end
-    [u2, w2, ok] = sample_dir(grid, h + 0.5 * step * u1, v + 0.5 * step * w1);
-    if ~ok
+    ih = floor(fh) + 1;
+    iv = floor(fv) + 1;
+    if ih >= nH, ih = nHm1; th = 1; else, th = fh - (ih - 1); end
+    if iv >= nV, iv = nVm1; tv = 1; else, tv = fv - (iv - 1); end
+    i00 = iv + (ih - 1) * nV;
+    i10 = i00 + nV;
+    om_th = 1 - th;  om_tv = 1 - tv;
+    u_val = om_tv * (om_th * U(i00) + th * U(i10)) + tv * (om_th * U(i00 + 1) + th * U(i10 + 1));
+    w_val = om_tv * (om_th * V(i00) + th * V(i10)) + tv * (om_th * V(i00 + 1) + th * V(i10 + 1));
+    sp = hypot(u_val, w_val);
+    if ~(sp > 1e-8)
         break
     end
+    inv_sp = dir_sign / sp;
+    u2 = u_val * inv_sp;
+    w2 = w_val * inv_sp;
+
+    % Endpoint sample (reused as u1, w1 on the next iteration)
     h2 = h + step * u2;
     v2 = v + step * w2;
-    [~, ~, ok] = sample_dir(grid, h2, v2);
-    if ~ok
+    fh = (h2 - h0) * inv_dh;
+    fv = (v2 - v0) * inv_dv;
+    if fh < 0 || fv < 0 || fh > nHm1 || fv > nVm1
         break
     end
-    [ihb, ivb] = bin_index(grid, h2, v2);
-    if closest_d2(bins, h2, v2, ihb, ivb, grid, 1) < loop2
+    ih = floor(fh) + 1;
+    iv = floor(fv) + 1;
+    if ih >= nH, ih = nHm1; th = 1; else, th = fh - (ih - 1); end
+    if iv >= nV, iv = nVm1; tv = 1; else, tv = fv - (iv - 1); end
+    i00 = iv + (ih - 1) * nV;
+    i10 = i00 + nV;
+    om_th = 1 - th;  om_tv = 1 - tv;
+    u_val = om_tv * (om_th * U(i00) + th * U(i10)) + tv * (om_th * U(i00 + 1) + th * U(i10 + 1));
+    w_val = om_tv * (om_th * V(i00) + th * V(i10)) + tv * (om_th * V(i00 + 1) + th * V(i10 + 1));
+    sp = hypot(u_val, w_val);
+    if ~(sp > 1e-8)
         break
     end
-    if has_block && (arc + step) >= grid.d_stop ...
-            && min((blockers(:, 1) - h2).^2 + (blockers(:, 2) - v2).^2) < loop2
+    inv_sp = dir_sign / sp;
+    u_next = u_val * inv_sp;
+    w_next = w_val * inv_sp;
+
+    % Fine-grid loop cell (shared by O(1) collision filter and self-loop test)
+    ih2 = floor((h2 - h0) * inv_loop + 1e-12) + 1;
+    iv2 = floor((v2 - v0) * inv_loop + 1e-12) + 1;
+    if ih2 < 1, ih2 = 1; elseif ih2 > nLoopH, ih2 = nLoopH; end
+    if iv2 < 1, iv2 = 1; elseif iv2 > nLoopV, iv2 = nLoopV; end
+
+    % Fast O(1) skip unless dilated fine occupancy signals a nearby curve
+    if occ_dilated(iv2 + 1, ih2 + 1)
+        ihb = floor((h2 - bin_h0) * inv_dstop + 1e-12) + 1;
+        ivb = floor((v2 - bin_v0) * inv_dstop + 1e-12) + 1;
+        if ihb < 1, ihb = 1; elseif ihb > nCh, ihb = nCh; end
+        if ivb < 1, ivb = 1; elseif ivb > nCv, ivb = nCv; end
+        if has_point_within(bins_x, bins_y, h2, v2, ihb, ivb, nCh, nCv, 1, loop2)
+            break
+        end
+    end
+
+    if has_block && (arc + step) >= d_stop ...
+            && h2 >= blk_xmin && h2 <= blk_xmax ...
+            && v2 >= blk_ymin && v2 <= blk_ymax ...
+            && any((blk_x - h2).^2 + (blk_y - v2).^2 < loop2)
         break
     end
-    [ih2, iv2] = loop_index(grid, h2, v2);
+
     if ih2 ~= cur_ih || iv2 ~= cur_iv
         n_left = n_left + 1;
         slot = mod(n_left - 1, recent_n) + 1;
         if n_left > recent_n
-            old = buf(slot, :);
-            closed(old(2), old(1)) = true;
+            visit_stamp(buf_v(slot), buf_h(slot)) = ray_id;
         end
-        buf(slot, :) = [cur_ih, cur_iv];
+        buf_h(slot) = cur_ih;
+        buf_v(slot) = cur_iv;
         cur_ih = ih2;
         cur_iv = iv2;
-        if closed(iv2, ih2)
+        if visit_stamp(iv2, ih2) == ray_id
             break
         end
     end
+
     h = h2;
     v = v2;
+    u1 = u_next;
+    w1 = w_next;
     arc = arc + step;
     n = n + 1;
-    pts(n, :) = [h, v];
+    pts(n, 1) = h;
+    pts(n, 2) = v;
 end
 pts = pts(1:n, :);
 end
 
 
-function [u, w, ok] = sample_dir(grid, h, v)
-%SAMPLE_DIR  Unit direction by bilinear interpolation.  NaN stops the ray.
-fh = (h - grid.h0) / grid.dh;
-fv = (v - grid.v0) / grid.dv;
-if fh < 0 || fv < 0 || fh > grid.nH - 1 || fv > grid.nV - 1
-    u = NaN;
-    w = NaN;
-    ok = false;
-    return
-end
-ih = floor(fh) + 1;
-iv = floor(fv) + 1;
-if ih >= grid.nH
-    ih = grid.nH - 1;
-    th = 1;
-else
-    th = fh - (ih - 1);
-end
-if iv >= grid.nV
-    iv = grid.nV - 1;
-    tv = 1;
-else
-    tv = fv - (iv - 1);
-end
-u00 = grid.U(iv, ih);
-u10 = grid.U(iv, ih + 1);
-u01 = grid.U(iv + 1, ih);
-u11 = grid.U(iv + 1, ih + 1);
-w00 = grid.V(iv, ih);
-w10 = grid.V(iv, ih + 1);
-w01 = grid.V(iv + 1, ih);
-w11 = grid.V(iv + 1, ih + 1);
-if ~all(isfinite([u00, u10, u01, u11, w00, w10, w01, w11]))
-    u = NaN;
-    w = NaN;
-    ok = false;
-    return
-end
-u = (1 - tv) * ((1 - th) * u00 + th * u10) + tv * ((1 - th) * u01 + th * u11);
-w = (1 - tv) * ((1 - th) * w00 + th * w10) + tv * ((1 - th) * w01 + th * w11);
-sp = hypot(u, w);
-if ~(sp > 1e-8)
-    u = NaN;
-    w = NaN;
-    ok = false;
-    return
-end
-u = u / sp;
-w = w / sp;
-ok = true;
-end
-
-
-function bins = store_curve(bins, pts, grid)
-for k = 1:size(pts, 1)
-    [ih, iv] = bin_index(grid, pts(k, 1), pts(k, 2));
-    P = bins{iv, ih};
-    if isempty(P)
-        bins{iv, ih} = pts(k, :);
-    else
-        bins{iv, ih} = [P; pts(k, :)];
+function hit = has_point_within(bins_x, bins_y, h, v, ih, iv, nCh, nCv, n_pad, thresh2)
+%HAS_POINT_WITHIN  True if any stored sample in the (2*n_pad+1)^2 neighbourhood
+%  lies strictly within squared distance thresh2 of (h, v).  Checks the
+%  home bin first and returns immediately on first match.
+hit = false;
+li0 = iv + (ih - 1) * nCv;
+px = bins_x{li0};
+if ~isempty(px)
+    py = bins_y{li0};
+    if any((px - h).^2 + (py - v).^2 < thresh2)
+        hit = true;
+        return
     end
 end
-end
-
-
-function d2 = closest_d2(bins, h, v, ih, iv, grid, n_pad)
-%CLOSEST_D2  Squared distance to accepted samples within n_pad bins
-d2 = inf;
-for di = -n_pad:n_pad
-    ii = ih + di;
-    if ii < 1 || ii > grid.nCh
-        continue
-    end
-    for dj = -n_pad:n_pad
-        jj = iv + dj;
-        if jj < 1 || jj > grid.nCv
+i_lo = max(1, ih - n_pad);
+i_hi = min(nCh, ih + n_pad);
+j_lo = max(1, iv - n_pad);
+j_hi = min(nCv, iv + n_pad);
+for ii = i_lo:i_hi
+    col_off = (ii - 1) * nCv;
+    for jj = j_lo:j_hi
+        if ii == ih && jj == iv
             continue
         end
-        P = bins{jj, ii};
-        if isempty(P)
+        li = jj + col_off;
+        px = bins_x{li};
+        if isempty(px)
             continue
         end
-        d2 = min(d2, min((P(:, 1) - h).^2 + (P(:, 2) - v).^2));
+        py = bins_y{li};
+        if any((px - h).^2 + (py - v).^2 < thresh2)
+            hit = true;
+            return
+        end
     end
 end
-end
-
-
-function [ih, iv] = bin_index(grid, h, v)
-ih = floor((h - grid.bin_h0) / grid.d_stop + 1e-12) + 1;
-iv = floor((v - grid.bin_v0) / grid.d_stop + 1e-12) + 1;
-ih = min(max(ih, 1), grid.nCh);
-iv = min(max(iv, 1), grid.nCv);
-end
-
-
-function [ih, iv] = loop_index(grid, h, v)
-ih = floor((h - grid.h0) / grid.loop_tol + 1e-12) + 1;
-iv = floor((v - grid.v0) / grid.loop_tol + 1e-12) + 1;
-ih = min(max(ih, 1), grid.nLoopH);
-iv = min(max(iv, 1), grid.nLoopV);
 end
 
 

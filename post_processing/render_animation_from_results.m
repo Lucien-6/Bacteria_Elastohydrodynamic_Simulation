@@ -52,6 +52,14 @@ this_file = mfilename('fullpath');
 proj_root = fileparts(fileparts(this_file));
 addpath(proj_root);
 addpath(genpath(fullfile(proj_root, 'src')));
+chlamy_dir = fullfile(proj_root, 'chlamydomonas');
+if isfolder(chlamy_dir)
+    addpath(chlamy_dir);
+    chlamy_core = fullfile(chlamy_dir, 'core');
+    if isfolder(chlamy_core)
+        addpath(chlamy_core);
+    end
+end
 
 %% ---- Select the results file ----
 if nargin < 1 || isempty(mat_file)
@@ -74,7 +82,13 @@ if isempty(case_dir)
 end
 
 %% ---- Load and validate ----
+w_decomp = warning('query', 'MATLAB:decomposition:LoadNotSupported');
+w_handle = warning('query', 'MATLAB:dispatcher:UnresolvedFunctionHandle');
+restore_w = onCleanup(@() restore_load_warnings(w_decomp, w_handle));
+warning('off', 'MATLAB:decomposition:LoadNotSupported');
+warning('off', 'MATLAB:dispatcher:UnresolvedFunctionHandle');
 S = load(mat_file, 'results', 'params');
+clear restore_w
 if ~isfield(S, 'results') || ~isfield(S, 'params')
     error('render_animation_from_results:MissingVariables', ...
           'The file must contain the variables "results" and "params": %s', mat_file);
@@ -134,4 +148,10 @@ function require_fields(S, names, label)
         error('render_animation_from_results:MissingFields', ...
               'Missing field(s) in %s: %s', label, strjoin(missing, ', '));
     end
+end
+
+
+function restore_load_warnings(w_decomp, w_handle)
+    warning(w_decomp.state, 'MATLAB:decomposition:LoadNotSupported');
+    warning(w_handle.state, 'MATLAB:dispatcher:UnresolvedFunctionHandle');
 end

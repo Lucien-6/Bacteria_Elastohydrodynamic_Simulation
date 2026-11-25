@@ -2,11 +2,16 @@ function planes = flowfield_grid_velocity(hydro, params, flow_opts, logf, silent
 %FLOWFIELD_GRID_VELOCITY  Evaluate XZ, YZ, and XY Stokes velocity planes
 %
 %  Description:
-%    Builds XZ, YZ, and XY grids (through the body centre) that cover the configured window and the whole
-%    cell (body and flagella), and evaluates the regularised Stokeslet,
-%    Stokeslet-segment, and rotlet kernels outside the body.  The body
-%    interior is left blank (NaN).  The ambient flow is added when
-%    hydro.bg_fun is present.
+%    Builds XZ, YZ, and XY grids (through the body centre) that cover the
+%    configured window and the whole cell (body and flagella), and evaluates
+%    the regularised Stokeslet, Stokeslet-segment, and rotlet kernels
+%    outside the body.  The body interior is left blank (NaN).  The ambient
+%    flow is added when hydro.bg_fun is present.
+%
+%    All three planes are evaluated in a single batched pass over exterior
+%    grid points so body and pilus source arrays are uploaded to the GPU
+%    (or prepared on CPU) once per frame.  FP64 precision is preserved
+%    throughout.
 %
 %  Syntax:
 %    planes = flowfield_grid_velocity(hydro, params, flow_opts, logf, silent)
@@ -16,6 +21,8 @@ function planes = flowfield_grid_velocity(hydro, params, flow_opts, logf, silent
 %  Updated: 2026-10-30
 %  Updated: 2026-11-11 — added the XY plane (Z = Z_cm)
 %  Updated: 2026-11-13 — optional streamline spacing and length overrides
+%  Updated: 2026-11-24 — batched 3-plane FP64 GPU/BLAS3 evaluation,
+%           analytic capsule section outlines, 2x2 surface corner grids
 
 if nargin < 4 || isempty(logf), logf = @(varargin) []; end
 if nargin < 5 || isempty(silent), silent = false; end
@@ -49,10 +56,8 @@ if isfield(flow_opts, 'body_vis') && isstruct(flow_opts.body_vis) && ~isempty(fl
 else
     body_vis = build_body_visualization(params, hydro.L_0);
 end
-use_gpu = false;
-if isfield(flow_opts, 'use_gpu') && ~isempty(flow_opts.use_gpu)
-    use_gpu = logical(flow_opts.use_gpu);
-end
+gpu_active = resolve_gpu_flag(flow_opts);
+
 if isfield(flow_opts, 'fixed_below_um') && ~isempty(flow_opts.fixed_below_um)
     % Same span on every frame; the window translates with the centre of mass.
     % The step count is taken from this span, not from (hi - lo): adding and
@@ -73,45 +78,63 @@ logf(['[FLOW] Grid X [%.2f, %.2f], Y [%.2f, %.2f], Z [%.2f, %.2f] um, ', ...
     lo_um(1), hi_um(1), lo_um(2), hi_um(2), lo_um(3), hi_um(3), ...
     grid_spacing_um, quiver_skip);
 
-logf('[FLOW] Computing XZ-plane flow field...\n');
-x_vec_xz = grid_samples(lo_um(1), hi_um(1), grid_spacing_um, n_fixed, 1);
-z_vec_xz = grid_samples(lo_um(3), hi_um(3), grid_spacing_um, n_fixed, 3);
-[XG_xz, ZG_xz] = meshgrid(x_vec_xz, z_vec_xz);
-YG_xz = X_cm_um(2) * ones(size(XG_xz));
-xz_tag = '[FLOW-XZ] ';
-if silent, xz_tag = ''; end
-[Ux_xz, Uy_xz, Uz_xz, Umag_xz, mask_xz, ~] = evaluate_plane_velocity( ...
-    [XG_xz(:)*um_to_L, YG_xz(:)*um_to_L, ZG_xz(:)*um_to_L], ...
-    [numel(z_vec_xz), numel(x_vec_xz)], X_cm, R_body, body_vis, ...
-    hydro.body_data, hydro.seg_data, um_s_factor, chunk_size, xz_tag, hydro.bg_fun, use_gpu);
+x_vec = grid_samples(lo_um(1), hi_um(1), grid_spacing_um, n_fixed, 1);
+y_vec = grid_samples(lo_um(2), hi_um(2), grid_spacing_um, n_fixed, 2);
+z_vec = grid_samples(lo_um(3), hi_um(3), grid_spacing_um, n_fixed, 3);
+
+nx = numel(x_vec);
+ny = numel(y_vec);
+nz = numel(z_vec);
+
+% ---- Build dimensionless plane coordinates and body-interior masks ----
+pts_xz_dl = [repelem(x_vec(:), nz) * um_to_L, ...
+             repmat(X_cm(2), nx * nz, 1), ...
+             repmat(z_vec(:), nx, 1) * um_to_L];
+[mask_xz_vec, ~] = body_inside_mask(pts_xz_dl, X_cm, R_body, body_vis);
+mask_xz = reshape(mask_xz_vec, [nz, nx]);
+out_xz  = find(~mask_xz_vec);
+
+pts_yz_dl = [repmat(X_cm(1), ny * nz, 1), ...
+             repelem(y_vec(:), nz) * um_to_L, ...
+             repmat(z_vec(:), ny, 1) * um_to_L];
+[mask_yz_vec, ~] = body_inside_mask(pts_yz_dl, X_cm, R_body, body_vis);
+mask_yz = reshape(mask_yz_vec, [nz, ny]);
+out_yz  = find(~mask_yz_vec);
+
+pts_xy_dl = [repelem(x_vec(:), ny) * um_to_L, ...
+             repmat(y_vec(:), nx, 1) * um_to_L, ...
+             repmat(X_cm(3), nx * ny, 1)];
+[mask_xy_vec, ~] = body_inside_mask(pts_xy_dl, X_cm, R_body, body_vis);
+mask_xy = reshape(mask_xy_vec, [ny, nx]);
+out_xy  = find(~mask_xy_vec);
+
+% ---- Single batched evaluation across all 3 planes ----
+n_xz = numel(out_xz);
+n_yz = numel(out_yz);
+X_eval_all = [pts_xz_dl(out_xz, :); pts_yz_dl(out_yz, :); pts_xy_dl(out_xy, :)];
+
+prog_tag = '[FLOW] ';
+if silent, prog_tag = ''; end
+logf('[FLOW] Computing XZ, YZ, and XY flow fields (%d exterior points)...\n', ...
+    size(X_eval_all, 1));
+u_all = evaluate_points_velocity(X_eval_all, X_cm, ...
+    hydro.body_data, hydro.seg_data, um_s_factor, chunk_size, ...
+    prog_tag, hydro.bg_fun, gpu_active);
+
+% ---- Scatter batched velocities back to the three planes ----
+i1 = n_xz;
+i2 = n_xz + n_yz;
+[Ux_xz, Uy_xz, Uz_xz, Umag_xz] = scatter_plane_velocity( ...
+    u_all(1:i1, :), out_xz, [nz, nx]);
+[Ux_yz, Uy_yz, Uz_yz, Umag_yz] = scatter_plane_velocity( ...
+    u_all(i1 + 1:i2, :), out_yz, [nz, ny]);
+[Ux_xy, Uy_xy, Uz_xy, Umag_xy] = scatter_plane_velocity( ...
+    u_all(i2 + 1:end, :), out_xy, [ny, nx]);
+
 logf('[FLOW] XZ velocity range: [%.4e, %.4e] um/s\n', ...
     min(Umag_xz(:), [], 'omitnan'), max(Umag_xz(:), [], 'omitnan'));
-
-logf('[FLOW] Computing YZ-plane flow field...\n');
-y_vec_yz = grid_samples(lo_um(2), hi_um(2), grid_spacing_um, n_fixed, 2);
-z_vec_yz = grid_samples(lo_um(3), hi_um(3), grid_spacing_um, n_fixed, 3);
-[YG_yz, ZG_yz] = meshgrid(y_vec_yz, z_vec_yz);
-XG_yz = X_cm_um(1) * ones(size(YG_yz));
-yz_tag = '[FLOW-YZ] ';
-if silent, yz_tag = ''; end
-[Ux_yz, Uy_yz, Uz_yz, Umag_yz, mask_yz, ~] = evaluate_plane_velocity( ...
-    [XG_yz(:)*um_to_L, YG_yz(:)*um_to_L, ZG_yz(:)*um_to_L], ...
-    [numel(z_vec_yz), numel(y_vec_yz)], X_cm, R_body, body_vis, ...
-    hydro.body_data, hydro.seg_data, um_s_factor, chunk_size, yz_tag, hydro.bg_fun, use_gpu);
 logf('[FLOW] YZ velocity range: [%.4e, %.4e] um/s\n', ...
     min(Umag_yz(:), [], 'omitnan'), max(Umag_yz(:), [], 'omitnan'));
-
-logf('[FLOW] Computing XY-plane flow field...\n');
-x_vec_xy = x_vec_xz;
-y_vec_xy = y_vec_yz;
-[XG_xy, YG_xy] = meshgrid(x_vec_xy, y_vec_xy);
-ZG_xy = X_cm_um(3) * ones(size(XG_xy));
-xy_tag = '[FLOW-XY] ';
-if silent, xy_tag = ''; end
-[Ux_xy, Uy_xy, Uz_xy, Umag_xy, mask_xy, ~] = evaluate_plane_velocity( ...
-    [XG_xy(:)*um_to_L, YG_xy(:)*um_to_L, ZG_xy(:)*um_to_L], ...
-    [numel(y_vec_xy), numel(x_vec_xy)], X_cm, R_body, body_vis, ...
-    hydro.body_data, hydro.seg_data, um_s_factor, chunk_size, xy_tag, hydro.bg_fun, use_gpu);
 logf('[FLOW] XY velocity range: [%.4e, %.4e] um/s\n', ...
     min(Umag_xy(:), [], 'omitnan'), max(Umag_xy(:), [], 'omitnan'));
 
@@ -119,10 +142,23 @@ logf('[FLOW] XY velocity range: [%.4e, %.4e] um/s\n', ...
 [cap_yz_h, cap_yz_v] = body_section_outline(body_vis, R_body, X_cm_um, 'yz');
 [cap_xy_h, cap_xy_v] = body_section_outline(body_vis, R_body, X_cm_um, 'xy');
 
+% 2x2 corner coordinates suffice for texture-mapped 3D surfaces
+HG_xz = [x_vec(1), x_vec(end); x_vec(1), x_vec(end)];
+VG_xz = [X_cm_um(2), X_cm_um(2); X_cm_um(2), X_cm_um(2)];
+ZG_xz = [z_vec(1), z_vec(1); z_vec(end), z_vec(end)];
+
+HG_yz = [X_cm_um(1), X_cm_um(1); X_cm_um(1), X_cm_um(1)];
+VG_yz = [y_vec(1), y_vec(end); y_vec(1), y_vec(end)];
+ZG_yz = [z_vec(1), z_vec(1); z_vec(end), z_vec(end)];
+
+HG_xy = [x_vec(1), x_vec(end); x_vec(1), x_vec(end)];
+VG_xy = [y_vec(1), y_vec(1); y_vec(end), y_vec(end)];
+ZG_xy = [X_cm_um(3), X_cm_um(3); X_cm_um(3), X_cm_um(3)];
+
 planes.body_vis = body_vis;
-planes.axis_lim_um = [x_vec_xz(1), x_vec_xz(end); ...
-                      y_vec_yz(1), y_vec_yz(end); ...
-                      z_vec_xz(1), z_vec_xz(end)];
+planes.axis_lim_um = [x_vec(1), x_vec(end); ...
+                      y_vec(1), y_vec(end); ...
+                      z_vec(1), z_vec(end)];
 planes.half_range = max(abs(planes.axis_lim_um - X_cm_um), [], 'all');
 planes.grid_spacing_um = grid_spacing_um;
 planes.grid_range_um = grid_range_um;
@@ -130,15 +166,14 @@ planes.quiver_skip = quiver_skip;
 planes.stream_spacing_um = stream_spacing_um;
 planes.stream_length_um = stream_length_um;
 planes.X_cm_um = X_cm_um;
-planes.xz = pack_plane(x_vec_xz, z_vec_xz, XG_xz, YG_xz, ZG_xz, ...
+planes.xz = pack_plane(x_vec, z_vec, HG_xz, VG_xz, ZG_xz, ...
     Ux_xz, Uy_xz, Uz_xz, Umag_xz, mask_xz, cap_xz_h, cap_xz_v);
-planes.yz = pack_plane(y_vec_yz, z_vec_yz, XG_yz, YG_yz, ZG_yz, ...
+planes.yz = pack_plane(y_vec, z_vec, HG_yz, VG_yz, ZG_yz, ...
     Ux_yz, Uy_yz, Uz_yz, Umag_yz, mask_yz, cap_yz_h, cap_yz_v);
-planes.xy = pack_plane(x_vec_xy, y_vec_xy, XG_xy, YG_xy, ZG_xy, ...
+planes.xy = pack_plane(x_vec, y_vec, HG_xy, VG_xy, ZG_xy, ...
     Ux_xy, Uy_xy, Uz_xy, Umag_xy, mask_xy, cap_xy_h, cap_xy_v);
-samples = [Umag_xz(isfinite(Umag_xz)); Umag_yz(isfinite(Umag_yz)); ...
-           Umag_xy(isfinite(Umag_xy))];
-planes.samples = samples(:);
+samples = sqrt(sum(u_all.^2, 2));
+planes.samples = samples(isfinite(samples));
 
 end
 
@@ -159,341 +194,302 @@ plane.cap_v = cap_v;
 end
 
 
+function [Ux, Uy, Uz, Umag] = scatter_plane_velocity(u_ev, outside_idx, grid_size)
+Ux = NaN(grid_size);
+Uy = NaN(grid_size);
+Uz = NaN(grid_size);
+Ux(outside_idx) = u_ev(:, 1);
+Uy(outside_idx) = u_ev(:, 2);
+Uz(outside_idx) = u_ev(:, 3);
+Umag = sqrt(Ux.^2 + Uy.^2 + Uz.^2);
+end
+
+
 %% =====================================================================
-%  LOCAL FUNCTION: evaluate_plane_velocity
+%  LOCAL FUNCTION: resolve_gpu_flag
 %  =====================================================================
-function [Ux, Uy, Uz, Umag, inside_mask, dist_field] = evaluate_plane_velocity( ...
-    grid_pts_dl, grid_size, X_cm, R_body, body_vis, ...
-    body_data, seg_data, um_s_factor, chunk_size, progress_tag, bg_fun, use_gpu)
-%EVALUATE_PLANE_VELOCITY  Stokes velocity on a planar evaluation grid
-%
-%  Performs body-interior masking and evaluates the RSM (body) plus
-%  RSS+Rotlet (pili) velocity kernels at all exterior grid points.  When a
-%  background-flow evaluator bg_fun is supplied, the ambient velocity is
-%  added so the returned field is the TOTAL fluid velocity.
-%
-%  Inputs:
-%    grid_pts_dl   [N x 3]  Grid points in dimensionless units
-%    grid_size     [1 x 2]  [Nrows, Ncols] of the grid
-%    X_cm          [3 x 1]  Body CM (dimensionless)
-%    R_body        [3 x 3]  Body rotation matrix
-%    body_vis      struct   Body visualisation descriptor (see
-%                             build_body_visualization): .type,
-%                             .b_dl, .c_dl  (parametric) OR
-%                             .alpha_shape_dl, .verts_local_dl, .faces (custom)
-%    body_data     struct   .X, .fx, .fy, .fz, .e2
-%    seg_data      struct   Pili segment data (.active, .y0, .y1, ...)
-%    um_s_factor   scalar   Velocity unit conversion factor
-%    chunk_size    scalar   Memory-management chunk size
-%    progress_tag  char     (optional) Progress bar label, e.g. '[FLOW-XZ] '
-%    bg_fun        handle   (optional) X [N x 3] -> [N x 3] dimensionless
-%                             background velocity; [] when no ambient flow
-%
-%  Outputs:
-%    Ux, Uy, Uz  [Nrows x Ncols]  Velocity components [um/s] (NaN inside)
-%    Umag         [Nrows x Ncols]  Velocity magnitude [um/s]
-%    inside_mask  [Nrows x Ncols]  Logical mask (true = interior)
-%    dist_field   [N x 1]          Signed-distance-like field used for
-%                                   contour extraction.  Level-set convention
-%                                   depends on body_vis.type (see
-%                                   extract_body_outline).
-
-if nargin < 10 || isempty(progress_tag), progress_tag = ''; end
-if nargin < 11, bg_fun = []; end
-if nargin < 12 || isempty(use_gpu), use_gpu = false; end
-show_progress = ~isempty(progress_tag);
-
-% Validate GPU availability if requested; fall back cleanly to CPU
-gpu_active = false;
-if use_gpu
-    try
-        gpu_active = (gpuDeviceCount > 0);
-    catch
-        gpu_active = false;
+function gpu_active = resolve_gpu_flag(flow_opts)
+%RESOLVE_GPU_FLAG  Resolve 'auto' / true / false GPU mode with cached probe
+    req = 'auto';
+    if isfield(flow_opts, 'use_gpu') && ~isempty(flow_opts.use_gpu)
+        req = flow_opts.use_gpu;
     end
-end
-
-Nrows = grid_size(1);
-Ncols = grid_size(2);
-
-% ---- Body interior masking (mode-aware) ----
-[inside_mask_vec, dist_field] = body_inside_mask(grid_pts_dl, X_cm, R_body, body_vis);
-inside_mask = reshape(inside_mask_vec, [Nrows, Ncols]);
-outside_idx = find(~inside_mask(:));
-N_eval      = length(outside_idx);
-X_eval      = grid_pts_dl(outside_idx, :);
-
-% ---- Initialise output ----
-ux_ev = zeros(N_eval, 1);
-uy_ev = zeros(N_eval, 1);
-uz_ev = zeros(N_eval, 1);
-
-% ---- Progress bar setup (heterogeneous body vs pili chunk cost model) ----
-if show_progress
-    n_chunks_body = ceil(N_eval / chunk_size);
-    n_chunks_pili = 0;
-    if seg_data.active
-        n_chunks_pili = ceil(N_eval / chunk_size);
-    end
-    n_chunks_total = n_chunks_body + n_chunks_pili;
-    flow_tick      = 0;
-    t_flow_bar     = tic;
-    % Physics-informed prior ratio: RSS+Rotlet kernel is ~8x heavier per
-    % segment than RSM body kernel per point, scaled by source count ratio.
-    n_body_pts = max(size(body_data.X, 1), 1);
-    n_pili_seg = 0;
-    if seg_data.active
-        n_pili_seg = numel(seg_data.L);
-    end
-    pili_to_body_prior = max(0.5, 8.0 * (n_pili_seg / n_body_pts));
-    body_chunk_ewma = NaN;
-    pili_chunk_ewma = NaN;
-    body_chunks_done = 0;
-    pili_chunks_done = 0;
-end
-
-% ---- RSM body contribution ----
-X_body = body_data.X;
-bfx = body_data.fx;  bfy = body_data.fy;  bfz = body_data.fz;
-e2_b = body_data.e2;
-
-if gpu_active
-    X_bx_g = gpuArray(X_body(:, 1)');
-    X_by_g = gpuArray(X_body(:, 2)');
-    X_bz_g = gpuArray(X_body(:, 3)');
-    bfx_g  = gpuArray(bfx(:));
-    bfy_g  = gpuArray(bfy(:));
-    bfz_g  = gpuArray(bfz(:));
-end
-
-for ci = 1:chunk_size:N_eval
-    t_chunk = tic;
-    ce  = min(ci + chunk_size - 1, N_eval);
-    idx = ci:ce;
-
-    if gpu_active
-        rx = gpuArray(X_eval(idx, 1)) - X_bx_g;
-        ry = gpuArray(X_eval(idx, 2)) - X_by_g;
-        rz = gpuArray(X_eval(idx, 3)) - X_bz_g;
-        r2 = rx.^2 + ry.^2 + rz.^2;
-        inv_R = 1 ./ sqrt(r2 + e2_b);
-        H2    = inv_R .* inv_R .* inv_R;
-        H1    = (r2 + 2*e2_b) .* H2;
-        rdotf = rx .* bfx_g' + ry .* bfy_g' + rz .* bfz_g';
-        H2_rd = H2 .* rdotf;
-        ux_ev(idx) = ux_ev(idx) + gather(H1 * bfx_g + sum(H2_rd .* rx, 2));
-        uy_ev(idx) = uy_ev(idx) + gather(H1 * bfy_g + sum(H2_rd .* ry, 2));
-        uz_ev(idx) = uz_ev(idx) + gather(H1 * bfz_g + sum(H2_rd .* rz, 2));
+    if islogical(req) || isnumeric(req)
+        want_gpu = logical(req(1));
+    elseif ischar(req) || isstring(req)
+        want_gpu = ~strcmpi(char(req), 'false') && ~strcmpi(char(req), 'off');
     else
-        rx = X_eval(idx,1) - X_body(:,1)';
-        ry = X_eval(idx,2) - X_body(:,2)';
-        rz = X_eval(idx,3) - X_body(:,3)';
-        r2 = rx.^2 + ry.^2 + rz.^2;
-
-        inv_R = 1 ./ sqrt(r2 + e2_b);
-        H2    = inv_R .* inv_R .* inv_R;
-        H1    = (r2 + 2*e2_b) .* H2;
-        rdotf = rx .* bfx' + ry .* bfy' + rz .* bfz';
-        H2_rd = H2 .* rdotf;
-
-        ux_ev(idx) = ux_ev(idx) + H1*bfx + sum(H2_rd .* rx, 2);
-        uy_ev(idx) = uy_ev(idx) + H1*bfy + sum(H2_rd .* ry, 2);
-        uz_ev(idx) = uz_ev(idx) + H1*bfz + sum(H2_rd .* rz, 2);
+        want_gpu = false;
     end
-
-    if show_progress
-        dt_c = toc(t_chunk);
-        body_chunks_done = body_chunks_done + 1;
-        if isnan(body_chunk_ewma)
-            body_chunk_ewma = dt_c;
-        else
-            body_chunk_ewma = 0.75 * body_chunk_ewma + 0.25 * dt_c;
-        end
-        flow_tick = flow_tick + 1;
-        rem_body = max(0, n_chunks_body - body_chunks_done);
-        est_pili_c = body_chunk_ewma * pili_to_body_prior;
-        eta_w = rem_body * body_chunk_ewma + n_chunks_pili * est_pili_c;
-        tot_w = n_chunks_body * body_chunk_ewma + n_chunks_pili * est_pili_c;
-        pct_w = 100.0 * (body_chunks_done * body_chunk_ewma) / max(tot_w, eps);
-        render_progress_bar(progress_tag, flow_tick, n_chunks_total, t_flow_bar, ...
-            'body', struct('eta_s', eta_w, 'pct', pct_w));
+    if ~want_gpu
+        gpu_active = false;
+        return;
     end
+    gpu_active = has_usable_gpu();
 end
 
-% ---- RSS pili + Rotlet contribution ----
-if seg_data.active
-    e2_p = seg_data.e2;
-    L_r  = seg_data.L';   L2_r = seg_data.L2';
-    inv_L  = 1 ./ L_r;
-    inv_L2 = 1 ./ L2_r;
-    inv3L2 = inv_L2 / 3;
-    v1_r = seg_data.v(:,1)';
-    v2_r = seg_data.v(:,2)';
-    v3_r = seg_data.v(:,3)';
-    y0_1 = seg_data.y0(:,1)';
-    y0_2 = seg_data.y0(:,2)';
-    y0_3 = seg_data.y0(:,3)';
 
-    f0x = seg_data.f0(:,1)';  f0y = seg_data.f0(:,2)';  f0z = seg_data.f0(:,3)';
-    f1x = seg_data.f1(:,1)';  f1y = seg_data.f1(:,2)';  f1z = seg_data.f1(:,3)';
-    v_dot_f0 = v1_r.*f0x + v2_r.*f0y + v3_r.*f0z;
-    v_dot_f1 = v1_r.*f1x + v2_r.*f1y + v3_r.*f1z;
+function tf = has_usable_gpu()
+    persistent cached_tf
+    if ~isempty(cached_tf)
+        tf = cached_tf;
+        return;
+    end
+    tf = false;
+    try
+        if exist('gpuDeviceCount', 'file') == 2 && gpuDeviceCount > 0
+            tf = true;
+        end
+    catch
+        tf = false;
+    end
+    cached_tf = tf;
+end
 
-    if seg_data.has_rotlet
-        tx_col = seg_data.tau_x(:);
-        ty_col = seg_data.tau_y(:);
-        tz_col = seg_data.tau_z(:);
+
+%% =====================================================================
+%  LOCAL FUNCTION: evaluate_points_velocity
+%  =====================================================================
+function u_um = evaluate_points_velocity(X_eval, X_cm, ...
+    body_data, seg_data, um_s_factor, chunk_size, progress_tag, bg_fun, gpu_active)
+%EVALUATE_POINTS_VELOCITY  Batched FP64 RSM + RSS + Rotlet velocity kernel
+%
+%  Evaluates the disturbance velocity at all N_eval exterior points in
+%  body-CM-shifted coordinates (eliminating large-translation cancellation),
+%  using BLAS3 matrix-matrix contractions and optional GPU execution.
+%  Adds the ambient flow bg_fun(X_eval) in unshifted lab coordinates.
+
+    N_eval = size(X_eval, 1);
+    if N_eval == 0
+        u_um = zeros(0, 3);
+        return;
     end
 
     if gpu_active
-        L_r    = gpuArray(L_r);     L2_r   = gpuArray(L2_r);
-        inv_L  = gpuArray(inv_L);   inv_L2 = gpuArray(inv_L2);  inv3L2 = gpuArray(inv3L2);
-        v1_r   = gpuArray(v1_r);    v2_r   = gpuArray(v2_r);    v3_r   = gpuArray(v3_r);
-        y0_1   = gpuArray(y0_1);    y0_2   = gpuArray(y0_2);    y0_3   = gpuArray(y0_3);
-        f0x    = gpuArray(f0x);     f0y    = gpuArray(f0y);     f0z    = gpuArray(f0z);
-        f1x    = gpuArray(f1x);     f1y    = gpuArray(f1y);     f1z    = gpuArray(f1z);
-        v_dot_f0 = gpuArray(v_dot_f0);
-        v_dot_f1 = gpuArray(v_dot_f1);
-        if seg_data.has_rotlet
-            tx_col = gpuArray(tx_col);
-            ty_col = gpuArray(ty_col);
-            tz_col = gpuArray(tz_col);
+        try
+            u_dl = evaluate_points_kernel(X_eval, X_cm, body_data, seg_data, ...
+                chunk_size, progress_tag, true);
+        catch
+            u_dl = evaluate_points_kernel(X_eval, X_cm, body_data, seg_data, ...
+                chunk_size, progress_tag, false);
+        end
+    else
+        u_dl = evaluate_points_kernel(X_eval, X_cm, body_data, seg_data, ...
+            chunk_size, progress_tag, false);
+    end
+
+    if ~isempty(bg_fun)
+        u_dl = u_dl + bg_fun(X_eval);
+    end
+    u_um = u_dl * um_s_factor;
+end
+
+
+function u_ev = evaluate_points_kernel(X_eval, X_cm, body_data, seg_data, ...
+    chunk_size, progress_tag, gpu_active)
+    N_eval = size(X_eval, 1);
+    show_progress = ~isempty(progress_tag);
+
+    % Shift coordinates relative to body CM so O(1) values keep BLAS3
+    % contractions free of catastrophic cancellation after long drift.
+    cm_row = X_cm(:).';
+    X_ev_rel = X_eval - cm_row;
+    X_b_rel  = body_data.X - cm_row;
+    bf_mat   = [body_data.fx(:), body_data.fy(:), body_data.fz(:)];
+    e2_b     = body_data.e2;
+    n_body   = size(X_b_rel, 1);
+
+    has_pili = seg_data.active;
+    n_seg    = 0;
+    if has_pili
+        n_seg  = numel(seg_data.L);
+        e2_p   = seg_data.e2;
+        L_r    = seg_data.L.';
+        L2_r   = seg_data.L2.';
+        inv_L  = 1 ./ L_r;
+        inv_L2 = 1 ./ L2_r;
+        inv3L2 = inv_L2 / 3;
+        v_mat  = seg_data.v;
+        v1_r   = v_mat(:, 1).';
+        v2_r   = v_mat(:, 2).';
+        v3_r   = v_mat(:, 3).';
+        y0_rel = seg_data.y0 - cm_row;
+        y0_1   = y0_rel(:, 1).';
+        y0_2   = y0_rel(:, 2).';
+        y0_3   = y0_rel(:, 3).';
+        f0_mat = seg_data.f0;
+        f1_mat = seg_data.f1;
+        f0x = f0_mat(:, 1).';  f0y = f0_mat(:, 2).';  f0z = f0_mat(:, 3).';
+        f1x = f1_mat(:, 1).';  f1y = f1_mat(:, 2).';  f1z = f1_mat(:, 3).';
+        v_dot_f0 = v1_r .* f0x + v2_r .* f0y + v3_r .* f0z;
+        v_dot_f1 = v1_r .* f1x + v2_r .* f1y + v3_r .* f1z;
+
+        has_rot = seg_data.has_rotlet;
+        if has_rot
+            tx = seg_data.tau_x(:);
+            ty = seg_data.tau_y(:);
+            tz = seg_data.tau_z(:);
+            tau_mat = [tx, ty, tz];
+            % tau x y0_rel and tau x v_mat for rotlet BLAS3 contraction
+            t_cross_y0 = [y0_rel(:, 3) .* ty - y0_rel(:, 2) .* tz, ...
+                          y0_rel(:, 1) .* tz - y0_rel(:, 3) .* tx, ...
+                          y0_rel(:, 2) .* tx - y0_rel(:, 1) .* ty];
+            t_cross_v  = [v_mat(:, 3) .* ty - v_mat(:, 2) .* tz, ...
+                          v_mat(:, 1) .* tz - v_mat(:, 3) .* tx, ...
+                          v_mat(:, 2) .* tx - v_mat(:, 1) .* ty];
         end
     end
-    f0x_c = f0x.';  f0y_c = f0y.';  f0z_c = f0z.';
-    f1x_c = f1x.';  f1y_c = f1y.';  f1z_c = f1z.';
-    v1_c  = v1_r.'; v2_c  = v2_r.'; v3_c  = v3_r.';
 
-    for ci = 1:chunk_size:N_eval
-        t_chunk = tic;
-        ce  = min(ci + chunk_size - 1, N_eval);
+    % Use larger chunks on GPU (bounded to stay safely inside VRAM)
+    if gpu_active
+        max_src = max([n_body, n_seg, 1]);
+        eff_chunk = min(max(chunk_size, 16384), max(2048, floor(8e6 / max_src)));
+    else
+        eff_chunk = chunk_size;
+    end
+
+    % Upload source arrays to GPU once for all three planes
+    X_bx = X_b_rel(:, 1).';
+    X_by = X_b_rel(:, 2).';
+    X_bz = X_b_rel(:, 3).';
+    bfx_r = bf_mat(:, 1).';
+    bfy_r = bf_mat(:, 2).';
+    bfz_r = bf_mat(:, 3).';
+
+    if gpu_active
+        X_bx = gpuArray(X_bx);     X_by = gpuArray(X_by);     X_bz = gpuArray(X_bz);
+        X_b_rel = gpuArray(X_b_rel);
+        bf_mat  = gpuArray(bf_mat);
+        bfx_r = gpuArray(bfx_r);   bfy_r = gpuArray(bfy_r);   bfz_r = gpuArray(bfz_r);
+        if has_pili
+            L_r    = gpuArray(L_r);     L2_r   = gpuArray(L2_r);
+            inv_L  = gpuArray(inv_L);   inv_L2 = gpuArray(inv_L2);  inv3L2 = gpuArray(inv3L2);
+            v_mat  = gpuArray(v_mat);
+            v1_r   = gpuArray(v1_r);    v2_r   = gpuArray(v2_r);    v3_r   = gpuArray(v3_r);
+            y0_rel = gpuArray(y0_rel);
+            y0_1   = gpuArray(y0_1);    y0_2   = gpuArray(y0_2);    y0_3   = gpuArray(y0_3);
+            f0_mat = gpuArray(f0_mat);  f1_mat = gpuArray(f1_mat);
+            f0x    = gpuArray(f0x);     f0y    = gpuArray(f0y);     f0z    = gpuArray(f0z);
+            f1x    = gpuArray(f1x);     f1y    = gpuArray(f1y);     f1z    = gpuArray(f1z);
+            v_dot_f0 = gpuArray(v_dot_f0);
+            v_dot_f1 = gpuArray(v_dot_f1);
+            if has_rot
+                tau_mat    = gpuArray(tau_mat);
+                t_cross_y0 = gpuArray(t_cross_y0);
+                t_cross_v  = gpuArray(t_cross_v);
+            end
+        end
+    end
+
+    u_ev = zeros(N_eval, 3);
+    n_chunks = ceil(N_eval / eff_chunk);
+    if show_progress
+        t_bar = tic;
+    end
+
+    chunk_idx = 0;
+    for ci = 1:eff_chunk:N_eval
+        chunk_idx = chunk_idx + 1;
+        ce  = min(ci + eff_chunk - 1, N_eval);
         idx = ci:ce;
 
         if gpu_active
-            x01 = gpuArray(X_eval(idx, 1)) - y0_1;
-            x02 = gpuArray(X_eval(idx, 2)) - y0_2;
-            x03 = gpuArray(X_eval(idx, 3)) - y0_3;
+            X_c = gpuArray(X_ev_rel(idx, :));
         else
-            x01 = X_eval(idx, 1) - y0_1;
-            x02 = X_eval(idx, 2) - y0_2;
-            x03 = X_eval(idx, 3) - y0_3;
+            X_c = X_ev_rel(idx, :);
         end
-        r0_sq = x01.^2 + x02.^2 + x03.^2;
+        x1 = X_c(:, 1);
+        x2 = X_c(:, 2);
+        x3 = X_c(:, 3);
 
-        x11 = x01 + v1_r;  x12 = x02 + v2_r;  x13 = x03 + v3_r;
-        r1_sq = x11.^2 + x12.^2 + x13.^2;
+        % ---- RSM body contribution (BLAS3 contraction) ----
+        rx = x1 - X_bx;
+        ry = x2 - X_by;
+        rz = x3 - X_bz;
+        r2 = rx.^2 + ry.^2 + rz.^2;
+        inv_R = 1 ./ sqrt(r2 + e2_b);
+        H2    = inv_R .* inv_R .* inv_R;
+        H1    = (r2 + 2 * e2_b) .* H2;
+        H2_rd = H2 .* (rx .* bfx_r + ry .* bfy_r + rz .* bfz_r);
+        u_c   = H1 * bf_mat + X_c .* sum(H2_rd, 2) - H2_rd * X_b_rel;
 
-        R0 = sqrt(r0_sq + e2_p);
-        R1 = sqrt(r1_sq + e2_p);
-        inv_R0 = 1 ./ R0;
-        inv_R1 = 1 ./ R1;
-        d0 = x01.*v1_r + x02.*v2_r + x03.*v3_r;
+        % ---- RSS pili + Rotlet contribution ----
+        if has_pili
+            x01 = x1 - y0_1;
+            x02 = x2 - y0_2;
+            x03 = x3 - y0_3;
+            r0_sq = x01.^2 + x02.^2 + x03.^2;
 
-        H0_v = max(L_r.*R0 + d0,        1e-300);
-        H1_v = max(L_r.*R1 + d0 + L2_r, 1e-300);
-        d0_L2 = d0 .* inv_L2;
+            x11 = x01 + v1_r;  x12 = x02 + v2_r;  x13 = x03 + v3_r;
+            r1_sq = x11.^2 + x12.^2 + x13.^2;
 
-        T0m1 = log(H1_v ./ H0_v) .* inv_L;
-        T0m3 = inv_R0 ./ H0_v - inv_R1 ./ H1_v;
-        T1m1 = (R1 - R0) .* inv_L2 - d0_L2 .* T0m1;
-        T1m3 = (inv_R0 - inv_R1) .* inv_L2 - d0_L2 .* T0m3;
-        neg_inv_R1_L2 = -inv_R1 .* inv_L2;
-        T2m3 = neg_inv_R1_L2 + T0m1 .* inv_L2 - d0_L2 .* T1m3;
-        T3m3 = neg_inv_R1_L2 + 2*T1m1 .* inv_L2 - d0_L2 .* T2m3;
+            R0 = sqrt(r0_sq + e2_p);
+            R1 = sqrt(r1_sq + e2_p);
+            inv_R0 = 1 ./ R0;
+            inv_R1 = 1 ./ R1;
+            d0 = x01 .* v1_r + x02 .* v2_r + x03 .* v3_r;
 
-        ci2 = L_r .* (T1m1 + e2_p * T1m3);
-        c12 = L_r .* T1m3;
-        c22 = L_r .* T2m3;
-        c32 = L_r .* T3m3;
+            H0_v = max(L_r .* R0 + d0,        1e-300);
+            H1_v = max(L_r .* R1 + d0 + L2_r, 1e-300);
+            d0_L2 = d0 .* inv_L2;
 
-        ci1 = L_r .* (T0m1 + e2_p * T0m3) - ci2;
-        c11 = L_r .* T0m3 - c12;
-        c21 = c12 - c22;
-        c31 = c22 - c32;
+            T0m1 = log(H1_v ./ H0_v) .* inv_L;
+            T0m3 = inv_R0 ./ H0_v - inv_R1 ./ H1_v;
+            T1m1 = (R1 - R0) .* inv_L2 - d0_L2 .* T0m1;
+            T1m3 = (inv_R0 - inv_R1) .* inv_L2 - d0_L2 .* T0m3;
+            neg_inv_R1_L2 = -inv_R1 .* inv_L2;
+            T2m3 = neg_inv_R1_L2 + T0m1 .* inv_L2 - d0_L2 .* T1m3;
+            T3m3 = neg_inv_R1_L2 + 2 * T1m1 .* inv_L2 - d0_L2 .* T2m3;
 
-        % Algebraic vector contraction of M1*f0 + M2*f1:
-        %   (ci*I + c1*x0*x0' + c2*(x0*v'+v*x0') + c3*v*v') * f
-        %     = ci*f + (c1*(x0.f) + c2*(v.f))*x0 + (c2*(x0.f) + c3*(v.f))*v
-        % Avoids building 18 dense [chunk x Ns] tensor blocks.
-        x0_f0 = x01.*f0x + x02.*f0y + x03.*f0z;
-        x0_f1 = x01.*f1x + x02.*f1y + x03.*f1z;
+            ci2 = L_r .* (T1m1 + e2_p * T1m3);
+            c12 = L_r .* T1m3;
+            c22 = L_r .* T2m3;
+            c32 = L_r .* T3m3;
 
-        a_x0 = (c11.*x0_f0 + c21.*v_dot_f0) + (c12.*x0_f1 + c22.*v_dot_f1);
-        a_v  = (c21.*x0_f0 + c31.*v_dot_f0) + (c22.*x0_f1 + c32.*v_dot_f1);
+            ci1 = L_r .* (T0m1 + e2_p * T0m3) - ci2;
+            c11 = L_r .* T0m3 - c12;
+            c21 = c12 - c22;
+            c31 = c22 - c32;
 
-        ux_add = ci1*f0x_c + ci2*f1x_c + sum(a_x0.*x01, 2) + a_v*v1_c;
-        uy_add = ci1*f0y_c + ci2*f1y_c + sum(a_x0.*x02, 2) + a_v*v2_c;
-        uz_add = ci1*f0z_c + ci2*f1z_c + sum(a_x0.*x03, 2) + a_v*v3_c;
+            x0_f0 = x01 .* f0x + x02 .* f0y + x03 .* f0z;
+            x0_f1 = x01 .* f1x + x02 .* f1y + x03 .* f1z;
 
-        % Rotlet contribution (physical standard rotlet = 0.5 * Cortez full-curl rotlet)
-        if seg_data.has_rotlet
-            inv_R0_3 = inv_R0 .* inv_R0 .* inv_R0;
-            inv_R1_3 = inv_R1 .* inv_R1 .* inv_R1;
-            d_sq     = max(L2_r.*(r0_sq + e2_p) - d0.^2, e2_p.*L2_r);
-            inv_d_sq_3 = (1 / 3) ./ d_sq;
-            d1_v     = d0 + L2_r;
+            a_x0 = (c11 .* x0_f0 + c21 .* v_dot_f0) + (c12 .* x0_f1 + c22 .* v_dot_f1);
+            a_v  = (c21 .* x0_f0 + c31 .* v_dot_f0) + (c22 .* x0_f1 + c32 .* v_dot_f1);
 
-            T0m5 = inv_d_sq_3 .* (d1_v.*inv_R1_3 - d0.*inv_R0_3 + 2*L2_r.*T0m3);
-            T1m5 = (inv_R0_3 - inv_R1_3) .* inv3L2 - d0_L2 .* T0m5;
+            u_c = u_c + ci1 * f0_mat + ci2 * f1_mat ...
+                + X_c .* sum(a_x0, 2) - a_x0 * y0_rel + a_v * v_mat;
 
-            ca  = 2*T0m3 + 3*e2_p*T0m5;
-            cb  = 2*T1m3 + 3*e2_p*T1m5;
-            Rxy =  L_r .* (ca.*x03 + cb.*v3_r);
-            Rxz = -L_r .* (ca.*x02 + cb.*v2_r);
-            Ryz =  L_r .* (ca.*x01 + cb.*v1_r);
+            if has_rot
+                inv_R0_3   = inv_R0 .* inv_R0 .* inv_R0;
+                inv_R1_3   = inv_R1 .* inv_R1 .* inv_R1;
+                d_sq       = max(L2_r .* (r0_sq + e2_p) - d0.^2, e2_p .* L2_r);
+                inv_d_sq_3 = (1 / 3) ./ d_sq;
+                d1_v       = d0 + L2_r;
 
-            ux_add = ux_add + 0.5 * ( Rxy*ty_col + Rxz*tz_col);
-            uy_add = uy_add + 0.5 * (-Rxy*tx_col + Ryz*tz_col);
-            uz_add = uz_add + 0.5 * (-Rxz*tx_col - Ryz*ty_col);
+                T0m5 = inv_d_sq_3 .* (d1_v .* inv_R1_3 - d0 .* inv_R0_3 + 2 * L2_r .* T0m3);
+                T1m5 = (inv_R0_3 - inv_R1_3) .* inv3L2 - d0_L2 .* T0m5;
+
+                Lca = L_r .* (2 * T0m3 + 3 * e2_p * T0m5);
+                Lcb = L_r .* (2 * T1m3 + 3 * e2_p * T1m5);
+                T_ca = Lca * tau_mat;
+                u_rot_x = [x3 .* T_ca(:, 2) - x2 .* T_ca(:, 3), ...
+                           x1 .* T_ca(:, 3) - x3 .* T_ca(:, 1), ...
+                           x2 .* T_ca(:, 1) - x1 .* T_ca(:, 2)];
+                u_c = u_c + 0.5 * (u_rot_x - Lca * t_cross_y0 + Lcb * t_cross_v);
+            end
         end
 
         if gpu_active
-            ux_ev(idx) = ux_ev(idx) + gather(ux_add);
-            uy_ev(idx) = uy_ev(idx) + gather(uy_add);
-            uz_ev(idx) = uz_ev(idx) + gather(uz_add);
+            u_ev(idx, :) = gather(u_c);
         else
-            ux_ev(idx) = ux_ev(idx) + ux_add;
-            uy_ev(idx) = uy_ev(idx) + uy_add;
-            uz_ev(idx) = uz_ev(idx) + uz_add;
+            u_ev(idx, :) = u_c;
         end
 
         if show_progress
-            dt_c = toc(t_chunk);
-            pili_chunks_done = pili_chunks_done + 1;
-            if isnan(pili_chunk_ewma)
-                pili_chunk_ewma = dt_c;
-            else
-                pili_chunk_ewma = 0.75 * pili_chunk_ewma + 0.25 * dt_c;
-            end
-            flow_tick = flow_tick + 1;
-            rem_pili  = max(0, n_chunks_pili - pili_chunks_done);
-            eta_w     = rem_pili * pili_chunk_ewma;
-            body_tot  = n_chunks_body * max(body_chunk_ewma, 0);
-            tot_w     = body_tot + n_chunks_pili * pili_chunk_ewma;
-            pct_w     = 100.0 * (body_tot + pili_chunks_done * pili_chunk_ewma) / max(tot_w, eps);
-            render_progress_bar(progress_tag, flow_tick, n_chunks_total, t_flow_bar, ...
-                'pili', struct('eta_s', eta_w, 'pct', pct_w));
+            render_progress_bar(progress_tag, chunk_idx, n_chunks, t_bar);
         end
     end
-end
-
-% ---- Add prescribed background flow (total = ambient + disturbance) ----
-if ~isempty(bg_fun) && N_eval > 0
-    u_bg_ev = bg_fun(X_eval);              % [N_eval x 3], dimensionless
-    ux_ev = ux_ev + u_bg_ev(:, 1);
-    uy_ev = uy_ev + u_bg_ev(:, 2);
-    uz_ev = uz_ev + u_bg_ev(:, 3);
-end
-
-% ---- Map to grid and convert units ----
-Ux = NaN(Nrows, Ncols);
-Uy = NaN(Nrows, Ncols);
-Uz = NaN(Nrows, Ncols);
-Ux(outside_idx) = ux_ev * um_s_factor;
-Uy(outside_idx) = uy_ev * um_s_factor;
-Uz(outside_idx) = uz_ev * um_s_factor;
-Umag = sqrt(Ux.^2 + Uy.^2 + Uz.^2);
-
 end
 
 
@@ -503,8 +499,8 @@ end
 function body_vis = build_body_visualization(params, L_0)
 %BUILD_BODY_VISUALIZATION  Mode-aware body descriptor for flow-field plot.
 %
-%  Returns a struct with the data that evaluate_plane_velocity,
-%  build_body_mesh, and extract_body_outline need to render the body and
+%  Returns a struct with the data that evaluate_points_velocity,
+%  build_body_mesh, and body_section_outline need to render the body and
 %  mask its interior.  For parametric mode, stores capsule SDF params.
 %  For custom mode, stores dimensionless vertices/faces and an alphaShape
 %  reconstructed in the body-local frame for inShape() masking.
@@ -523,9 +519,6 @@ function body_vis = build_body_visualization(params, L_0)
             body_vis.c_dl = params.dim.major_axis / L_0 - body_vis.b_dl;
             body_vis.a_um = params.dim.major_axis * 1e6;
             body_vis.b_um = params.dim.minor_axis * 1e6;
-            % Prebuild local capsule surface mesh once (avoids rebuilding per plane/frame)
-            [body_vis.cap_Vloc_um, body_vis.cap_faces] = build_capsule_mesh_local( ...
-                body_vis.a_um, body_vis.b_um);
 
         case 'custom'
             if ~isfield(params, 'body_verts_local') || isempty(params.body_verts_local)
@@ -567,21 +560,15 @@ end
 function [inside_mask_vec, dist_field] = body_inside_mask( ...
     grid_pts_dl, X_cm, R_body, body_vis)
 %BODY_INSIDE_MASK  Return interior mask + SDF-like field for outline plotting.
-%
-%  The SDF sign convention is: values <= 0 indicate interior, values > 0
-%  indicate exterior.  For parametric capsule, dist_field is the classic
-%  signed distance (radius - b_dl).  For custom mode, dist_field is the
-%  double() of the inside mask minus 0.5, so contourc at level 0 gives
-%  the body silhouette on the plane.
 
     % Transform grid to body-local dimensionless frame
-    X_local = (R_body.' * (grid_pts_dl - X_cm(:).').').';
+    X_local = (grid_pts_dl - X_cm(:).') * R_body;
 
     switch body_vis.type
         case 'capsule'
-            x_cl = max(-body_vis.c_dl, min(body_vis.c_dl, X_local(:,1)));
-            d_cap = sqrt((X_local(:,1) - x_cl).^2 + ...
-                          X_local(:,2).^2 + X_local(:,3).^2);
+            x_cl = max(-body_vis.c_dl, min(body_vis.c_dl, X_local(:, 1)));
+            d_cap = sqrt((X_local(:, 1) - x_cl).^2 + ...
+                          X_local(:, 2).^2 + X_local(:, 3).^2);
             inside_mask_vec = d_cap <= body_vis.b_dl;
             dist_field      = d_cap - body_vis.b_dl;     % SDF: < 0 interior
 
@@ -589,16 +576,14 @@ function [inside_mask_vec, dist_field] = body_inside_mask( ...
             if ~isempty(body_vis.alpha_shape_dl)
                 try
                     inside_mask_vec = inShape(body_vis.alpha_shape_dl, ...
-                        X_local(:,1), X_local(:,2), X_local(:,3));
+                        X_local(:, 1), X_local(:, 2), X_local(:, 3));
                 catch
                     inside_mask_vec = bound_sphere_inside(X_local, body_vis);
                 end
             else
                 inside_mask_vec = bound_sphere_inside(X_local, body_vis);
             end
-            % Binary SDF-like field centred on 0.5 -> 0 at boundary
-            dist_field = double(inside_mask_vec) - 0.5;   % < 0 exterior
-            dist_field = -dist_field;                     % < 0 interior (match capsule convention)
+            dist_field = -(double(inside_mask_vec) - 0.5);
 
         otherwise
             error('compute_plot_flowfield:UnknownBodyType', ...
@@ -616,104 +601,87 @@ end
 
 
 %% =====================================================================
-%  LOCAL FUNCTION: extract_body_outline
+%  LOCAL FUNCTION: body_section_outline
 %  =====================================================================
 function [h, v] = body_section_outline(body_vis, R_body, X_cm_um, plane_name)
 %BODY_SECTION_OUTLINE  Smooth body silhouette on the XZ, YZ, or XY plane
 %
-%  The curve is the plane cut of the body surface, resampled with a
-%  periodic spline.  A contour of the velocity-grid mask is stair-stepped
-%  at the flow spacing and is not used.
+%  For parametric capsules, evaluates the exact analytical plane cut in
+%  polar coordinates about X_cm_um (C1-continuous cylinder + spherical-cap
+%  intersection).  For custom triangulated meshes, slices only triangles
+%  that straddle the plane and resamples the resulting closed loop with a
+%  periodic spline.
 
-    [V, F] = body_triangles_um(body_vis, R_body, X_cm_um);
-    if strcmp(plane_name, 'xz')
-        fixed_axis = 2;
-        fixed_value = X_cm_um(2);
-        h_axis = 1;
-        v_axis = 3;
-    elseif strcmp(plane_name, 'xy')
-        fixed_axis = 3;
-        fixed_value = X_cm_um(3);
-        h_axis = 1;
-        v_axis = 2;
-    else
-        fixed_axis = 1;
-        fixed_value = X_cm_um(1);
-        h_axis = 2;
-        v_axis = 3;
-    end
-    [h, v] = mesh_plane_loops(V, F, fixed_axis, fixed_value, h_axis, v_axis);
     if isempty(body_vis.type)
         error('flowfield_grid_velocity:BadBodyVis', 'body_vis.type is empty.');
     end
+
+    if strcmp(plane_name, 'xz')
+        fixed_axis = 2;  h_axis = 1;  v_axis = 3;
+    elseif strcmp(plane_name, 'xy')
+        fixed_axis = 3;  h_axis = 1;  v_axis = 2;
+    else
+        fixed_axis = 1;  h_axis = 2;  v_axis = 3;
+    end
+
+    if strcmp(body_vis.type, 'capsule')
+        [h, v] = analytic_capsule_section(body_vis.a_um, body_vis.b_um, ...
+            R_body, X_cm_um, h_axis, v_axis);
+        return;
+    end
+
+    V = (R_body * (body_vis.verts_m * 1e6).' + X_cm_um(:)).';
+    F = body_vis.faces;
+    [h, v] = mesh_plane_loops(V, F, fixed_axis, X_cm_um(fixed_axis), h_axis, v_axis);
 end
 
 
-function [V, F] = body_triangles_um(body_vis, R_body, X_cm_um)
-%BODY_TRIANGLES_UM  Closed body surface in lab-frame micrometres
-    if strcmp(body_vis.type, 'custom') && ~isempty(body_vis.faces)
-        V = (R_body * (body_vis.verts_m * 1e6).' + X_cm_um(:)).';
-        F = body_vis.faces;
-        return
-    end
-    if isfield(body_vis, 'cap_Vloc_um') && ~isempty(body_vis.cap_Vloc_um)
-        V = (R_body * body_vis.cap_Vloc_um.' + X_cm_um(:)).';
-        F = body_vis.cap_faces;
-        return
-    end
-    [Vloc, F] = build_capsule_mesh_local(body_vis.a_um, body_vis.b_um);
-    V = (R_body * Vloc.' + X_cm_um(:)).';
-end
-
-
-function [Vloc, F] = build_capsule_mesh_local(a_um, b_um)
-%BUILD_CAPSULE_MESH_LOCAL  Body-local capsule surface triangulation [um]
-    n_circ = 72;
-    n_cap = 18;
-    n_cyl = 16;
-    theta = linspace(0, 2 * pi, n_circ + 1);
+function [h, v] = analytic_capsule_section(a_um, b_um, R_body, X_cm_um, h_axis, v_axis)
+%ANALYTIC_CAPSULE_SECTION  Exact central-plane cross-section of a capsule
+    c_um = max(0, a_um - b_um);
+    theta = linspace(0, 2 * pi, 241);
     theta = theta(1:end - 1);
-    phi_L = linspace(pi, pi / 2, n_cap);
-    [TH_L, PH_L] = meshgrid(theta, phi_L);
-    XL = b_um * cos(PH_L) - (a_um - b_um);
-    YL = b_um * sin(PH_L) .* cos(TH_L);
-    ZL = b_um * sin(PH_L) .* sin(TH_L);
-    x_cyl = linspace(-(a_um - b_um), (a_um - b_um), n_cyl);
-    [TH_C, XC] = meshgrid(theta, x_cyl);
-    YC = b_um * cos(TH_C);
-    ZC = b_um * sin(TH_C);
-    phi_R = linspace(pi / 2, 0, n_cap);
-    [TH_R, PH_R] = meshgrid(theta, phi_R);
-    XR = b_um * cos(PH_R) + (a_um - b_um);
-    YR = b_um * sin(PH_R) .* cos(TH_R);
-    ZR = b_um * sin(PH_R) .* sin(TH_R);
-    % Drop the duplicated equator shared by a cap and the cylinder.
-    Xg = [XL(1:end - 1, :); XC; XR(2:end, :)];
-    Yg = [YL(1:end - 1, :); YC; YR(2:end, :)];
-    Zg = [ZL(1:end - 1, :); ZC; ZR(2:end, :)];
-    Vloc = [Xg(:), Yg(:), Zg(:)];
-    nr = size(Xg, 1);
-    nc = size(Xg, 2);
-    % Vectorised triangulation (replaces nested i/j loop)
-    [II, JJ] = ndgrid(1:nr-1, 1:nc);
-    JJ2 = mod(JJ, nc) + 1;
-    i00 = (JJ(:) - 1) * nr + II(:);
-    i10 = (JJ2(:) - 1) * nr + II(:);
-    i01 = i00 + 1;
-    i11 = i10 + 1;
-    F = [i00, i10, i11; i00, i11, i01];
+    ct = cos(theta);
+    st = sin(theta);
+
+    eh_loc = R_body(h_axis, :).';
+    ev_loc = R_body(v_axis, :).';
+    d_loc  = eh_loc * ct + ev_loc * st;
+
+    ax = abs(d_loc(1, :));
+    s  = hypot(d_loc(2, :), d_loc(3, :));
+
+    on_cyl = (b_um * ax <= c_um * s) & (s > 0);
+    r = zeros(size(theta));
+    r(on_cyl) = b_um ./ s(on_cyl);
+    s_cap = s(~on_cyl);
+    disc = max(b_um^2 - (c_um * s_cap).^2, 0);
+    r(~on_cyl) = c_um * ax(~on_cyl) + sqrt(disc);
+
+    h = [X_cm_um(h_axis) + r .* ct, nan];
+    v = [X_cm_um(v_axis) + r .* st, nan];
 end
 
 
 function [h, v] = mesh_plane_loops(V, F, fixed_axis, fixed_value, h_axis, v_axis)
 %MESH_PLANE_LOOPS  Smooth closed cuts of a triangle mesh by one plane
-    nF = size(F, 1);
+    s_all = V(:, fixed_axis) - fixed_value;
+    sF = s_all(F);
+    cross_tri = any(sF < 0, 2) & any(sF >= 0, 2);
+    F_hit = F(cross_tri, :);
+    nF = size(F_hit, 1);
+    if nF == 0
+        h = nan;
+        v = nan;
+        return
+    end
+
     P = zeros(nF, 2);
     Q = zeros(nF, 2);
     nseg = 0;
     edges = [1, 2; 2, 3; 3, 1];
     for i = 1:nF
-        tri = V(F(i, :), :);
+        tri = V(F_hit(i, :), :);
         s = tri(:, fixed_axis) - fixed_value;
         hits = zeros(2, 2);
         nh = 0;
@@ -767,8 +735,8 @@ function [h, v] = mesh_plane_loops(V, F, fixed_axis, fixed_value, h_axis, v_axis
                 if used(j)
                     continue
                 end
-                d1 = norm(P(j, :) - tail);
-                d2 = norm(Q(j, :) - tail);
+                d1 = hypot(P(j, 1) - tail(1), P(j, 2) - tail(2));
+                d2 = hypot(Q(j, 1) - tail(1), Q(j, 2) - tail(2));
                 if d1 < best_d
                     best = j;
                     best_d = d1;

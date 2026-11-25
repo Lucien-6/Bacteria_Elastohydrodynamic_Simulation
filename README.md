@@ -6,7 +6,7 @@ English | [中文](README.zh-CN.md)
 > **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **Created:** 2026-02-06  
 > **Updated:** 2026-11-24
-> **Version:** 10.1.0
+> **Version:** 10.2.1
 > **Runtime:** MATLAB-only (base MATLAB R2022a+, no Statistics Toolbox or Python dependencies required).
 
 This project simulates the low-Reynolds-number dynamics of a rigid cell body coupled to one or more flexible pili or flagella: settling under gravity, swimming driven by a motor torque or by active moments, motion in a background flow, and Brownian motion. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
@@ -26,6 +26,7 @@ This project simulates the low-Reynolds-number dynamics of a rigid cell body cou
 - Biflagellate *Chlamydomonas* 3-D swimmer: measured-gait dual-k 1ω+2ω in-plane drive combined with 17° chiral beat-plane tilt and zero-twist proximal 1ω+2ω out-of-plane bending, reproducing 1–2 Hz spin and left-handed superhelical trajectories. See [`chlamydomonas/README.md`](chlamydomonas/README.md) and [`chlamydomonas/cases/run_3d_helix_2s.m`](chlamydomonas/cases/run_3d_helix_2s.m).
 - Inline MATLAB configuration, JSON configuration, and programmatic batch execution.
 - Publication-oriented exports: MAT, CSV, log, PNG, vector PDF, optional interactive HTML, and MP4 animation.
+- Accelerated 6-panel 3-D/2-D streamline flow-field reconstruction & animation (`render_flowfield_from_results`, 10.2.0): direct Block Schur force extraction, batched 3-plane FP64 GPU/BLAS3 velocity kernels (`use_gpu = 'auto'`), exact analytical capsule cross-sections, optimised thread-pool parallel streamlines (`use_parallel = 'auto'`), and a slimmed ~1.6 MiB/frame cache (~1,300 frames in 2 GiB).
 - Optional **parallel** batch drivers ([`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m), [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m)): `parfor` with automatic pool sizing (Parallel Computing Toolbox); serial fallback when the toolbox or pool is unavailable.
 - **Linux HPC cluster execution:** [`run_simulation.m`](run_simulation.m) natively supports headless/Linux operation (platform-aware MP4/AVI video export via `render_motion_animation.m`, `.avi` detection, `cfg.silent`, and `DataQueue` progress heartbeats); [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) is retained as a thin forwarding alias for backward compatibility with [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m) (Linux-native CPU/memory probing, node-local `parpool` job storage, and heavy-output sampling).
 
@@ -36,7 +37,7 @@ This project simulates the low-Reynolds-number dynamics of a rigid cell body cou
 - Optional interactive HTML figure export requires MATLAB R2026a or later.
 - Capsule body-surface generation requires the MATLAB Add-On / File Exchange **S2 Sampling Toolbox** by Anton Semechko. Install it so `ParticleSampleSphere`, `SpiralSampleSphere`, `IcosahedronMesh`, `QuadCubeMesh`, and `SubdivideSphericalMesh` are on the MATLAB path.
 - Python / Conda / pip are not required. See [`requirements.txt`](requirements.txt).
-- **Parallel Computing Toolbox** is optional: only needed for the default parallel branches of [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) and [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m) (`use_parallel = true`).
+- **Parallel Computing Toolbox** (and an optional CUDA GPU) are optional: used automatically for parallel batch sweeps (`batch_sweep/`) and accelerated multi-frame flow-field animations (`use_gpu = 'auto'`, `use_parallel = 'auto'`), with seamless serial CPU fallback when unavailable.
 
 ## Quick Start
 

@@ -1,6 +1,33 @@
 # BacEHD (Bacteria Elastohydrodynamic Simulation) — MATLAB project
 #
-# Release: 10.1.0 (2026-11-24)
+# Release: 10.2.1 (2026-11-24)
+#
+# v10.2.1: Clean .mat serialisation and warning-free post-processing loads.
+#   (1) run_simulation.m omits non-serialisable body_precomp (Cholesky
+#       decomposition object) from the saved .mat copy while keeping it in
+#       memory for final flow-field plotting and returned params.
+#   (2) post_processing/render_flowfield_from_results.m and
+#       render_animation_from_results.m add chlamydomonas/core before load()
+#       and locally silence MATLAB:decomposition:LoadNotSupported and
+#       MATLAB:dispatcher:UnresolvedFunctionHandle via onCleanup for
+#       historical .mat files.
+#   No new toolbox dependency.
+#
+# v10.2.0: Flow-field computation and animation acceleration (full FP64
+#   accuracy & unchanged 2500 x 1400 6-panel layout).
+#   (1) Direct Block Schur force extraction in ode_coupled_rhs /
+#       flowfield_from_saved_state (eliminates two redundant dense LU solves
+#       per frame; guards empty decomposition objects after .mat load).
+#   (2) Batched 3-plane CM-shifted BLAS3 / auto-FP64-GPU velocity kernels
+#       (flowfield_grid_velocity, use_gpu='auto') and exact analytical polar
+#       capsule section outlines (2x2 corner grids for 3-D texturemaps).
+#   (3) Optimised flowfield_plane_streamlines (zero-copy backward trace,
+#       endpoint sample reuse, O(1) dilated fine-grid collision filter,
+#       batch bin updates) + thread-pool parallel batching (use_parallel='auto')
+#       in render_flowfield_engine; slimmed grid cache (~1.58 MiB/frame,
+#       ~1,300 frames in 2 GiB) and streamlined render_flowfield_panels updates.
+#   No new required toolbox dependency (Parallel Computing Toolbox / CUDA GPU
+#   are optional and fall back cleanly to serial CPU).
 #
 # v10.1.0: CPC submission readiness, full-codebase audit hardening, and
 #   single-engine HPC unification.

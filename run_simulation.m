@@ -144,8 +144,10 @@ function [results, params, output_dir] = run_simulation(cfg_or_path)
 %           Block Schur & frozen-hydrodynamics Jacobian acceleration.
 %  Updated: 2026-11-24 — v10.1.0: unified Linux/HPC .avi support, relative time tolerances,
 %           scoped Jacobian fallback with timer reset, and pre-validation log guards.
+%  Updated: 2026-11-24 — v10.2.0: version banner sync for flow-field acceleration release.
+%  Updated: 2026-11-24 — v10.2.1: omit non-serialisable body_precomp when saving .mat.
 %
-%  Log banner version: 10.1.0 (2026-11-24) - emitted via project_version(); keep README / CHANGELOG in sync
+%  Log banner version: 10.2.1 (2026-11-24) - emitted via project_version(); keep README / CHANGELOG in sync
 %
 %  Path policy: defensive addpath calls here allow run_simulation(cfg) without
 %  main_coupled_simulation.m.  Standalone drivers in batch_sweep/ and
@@ -1865,8 +1867,16 @@ if isfield(params, 'brown_pili_streams')
     params = rmfield(params, 'brown_pili_streams');
 end
 
+% Omit body_precomp (contains a non-serialisable Cholesky decomposition object)
+% from the on-disk copy while retaining it in memory for final flow-field plotting.
+params_save = params;
+if isfield(params_save, 'body_precomp')
+    params_save = rmfield(params_save, 'body_precomp');
+end
+S_save = struct('results', results, 'params', params_save);
 mat_file = fullfile(output_dir, 'simulation_results.mat');
-save(mat_file, 'results', 'params', '-v7.3');
+save(mat_file, '-struct', 'S_save', '-v7.3');
+clear S_save params_save
 mat_info = dir(mat_file);
 logf('[SAVE] Data saved  : %s (%.2f MB)\n', mat_file, mat_info.bytes/1e6);
 

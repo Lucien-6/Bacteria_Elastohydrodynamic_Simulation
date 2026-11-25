@@ -13,20 +13,16 @@ function info = render_flowfield_engine(varargin)
 %      times      - 99th percentile of the requested frames only
 %      animation  - 99th percentile of every saved output
 %    Every saved output, including the last, uses its recorded
-%    closing-interval Brownian force.  Velocity grids are not retained
-%    between the sampling pass and the drawing pass.
+%    closing-interval Brownian force.
 %
 %    opts.drop_first_frame (default false): when true, output index 1 is
 %    omitted from times / animation / all (evaluation, drawing, and colour
 %    scale).  final mode is unchanged.  Use this to skip a startup transient.
-%    Animation (and the animation part of all) prints one Compute bar and
-%    one Video bar instead of a log line per plane and per frame.
-%    When the grid cache is full, one summary names how many retained
-%    frames will be rebuilt while drawing.  It does not list each output.
-%    An animation grid uses one span on X, Y and Z: the largest reach of
-%    any video frame about the centre of mass, so every frame's body and
-%    flagella fit.  That window translates with the centre of mass, and the
-%    velocity samples fill it.  Still images keep that frame's own window.
+%    opts.use_gpu (default 'auto'): auto-uses FP64 GPU evaluation when a
+%    CUDA device is available; set false to force CPU.
+%    opts.use_parallel (default 'auto'): uses a MATLAB thread pool for
+%    multi-frame force/streamline batches when PCT is available; set false
+%    to force serial execution.
 %
 %  Syntax:
 %    info = render_flowfield_engine(results, params, output_dir, opts)
@@ -41,6 +37,9 @@ function info = render_flowfield_engine(varargin)
 %           without changing directory.
 %  Updated: 2026-11-19 — wrong argument count keeps MissingOptions.
 %           The file browser stays on the post-processing entry.
+%  Updated: 2026-11-24 — Block Schur precomp guard, batched GPU + thread-pool
+%           parallel streamlines, slimmed grid cache (~1.3 MiB/frame),
+%           post-draw frame release, skip redundant drawnow before getframe.
 
 if nargin ~= 4 || ~isstruct(varargin{1}) || ~isstruct(varargin{2}) || ~isstruct(varargin{4})
     error('render_flowfield_from_results:MissingOptions', ...
@@ -48,6 +47,7 @@ if nargin ~= 4 || ~isstruct(varargin{1}) || ~isstruct(varargin{2}) || ~isstruct(
 end
 results = varargin{1};
 params = restore_saved_moment_handles(varargin{2});
+params = ensure_body_precomp(params);
 output_dir = varargin{3};
 opts = varargin{4};
 if ~isfield(opts, 'mode') || isempty(opts.mode)
@@ -266,7 +266,7 @@ end
 
 
 function held = hold_frames(results, params, visit, retain, flow_opts, logf, silent, opts)
-%HOLD_FRAMES  Evaluate each visited output once and retain render grids.
+%HOLD_FRAMES  Evaluate each visited output once, precompute streamlines, and retain slim grids.
 if nargin < 8
     opts = struct();
 end
@@ -280,8 +280,12 @@ held.sample = cell(n_times, 1);
 held.retained_bytes = 0;
 held.grid_recompute_count = 0;
 held.body_vis = [];
-retain = unique(reshape(retain, 1, []));
+
+retain_mask = false(n_times, 1);
+retain_mask(unique(reshape(retain, 1, []))) = true;
 visit = reshape(visit, 1, []);
+n_visit = numel(visit);
+
 compact = isfield(opts, 'compact_progress') && logical(opts.compact_progress);
 eval_logf = logf;
 eval_silent = silent;
@@ -289,44 +293,354 @@ if compact
     eval_logf = @(varargin) [];
     eval_silent = true;
 end
-n_visit = numel(visit);
+
+% Acquire thread pool when parallel execution is enabled and worthwhile
+[use_par, n_workers, pool_cleanup] = acquire_compute_pool(opts, n_visit); %#ok<ASGLU>
+gpu_active = check_gpu_available(flow_opts);
+
+% Build worker-local params with fresh Cholesky decomposition (MATLAB
+% decomposition objects cannot be serialised across parfor boundaries).
+params_const = [];
+if use_par
+    params_nopre = params;
+    params_nopre.body_precomp = [];
+    params_const = parallel.pool.Constant(@() ensure_body_precomp(params_nopre));
+end
+
 t_bar = tic;
 missed = zeros(1, n_visit);
 n_miss = 0;
-for n = 1:n_visit
-    idx = visit(n);
-    packed = evaluate_saved_index(results, params, idx, flow_opts, eval_logf, eval_silent);
-    % Cache the rigid-body visualisation descriptor (alphaShape / capsule mesh)
-    % after the first frame so subsequent frames skip rebuilding it.
-    if n == 1 && isfield(packed.planes, 'body_vis') && ~isempty(packed.planes.body_vis)
-        flow_opts.body_vis = packed.planes.body_vis;
-        held.body_vis = packed.planes.body_vis;
-    end
-    held.sample{idx} = packed.planes.samples;
-    if any(retain == idx)
-        nbytes = struct_bytes(packed.planes);
-        if held.retained_bytes + nbytes <= cap
-            held.pack{idx} = packed;
-            held.retained_bytes = held.retained_bytes + nbytes;
-        else
-            packed.planes = [];
-            held.pack{idx} = packed;
-            n_miss = n_miss + 1;
-            missed(n_miss) = idx;
-        end
-    end
-    if compact && ~silent
-        render_progress_bar('[FLOW] Compute ', n, n_visit, t_bar, ...
-            sprintf('%d/%d  t=%.4f s', n, n_visit, packed.t_s));
-    elseif ~compact
-        logf('[FLOW] Evaluated output %d at t = %.6g s (%s).\n', ...
-            idx, packed.t_s, packed.convention);
+
+if n_visit == 0
+    held.mean_compute_s = 0;
+    return
+end
+
+% Step 1: Evaluate first visited frame on the main thread to cache body_vis
+% (and warm up GPU device if enabled).
+idx1 = visit(1);
+packed1 = evaluate_saved_index(results, params, idx1, flow_opts, eval_logf, eval_silent);
+if isfield(packed1.planes, 'body_vis') && ~isempty(packed1.planes.body_vis)
+    flow_opts.body_vis = packed1.planes.body_vis;
+    held.body_vis = packed1.planes.body_vis;
+end
+held.sample{idx1} = packed1.planes.samples;
+if retain_mask(idx1)
+    packed1.planes = attach_plane_streamlines(packed1.planes);
+    packed1.planes = slim_planes_for_cache(packed1.planes);
+    nbytes = struct_bytes(packed1.planes);
+    if held.retained_bytes + nbytes <= cap
+        held.pack{idx1} = packed1;
+        held.retained_bytes = held.retained_bytes + nbytes;
+    else
+        packed1.planes = [];
+        held.pack{idx1} = packed1;
+        n_miss = n_miss + 1;
+        missed(n_miss) = idx1;
     end
 end
+if compact && ~silent
+    render_progress_bar('[FLOW] Compute ', 1, n_visit, t_bar, ...
+        sprintf('%d/%d  t=%.4f s', 1, n_visit, packed1.t_s));
+elseif ~compact
+    logf('[FLOW] Evaluated output %d at t = %.6g s (%s).\n', ...
+        idx1, packed1.t_s, packed1.convention);
+end
+
+% Step 2: Evaluate remaining frames in batches
+batch_size = max(8, 2 * n_workers);
+pos = 2;
+while pos <= n_visit
+    pos_end = min(pos + batch_size - 1, n_visit);
+    b_indices = visit(pos:pos_end);
+    nb = numel(b_indices);
+
+    if use_par && nb >= 2 && ~gpu_active
+        % Pure CPU parallel batch: force + grid + streamlines in parfor
+        b_retain = retain_mask(b_indices);
+        b_samples = cell(nb, 1);
+        b_packs = cell(nb, 1);
+        b_ts = zeros(nb, 1);
+        b_conv = cell(nb, 1);
+        parfor bi = 1:nb
+            idx = b_indices(bi);
+            p_wrk = params_const.Value;
+            pk = evaluate_saved_index(results, p_wrk, idx, flow_opts, ...
+                @(varargin) [], true);
+            b_samples{bi} = pk.planes.samples;
+            b_ts(bi) = pk.t_s;
+            b_conv{bi} = pk.convention;
+            if b_retain(bi)
+                pk.planes = attach_plane_streamlines(pk.planes);
+                pk.planes = slim_planes_for_cache(pk.planes);
+                pk.params.body_precomp = [];
+                b_packs{bi} = pk;
+            end
+        end
+        for bi = 1:nb
+            idx = b_indices(bi);
+            held.sample{idx} = b_samples{bi};
+            if b_retain(bi)
+                pk = b_packs{bi};
+                nbytes = struct_bytes(pk.planes);
+                if held.retained_bytes + nbytes <= cap
+                    held.pack{idx} = pk;
+                    held.retained_bytes = held.retained_bytes + nbytes;
+                else
+                    pk.planes = [];
+                    held.pack{idx} = pk;
+                    n_miss = n_miss + 1;
+                    missed(n_miss) = idx;
+                end
+            end
+        end
+        done_n = pos_end;
+        if compact && ~silent
+            render_progress_bar('[FLOW] Compute ', done_n, n_visit, t_bar, ...
+                sprintf('%d/%d  t=%.4f s', done_n, n_visit, b_ts(end)));
+        elseif ~compact
+            for bi = 1:nb
+                logf('[FLOW] Evaluated output %d at t = %.6g s (%s).\n', ...
+                    b_indices(bi), b_ts(bi), b_conv{bi});
+            end
+        end
+    elseif use_par && nb >= 2 && gpu_active
+        % Hybrid GPU + CPU thread-pool batch:
+        %   (a) force solves on CPU threads (parfor),
+        %   (b) 3-plane velocity grids on GPU (main thread, no GPU contention),
+        %   (c) 2D streamlines on CPU threads (parfor).
+        b_retain = retain_mask(b_indices);
+        b_specs = cell(nb, 1);
+        b_hydro = cell(nb, 1);
+        parfor bi = 1:nb
+            idx = b_indices(bi);
+            p_wrk = params_const.Value;
+            sp = flowfield_state_data(results, p_wrk, idx, ...
+                kind_for(idx, n_times));
+            b_hydro{bi} = flowfield_from_saved_state(sp.Z, sp.params, ...
+                sp.t_dimless, @(varargin) []);
+            sp.params.body_precomp = [];
+            b_specs{bi} = sp;
+        end
+
+        % GPU velocity grids on main thread
+        b_planes = cell(nb, 1);
+        for bi = 1:nb
+            b_planes{bi} = flowfield_grid_velocity(b_hydro{bi}, ...
+                b_specs{bi}.params, flow_opts, eval_logf, eval_silent);
+            held.sample{b_indices(bi)} = b_planes{bi}.samples;
+        end
+
+        % Parallel streamlines + slimming for retained frames in this batch
+        ret_local = find(b_retain);
+        n_ret = numel(ret_local);
+        if n_ret >= 2
+            ret_planes = b_planes(ret_local);
+            parfor ri = 1:n_ret
+                pl = attach_plane_streamlines(ret_planes{ri});
+                ret_planes{ri} = slim_planes_for_cache(pl);
+            end
+            b_planes(ret_local) = ret_planes;
+        elseif n_ret == 1
+            ri = ret_local(1);
+            b_planes{ri} = slim_planes_for_cache(attach_plane_streamlines(b_planes{ri}));
+        end
+
+        for bi = 1:nb
+            idx = b_indices(bi);
+            if b_retain(bi)
+                pk = pack_evaluated(b_planes{bi}, b_hydro{bi}, b_specs{bi}, idx);
+                nbytes = struct_bytes(pk.planes);
+                if held.retained_bytes + nbytes <= cap
+                    held.pack{idx} = pk;
+                    held.retained_bytes = held.retained_bytes + nbytes;
+                else
+                    pk.planes = [];
+                    held.pack{idx} = pk;
+                    n_miss = n_miss + 1;
+                    missed(n_miss) = idx;
+                end
+            end
+        end
+        done_n = pos_end;
+        if compact && ~silent
+            render_progress_bar('[FLOW] Compute ', done_n, n_visit, t_bar, ...
+                sprintf('%d/%d  t=%.4f s', done_n, n_visit, b_specs{end}.t_s));
+        elseif ~compact
+            for bi = 1:nb
+                logf('[FLOW] Evaluated output %d at t = %.6g s (%s).\n', ...
+                    b_indices(bi), b_specs{bi}.t_s, b_specs{bi}.convention);
+            end
+        end
+    else
+        % Serial path
+        for bi = 1:nb
+            n = pos + bi - 1;
+            idx = b_indices(bi);
+            packed = evaluate_saved_index(results, params, idx, flow_opts, eval_logf, eval_silent);
+            held.sample{idx} = packed.planes.samples;
+            if retain_mask(idx)
+                packed.planes = attach_plane_streamlines(packed.planes);
+                packed.planes = slim_planes_for_cache(packed.planes);
+                nbytes = struct_bytes(packed.planes);
+                if held.retained_bytes + nbytes <= cap
+                    held.pack{idx} = packed;
+                    held.retained_bytes = held.retained_bytes + nbytes;
+                else
+                    packed.planes = [];
+                    held.pack{idx} = packed;
+                    n_miss = n_miss + 1;
+                    missed(n_miss) = idx;
+                end
+            end
+            if compact && ~silent
+                render_progress_bar('[FLOW] Compute ', n, n_visit, t_bar, ...
+                    sprintf('%d/%d  t=%.4f s', n, n_visit, packed.t_s));
+            elseif ~compact
+                logf('[FLOW] Evaluated output %d at t = %.6g s (%s).\n', ...
+                    idx, packed.t_s, packed.convention);
+            end
+        end
+    end
+    pos = pos_end + 1;
+end
+
 if n_miss > 0
     logf('%s\n', grid_cache_full_summary(missed(1:n_miss), cap));
 end
 held.mean_compute_s = toc(t_bar) / max(n_visit, 1);
+end
+
+
+function [use_par, n_workers, cleanup_obj] = acquire_compute_pool(opts, n_visit)
+%ACQUIRE_COMPUTE_POOL  Use existing pool or start a fast thread pool for batches
+    use_par = false;
+    n_workers = 1;
+    cleanup_obj = [];
+
+    req = 'auto';
+    if isfield(opts, 'use_parallel') && ~isempty(opts.use_parallel)
+        req = opts.use_parallel;
+    end
+    if islogical(req) || isnumeric(req)
+        want_par = logical(req(1));
+    elseif ischar(req) || isstring(req)
+        want_par = ~strcmpi(char(req), 'false') && ~strcmpi(char(req), 'off');
+    else
+        want_par = false;
+    end
+    if ~want_par || n_visit < 4
+        return
+    end
+    try
+        if ~license('test', 'Distrib_Computing_Toolbox')
+            return
+        end
+        pool = gcp('nocreate');
+        if ~isempty(pool) && pool.Connected
+            use_par = true;
+            n_workers = pool.NumWorkers;
+            return
+        end
+        pool = parpool('Threads');
+        use_par = true;
+        n_workers = pool.NumWorkers;
+        cleanup_obj = onCleanup(@() safe_delete_pool(pool));
+    catch
+        use_par = false;
+        n_workers = 1;
+        cleanup_obj = [];
+    end
+end
+
+
+function safe_delete_pool(pool)
+    try
+        if ~isempty(pool) && isvalid(pool)
+            delete(pool);
+        end
+    catch
+    end
+end
+
+
+function tf = check_gpu_available(flow_opts)
+    req = 'auto';
+    if isfield(flow_opts, 'use_gpu') && ~isempty(flow_opts.use_gpu)
+        req = flow_opts.use_gpu;
+    end
+    if islogical(req) || isnumeric(req)
+        want_gpu = logical(req(1));
+    elseif ischar(req) || isstring(req)
+        want_gpu = ~strcmpi(char(req), 'false') && ~strcmpi(char(req), 'off');
+    else
+        want_gpu = false;
+    end
+    tf = false;
+    if ~want_gpu
+        return
+    end
+    try
+        tf = (exist('gpuDeviceCount', 'file') == 2) && (gpuDeviceCount > 0);
+    catch
+        tf = false;
+    end
+end
+
+
+function planes = attach_plane_streamlines(planes)
+%ATTACH_PLANE_STREAMLINES  Precompute 2D streamlines for XZ, YZ, and XY planes
+    cm = planes.X_cm_um(:);
+    plane_names = {'xz', 'yz', 'xy'};
+    for k = 1:3
+        nm = plane_names{k};
+        pl = planes.(nm);
+        span_h = abs(pl.h_vec(end) - pl.h_vec(1));
+        span_v = abs(pl.v_vec(end) - pl.v_vec(1));
+        spacing_um = 0.045 * min(span_h, span_v);
+        length_um  = 4 * hypot(span_h, span_v);
+        if isfield(planes, 'stream_spacing_um') && ~isempty(planes.stream_spacing_um)
+            spacing_um = planes.stream_spacing_um;
+        end
+        if isfield(planes, 'stream_length_um') && ~isempty(planes.stream_length_um)
+            length_um = planes.stream_length_um;
+        end
+        switch nm
+            case 'xz'
+                Uh = pl.Ux;  Uv = pl.Uz;  origin = [cm(1); cm(3)];
+            case 'yz'
+                Uh = pl.Uy;  Uv = pl.Uz;  origin = [cm(2); cm(3)];
+            case 'xy'
+                Uh = pl.Ux;  Uv = pl.Uy;  origin = [cm(1); cm(2)];
+        end
+        geom = flowfield_plane_streamlines(pl.h_vec, pl.v_vec, Uh, Uv, ...
+            pl.mask, origin, spacing_um, length_um, nm, true);
+        % Retain only fields required by render_flowfield_panels
+        pl.stream = struct('x', geom.x, 'y', geom.y, ...
+            'vertices', geom.vertices, 'faces', geom.faces);
+        planes.(nm) = pl;
+    end
+end
+
+
+function planes = slim_planes_for_cache(planes)
+%SLIM_PLANES_FOR_CACHE  Drop fields redundant after samples & streamlines are extracted
+    planes.samples = [];
+    plane_names = {'xz', 'yz', 'xy'};
+    for k = 1:3
+        nm = plane_names{k};
+        pl = planes.(nm);
+        pl.Umag = single(pl.Umag);
+        if isfield(pl, 'stream') && ~isempty(pl.stream)
+            pl.stream.x = single(pl.stream.x);
+            pl.stream.y = single(pl.stream.y);
+            pl.stream.vertices = single(pl.stream.vertices);
+            pl.Ux = [];
+            pl.Uy = [];
+            pl.Uz = [];
+        end
+        planes.(nm) = pl;
+    end
 end
 
 
@@ -376,7 +690,7 @@ run_id = opt_of(opts, 'run_id', 'flowfield');
 dpi = opt_of(opts, 'dpi', 600);
 indices = reshape(indices, 1, []);
 for n = 1:numel(indices)
-    [packed, held] = materialize_pack(held, indices(n), flow_opts, logf, silent);
+    [packed, held] = materialize_pack(held, indices(n), flow_opts, logf, silent, false);
     frame = pack_frame(packed, run_id, cmax, scale_note);
     render_flowfield_panels(frame, struct('action', 'static', ...
         'visible', visible, 'bundle_export', false, 'close_after', true, ...
@@ -437,7 +751,7 @@ miss_ewma_s = NaN;
 for n = 1:n_frames
     t_frame = tic;
     idx = frame_index(n);
-    [packed, held] = materialize_pack(held, idx, flow_opts, draw_logf, draw_silent);
+    [packed, held] = materialize_pack(held, idx, flow_opts, draw_logf, draw_silent, true);
     frame = pack_frame(packed, run_id, cmax, 'Global colour scale');
     if n == 1
         handles = render_flowfield_panels(frame, ...
@@ -445,7 +759,7 @@ for n = 1:n_frames
         cleanup_fig = onCleanup(@() close_if_open(handles.fig));
     else
         handles = render_flowfield_panels(frame, ...
-            struct('action', 'update', 'handles', handles));
+            struct('action', 'update', 'handles', handles, 'skip_drawnow', true));
     end
     shot = getframe(handles.fig);
     [shot.cdata, vid_h, vid_w] = fit_frame(shot.cdata, vid_h, vid_w);
@@ -456,6 +770,11 @@ for n = 1:n_frames
             'figure', handles.fig, 'png_path', png, 'dpi', dpi));
         frame_files{n} = png;
     end
+    % Release cached grid once the animation frame has been encoded
+    if ~isempty(held.pack{idx})
+        held.pack{idx}.planes = [];
+    end
+
     dt_f = toc(t_frame);
     if is_cached_frame(n)
         if isnan(hit_ewma_s) || (n == 2)
@@ -514,12 +833,20 @@ logf('[FLOW] Animation saved: %s (%d frames)\n', anim_file, n_frames);
 end
 
 
-function [packed, held] = materialize_pack(held, index, flow_opts, logf, silent)
+function [packed, held] = materialize_pack(held, index, flow_opts, logf, silent, transient)
+if nargin < 6
+    transient = false;
+end
 packed = held.pack{index};
 if isempty(packed.planes)
-    packed.planes = flowfield_grid_velocity(packed.hydro, packed.params, ...
+    planes = flowfield_grid_velocity(packed.hydro, packed.params, ...
         flow_opts, logf, silent);
-    held.pack{index} = packed;
+    planes = attach_plane_streamlines(planes);
+    planes = slim_planes_for_cache(planes);
+    packed.planes = planes;
+    if ~transient
+        held.pack{index} = packed;
+    end
     held.grid_recompute_count = held.grid_recompute_count + 1;
     logf('[FLOW] Rebuilt velocity grid for output %d.\n', index);
 end
@@ -528,7 +855,9 @@ end
 
 function n = struct_bytes(value)
 n = 0;
-if isnumeric(value)
+if isa(value, 'single')
+    n = numel(value) * 4;
+elseif isnumeric(value)
     n = numel(value) * 8;
 elseif islogical(value)
     n = numel(value);
@@ -544,6 +873,7 @@ elseif iscell(value)
 end
 end
 
+
 function packed = evaluate_saved_index(results, params, index, flow_opts, logf, silent)
 spec = flowfield_state_data(results, params, index, ...
     kind_for(index, results.flow_state.n_times));
@@ -557,6 +887,11 @@ catch ME
     err = addCause(err, ME);
     throw(err);
 end
+packed = pack_evaluated(planes, hydro, spec, index);
+end
+
+
+function packed = pack_evaluated(planes, hydro, spec, index)
 packed.planes = planes;
 packed.hydro = hydro;
 packed.geom = hydro.geom;
@@ -565,6 +900,27 @@ packed.L_to_um = hydro.L_to_um;
 packed.t_s = spec.t_s;
 packed.convention = spec.convention;
 packed.index = index;
+end
+
+
+function params = ensure_body_precomp(params)
+%ENSURE_BODY_PRECOMP  Build rigid-body Block Schur precomp once if absent or invalid
+if isfield(params, 'body_precomp') && isstruct(params.body_precomp) && ...
+        ~isempty(params.body_precomp) && ...
+        isfield(params.body_precomp, 'dM_BB') && ...
+        isfield(params.body_precomp, 'N_body') && ...
+        params.body_precomp.N_body == params.N_body && ...
+        size(params.body_precomp.dM_BB, 1) == 3 * params.N_body
+    return
+end
+if isfield(params, 'body_local') && ~isempty(params.body_local) && ...
+        isfield(params, 'eps_body') && ~isempty(params.eps_body)
+    try
+        params.body_precomp = build_body_precomp(params.body_local, params.eps_body);
+    catch
+        params.body_precomp = [];
+    end
+end
 end
 
 
@@ -734,8 +1090,13 @@ end
 
 function [cdata, vid_h, vid_w] = fit_frame(cdata, vid_h, vid_w)
 if isempty(vid_h)
-    vid_h = max(2, 2 * floor(size(cdata, 1) / 2));
-    vid_w = max(2, 2 * floor(size(cdata, 2) / 2));
+    max_w = 3840;
+    max_h = 2160;
+    h0 = size(cdata, 1);
+    w0 = size(cdata, 2);
+    scale = min([1, max_w / w0, max_h / h0]);
+    vid_h = max(2, 2 * floor((h0 * scale) / 2));
+    vid_w = max(2, 2 * floor((w0 * scale) / 2));
 end
 if size(cdata, 1) == vid_h && size(cdata, 2) == vid_w
     cdata = cdata(:, :, 1:min(3, size(cdata, 3)));

@@ -121,9 +121,7 @@ end
 has_bg_flow = ~strcmp(params.bg_flow.type, 'off');
 want_flow_hydro = nargout >= 2;
 has_pili_thermal = isfield(params, 'brown_pili_force') && ~isempty(params.brown_pili_force);
-if want_flow_hydro
-    [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params, 'full');
-elseif has_bg_flow || has_pili_thermal
+if want_flow_hydro || has_bg_flow || has_pili_thermal
     [lin_sys, geom, hydro] = build_coupled_lin_sys(Z, params, 'rhs_light');
 else
     [lin_sys, geom] = build_coupled_lin_sys(Z, params);
@@ -256,9 +254,15 @@ if has_pili_thermal
 end
 
 %% Step 8c: Subtract background flow contribution
+Au_bg_trans = [];
+Au_bg_twist = [];
 if has_bg_flow
     u_bg = coupled_background_flow(geom.X_all, geom, params);
-    back = apply_Ainv_u(u_bg, hydro);
+    if want_flow_hydro
+        [back, Au_bg_trans, Au_bg_twist] = apply_Ainv_u(u_bg, hydro);
+    else
+        back = apply_Ainv_u(u_bg, hydro);
+    end
     R_global = R_global - back;
 end
 
@@ -371,7 +375,8 @@ end
 dZ = pack_state_rates(V, dqdt, pili_rates, N_segs);
 
 if want_flow_hydro
-    flow_hydro = flow_hydro_for_coefficients(hydro);
+    flow_hydro = flow_hydro_for_coefficients(hydro, geom, z_dot, ...
+        has_bg_flow, Au_bg_trans, Au_bg_twist, N_segs);
 else
     flow_hydro = [];
 end
@@ -381,20 +386,48 @@ end
 
 %% ==================== Local Helper Functions ====================
 
-function flow_hydro = flow_hydro_for_coefficients(hydro)
-%FLOW_HYDRO_FOR_COEFFICIENTS  Mobility blocks for the flow-field force solve.
-%  LU factors and the other coupled-system intermediates stay local to the
-%  right-hand-side evaluation.
-flow_hydro = struct();
-flow_hydro.M_weighted = hydro.M_weighted;
-flow_hydro.M_twist = hydro.M_twist;
-flow_hydro.M_rotlet = hydro.M_rotlet;
-flow_hydro.D_twist = hydro.D_twist;
-flow_hydro.C_twist = hydro.C_twist;
-flow_hydro.C_twist_reverse = hydro.C_twist_reverse;
+function flow_hydro = flow_hydro_for_coefficients(hydro, geom, z_dot, ...
+    has_bg_flow, Au_bg_trans, Au_bg_twist, N_segs)
+%FLOW_HYDRO_FOR_COEFFICIENTS  Exact Stokeslet/rotlet force coefficients for flow-field evaluation.
+%  Uses AQ_trans and AQ_twist_scalar already assembled in build_coupled_lin_sys
+%  (both Block Schur and dense LU paths), avoiding any second mobility solve.
+    f_coeffs = hydro.AQ_trans * z_dot;
+    if ~isempty(hydro.M_twist)
+        m_twist = hydro.AQ_twist_scalar * z_dot;
+        if isfield(hydro, 'd3_all_lab') && ~isempty(hydro.d3_all_lab)
+            d3_lab = hydro.d3_all_lab;
+        else
+            Ns = numel(m_twist);
+            d3_lab = zeros(Ns, 3);
+            seg_off = 0;
+            for k = 1:numel(N_segs)
+                N_k = N_segs(k);
+                d3_lab(seg_off + (1:N_k), :) = geom.d3{k};
+                seg_off = seg_off + N_k;
+            end
+        end
+        tau = zeros(3 * numel(m_twist), 1);
+        tau(1:3:end) = d3_lab(:, 1) .* m_twist;
+        tau(2:3:end) = d3_lab(:, 2) .* m_twist;
+        tau(3:3:end) = d3_lab(:, 3) .* m_twist;
+    else
+        tau = zeros(0, 1);
+    end
+    if has_bg_flow
+        f_coeffs = f_coeffs - Au_bg_trans;
+        if ~isempty(tau)
+            tau = tau - Au_bg_twist;
+        end
+    end
+
+    flow_hydro = struct();
+    flow_hydro.geom     = geom;
+    flow_hydro.z_dot    = z_dot;
+    flow_hydro.f_coeffs = f_coeffs;
+    flow_hydro.tau      = tau;
 end
 
-function back = apply_Ainv_u(u_bg, hydro)
+function [back, Au_t, Au_tw] = apply_Ainv_u(u_bg, hydro)
 %APPLY_AINV_U  Compute B_global * Ainv * u_bg for background flow coupling
 %
 %  Supports both the fast body-frame Block Schur path (hydro.block_schur)
@@ -402,6 +435,7 @@ function back = apply_Ainv_u(u_bg, hydro)
     n_t = hydro.n_trans;
     u_t = u_bg(1:n_t);
     u_w = u_bg(n_t+1:end);
+    Au_tw = zeros(0, 1);
 
     if isfield(hydro, 'block_schur') && ~isempty(hydro.block_schur)
         bs = hydro.block_schur;
@@ -410,8 +444,8 @@ function back = apply_Ainv_u(u_bg, hydro)
 
         if bs.nP == 0
             f_bf = bs.dM_BB \ u_t_bf;
-            Au   = reshape(R * reshape(f_bf, 3, []), n_t, 1);
-            back = hydro.B_global * Au;
+            Au_t = reshape(R * reshape(f_bf, 3, []), n_t, 1);
+            back = hydro.B_global * Au_t;
             return;
         end
 
@@ -465,11 +499,13 @@ function back = apply_Ainv_u(u_bg, hydro)
                 translational_rhs, ...
                 'ode_coupled_rhs background coupled translational solve');
         end
-        Au = [Au_t; hydro.D_twist * m_twist];
+        Au_tw = hydro.D_twist * m_twist;
+        Au = [Au_t; Au_tw];
     else
-        Au = Ainv \ u_t;
-        check_linear_solve(hydro.M_weighted, Au, u_t, ...
+        Au_t = Ainv \ u_t;
+        check_linear_solve(hydro.M_weighted, Au_t, u_t, ...
             'ode_coupled_rhs background solve');
+        Au = Au_t;
     end
 
     back = hydro.B_global * Au;

@@ -42,7 +42,9 @@
 %  Updated: 2026-11-12 — v9.0.0: cfg.enable_pili_brown / cfg.pili_brown_orders (thermal fluctuations of the slow pilus bending modes; default off).
 %  Updated: 2026-11-24 — v10.0.0: balancing axial torque density & unequal-length mode options (pili_brown_tau_cut_s / pili_brown_protect_pairs); Block Schur & fast Jacobian acceleration.
 %  Updated: 2026-11-24 — v10.1.0: BacEHD CPC deposit readiness, validation/save/Jacobian/HPC hardening, and zero project codeIssues.
-%  Documentation release: 10.1.0 (2026-11-24) - see README.md / CHANGELOG.md
+%  Updated: 2026-11-24 — v10.2.0: flow-field computation & animation acceleration (Block Schur forces, batched FP64 GPU/BLAS3, analytic capsule outline, parallel streamlines, slim cache).
+%  Updated: 2026-11-24 — v10.2.1: clean .mat serialisation and warning-free post-processing loads.
+%  Documentation release: 10.2.1 (2026-11-24) - see README.md / CHANGELOG.md
 
 close all force;
 clear; clc;

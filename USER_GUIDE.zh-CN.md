@@ -3,7 +3,7 @@
 [English](USER_GUIDE.md) | 中文
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 10.1.0
+> **版本:** 10.2.1
 > **更新日期:** 2026-11-24
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
@@ -294,7 +294,7 @@ SPD 修复和 Cholesky 分解在无量纲广义坐标中完成，再转换到 SI
 
 若要在不重跑 ODE 的情况下根据已完成算例重新生成动画（例如更换抽帧间隔或帧率），先执行 `addpath('post_processing')`，再运行 `render_animation_from_results()`（弹出文件对话框）或 `render_animation_from_results(mat_file, fps, skip)`。未给出 `fps` / `skip` 时，取该算例文件夹 `config.json` 中的 `output.animation_fps` / `output.animation_skip`，否则为 30 和 1。结果保存在 `.mat` 文件旁，文件名为 `bacteria_3d_motion_rerender.mp4`（Linux 上为 `.avi`），不会覆盖原视频。
 
-v8.7.0 及之后的结果可以用 `render_flowfield_from_results()` 或 `render_flowfield_from_results(mat_file, mode, requested_times_s, fps, skip)` 重算流场。`mode` 为 `final`（默认）、`times`、`animation` 或 `all`。时刻单位为秒，并匹配最近的已保存输出点；多个请求落到同一点时只计算一次。未给出 `fps` / `skip` 时，与运动动画一样读取 `config.json`。末状态色标只用该帧，指定时刻只用被请求的帧，动画使用全部已保存输出点；分位数计入 XZ、YZ 和 XY 三个平面。自 v8.7.3 起，图为 2500 x 1400 画布上的六面板：上排是 XZ、YZ、XY 的 3D 视图，下排是对应的 2D 视图，色标在子图 f 右侧。第六个参数 `opts.drop_first_frame = true` 时，`times`、`animation` 和 `all` 去掉已保存输出 1（`final` 不变）。动画在计算流场时显示一条原地刷新的 Compute 进度条，写视频时显示一条 Video 进度条。文件写在 `.mat` 旁边，不覆盖 `flowfield_panels.png`。动画在 Windows 和 macOS 上为 `flowfield_animation.mp4`，在 Linux 上为 `flowfield_animation.avi`。无图形界面时必须传入 MAT 路径，不能依赖文件选择框。
+v8.7.0 及之后的结果可以用 `render_flowfield_from_results()` 或 `render_flowfield_from_results(mat_file, mode, requested_times_s, fps, skip)` 重算流场。`mode` 为 `final`（默认）、`times`、`animation` 或 `all`。时刻单位为秒，并匹配最近的已保存输出点；多个请求落到同一点时只计算一次。未给出 `fps` / `skip` 时，与运动动画一样读取 `config.json`。末状态色标只用该帧，指定时刻只用被请求的帧，动画使用全部已保存输出点；分位数计入 XZ、YZ 和 XY 三个平面。自 v8.7.3 起，图为 2500 x 1400 画布上的六面板：上排是 XZ、YZ、XY 的 3D 视图，下排是对应的 2D 视图，色标在子图 f 右侧。第六个参数 `opts.drop_first_frame = true` 时，`times`、`animation` 和 `all` 去掉已保存输出 1（`final` 不变）。自 v10.2.0 起，流场计算自动启用 Block Schur 力系数直接提取、三平面合批 FP64 GPU 速度核（`opts.use_gpu = 'auto'`，设 `false` 可强制 CPU）、线程池并行力求解与 2D 流线预计算（`opts.use_parallel = 'auto'`，设 `false` 为串行）以及轻量级网格缓存（~1.6 MiB/帧，2 GiB 可存约 1,300 帧）和逐帧编码后即时释放；`skip > 1` 时可在 `opts` 或 `config.json` 的 `flowfield` 段中设 `scale_from_video_frames = true` 以仅用视频帧计算色标分位数。动画在计算流场时显示一条原地刷新的 Compute 进度条，写视频时显示一条 Video 进度条。文件写在 `.mat` 旁边，不覆盖 `flowfield_panels.png`。动画在 Windows 和 macOS 上为 `flowfield_animation.mp4`，在 Linux 上为 `flowfield_animation.avi`。无图形界面时必须传入 MAT 路径，不能依赖文件选择框。
 
 若某个积分段超时，`results.completed=false` 且 `results.termination_reason='timeout'`。程序会保存并正常返回已经获得的部分轨迹，但跳过动画、流场以及批处理稳态统计。
 

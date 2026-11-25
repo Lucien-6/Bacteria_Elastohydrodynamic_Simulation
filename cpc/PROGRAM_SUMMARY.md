@@ -1,6 +1,6 @@
 # CPC Program Summary — BacEHD
 
-Ready-to-paste *Computer Physics Communications* (CPC) Program Summary metadata for **BacEHD** (`v10.1.0`).
+Ready-to-paste *Computer Physics Communications* (CPC) Program Summary metadata for **BacEHD** (`v10.2.1`).
 
 ---
 

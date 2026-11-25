@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use BacEHD in your research, please cite it using this metadata."
 title: "BacEHD: Coupled Elastohydrodynamic and Brownian Simulation of Rigid Cell Bodies with Flexible Pili and Flagella"
 short-title: "BacEHD"
-version: "10.1.0"
+version: "10.2.1"
 date-released: "2026-11-24"
 license: "MIT"
 type: software

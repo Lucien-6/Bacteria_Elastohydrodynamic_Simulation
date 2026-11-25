@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
 <meta charset="UTF-8">
-<meta name="description" content="BacEHD (Bacteria Elastohydrodynamic Simulation) v10.1.0 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, body-frame Block Schur & frozen-hydrodynamics 3-colour Jacobian acceleration, second-order Kirchhoff curvature stencil, signed motor torque-speed law, body-only & pilus thermal fluctuations with balancing axial torque density and unequal-length time-scale mode selection, expanded 18-check CPC validation & performance benchmark suite, 2-D in-plane flow-field streamlines, JSON config, and unified Linux HPC execution.">
+<meta name="description" content="BacEHD (Bacteria Elastohydrodynamic Simulation) v10.2.1 (MATLAB): weighted-reciprocal RSM+RSS Stokes flow, body-frame Block Schur & frozen-hydrodynamics 3-colour Jacobian acceleration, second-order Kirchhoff curvature stencil, signed motor torque-speed law, body-only & pilus thermal fluctuations with balancing axial torque density and unequal-length time-scale mode selection, expanded 18-check CPC validation & performance benchmark suite, GPU/thread-pool accelerated 2-D in-plane flow-field streamlines, JSON config, and unified Linux HPC execution.">
 <title>Bacteria Elastohydrodynamic Simulation</title>
 
 <!-- Tailwind CSS -->
@@ -195,7 +195,7 @@ tailwind.config = {
       </div>
       <div>
         <h2 class="text-white font-bold text-base leading-tight">Bacteria Elastohydrodynamic Simulation</h2>
-        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v10.1.0 &middot; 2026-11-24</p>
+        <p class="text-[11px] text-teal-400 mt-0.5 font-semibold tracking-wide">v10.2.1 &middot; 2026-11-24</p>
       </div>
     </div>
   </div>
@@ -256,7 +256,7 @@ tailwind.config = {
   <div class="relative max-w-4xl mx-auto text-center">
     <div class="inline-flex items-center gap-2 bg-teal-600/20 backdrop-blur-sm border border-teal-400/40 text-teal-200 text-xs font-semibold px-4 py-1.5 rounded-full mb-7 tracking-widest uppercase">
       <span class="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse"></span>
-      Version 10.1.0 &bull; 2026-11-24
+      Version 10.2.1 &bull; 2026-11-24
     </div>
     <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
       <span class="en">Bacteria<br><span class="bg-gradient-to-r from-teal-300 to-emerald-200 bg-clip-text text-transparent">Elastohydrodynamic Simulation</span></span>
@@ -542,6 +542,26 @@ tailwind.config = {
     </p>
     <div class="grid md:grid-cols-2 gap-6">
       <div class="md:col-span-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 p-6">
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v10.2.1 &mdash; 2026-11-24</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Clean <code>.mat</code> serialisation &amp; warning-free post-processing loads</span><span class="zh">无警告 <code>.mat</code> 序列化与后处理历史文件兼容加载</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en"><code>run_simulation.m</code> omits the non-serialisable <code>body_precomp</code> (Cholesky <code>decomposition</code> object) from the saved <code>.mat</code> copy while keeping it in memory for final flow-field plotting and returned <code>params</code>.</span><span class="zh"><code>run_simulation.m</code> 在保存 <code>simulation_results.mat</code> 时从写盘副本剔除不可序列化的 <code>body_precomp</code>（Cholesky <code>decomposition</code> 对象），同时保留内存副本供末状态流场绘制与返回值使用。</span></li>
+          <li><span class="en"><code>render_flowfield_from_results.m</code> and <code>render_animation_from_results.m</code> add <code>chlamydomonas/core</code> before <code>load()</code> and locally scope <code>MATLAB:decomposition:LoadNotSupported</code> and <code>MATLAB:dispatcher:UnresolvedFunctionHandle</code> suppression via <code>onCleanup</code> for legacy <code>.mat</code> files.</span><span class="zh"><code>render_flowfield_from_results.m</code> 与 <code>render_animation_from_results.m</code> 在 <code>load()</code> 前加入 <code>chlamydomonas/core</code> 路径，并通过 <code>onCleanup</code> 局部静默历史 <code>.mat</code> 文件的 <code>decomposition</code> 与迁址句柄加载警告。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50/50 dark:bg-navy-950/20 p-6">
+        <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v10.2.0 &mdash; 2026-11-24</p>
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <span class="en">Flow-field computation &amp; animation acceleration (FP64 GPU, Block Schur, parallel streamlines)</span><span class="zh">流场计算与动画全链路加速（FP64 GPU、Block Schur、并行流线）</span>
+        </h3>
+        <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
+          <li><span class="en">Direct Block Schur force extraction in <code>ode_coupled_rhs</code> / <code>flowfield_from_saved_state</code> (eliminates two redundant dense LU solves per frame, guards empty loaded-MAT <code>decomposition</code> objects), batched 3-plane CM-shifted BLAS3 &amp; auto-FP64-GPU velocity evaluation (<code>use_gpu = 'auto'</code>, ~23.5&times; faster on RTX 5080 at <code>2.8e-16</code> relative agreement), and exact analytical polar capsule cross-sections (<code>|SDF| &le; 3.3e-16 &mu;m</code>).</span><span class="zh">流场力系数提取直接复用 <code>ode_coupled_rhs</code> Block Schur 路径（每帧消去两次冗余稠密 LU 并自动修复 <code>.mat</code> 加载后的空 <code>decomposition</code>）；三平面合并为单次相对质心 BLAS3 / 自动 FP64 GPU 速度核（<code>use_gpu = 'auto'</code>，RTX 5080 提速约 23.5&times; 且与 CPU 相对误差 <code>2.8e-16</code>）；胶囊截面改为精确解析极坐标求交（<code>|SDF| &le; 3.3e-16 &mu;m</code>）。</span></li>
+          <li><span class="en">Optimised <code>flowfield_plane_streamlines</code> (zero-copy signed backward trace, endpoint sample reuse, <code>O(1)</code> dilated fine-grid collision filter, batch bin updates) paired with thread-pool batching (<code>use_parallel = 'auto'</code>), one-time static panel styling &amp; 2&times;2 texture-mapped 3-D planes, and a 5.2&times; smaller grid cache (~1.58 MiB/frame, ~1,300 frames in 2 GiB) with post-encode release.</span><span class="zh">优化 <code>flowfield_plane_streamlines</code>（零拷贝反向积分、终点插值复用、<code>O(1)</code> 膨胀细网格碰撞预筛、批量分桶）并引入线程池并行批处理（<code>use_parallel = 'auto'</code>）；图形更新去除每帧静态样式重复设置并改用 2&times;2 贴图平面；单帧缓存从 8.28 降至约 1.58 MiB（2 GiB 可存约 1,300 帧）并在逐帧编码后即时释放。</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-2 rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50/50 dark:bg-navy-950/20 p-6">
         <p class="text-xs font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wide mb-2">v10.1.0 &mdash; 2026-11-24</p>
         <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">
           <span class="en">BacEHD CPC deposit readiness, full-codebase audit hardening &amp; single-engine HPC unification</span><span class="zh">BacEHD CPC 投稿完备化、全项目代码审计加固与单引擎 HPC 统一</span>
@@ -2112,7 +2132,7 @@ pili_config(2).active_moment.a2            = 0;</code></pre>
         <li>Lucien &middot; <a href="mailto:lucien-6@qq.com" class="hover:text-teal-400 transition">lucien-6@qq.com</a></li>
         <li>MATLAB R2022a+</li>
         <li>MIT License</li>
-        <li>v10.1.0 &middot; 2026-11-24</li>
+        <li>v10.2.1 &middot; 2026-11-24</li>
       </ul>
     </div>
   </div>

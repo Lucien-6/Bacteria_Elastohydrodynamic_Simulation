@@ -20,6 +20,9 @@ function out = render_flowfield_panels(frame, opts)
 %  Updated: 2026-11-11 — added the XY plane; 2 x 3 layout, colour bar beside (f)
 %  Updated: 2026-11-13 — 2D panels draw in-plane streamlines instead of arrows
 %  Updated: 2026-11-13 — no white halo; each curve runs to the panel edge
+%  Updated: 2026-11-24 — one-time static styling, cached local body mesh &
+%           per-frame mesh/pili reuse, 2x2 texturemap surface corners,
+%           precomputed streamline reuse, optional skip_drawnow
 
 if nargin < 2 || isempty(opts), opts = struct(); end
 action = 'static';
@@ -41,7 +44,8 @@ switch action
     case 'create'
         out = create_figure(frame, opt_value(opts, 'visible', 'off'));
     case 'update'
-        out = update_figure(opts.handles, frame);
+        skip_drawnow = logical(opt_value(opts, 'skip_drawnow', false));
+        out = update_figure(opts.handles, frame, skip_drawnow);
     case 'export_png'
         exportgraphics(opts.figure, opts.png_path, ...
             'Resolution', opt_value(opts, 'dpi', 600));
@@ -87,7 +91,11 @@ handles.ax_f = ax_f;
 handles.pos = struct('a', pos_a, 'b', pos_b, 'c', pos_c, ...
     'd', pos_d, 'e', pos_e, 'f', pos_f);
 handles.created = false;
-handles = update_figure(handles, frame);
+handles.cmax = NaN;
+handles.last_spans = [];
+handles.body_local_mesh = build_body_local_mesh(frame.planes.body_vis);
+
+handles = update_figure(handles, frame, false);
 
 cb = colorbar(ax_f);
 cb.Location = 'manual';
@@ -113,27 +121,57 @@ drawnow;
 end
 
 
-function handles = update_figure(handles, frame)
+function handles = update_figure(handles, frame, skip_drawnow)
 plane_names = {'xz', 'yz', 'xy'};
-for n = 1:numel(plane_names)
-    spec = plane_spec(plane_names{n});
-    style_3d(handles.(spec.ax3), frame, plane_names{n});
-    style_2d(handles.(spec.ax2), frame, plane_names{n});
+is_first = ~handles.created;
+
+if is_first
+    for n = 1:numel(plane_names)
+        spec = plane_spec(plane_names{n});
+        style_3d(handles.(spec.ax3), frame, plane_names{n});
+        style_2d(handles.(spec.ax2), frame, plane_names{n});
+    end
 end
 
+% Transform 3D body surface and pili coordinates ONCE per frame
+if ~isfield(handles, 'body_local_mesh') || isempty(handles.body_local_mesh)
+    handles.body_local_mesh = build_body_local_mesh(frame.planes.body_vis);
+end
+body_mesh = transform_body_mesh(handles.body_local_mesh, ...
+    frame.geom.R_body, frame.planes.X_cm_um);
+M = frame.params.M_pili;
+pili_um = cell(M, 1);
+for k = 1:M
+    pili_um{k} = frame.geom.X_pili{k} * frame.L_to_um;
+end
+
+lim = frame.planes.axis_lim_um;
+spans = diff(lim, 1, 2);
+spans_changed = is_first || isempty(handles.last_spans) ...
+    || any(abs(spans - handles.last_spans) > 1e-12);
+cmax_changed = is_first || ~isequal(handles.cmax, frame.cmax);
+
 for n = 1:numel(plane_names)
-    handles = paint_3d(handles, frame, plane_names{n});
+    handles = paint_3d(handles, frame, plane_names{n}, body_mesh, pili_um, ...
+        spans_changed, cmax_changed);
 end
 for n = 1:numel(plane_names)
-    handles = paint_2d(handles, frame, plane_names{n});
+    handles = paint_2d(handles, frame, plane_names{n}, pili_um, ...
+        spans_changed, cmax_changed);
 end
 
 if isfield(handles, 'time') && isgraphics(handles.time)
     handles.time.String = time_string(frame.time_s);
 end
-restore_positions(handles);
+if spans_changed
+    restore_positions(handles);
+end
+handles.last_spans = spans;
+handles.cmax = frame.cmax;
 handles.created = true;
-drawnow;
+if ~skip_drawnow
+    drawnow;
+end
 end
 
 
@@ -172,23 +210,23 @@ spec.title3 = ['3D — ', upper(plane_name), ' plane'];
 end
 
 
-function handles = paint_3d(handles, frame, plane_name)
+function handles = paint_3d(handles, frame, plane_name, body_mesh, pili_um, ...
+    spans_changed, cmax_changed)
 spec = plane_spec(plane_name);
 ax = handles.(spec.ax3);
 tag = spec.tag3;
 plane = frame.planes.(plane_name);
 [C, A] = display_image(plane.Umag, plane.mask);
-mesh = build_body_mesh(frame.planes.body_vis, frame.params, ...
-    frame.geom.R_body, frame.planes.X_cm_um);
+[Xs, Ys, Zs] = plane_surface_corners(plane, frame.planes.X_cm_um, plane_name);
 body_color = [0.20, 0.65, 0.33];
 
 if ~handles.created
     hold(ax, 'on');
-    handles.(['surf_' tag]) = surface(ax, plane.HG, plane.VG, plane.ZG, C, ...
+    handles.(['surf_' tag]) = surface(ax, Xs, Ys, Zs, C, ...
         'FaceColor', 'texturemap', 'EdgeColor', 'none', ...
         'FaceAlpha', 'texturemap', 'AlphaData', A);
-    handles.(['body_' tag]) = render_body_mesh(ax, mesh, body_color, 0.40);
-    handles.(['pili_' tag]) = draw_pili_lines(ax, frame);
+    handles.(['body_' tag]) = render_body_mesh(ax, body_mesh, body_color, 0.40);
+    handles.(['pili_' tag]) = draw_pili_lines(ax, pili_um);
     handles.(['tag_' tag]) = panel_label(ax, tag);
     % Propagation direction is [-1, 1, -1], so the source sits at [1, -1, 1].
     light(ax, 'Position', [1, -1, 1], 'Style', 'infinite');
@@ -196,47 +234,49 @@ if ~handles.created
     material(ax, 'dull');
     hold(ax, 'off');
 else
-    set(handles.(['surf_' tag]), 'XData', plane.HG, 'YData', plane.VG, ...
-        'ZData', plane.ZG, 'CData', C, 'AlphaData', A);
-    update_body_mesh(handles.(['body_' tag]), mesh);
-    update_pili_lines(handles.(['pili_' tag]), frame);
+    set(handles.(['surf_' tag]), 'XData', Xs, 'YData', Ys, ...
+        'ZData', Zs, 'CData', C, 'AlphaData', A);
+    update_body_mesh(handles.(['body_' tag]), body_mesh);
+    update_pili_lines(handles.(['pili_' tag]), pili_um);
 end
-apply_3d_limits(ax, frame);
-clim(ax, [0, frame.cmax]);
-set_panel_title(ax, spec.title3);
+apply_3d_limits(ax, frame, spans_changed);
+if cmax_changed
+    clim(ax, [0, frame.cmax]);
+end
 end
 
 
-function handles = paint_2d(handles, frame, plane_name)
+function handles = paint_2d(handles, frame, plane_name, pili_um, ...
+    spans_changed, cmax_changed)
 spec = plane_spec(plane_name);
 ax = handles.(spec.ax2);
 tag = spec.tag2;
 plane = frame.planes.(plane_name);
 switch plane_name
     case 'xz'
-        Uh = plane.Ux;
-        Uv = plane.Uz;
-        vary_col = 2;
-        h_col = 1;
-        v_col = 3;
+        vary_col = 2;  h_col = 1;  v_col = 3;
     case 'yz'
-        Uh = plane.Uy;
-        Uv = plane.Uz;
-        vary_col = 1;
-        h_col = 2;
-        v_col = 3;
+        vary_col = 1;  h_col = 2;  v_col = 3;
     case 'xy'
-        Uh = plane.Ux;
-        Uv = plane.Uy;
-        vary_col = 3;
-        h_col = 1;
-        v_col = 2;
+        vary_col = 3;  h_col = 1;  v_col = 2;
 end
 xlab = spec.xlab;
 ylab = spec.ylab;
 [C, A] = display_image(plane.Umag, plane.mask);
-geom = plane_stream_geometry(frame, plane, plane_name, Uh, Uv);
-[cx, cy] = pili_crossings(frame, vary_col, h_col, v_col);
+if isfield(plane, 'stream') && isstruct(plane.stream) && ~isempty(plane.stream)
+    geom = plane.stream;
+else
+    switch plane_name
+        case 'xz'
+            Uh = plane.Ux;  Uv = plane.Uz;
+        case 'yz'
+            Uh = plane.Uy;  Uv = plane.Uz;
+        case 'xy'
+            Uh = plane.Ux;  Uv = plane.Uy;
+    end
+    geom = plane_stream_geometry(frame, plane, plane_name, Uh, Uv);
+end
+[cx, cy] = pili_crossings(pili_um, frame.planes.X_cm_um, vary_col, h_col, v_col);
 ink = [0.12, 0.12, 0.12];
 
 if ~handles.created
@@ -270,10 +310,39 @@ else
 end
 set_xy(handles.(['outline_' tag]), plane.cap_h, plane.cap_v);
 set_xy(handles.(['cross_' tag]), cx, cy);
-apply_2d_limits(ax, frame, plane_name);
-clim(ax, [0, frame.cmax]);
-colormap(ax, jet(256));
-set_panel_title(ax, spec.title2);
+apply_2d_limits(ax, frame, plane_name, spans_changed);
+if cmax_changed
+    clim(ax, [0, frame.cmax]);
+end
+end
+
+
+function [Xs, Ys, Zs] = plane_surface_corners(plane, X_cm_um, plane_name)
+%PLANE_SURFACE_CORNERS  2x2 corner grid for texture-mapped 3D plane surface
+if isfield(plane, 'HG') && ~isempty(plane.HG) && ...
+        size(plane.HG, 1) >= 2 && size(plane.HG, 2) >= 2
+    Xs = plane.HG([1, end], [1, end]);
+    Ys = plane.VG([1, end], [1, end]);
+    Zs = plane.ZG([1, end], [1, end]);
+    return
+end
+h0 = plane.h_vec(1);  h1 = plane.h_vec(end);
+v0 = plane.v_vec(1);  v1 = plane.v_vec(end);
+cm = X_cm_um(:);
+switch plane_name
+    case 'xz'
+        Xs = [h0, h1; h0, h1];
+        Ys = [cm(2), cm(2); cm(2), cm(2)];
+        Zs = [v0, v0; v1, v1];
+    case 'yz'
+        Xs = [cm(1), cm(1); cm(1), cm(1)];
+        Ys = [h0, h1; h0, h1];
+        Zs = [v0, v0; v1, v1];
+    case 'xy'
+        Xs = [h0, h1; h0, h1];
+        Ys = [v0, v0; v1, v1];
+        Zs = [cm(3), cm(3); cm(3), cm(3)];
+end
 end
 
 
@@ -305,43 +374,45 @@ set_panel_title(ax, spec.title2);
 end
 
 
-function apply_3d_limits(ax, frame)
+function apply_3d_limits(ax, frame, spans_changed)
 lim = frame.planes.axis_lim_um;
-xlim(ax, lim(1, :));
-ylim(ax, lim(2, :));
-zlim(ax, lim(3, :));
-set(ax, 'DataAspectRatio', [1, 1, 1], ...
-    'PlotBoxAspectRatio', [diff(lim(1, :)), diff(lim(2, :)), diff(lim(3, :))]);
+if spans_changed
+    set(ax, 'XLim', lim(1, :), 'YLim', lim(2, :), 'ZLim', lim(3, :), ...
+        'DataAspectRatio', [1, 1, 1], ...
+        'PlotBoxAspectRatio', [diff(lim(1, :)), diff(lim(2, :)), diff(lim(3, :))]);
+else
+    set(ax, 'XLim', lim(1, :), 'YLim', lim(2, :), 'ZLim', lim(3, :));
+end
 end
 
 
-function apply_2d_limits(ax, frame, plane_name)
+function apply_2d_limits(ax, frame, plane_name, spans_changed)
 lim = frame.planes.axis_lim_um;
 switch plane_name
     case 'xz'
-        xr = lim(1, :);
-        yr = lim(3, :);
+        xr = lim(1, :);  yr = lim(3, :);
     case 'yz'
-        xr = lim(2, :);
-        yr = lim(3, :);
+        xr = lim(2, :);  yr = lim(3, :);
     case 'xy'
-        xr = lim(1, :);
-        yr = lim(2, :);
+        xr = lim(1, :);  yr = lim(2, :);
 end
-xlim(ax, xr);
-ylim(ax, yr);
-set(ax, 'DataAspectRatio', [1, 1, 1], ...
-    'PlotBoxAspectRatio', [diff(xr), diff(yr), 1]);
+if spans_changed
+    set(ax, 'XLim', xr, 'YLim', yr, ...
+        'DataAspectRatio', [1, 1, 1], ...
+        'PlotBoxAspectRatio', [diff(xr), diff(yr), 1]);
+else
+    set(ax, 'XLim', xr, 'YLim', yr);
+end
 end
 
 
-function lines = draw_pili_lines(ax, frame)
+function lines = draw_pili_lines(ax, pili_um)
 colors = pilus_colors();
-M = frame.params.M_pili;
+M = numel(pili_um);
 lines = gobjects(M, 1);
 hold(ax, 'on');
 for k = 1:M
-    Xp = frame.geom.X_pili{k} * frame.L_to_um;
+    Xp = pili_um{k};
     pk = colors(mod(k - 1, size(colors, 1)) + 1, :);
     lines(k) = plot3(ax, Xp(:, 1), Xp(:, 2), Xp(:, 3), '-', ...
         'Color', pk, 'LineWidth', 1.0);
@@ -349,9 +420,9 @@ end
 end
 
 
-function update_pili_lines(lines, frame)
+function update_pili_lines(lines, pili_um)
 for k = 1:numel(lines)
-    Xp = frame.geom.X_pili{k} * frame.L_to_um;
+    Xp = pili_um{k};
     set(lines(k), 'XData', Xp(:, 1), 'YData', Xp(:, 2), 'ZData', Xp(:, 3));
 end
 end
@@ -360,7 +431,7 @@ end
 function [C, A] = display_image(Umag, mask)
 C = Umag;
 C(mask) = NaN;
-A = double(~mask);
+A = single(~mask);
 end
 
 
@@ -423,11 +494,6 @@ end
 
 function geom = plane_stream_geometry(frame, plane, plane_name, Uh, Uv)
 %PLANE_STREAM_GEOMETRY  Resolve spacing and length, then place the curves
-%  Spacing is 4.5% of the shorter side.  Each direction may travel four
-%  panel diagonals, so a curve reaches the window edge instead of stopping
-%  mid-panel and leaving a gap for the next seed.  It still stops on the
-%  body, at the boundary, or when it loops.  Absolute overrides on
-%  frame.planes replace these defaults.
 span_h = abs(plane.h_vec(end) - plane.h_vec(1));
 span_v = abs(plane.v_vec(end) - plane.v_vec(1));
 spacing_um = 0.045 * min(span_h, span_v);
@@ -451,23 +517,22 @@ switch plane_name
             'Unknown plane ''%s''.', plane_name);
 end
 geom = flowfield_plane_streamlines(plane.h_vec, plane.v_vec, Uh, Uv, ...
-    plane.mask, origin, spacing_um, length_um, plane_name);
+    plane.mask, origin, spacing_um, length_um, plane_name, true);
 end
 
 
-function [cx, cy] = pili_crossings(frame, vary_col, h_col, v_col)
-cm = frame.planes.X_cm_um(:);
+function [cx, cy] = pili_crossings(pili_um, X_cm_um, vary_col, h_col, v_col)
+cm = X_cm_um(:);
 cx = [];
 cy = [];
-for k = 1:frame.params.M_pili
-    Xp = frame.geom.X_pili{k} * frame.L_to_um;
+for k = 1:numel(pili_um)
+    Xp = pili_um{k};
     d = Xp(:, vary_col) - cm(vary_col);
-    for j = 1:size(Xp, 1) - 1
-        if d(j) * d(j + 1) < 0
-            t = d(j) / (d(j) - d(j + 1));
-            cx(end + 1) = Xp(j, h_col) + t * (Xp(j + 1, h_col) - Xp(j, h_col)); %#ok<AGROW>
-            cy(end + 1) = Xp(j, v_col) + t * (Xp(j + 1, v_col) - Xp(j, v_col)); %#ok<AGROW>
-        end
+    hit = find(d(1:end - 1) .* d(2:end) < 0);
+    if ~isempty(hit)
+        t = d(hit) ./ (d(hit) - d(hit + 1));
+        cx = [cx; Xp(hit, h_col) + t .* (Xp(hit + 1, h_col) - Xp(hit, h_col))]; %#ok<AGROW>
+        cy = [cy; Xp(hit, v_col) + t .* (Xp(hit + 1, v_col) - Xp(hit, v_col))]; %#ok<AGROW>
     end
 end
 if isempty(cx)
@@ -529,8 +594,9 @@ end
 end
 
 
-function body_mesh = build_body_mesh(body_vis, params, R_body, X_cm_um)
-body_mesh.type = body_vis.type;
+function local_mesh = build_body_local_mesh(body_vis)
+%BUILD_BODY_LOCAL_MESH  Precompute body-local 3D surface mesh once per figure
+local_mesh.type = body_vis.type;
 switch body_vis.type
     case 'capsule'
         a_um = body_vis.a_um;
@@ -556,24 +622,37 @@ switch body_vis.type
         capsule_X0 = [XL; XC_grid; XR];
         capsule_Y0 = [YL; YC; YR];
         capsule_Z0 = [ZL; ZC; ZR];
-        mesh_size = size(capsule_X0);
-        capsule_flat = [capsule_X0(:).'; capsule_Y0(:).'; capsule_Z0(:).'];
-        pts_3d = R_body * capsule_flat + X_cm_um(:);
-        body_mesh.Xsurf = reshape(pts_3d(1, :), mesh_size);
-        body_mesh.Ysurf = reshape(pts_3d(2, :), mesh_size);
-        body_mesh.Zsurf = reshape(pts_3d(3, :), mesh_size);
+        local_mesh.mesh_size = size(capsule_X0);
+        local_mesh.flat = [capsule_X0(:).'; capsule_Y0(:).'; capsule_Z0(:).'];
     case 'custom'
-        verts_um = body_vis.verts_m * 1e6;
-        pts_lab = R_body * verts_um.' + X_cm_um(:);
-        body_mesh.X = pts_lab(1, :).';
-        body_mesh.Y = pts_lab(2, :).';
-        body_mesh.Z = pts_lab(3, :).';
-        body_mesh.faces = body_vis.faces;
+        local_mesh.verts_um_t = (body_vis.verts_m * 1e6).';
+        local_mesh.faces = body_vis.faces;
     otherwise
         error('render_flowfield_panels:UnknownBodyType', ...
             'Unknown body_vis.type = ''%s''.', body_vis.type);
 end
-assert(isstruct(params));
+end
+
+
+function body_mesh = transform_body_mesh(local_mesh, R_body, X_cm_um)
+body_mesh.type = local_mesh.type;
+switch local_mesh.type
+    case 'capsule'
+        pts_3d = R_body * local_mesh.flat + X_cm_um(:);
+        ms = local_mesh.mesh_size;
+        body_mesh.Xsurf = reshape(pts_3d(1, :), ms);
+        body_mesh.Ysurf = reshape(pts_3d(2, :), ms);
+        body_mesh.Zsurf = reshape(pts_3d(3, :), ms);
+    case 'custom'
+        pts_lab = R_body * local_mesh.verts_um_t + X_cm_um(:);
+        body_mesh.X = pts_lab(1, :).';
+        body_mesh.Y = pts_lab(2, :).';
+        body_mesh.Z = pts_lab(3, :).';
+        body_mesh.faces = local_mesh.faces;
+    otherwise
+        error('render_flowfield_panels:UnknownBodyType', ...
+            'Unknown body_vis.type = ''%s''.', local_mesh.type);
+end
 end
 
 

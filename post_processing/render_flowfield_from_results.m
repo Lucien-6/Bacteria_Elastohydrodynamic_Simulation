@@ -33,6 +33,14 @@ this_file = mfilename('fullpath');
 proj_root = fileparts(fileparts(this_file));
 addpath(proj_root);
 addpath(genpath(fullfile(proj_root, 'src')));
+chlamy_dir = fullfile(proj_root, 'chlamydomonas');
+if isfolder(chlamy_dir)
+    addpath(chlamy_dir);
+    chlamy_core = fullfile(chlamy_dir, 'core');
+    if isfolder(chlamy_core)
+        addpath(chlamy_core);
+    end
+end
 
 if nargin < 1 || isempty(mat_file)
     [f_name, f_dir] = uigetfile({'*.mat', 'MAT-files (*.mat)'}, ...
@@ -59,7 +67,7 @@ if nargin < 4, fps = []; end
 if nargin < 5, skip = []; end
 if nargin < 6 || isempty(opts), opts = struct(); end
 
-S = load(mat_file, 'results', 'params');
+S = load_saved_results(mat_file);
 if ~isfield(S, 'results') || ~isfield(S, 'params')
     error('render_flowfield_from_results:MissingVariables', ...
         'The file must contain the variables "results" and "params": %s', mat_file);
@@ -93,6 +101,27 @@ fprintf('Results file : %s\n', mat_file);
 fprintf('Mode         : %s\n', char(mode));
 fprintf('Drop first   : %d\n', logical(opts.drop_first_frame));
 info = call_saved_flowfield(S.results, S.params, out_dir, opts);
+end
+
+
+function S = load_saved_results(mat_file)
+%LOAD_SAVED_RESULTS  Load results & params without benign legacy-MAT warnings.
+%  Historical .mat files may contain a non-serialisable body_precomp.dM_BB
+%  decomposition object (rebuilt automatically by ensure_body_precomp) or
+%  anonymous active-moment handles recorded before folder reorganisation
+%  (repaired automatically by restore_saved_moment_handles).
+w_decomp = warning('query', 'MATLAB:decomposition:LoadNotSupported');
+w_handle = warning('query', 'MATLAB:dispatcher:UnresolvedFunctionHandle');
+restore_w = onCleanup(@() restore_warnings(w_decomp, w_handle));
+warning('off', 'MATLAB:decomposition:LoadNotSupported');
+warning('off', 'MATLAB:dispatcher:UnresolvedFunctionHandle');
+S = load(mat_file, 'results', 'params');
+end
+
+
+function restore_warnings(w_decomp, w_handle)
+warning(w_decomp.state, 'MATLAB:decomposition:LoadNotSupported');
+warning(w_handle.state, 'MATLAB:dispatcher:UnresolvedFunctionHandle');
 end
 
 
@@ -131,7 +160,10 @@ pairs = {'grid_spacing_um', 'grid_spacing_um'; ...
          'quiver_skip', 'quiver_skip'; ...
          'chunk_size', 'chunk_size'; ...
          'stream_spacing_um', 'stream_spacing_um'; ...
-         'stream_length_um', 'stream_length_um'};
+         'stream_length_um', 'stream_length_um'; ...
+         'use_gpu', 'use_gpu'; ...
+         'use_parallel', 'use_parallel'; ...
+         'scale_from_video_frames', 'scale_from_video_frames'};
 for n = 1:size(pairs, 1)
     target = pairs{n, 1};
     source = pairs{n, 2};

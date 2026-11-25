@@ -14,6 +14,99 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [10.2.1] — 2026-11-24
+
+Clean `.mat` serialisation and warning-free post-processing loads for both
+new and pre-v10.0.0 saved runs.
+
+### Fixed
+
+- **Omit non-serialisable `body_precomp` when saving `simulation_results.mat`**
+  (`run_simulation.m`): strips `body_precomp` (which contains a MATLAB
+  `decomposition` object) from the saved struct copy while preserving it in
+  memory for final flow-field plotting and the returned `params`, eliminating
+  both save-time and load-time `MATLAB:decomposition:*NotSupported` warnings
+  on newly generated runs.
+- **Pre-load `chlamydomonas/core` path & scoped legacy-MAT warning guard**
+  (`post_processing/render_flowfield_from_results.m`,
+  `post_processing/render_animation_from_results.m`): adds `chlamydomonas/`
+  and `chlamydomonas/core/` to the path prior to `load(...)` and locally
+  suppresses only `MATLAB:decomposition:LoadNotSupported` and
+  `MATLAB:dispatcher:UnresolvedFunctionHandle` with `onCleanup` restoration
+  during `load`, keeping console output clean on historical `.mat` files
+  while `ensure_body_precomp` and `restore_saved_moment_handles` continue to
+  rebuild precomputed factors and legacy handles cleanly.
+
+---
+
+## [10.2.0] — 2026-11-24
+
+**Flow-field computation and animation acceleration** preserving full FP64
+velocity accuracy and identical 2500 × 1400 6-panel publication layout.
+
+### Added
+
+- **Hybrid GPU + thread-pool flow-field pipeline** (`render_flowfield_engine.m`,
+  `flowfield_grid_velocity.m`, `render_flowfield_from_results.m`):
+  - `use_gpu` (default `'auto'`): auto-detects a CUDA GPU once and evaluates
+    all three planes (`XZ`, `YZ`, `XY`) in a single batched FP64 GPU kernel
+    (body RSM + pilus RSS + Rotlet, `2.8e-16` relative agreement vs CPU),
+    falling back seamlessly to CPU when unavailable or when `use_gpu = false`.
+  - `use_parallel` (default `'auto'`): uses a MATLAB thread pool
+    (`parpool('Threads')` with `parallel.pool.Constant` worker-local
+    `body_precomp`) to parallelise per-frame force extraction and 2-D
+    streamline computation on GPU hosts, or full frame batches on CPU-only
+    hosts, with serial fallback when Parallel Computing Toolbox is absent.
+  - `render_flowfield_from_results.m` now forwards `use_gpu`, `use_parallel`,
+    and `scale_from_video_frames` from `config.json`'s `flowfield` block.
+
+### Changed
+
+- **Block Schur force extraction without redundant dense LU**
+  (`ode_coupled_rhs.m`, `flowfield_from_saved_state.m`): dual-output
+  `ode_coupled_rhs` now runs `build_coupled_lin_sys(..., 'rhs_light')` and
+  exports exact Stokeslet/rotlet coefficients directly from
+  `AQ_trans * z_dot`, `AQ_twist_scalar * z_dot`, and the background-flow
+  inverse, eliminating two redundant `O((3 N_total)^3)` dense LU solves per
+  frame (`5.9e-11` forward mobility residual vs dense LU).
+- **Batched BLAS3 velocity kernels & exact analytic capsule outlines**
+  (`flowfield_grid_velocity.m`): combines all three planes' exterior grid
+  points into one CM-shifted BLAS3/GPU pass (~23.5× faster on RTX 5080 FP64,
+  ~2.0× faster on single-thread CPU FP64), replaces the 7,056-triangle
+  capsule slicing loop with an exact closed-form polar ray-capsule section
+  (`|SDF| <= 3.3e-16 µm`), vectorises triangle filtering for custom meshes,
+  and stores 2×2 corner grids for 3-D texture-mapped surfaces.
+- **Fast 2-D planar streamlines** (`flowfield_plane_streamlines.m`):
+  zero-copy signed backward tracing (`dir_sign = ±1`), endpoint velocity
+  sample reuse (1/3 fewer bilinear lookups), inlined linear-index RK2
+  sampling, 1-cell dilated `O(1)` fine-grid collision pre-filter, early-exit
+  bin queries, batch bin insertion, reusable `int32` loop-stamp buffer, and
+  optional `skip_check` for production rendering (~3.2× faster single-thread,
+  ~23× with thread pool).
+- **Streamlined panel updates & 5.2× smaller grid cache**
+  (`render_flowfield_panels.m`, `render_flowfield_engine.m`): moves static
+  axes styling, colormaps, titles, and local 3-D capsule mesh generation to
+  one-time figure creation; transforms body mesh and pili once per frame;
+  skips unchanged `clim` / `PlotBoxAspectRatio` / `colorbar` updates and
+  redundant `drawnow` before `getframe`; precomputes streamlines into a slim
+  cache (**8.28 → 1.58 MiB/frame**, fitting ~1,300 frames in 2 GiB) and
+  releases each animation frame's grid immediately after encoding.
+
+### Fixed
+
+- **Loaded-MAT `body_precomp.dM_BB` guard** (`build_coupled_lin_sys.m`,
+  `render_flowfield_engine.m`, `compute_plot_flowfield.m`): MATLAB does not
+  serialise `decomposition` objects into `.mat` files or across `parfor`
+  boundaries, leaving loaded `body_precomp.dM_BB` empty; added explicit
+  dimension checks in `build_coupled_lin_sys` and automatic one-time rebuild
+  in post-processing and worker initialisation.
+- **Cache-eviction memory growth & 4K codec clamp**
+  (`render_flowfield_engine.m`): transient recomputed animation frames are no
+  longer permanently re-pinned in `held.pack`, and `fit_frame` clamps
+  captured physical frames to `3840 × 2160` even dimensions for H.264 safety.
+
+---
+
 ## [10.1.0] — 2026-11-24
 
 **BacEHD** CPC submission readiness, full-project code-review hardening,

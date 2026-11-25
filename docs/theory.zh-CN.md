@@ -5,7 +5,7 @@
 
 > **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
 > **更新日期:** 2026-11-24
-> **版本:** 10.1.0
+> **版本:** 10.2.1
 
 本文档说明物理模型和数值方法。实际运行步骤见 [`../USER_GUIDE.md`](../USER_GUIDE.md)，版本历史见 [`../CHANGELOG.md`](../CHANGELOG.md)。
 
