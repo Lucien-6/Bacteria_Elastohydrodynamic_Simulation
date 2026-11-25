@@ -14,6 +14,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [10.2.2] — 2026-11-25
+
+Restore the rigid-body Block Schur fast path after v10.2.0's `decomposition`
+guard regression and add multi-worker `parfor` / GPU flow-field benchmarks
+for the CPC manuscript.
+
+### Fixed
+
+- **Restore Block Schur fast path by checking `dM_BB.MatrixSize`**
+  (`src/core/build_coupled_lin_sys.m`, `src/visualization/render_flowfield_engine.m`,
+  `src/visualization/compute_plot_flowfield.m`): MATLAB `decomposition` objects
+  are scalar (`size(dM_BB, 1) == 1`) and store their matrix dimensions in
+  `dM_BB.MatrixSize`. Replaced the v10.2.0 `size(dM_BB, 1) == 3 * N_body` guard
+  (which silently disabled the Block Schur fast path in v10.2.0–10.2.1) with
+  `isa(dM_BB, 'decomposition') && isscalar(dM_BB) && isequal(dM_BB.MatrixSize, [3*N_body, 3*N_body])`,
+  restoring 48.8× (bare capsule) / 4.13× (1-pilus) RHS speedups, 9.60× deterministic
+  and 5.13× Brownian end-to-end speedups, and genuine `8.52e-13` `schur_equivalence`
+  verification.
+
+### Added
+
+- **Multi-worker `parfor` & GPU/ThreadPool flow-field benchmark**
+  (`validation/cpc_parallel_and_flowfield_benchmark.m`): reproducible CPC Section 5
+  scaling benchmark measuring Brownian ensemble strong scaling across 1–16 `parfor`
+  workers and 3-plane FP64 flow-field reconstruction across serial CPU, ThreadPool,
+  and hybrid CUDA GPU + ThreadPool (`output/cpc_checks/parallel_scaling_benchmark.csv`,
+  `output/cpc_checks/flowfield_gpu_benchmark.csv`).
+
+---
+
 ## [10.2.1] — 2026-11-24
 
 Clean `.mat` serialisation and warning-free post-processing loads for both

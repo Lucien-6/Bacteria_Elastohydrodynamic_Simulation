@@ -312,7 +312,7 @@ def fig_performance(ops: pd.DataFrame, e2e: pd.DataFrame) -> plt.Figure:
     if len(e2e) != 2:
         e_labels = [str(x) for x in e2e["case_id"]]
     ax1.bar(xe - off_e, e2e["wall_legacy_s"], width=w_e, color=GREY, label="Legacy (dense + FD)")
-    ax1.bar(xe + off_e, e2e["wall_v10_s"], width=w_e, color=BLUE, label="BacEHD v10.2.1")
+    ax1.bar(xe + off_e, e2e["wall_v10_s"], width=w_e, color=BLUE, label="BacEHD v10.2.2")
     ax1.set_xticks(xe)
     ax1.set_xticklabels(e_labels, fontsize=6.5)
     ax1.set_xlim(-0.55, len(e2e) - 0.35)

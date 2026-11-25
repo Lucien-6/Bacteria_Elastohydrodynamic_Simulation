@@ -3,9 +3,9 @@
 [English](theory.md) | 中文  
 [返回中文 README](../README.zh-CN.md)
 
-> **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **更新日期:** 2026-11-24
-> **版本:** 10.2.1
+> **作者:** 陆尚平 (Lucien, [lucien-6@qq.com](mailto:lucien-6@qq.com))  
+> **更新日期:** 2026-11-25  
+> **版本:** 10.2.2
 
 本文档说明物理模型和数值方法。实际运行步骤见 [`../USER_GUIDE.md`](../USER_GUIDE.md)，版本历史见 [`../CHANGELOG.md`](../CHANGELOG.md)。
 
@@ -278,9 +278,9 @@ c_a[\mathbf{x}_0]_{\times}
 \mathbf{S}_{PP} = \mathbf{M}_{PP} - \mathbf{M}_{PB}(\mathbf{M}_{BB}^{\mathrm{loc}})^{-1}\mathbf{M}_{BP}.
 ```
 
-该 reformulation 将每步稠密 LU 分解复杂度从 \(O((3N_{\mathrm{body}} + 3N_{\mathrm{pili}})^3)\) 降至 \(O((3N_{\mathrm{pili}})^3)\)，且与稠密路径严格代数等价（在条件数对应的机器精度内一致，见 `validation/cpc_performance_benchmark.m`）。无纤毛算例（\(M=0\)）则直接旋转预计算的 \(6\times 6\) 阻力矩阵（\(N_{\mathrm{body}}=300\) 时提速约 99×）。
+该重构将每步稠密 LU 分解复杂度从 \(O((3N_{\mathrm{body}} + 3N_{\mathrm{pili}})^3)\) 降至 \(O((3N_{\mathrm{pili}})^3)\)，且与稠密路径严格代数等价（在条件数对应的机器精度内一致，见 `validation/cpc_performance_benchmark.m`）。无纤毛算例（\(M=0\)）则直接旋转预计算的 \(6\times 6\) 阻力矩阵（\(N_{\mathrm{body}}=306\) 时提速约 48.8×）。
 
-对于刚性 `ode15s` 牛顿迭代，主导的 \(O(N_k^4)\) 刚性来自局部 Kirchhoff 弹性恢复力矩 \(\partial \mathbf{R}/\partial \mathbf{Z}\)，而水动力阻力算子 \(\mathrm{lin\_sys}(\mathbf{Z})\) 仅以 \(O(1)\) 平滑变化。因此 `ode_coupled_jacobian` 仅组装并 LU 分解一次 \(\mathrm{lin\_sys}(\mathbf{Z})\)，对局部模板采用步长 3 图着色（3-colour）求 \(\partial \mathbf{R}/\partial(\theta,\phi,\psi)\)（同时逐列处理根段并包含精确线性化马达扭矩–转速反馈），通过单次多右端回代得到雅可比矩阵，实现 75×–517× 雅可比加速，且不改变 ODE 右端函数和误差控制；如牛顿迭代失败则自动回退有限差分雅可比。布朗分段重启期间，`LaggedJacobian` 在 `jacobian_max_age` 步内复用缓存雅可比，并按需或在换基后通过 `ode_coupled_jacobian` 刷新。
+对于刚性 `ode15s` 牛顿迭代，主导的 \(O(N_k^4)\) 刚性来自局部 Kirchhoff 弹性恢复力矩 \(\partial \mathbf{R}/\partial \mathbf{Z}\)，而水动力阻力算子 \(\mathrm{lin\_sys}(\mathbf{Z})\) 仅以 \(O(1)\) 平滑变化。因此 `ode_coupled_jacobian` 仅组装并 LU 分解一次 \(\mathrm{lin\_sys}(\mathbf{Z})\)，对局部模板采用步长 3 图着色（3-colour）求 \(\partial \mathbf{R}/\partial(\theta,\phi,\psi)\)（遇非局部行波主动弯矩 `traveling_wave` 时自动退化为逐列精确求导，同时逐列处理根段并包含精确线性化马达扭矩–转速反馈），通过单次多右端回代得到雅可比矩阵，实现 72.5×–538.6× 雅可比加速，且不改变 ODE 右端函数和误差控制；如牛顿迭代失败则自动回退有限差分雅可比。布朗分段重启期间，`LaggedJacobian` 在 `jacobian_max_age` 步内复用缓存雅可比，并按需或在换基后通过 `ode_coupled_jacobian` 刷新。
 
 ## 7. 弹性杆力矩
 
@@ -355,7 +355,7 @@ Directors 按分段存储（第 \(i\) 段覆盖 \(s\in[(i-1)\Delta s,\ i\Delta s
 $$\tau_{\mathrm{eff}} = \tau_{\mathrm{motor}}\left(1 - \frac{\omega_{\mathrm{rel}}}{\omega_{\max}}\right),\qquad
 \omega_{\mathrm{rel}} = \operatorname{sign}(\tau_{\mathrm{motor}})\,\Big[\big(\dot\psi_1 + \cos\theta_1\,\dot\phi_1\big) - \boldsymbol{\Omega}_{\mathrm{body}}\cdot\mathbf{d}_3^{(1)}\Big].$$
 
-$\dot\psi_1 + \cos\theta_1\dot\phi_1$ 是 Walker Euler 角运动学中第 1 段的完整轴向角速度（与线性系统扭转率行所用表达式相同）；减去 $\boldsymbol{\Omega}_{\mathrm{body}}\cdot\mathbf{d}_3^{(1)}$ 后该速度与参考系无关，等于马达实际感受到的转子–定子相对转动。符号因子使转速沿驱动方向度量，因此同一公式适用于 CW 与 CCW 马达。该关系是非对称的：被迫反转（$\omega_{\mathrm{rel}}<0$）时扭矩高于失速值，$\omega_{\mathrm{rel}}>\omega_{\max}$ 时马达变为制动。由于 $\dot{z}$ 关于马达扭矩是仿射的，$\omega_{\mathrm{rel}} = a + B\tau$（$a$ 为无马达解，$B$ 为单位扭矩响应，二者来自 `lin_sys` 的同一次分解），自洽扭矩由小型线性系统 $(I + \operatorname{diag}(|\tau_{\mathrm{motor}}|/\omega_{\max})B)\,\tau = \tau_{\mathrm{motor}} - \operatorname{diag}(|\tau_{\mathrm{motor}}|/\omega_{\max})\,a$ 精确求得。
+$\dot\psi_1 + \cos\theta_1\dot\phi_1$ 是 Walker Euler 角运动学中第 1 段的完整轴向角速度（与线性系统扭转率行所用表达式相同）；减去 $\boldsymbol{\Omega}_{\mathrm{body}}\cdot\mathbf{d}_3^{(1)}$ 后该速度与参考系无关，等于马达实际感受到的转子–定子相对转动。符号因子使转速沿驱动方向度量，因此同一公式适用于 CW 与 CCW 马达。该关系是非对称的：被迫反转（$\omega_{\mathrm{rel}}<0$）时扭矩高于失速值，$\omega_{\mathrm{rel}}>\omega_{\max}$ 时马达变为制动。由于 $\dot{\mathbf{z}}$ 关于马达扭矩是仿射的，令有向相对角速度 $\omega = (\dot\psi_1 + \cos\theta_1\dot\phi_1) - \boldsymbol{\Omega}_{\mathrm{body}}\cdot\mathbf{d}_3^{(1)}$ 满足 $\boldsymbol{\omega} = \mathbf{a} + \mathbf{B}\boldsymbol{\tau}$（$\mathbf{a}$ 为无马达解，$\mathbf{B}$ 为单位扭矩响应，二者来自 `lin_sys` 的同一次分解），结合 $\tau_{\mathrm{motor},m}\operatorname{sign}(\tau_{\mathrm{motor},m}) = |\tau_{\mathrm{motor},m}|$，自洽扭矩由小型线性系统 $(I + \operatorname{diag}(|\tau_{\mathrm{motor},m}|/\omega_{\max,m})\mathbf{B})\,\boldsymbol{\tau} = \boldsymbol{\tau}_{\mathrm{motor}} - \operatorname{diag}(|\tau_{\mathrm{motor},m}|/\omega_{\max,m})\,\mathbf{a}$ 精确求得。
 
 符号约定：`R_global` 存储的是所施加广义力的负值，因此马达扭矩以 $-\tau$ 进入其 $\psi_1$ 行；正的 `torque_pN_nm` 使转子绕向外根部切向量 $\mathbf{d}_3$ 做右手旋转（从鞭毛末端朝胞体看为逆时针）。
 

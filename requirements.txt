@@ -1,422 +1,55 @@
-# BacEHD (Bacteria Elastohydrodynamic Simulation) — MATLAB project
+# BacEHD (Bacteria Elastohydrodynamic Simulation) — Runtime Requirements
 #
-# Release: 10.2.1 (2026-11-24)
+# Release: 10.2.2 (2026-11-25)
+# Authors: Shangping Lu (Lucien, lucien-6@qq.com), Kun Zhao (kzhao@uestc.edu.cn)
+# Repository: https://github.com/Lucien-6/Bacteria_Elastohydrodynamic_Simulation
+# Zenodo DOI: 10.5281/zenodo.24529867
+# License: MIT (see LICENSE)
 #
-# v10.2.1: Clean .mat serialisation and warning-free post-processing loads.
-#   (1) run_simulation.m omits non-serialisable body_precomp (Cholesky
-#       decomposition object) from the saved .mat copy while keeping it in
-#       memory for final flow-field plotting and returned params.
-#   (2) post_processing/render_flowfield_from_results.m and
-#       render_animation_from_results.m add chlamydomonas/core before load()
-#       and locally silence MATLAB:decomposition:LoadNotSupported and
-#       MATLAB:dispatcher:UnresolvedFunctionHandle via onCleanup for
-#       historical .mat files.
-#   No new toolbox dependency.
+# Full release history and bug-fix records are maintained in CHANGELOG.md.
+
+# ==============================================================================
+# 1. Core Simulation Runtime (Required)
+# ==============================================================================
+# - MATLAB R2022a or later (developed and tested on R2026a on Windows 11 and
+#   R2023a on Linux HPC clusters).
+#   * Earlier releases are unsupported: runs use jsonencode(..., 'PrettyPrint',
+#     true) (R2021a) and clim() in flow-field figures (R2022a).
+#   * Base MATLAB only: NO Statistics and Machine Learning Toolbox, NO MEX
+#     compiler, and NO Python / Conda / pip environment are required to run
+#     simulations or the CPC verification suite.
+#   * Not compatible with GNU Octave (relies on MATLAB decomposition, ode15s,
+#     and exportgraphics).
 #
-# v10.2.0: Flow-field computation and animation acceleration (full FP64
-#   accuracy & unchanged 2500 x 1400 6-panel layout).
-#   (1) Direct Block Schur force extraction in ode_coupled_rhs /
-#       flowfield_from_saved_state (eliminates two redundant dense LU solves
-#       per frame; guards empty decomposition objects after .mat load).
-#   (2) Batched 3-plane CM-shifted BLAS3 / auto-FP64-GPU velocity kernels
-#       (flowfield_grid_velocity, use_gpu='auto') and exact analytical polar
-#       capsule section outlines (2x2 corner grids for 3-D texturemaps).
-#   (3) Optimised flowfield_plane_streamlines (zero-copy backward trace,
-#       endpoint sample reuse, O(1) dilated fine-grid collision filter,
-#       batch bin updates) + thread-pool parallel batching (use_parallel='auto')
-#       in render_flowfield_engine; slimmed grid cache (~1.58 MiB/frame,
-#       ~1,300 frames in 2 GiB) and streamlined render_flowfield_panels updates.
-#   No new required toolbox dependency (Parallel Computing Toolbox / CUDA GPU
-#   are optional and fall back cleanly to serial CPU).
+# - Bundled Third-Party MATLAB Package (Included — no manual download needed):
+#   * S2 Sampling Toolbox ("Suite of functions to perform uniform sampling of
+#     a sphere", MIT License, Copyright (c) 2019 Anton Semechko), bundled under
+#     MATLAB Add-On/Suite of functions to perform uniform sampling of a sphere/.
+#     Added automatically by cpc/run_cpc_tests.m and validation drivers.
+
+# ==============================================================================
+# 2. Optional MATLAB Toolboxes & Hardware Acceleration
+# ==============================================================================
+# - Parallel Computing Toolbox (optional):
+#   * Accelerates multi-worker Brownian ensembles and JSON parameter sweeps in
+#     batch_sweep/ (parfor) and multi-frame flow-field streamline computation
+#     (parpool('Threads'), use_parallel = 'auto').
+#   * Falls back seamlessly to serial CPU execution when absent.
 #
-# v10.1.0: CPC submission readiness, full-codebase audit hardening, and
-#   single-engine HPC unification.
-#   (1) Official program title BacEHD, CITATION.cff, cpc/PROGRAM_SUMMARY.md,
-#       expanded 18-check cpc/run_cpc_tests.m (Block Schur equivalence,
-#       pilus thermal operator, end-to-end JSON->run_simulation smoke,
-#       3-D Chlamydomonas dry_run), and validation/cpc_performance_benchmark.m.
-#   (2) run_simulation_HPC_Linux.m unified into a thin forwarding alias to
-#       run_simulation.m; flow-field colour scaling replaced prctile with pure
-#       base-MATLAB linear percentile interpolation (zero Statistics Toolbox
-#       dependency across R2022a-R2026a).
-#   (3) Hardened parameter validation (NaN/Inf/geometry_mode/custom .fun),
-#       init_coupled_params default N_segments derivation, save_sim_config
-#       heterogeneous pili & UTF-8 export, ode_coupled_jacobian unlimited-motor
-#       guard, run_simulation relative time tolerances & fallback timer reset,
-#       batch physical-core probe sync, and 0 codeIssues across all 170
-#       project .m files.
-#   No new toolbox dependency.
+# - CUDA-capable NVIDIA GPU with FP64 support (optional):
+#   * Accelerates batched 3-plane flow-field velocity reconstruction in
+#     render_flowfield_from_results / flowfield_grid_velocity (use_gpu = 'auto').
+#   * Falls back seamlessly to CPU BLAS3 when absent.
 #
-# v10.0.0: Major elastohydrodynamic performance, pilus thermal physics, and
-#   validation release.
-#   (1) Pilus thermal fluctuations hardened and upgraded: the constrained
-#       probe's balancing scalar axial torque density (AQ_twist_scalar ->
-#       info.P_tau -> pili_thermal_rhs / flow_state.brown_pili_tau) now
-#       accompanies the centreline force density, eliminating the ~3.3 %
-#       bent-state instantaneous modal response error and ~141 % transient
-#       twist-rate leak while lowering bent-state twist energy by 2-4 orders
-#       of magnitude and restoring monotone small-dt_B covariance convergence.
-#       Unequal-length pili gain optional time-scale mode selection
-#       (brownian.pili_tau_cut_s) and near-degenerate pair protection
-#       (brownian.pili_protect_pairs). Numerical hardening adds symmetric
-#       diagonal preconditioning for T_hh, symmetrisation/SPD repair prior to
-#       held-load drift W, two-sided dt_B window guards, tiny tail-step
-#       merging, curved-pilus validation warnings, complete per-pilus RNG
-#       seed propagation (JSON, seed txt, batch_repeat_brownian*, clean .mat),
-#       and non-polluting final flow-field rendering.
-#   (2) Solver and operator acceleration: rigid-body body-frame Block Schur
-#       complement precomputation (build_body_precomp, build_pili_mobility_blocks),
-#       fast frozen-hydrodynamics 3-colour Jacobian (ode_coupled_jacobian),
-#       3-colour sparse curvature Jacobian (pili_bending_rates), batched
-#       pagesvd node directors, and O(N_k) matrix-free held-load drift.
-#   (3) Validation, progress, and visualisation: CPC reviewer test suite
-#       (cpc/run_cpc_tests.m) and external slender-body/cantilever checks
-#       (validation/); adaptive ProgressEstimator / BatchEtaEstimator with
-#       atomic progress.txt heartbeats; 2-D in-plane flow-field streamlines
-#       (flowfield.stream_spacing_um / stream_length_um); reorganised
-#       chlamydomonas/ 3-D helical swimmer package.
-#   No new toolbox dependency.
-#
-# v9.0.0: Optional thermal fluctuations of the pili (brownian.pili_thermal /
-#   cfg.enable_pili_brown, default off). The first and second bending modes of
-#   every pilus receive thermal forces sampled jointly with the body from the
-#   coupled mobility and applied as a force density on the pilus centrelines;
-#   these modes reach equipartition. Twist and higher bending modes stay
-#   deterministic. For passive, naturally straight pili with clamped roots
-#   (free_torsion is rejected). Needs a Brownian interval of at most a
-#   quarter of the fastest thermal relaxation time (0.002 s for 3 um
-#   filaments). Results with the option off are unchanged bit for bit.
-#   No new dependency.
-#
-# v8.8.0: Biflagellate Chlamydomonas swimmer. The active moment is inverted
-#   from the measured gait of cell 1p00 A (57.8 Hz) and fitted with two
-#   harmonics. chlamy_run_case can tilt each beat plane about its root
-#   tangent and scale one flagellum's amplitude, phase or frequency.
-#   chlamy_swim_analysis reports forward speed, spin and the helical pitch,
-#   radius and axis tilt. Run chlamydomonas/cases/run_planar_sym50.m,
-#   chlamydomonas/cases/run_3d_helix_2s.m, or chlamy_run_preset.m (reorganised
-#   in v10.0.0 from the original run_long_sym50.m / run_long_asym50.m).
-#   Settling, E. coli and Brownian cases are unchanged. No new toolbox. The
-#   gait tables under output/chlamy_inverse/ are generated data.
-#
-# v8.7.3: Flow-field figure release. The end-of-run figure and every redraw
-#   are six panels (3-D and 2-D XZ, YZ and XY through the body centre) on a
-#   2500 x 1400 canvas; the colour bar sits beside panel f and the 99th
-#   percentile includes the XY samples. render_flowfield_from_results accepts
-#   opts.drop_first_frame (default false) and shows one Compute bar and one
-#   Video bar while writing an animation. Saved Chlamydomonas runs whose
-#   active moment is a nested function handle from before 2026-11-11 can be
-#   redrawn. The ODE and results.flow_state are unchanged. No new dependency.
-#
-# v8.7.2: Documentation and comment-accuracy patch. Outdated or wrong source
-#   comments were corrected, the motor-speed pre-flight warning and one flow-field
-#   log line were reworded, the obsolete src/utils/verify_migration.m was
-#   removed, and the README no longer carries a version-notes section. The
-#   solver, ODE trajectories and saved results are unchanged. No new
-#   dependency.
-#
-# v8.7.1: Flow-field figure patch. The cell interior is left blank, the
-#   axes cover the body and flagellum, and the outline is a smooth
-#   surface section. Panel letters sit outside the axes. The colour bar
-#   is vertical beside panel d. The figure title is the time at 0.0001 s
-#   resolution. The ODE and results.flow_state are unchanged. No new
-#   dependency.
-#
-# v8.7.0: Flow-field post-processing. Every new run saves results.flow_state
-#   (full state, pilus basis, and the Brownian force at each stored output).
-#   render_flowfield_from_results draws a final panel, selected times, or a
-#   full-sequence animation (MP4 on Windows/macOS, AVI on Linux). The ODE
-#   trajectory is unchanged. Results from 8.6.6 or earlier cannot reconstruct
-#   a flow field. No new dependency.
-#
-# v8.6.6: Visualisation fix. Custom-body alpha shapes now keep a closed
-#   surface of the whole cloud (the E. coli body is no longer one tetrahedron).
-#   Co-moving animation windows never use a tick spacing finer than 0.5 um.
-#   The two body stripes are replaced by one short dark-green patch on one
-#   side of the waist.  The ODE is unchanged.  Parametric results are
-#   unchanged.  A custom body whose surface mesh changes also changes its
-#   enclosed volume, the volume-based length scale, and the sinking force
-#   when the cell is not neutrally buoyant.  No new dependency.
-#
-# v8.6.5: Example-case release. Adds a realistic single-polar-flagellum E. coli
-#   swimmer (configs/config_ecoli_single_flagellum.json, geometry from
-#   geometry/generate_ecoli_geometry.m): 2.5 um x 0.88 um body, left-handed
-#   helical filament, free-torsion motor, neutrally buoyant, T_obs = 1 s.
-#   No solver change and no new dependency; results of existing cases unchanged.
-#
-# v8.6.3: Animation-layout refinement release. The co-moving windows of the
-#   motion animation are sized per axis from the reach of the body and pili
-#   (equal scale on all axes, no longer cubes) and carry no scale bar; two dark
-#   stripes on the body show a roll about the long axis; the four panels are
-#   arranged automatically (largest common scale over all guillotine layouts).
-#   Simulation results unchanged.  No new dependency.
-#
-# v8.6.2: Animation-layout release. The motion animation has four panels on a
-#   fixed 16:9 canvas (3-D and XZ overviews plus co-moving 3-D and XZ windows
-#   with ticks and grid; the YZ panel is removed), a legend, 2-um scale bars and
-#   a global time stamp with the playback speed relative to real time.
-#   Simulation results unchanged.  The animation code uses vecnorm and
-#   max(..., 'all'), i.e. MATLAB R2018b or newer.  No new dependency.
-#
-# v8.6.0: Animation-rendering performance release. The 3-panel (3D + XZ + YZ)
-#   motion animation is rendered by the shared
-#   src/visualization/render_motion_animation.m: graphics objects are created
-#   once and only their data are updated per frame (about 2x faster, identical
-#   video content, resolution and quality).  Used by run_simulation.m and
-#   run_simulation_HPC_Linux.m (platform-aware MPEG-4 / Motion JPEG AVI
-#   profile); simulation.log gains a per-stage timing table; new
-#   post_processing/render_animation_from_results.m re-renders the animation
-#   from simulation_results.mat without re-running the ODE.  Simulation results
-#   unchanged.  No new dependency.
-#
-# v8.5.2: Hydrodynamic-calibration release. New pilus hydrodynamic radius
-#   factor (material.hydro_radius_factor / cfg.hydro_radius_factor, default
-#   sqrt(2)): eps_pili = factor * r_pili. The rotlet-segment twist drag
-#   2*pi*mu*eps^2 equals the no-slip-cylinder value 4*pi*mu*r^2 and the
-#   translational mobility is within ~3 % of slender-body theory (eps = r
-#   gave half the twist drag and +8-9 % translation). Default results of
-#   pili-bearing cases change; factor 1 reproduces 8.5.1. Bending stiffness
-#   and root gap use the physical radius. No new dependency.
-#
-# v8.5.1: Numerical-performance and maintenance release. Brownian runs
-#   re-use the last exact finite-difference Jacobian across the dt_B ode15s
-#   restarts (new src/core/LaggedJacobian.m, runtime option
-#   cfg.jacobian_reuse, default on); MATLAB code-analyzer clean-up,
-#   verify_migration.m fixes, Markdown lint configuration. No physical or
-#   discretisation change, deterministic runs bit-for-bit unchanged. No new
-#   dependency.
-#
-# v8.5.0: Brownian force-realisation release. Each dt_B interval's body-only
-#   thermal increment is realised as a constant generalised force
-#   f_th = M_eff \ (dU/dt_B) acting through the coupled ODE
-#   (new src/physics/sample_brownian_body_force.m, ode_coupled_rhs Step 8a)
-#   instead of a displacement kick + root re-projection; removes the spurious
-#   pilus root kink and the explicit finite-difference Ito drift (implicit
-#   now).  [Correction, see theory.md 10.2: in an unbounded fluid it is non-zero
-#   only through the antisymmetric part of M_TR.] Type-2 parabolic template
-#   anchored at the origin. No new dependency.
-# v8.4.0: free_torsion root twist row carries only the boundary (motor)
-#   torque; interior Kirchhoff twist and integrated active moments no longer
-#   double counted (steady rotor speeds drop by ~N). Stall diagnostic uses
-#   xi_t = 2*pi*mu*eps^2*L. No new dependency.
-# v8.3.0: node-collocated second-order curvature stencil (shared
-#   compute_pili_curvature.m, also for kb0); all 14 attachment-site maps are
-#   proper rotations; right-handed deflection_x. No new dependency.
-# v8.2.0: physics-correctness release after the full mathematical review:
-#   signed linear motor torque-speed law in the rotor speed relative to the
-#   body with exact self-consistent solve; flow-field post-processor accounts
-#   for the background flow (shared background_flow_velocity.m); shape_params
-#   validation for pilus types 2-5; documented curvature/moment units.
-#   No new dependency.
-# v8.1.0: batch post-processing kinematics feature release.
-#   postprocess_cases.m: 3-D TAMSD fit MSD=6D*tau+V^2*tau^2 on 0<tau<=T/2
-#   (lags still span full T); adds XZ-plane MSAD rotational diffusion
-#   D_rot (prefer results.q atan2(ez,ex), else tilt_rad). Excel + 2x3
-#   summary figure export D_rot_rad2_s / MSAD_R2. Simulation core unchanged.
-#   No new dependency.
-# v8.0.1: numerical-diagnostics hardening patch. Dense dissipation checks use
-#   full eig (eigs only for sparse + fallback); isolated rcond<1e-14 warns as
-#   NearSingularMatrix; SingularMatrix requires joint large residual and
-#   near-singular rcond; health probes use check_linear_solve; diagnostics
-#   field rcond_near_singular_threshold replaces rcond_error_threshold.
-#   verify_migration no longer expects a tests/ tree. No new dependency.
-# v8.0.0: major mathematical-physics correctness and runtime-contract release.
-#   Weighted-reciprocal translation/twist hydrodynamics now supports unequal
-#   segment lengths; custom pili use an equal-chord canonical centerline and
-#   objective full-director initialization. Body-only Brownian dynamics uses
-#   dimensionless SPD repair, true-duration remainder kicks, and an isolated
-#   random stream. Strict shear validation, partial timeout persistence, and
-#   finite/residual/condition/reciprocity/dissipation/motor diagnostics are
-#   included. Pili_Matrix is now exactly eight rows and per-pilus
-#   bending_stiffness overrides are rejected. No new runtime dependency.
-# v7.10.1: documentation-accuracy and API-contract consistency patch.
-#   MATLAB help headers now match actual signatures, dimensions, units, frames,
-#   numerical branches, side effects, warnings/errors, cache paths, and
-#   legacy/live-API boundaries. Minimal implementation fixes initialise
-#   odetpbar status, update verify_migration's expected files, and stabilise
-#   two capsule-mesh error identifiers. No Python dependencies and no physical
-#   or numerical algorithm changes.
-# v7.10.0: new HPC/Linux cluster execution capability, plus batch-driver bug
-#   fixes surfaced during the corresponding review.
-#   (1) New files run_simulation_HPC_Linux.m / batch_sweep/
-#       batch_repeat_brownian_HPC_Linux.m: a maintained fork hardened for
-#       headless, single-node-exclusive Linux HPC cluster execution. The
-#       original run_simulation.m / batch_repeat_brownian.m are unmodified
-#       (except the two cross-platform bug fixes below) and remain the
-#       Windows/interactive-oriented reference implementation.
-#   (2) VideoWriter now uses a platform-aware profile ('MPEG-4' on
-#       Windows/Mac, 'Motion JPEG AVI' on Linux) -- 'MPEG-4' is
-#       Windows/Mac-only and previously hard-crashed every animated repeat
-#       on Linux after the physics integration had already completed.
-#   (3) decide_pool_size gained Linux-native resource probes (lscpu for
-#       physical cores, /proc/meminfo MemAvailable for memory) and fixed a
-#       feature('numCores')/2 bug that halved an already-physical core
-#       count; the previous Linux fallback silently assumed 4 GB available
-#       regardless of real system RAM, capping the parallel pool at 1
-#       worker on large nodes. cpu_resource_frac/mem_resource_frac replace
-#       the single max_resource_frac (memory kept more conservative by
-#       default).
-#   (4) heavy_output_sample_idx forces generate_animation/compute_flowfield
-#       off for all but a small sample of repeats (first/middle/last by
-#       default), reducing per-worker peak memory -- implicated in an
-#       observed Linux OOM-killer incident where killed workers left a
-#       parfor batch hanging indefinitely (parfor has no built-in timeout /
-#       dead-worker recovery).
-#   (5) ensure_parpool relocates the local pool's JobStorageLocation to
-#       node-local scratch (tempdir()/$TMPDIR, job-unique via
-#       SLURM_JOB_ID/PBS_JOBID) on Linux, avoiding a documented pool-startup
-#       race when the default (under the user's home directory) sits on
-#       distributed/network cluster storage; falls back to the original
-#       behaviour if relocation itself fails. Windows unaffected.
-#   (6) Optional live sub-case progress heartbeat: run_simulation_HPC_Linux
-#       can send throttled (>=15 s) intra-run progress through the same
-#       DataQueue used for completion messages, the only way to see a
-#       still-running repeat's progress under cfg.silent=true.
-#   (7) Fixed capture_partial_outdir in batch_repeat_brownian.m (and added
-#       the same fix to batch_run_from_json.m): FAILED-run outdir/log_hint
-#       fields (added in v7.9.5) never actually populated, because MATLAB
-#       does not propagate a function's output arguments to the caller when
-#       it throws -- fixed by reconstructing the expected path from the
-#       deterministic case_name and confirming it exists on disk.
-#   (8) Fixed an invalid char(datetimeObj, 'Format', fmt) call in
-#       batch_repeat_brownian_HPC_Linux.m (char() only accepts a positional
-#       format string); reproduced on both R2023a and R2026a, confirming it
-#       was a latent, version-independent bug.
-#   (9) batch_repeat_brownian.m / batch_repeat_brownian_HPC_Linux.m: an
-#       outer try/catch around the whole execution section now lets a
-#       fatal, uncaught parfor/serial abort still reach the final report
-#       with whatever partial results were already committed, instead of
-#       aborting with no summary at all.
-#   No physical/numerical simulation outputs change. See CHANGELOG.md.
-# v7.9.6: console-output and error-resilience correctness release.
-#   (1) Fixed a critical dual_log console-echo polarity bug: since v7.9.3 the
-#       logf closure forwarded `silent` un-negated, so cfg.silent=false (the
-#       default, all interactive runs) echoed NOTHING through logf (~100
-#       [INIT]/[PARAMS]/[ODE]/... call sites) while cfg.silent=true (batch/
-#       parallel) echoed everything -- the opposite of the documented
-#       contract. simulation.log itself was unaffected. Fixed by forwarding
-#       ~silent instead.
-#   (2) Fixed a trisurf axes-targeting crash (MATLAB:catenate:
-#       dimensionMismatch) that made every geometry_mode='custom' run fail
-#       deterministically at the non-optional [PLOT] Generating summary
-#       figure step; trisurf(tri, varargin) does not support an axes handle
-#       as its first argument the way surf/plot3 do. Fixed via the 'Parent'
-#       name-value pair.
-#   (3) Added a run-wide try/catch in run_simulation.m: unhandled errors are
-#       now recorded in simulation.log as a [FATAL] block (identifier,
-#       message, full stack trace) before being rethrown, plus a
-#       cleanup_log_fid onCleanup guard so the log handle is always released
-#       (including on Ctrl-C).
-#   (4) Added a cfg.silent + preview_initial + ~auto_confirm deadlock guard
-#       (run_simulation:SilentPreviewDeadlock) instead of hanging forever on
-#       an unanswerable questdlg on a headless/parallel worker.
-#   (5) compute_plot_flowfield.m gained an optional `silent` argument so its
-#       chunked XZ/YZ progress bars are suppressed under cfg.silent (the last
-#       ungated progress bar).
-#   (6) Restored 9 previously warning()-only diagnostics in
-#       init_coupled_params.m / custom_body_building.m / custom_pili_building.m
-#       to the project's standard logf_h + warning dual-channel pattern, so
-#       they always reach simulation.log even under cfg.silent=true.
-#   (7) simulation.log / brownian_rng_seed.txt now open with explicit UTF-8
-#       encoding; log timestamps now include the date; Brownian per-segment
-#       [ODE] Segment announcements are throttled (first 3 + every 50th) to
-#       prevent simulation.log flooding on long Brownian runs.
-#   No physical/numerical simulation outputs change. See CHANGELOG.md.
-# v7.9.5: silent-mode completeness for custom geometry and batch-summary
-#   reproducibility — custom_body_building/custom_pili_building accept logf_h
-#   (respect cfg.silent); summary figure Visible='off' under silent;
-#   batch_repeat_brownian header/footer metadata (batch_config_snapshot_<id>.json,
-#   brown_rng_policy, failed/pending roll-up, FAILED outdir/log_hint); parallel
-#   empty-results message unified; partial outdir capture on catch. No simulation
-#   outputs change. See CHANGELOG.md.
-# v7.9.4: layered-silence completeness release — v7.9.3's cfg.silent gated only
-#   dual_log (~100 logf sites); this release closes all four console-output
-#   channels: (1) 5 direct fprintf in run_simulation.m wrapped in if ~silent
-#   (notably "Log saved:" per run and [OUTPUT] rename messages);
-#   (2) odetpbar no longer mounted as ODE OutputFcn under silent (kills \b
-#   backspace garbage in parallel); (3) render_progress_bar no longer called
-#   under silent; (4) ~24 warning calls across 16 src/ sub-functions suppressed
-#   via warning('off','all') with onCleanup guard restoring caller settings on
-#   any exit path. src/ sub-functions untouched. No simulation outputs change.
-#   See CHANGELOG.md.
-# v7.9.3: batch-logging robustness and parallel stdout-hygiene release.
-#   (1) batch_sweep/batch_repeat_brownian.m writes each per-run summary record
-#       (status, wall, seed, and on failure Identifier/Message/Location) to
-#       batch_repeat_summary_*.txt incrementally with a forced fclose flush,
-#       so a mid-batch crash no longer loses all per-run status/timing data;
-#       only the footer is lost.
-#   (2) run_simulation.m adds optional cfg.silent field (default false): when
-#       true, dual_log suppresses the console echo but still writes every line
-#       to the run's simulation.log. The parallel branch of batch_repeat_brownian.m
-#       sets cfg_k.silent = true so N workers no longer interleave ~15000 lines
-#       of [ODE] Segment N completed stdout for a 100-run x 10-worker batch.
-#   (3) Removed the duplicate [POOL] Resource probe console block from
-#       decide_pool_size (the main batch header already shows cores/memory/caps/
-#       binding; core_probe source label still recorded in the summary file).
-#   No simulation outputs change; summary-file format is byte-identical to v7.9.2
-#   when the batch completes normally. See CHANGELOG.md.
-# v7.9.2: numerical-robustness and documentation-accuracy release.
-#   (1) Defensive unit-quaternion normalisation in reconstruct_geometry.m and
-#       quat_to_rotmat.m (guards against ode15s trial-step |q|!=1 drift that
-#       would silently deform the body via a non-orthonormal rotation matrix).
-#   (2) Euler-angle convention label corrected from "ZXZ" to Walker (2020)'s
-#       actual R = Rz(phi)*Ry(-theta)*Rz(psi) (transpose of standard ZYZ active
-#       rotation). Comment-only; bitwise identical.
-#   (3) Brownian deterministic/stochastic operator-splitting approximation now
-#       documented in theory.md §10 with quantitative rel_asym diagnostic and
-#       user guidance for rel_asym > 1e-2.
-#   (4) Redundant symmetrisation of M_eff_dim removed (algebraically exact:
-#       Hadamard division by symmetric S*S' preserves symmetry).
-#   For well-behaved runs the quaternion guard is a no-op and the symmetrisation
-#   removal is exact, so outputs are identical to v7.9.1. See CHANGELOG.md.
-# v7.9.1: post-review bug fixes — clamp D_trans to non-negative in
-# postprocess_cases.m MSD fit (Bug 2), and capture ME.identifier /
-# ME.stack(1) in batch_sweep_alpha.m, batch_sweep_pili_length.m, and
-# batch_repeat_brownian.m catch blocks (Bug 6). No numerical change. See CHANGELOG.md.
-# v7.9.0: parameter-validation deep refactor — all pre-flight checks consolidated
-# into validate_simulation_params.m (full-cfg acceptance), pili_ext count consistency
-# (P1), delta range check (P2), N_body upper-bound warning (P4), background-flow
-# orthogonality warning (P5), alpha_0 range check (P6/A1, incl. custom-mode fallback),
-# unified string/struct acceptance for intrinsic_curvature/active_moment/motor_torque
-# (P7/P8), AbsTol/RelTol wording (P9), Bugbot-fixed alpha_0 custom-mode regression,
-# and dead-code removal in init_coupled_params.m. No numerical change. See CHANGELOG.md.
-# v7.8.0: reference-curvature kb0 discretised with the same SVD-projected
-# node-director operator as the run-time curvature (exact zero-moment frozen
-# equilibrium), and constant motor torque nondimensionalised by EI/L_pili
-# instead of EI/L_0. See CHANGELOG.md.
-# v7.7.0: strict Brownian Ito drift with SPD-projected diffusion, corrected
-# Kirchhoff torque-density scaling, final flow-field phase fix, and removal of
-# the former midpoint Brownian option. See CHANGELOG.md.
-# v7.6.0: non-local M_twist Schur-complement coupling with physical
-# 0.5*M_rotlet cross-coupling and line-integrated torque sum(L_s m_s).
-# v7.4.6: code-quality and documentation-consistency pass — vectorised
-# pili_spatial_coords (cumsum), dead-code removal in pili_building.m, lint
-# cleanup, and a warning-only dt_B heuristic fix. No numerical change. See CHANGELOG.md.
-# v7.4.5: batch_sweep/batch_run_from_json.m — optional parfor parallel JSON batch
-# (case_name dedup, real-time batch_summary log). See CHANGELOG.md.
-# v7.4.4: validate_simulation_params.m rejects parametric+custom_geometry mixing
-# and requires helix intrinsic_curvature kappa_d2/kappa_d3 (see CHANGELOG).
-# This repository has no Python/pip dependencies. Simulation code is MATLAB-only.
-#
-# Runtime
-#   - MATLAB R2022a or later required (developed and tested with R2026a; Linux HPC also run on R2023a).
-#   - Interactive HTML figure export (exportgraphics → .html) requires MATLAB R2026a or later; PNG/PDF work from R2020a (exportgraphics).
-#   - Parallel Computing Toolbox: optional. Required only for the default parallel
-#     branches of batch_sweep/batch_repeat_brownian.m and batch_sweep/batch_run_from_json.m
-#     (parfor). Each script falls back to a serial for-loop if the toolbox is
-#     unavailable or parpool fails.
-#   - Linux HPC cluster execution (v7.10.0+): use run_simulation_HPC_Linux.m /
-#     batch_sweep/batch_repeat_brownian_HPC_Linux.m instead of the originals.
-#     Tested against MATLAB R2023a on a single-node-exclusive Linux partition
-#     with distributed/network storage. No additional toolboxes beyond Parallel
-#     Computing Toolbox; lscpu (util-linux) and /proc/meminfo are used for
-#     resource probing and are present on essentially every Linux distribution.
-#
-# MATLAB Add-On (required for capsule body-surface points in v5.5.0+)
-#   - "Suite of functions to perform uniform sampling of a sphere" (S2 Sampling Toolbox)
-#     by Anton Semechko — install via MATLAB Add-On Explorer / File Exchange so that
-#     ParticleSampleSphere, SpiralSampleSphere, IcosahedronMesh, QuadCubeMesh, and
-#     SubdivideSphericalMesh are on the path.
-#
-# Python / conda: N/A for running the simulator. If you add Python tooling later,
-# list packages here and prefer conda + pip per project policy.
+# - Optional interactive HTML figure export (exportgraphics -> .html):
+#   * Requires MATLAB R2026a or later; PNG and vector PDF work on R2022a+.
+
+# ==============================================================================
+# 3. Optional Python Packages (Publication Re-plotting Scripts ONLY)
+# ==============================================================================
+# Core simulations never invoke Python. Only the optional publication figure
+# scripts in post_processing/plot_*.py and chlamydomonas/plotting/*.py use:
+numpy>=1.24
+pandas>=2.0
+scipy>=1.10
+matplotlib>=3.7

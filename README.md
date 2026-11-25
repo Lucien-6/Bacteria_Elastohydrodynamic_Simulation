@@ -3,11 +3,12 @@
 English | [中文](README.zh-CN.md)
 
 > **Program title:** BacEHD (see [`cpc/PROGRAM_SUMMARY.md`](cpc/PROGRAM_SUMMARY.md) and [`CITATION.cff`](CITATION.cff))  
-> **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
+> **Authors:** Shangping Lu (Lucien, [lucien-6@qq.com](mailto:lucien-6@qq.com)), Kun Zhao ([kzhao@uestc.edu.cn](mailto:kzhao@uestc.edu.cn))  
+> **Repository / Archive:** [GitHub](https://github.com/Lucien-6/Bacteria_Elastohydrodynamic_Simulation) | Zenodo DOI: [10.5281/zenodo.24529867](https://doi.org/10.5281/zenodo.24529867)  
 > **Created:** 2026-02-06  
-> **Updated:** 2026-11-24
-> **Version:** 10.2.1
-> **Runtime:** MATLAB-only (base MATLAB R2022a+, no Statistics Toolbox or Python dependencies required).
+> **Updated:** 2026-11-25  
+> **Version:** 10.2.2  
+> **Runtime:** Base MATLAB R2022a+ (no Statistics Toolbox, MEX, or Python required for simulations; optional Python plotting scripts in `post_processing/`).
 
 This project simulates the low-Reynolds-number dynamics of a rigid cell body coupled to one or more flexible pili or flagella: settling under gravity, swimming driven by a motor torque or by active moments, motion in a background flow, and Brownian motion. The body is represented by regularized Stokeslets on a surface point cloud, while each pilus is represented as an inextensible Kirchhoff elastic rod coupled to the surrounding Stokes flow through regularized Stokeslet segments.
 
@@ -20,28 +21,62 @@ This project simulates the low-Reynolds-number dynamics of a rigid cell body cou
 - Optional body-only Brownian dynamics: the 6-DOF body covariance uses the full coupled body-pili effective mobility with dimensionless SPD repair and an isolated reproducible random stream; each interval's increment is realised as a constant thermal generalised force acting through the coupled ODE (implicit Ito drift, no root kink). Pili internal elastic modes receive no thermal noise of their own unless the next option is on.
 - Optional thermal fluctuations of the pili (9.0.0+, hardened in 10.0.0, `brownian.pili_thermal`): the slow bending modes of the pili receive thermal forces sampled jointly with the body from the coupled mobility and realised with the constrained probe's centreline force density and balancing axial torque density (`brown_pili_tau`), so these modes reach equipartition with negligible twist leakage. Supports time-scale cutoff (`brownian.pili_tau_cut_s`), near-degenerate pair protection (`brownian.pili_protect_pairs`), and optional per-pilus RNG streams (`brownian.pili_rng_seeds`). Twist and higher bending modes stay deterministic. For passive, naturally straight pili with clamped roots. See [`docs/theory.md`](docs/theory.md) §10.4.
 - Body-frame Block Schur hydrodynamic precomputation (`build_body_precomp`, `build_pili_mobility_blocks`) and fast frozen-hydrodynamics 3-colour Jacobian (`ode_coupled_jacobian`, paired with `LaggedJacobian`) for large speedups on multi-pilus and Brownian runs (10.0.0).
-- Automated CPC reviewer verification suite ([`cpc/run_cpc_tests.m`](cpc/run_cpc_tests.m), [`cpc/PROGRAM_SUMMARY.md`](cpc/PROGRAM_SUMMARY.md)), external slender-body / cantilever checks ([`validation/`](validation/)), and v10.0.0 performance scaling benchmark ([`validation/cpc_performance_benchmark.m`](validation/cpc_performance_benchmark.m)).
+- Automated CPC reviewer verification suite ([`cpc/run_cpc_tests.m`](cpc/run_cpc_tests.m), [`cpc/PROGRAM_SUMMARY.md`](cpc/PROGRAM_SUMMARY.md)), external slender-body / cantilever checks ([`validation/`](validation/)), and performance/parallel/GPU scaling benchmarks ([`validation/cpc_performance_benchmark.m`](validation/cpc_performance_benchmark.m), [`validation/cpc_parallel_and_flowfield_benchmark.m`](validation/cpc_parallel_and_flowfield_benchmark.m)).
 - Optional background flow: off, uniform, or finite-thickness shear.
 - Free-torsion root coupling and constant motor torque for motor-driven flagella.
 - Biflagellate *Chlamydomonas* 3-D swimmer: measured-gait dual-k 1ω+2ω in-plane drive combined with 17° chiral beat-plane tilt and zero-twist proximal 1ω+2ω out-of-plane bending, reproducing 1–2 Hz spin and left-handed superhelical trajectories. See [`chlamydomonas/README.md`](chlamydomonas/README.md) and [`chlamydomonas/cases/run_3d_helix_2s.m`](chlamydomonas/cases/run_3d_helix_2s.m).
 - Inline MATLAB configuration, JSON configuration, and programmatic batch execution.
 - Publication-oriented exports: MAT, CSV, log, PNG, vector PDF, optional interactive HTML, and MP4 animation.
-- Accelerated 6-panel 3-D/2-D streamline flow-field reconstruction & animation (`render_flowfield_from_results`, 10.2.0): direct Block Schur force extraction, batched 3-plane FP64 GPU/BLAS3 velocity kernels (`use_gpu = 'auto'`), exact analytical capsule cross-sections, optimised thread-pool parallel streamlines (`use_parallel = 'auto'`), and a slimmed ~1.6 MiB/frame cache (~1,300 frames in 2 GiB).
+- Accelerated 6-panel 3-D/2-D streamline flow-field reconstruction & animation (`render_flowfield_from_results`, 10.2.0): direct Block Schur force extraction, batched 3-plane FP64 GPU/BLAS3 velocity kernels (`use_gpu = 'auto'`), exact analytical capsule cross-sections, optimised thread-pool parallel streamlines (`use_parallel = 'auto'`), and a slimmed ~1.6–4.0 MiB/frame cache (domain-dependent).
 - Optional **parallel** batch drivers ([`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m), [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m)): `parfor` with automatic pool sizing (Parallel Computing Toolbox); serial fallback when the toolbox or pool is unavailable.
 - **Linux HPC cluster execution:** [`run_simulation.m`](run_simulation.m) natively supports headless/Linux operation (platform-aware MP4/AVI video export via `render_motion_animation.m`, `.avi` detection, `cfg.silent`, and `DataQueue` progress heartbeats); [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) is retained as a thin forwarding alias for backward compatibility with [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m) (Linux-native CPU/memory probing, node-local `parpool` job storage, and heavy-output sampling).
 
+## Directory Structure
+
+```text
+<project_root>/
+├── main_coupled_simulation.m    # Interactive inline/JSON entry script
+├── run_simulation.m             # Unified simulation engine (Windows & Linux HPC)
+├── src/                         # Species-agnostic solver modules
+│   ├── config/                  #   JSON loader/saver, parameter validator, initialiser
+│   ├── geometry/                #   Capsule/custom body & equal-chord pili builders + S2 cache
+│   ├── core/                    #   Block Schur linear system, RHS, 3-colour Jacobian, diagnostics
+│   ├── physics/                 #   Kirchhoff elasticity, active moments, two-tier Brownian dynamics
+│   ├── math/                    #   Quaternions, directors, Euler angles, adaptive SO(3) basis
+│   ├── visualization/           #   4-panel motion animation & GPU/ThreadPool 6-panel flow field
+│   └── utils/                   #   Version, state packing, ETA/progress helpers
+├── configs/                     # Example & species JSON configurations
+├── geometry/                    # Example, E. coli & Chlamydomonas point-cloud CSVs + generators
+├── chlamydomonas/               # Pluggable 3-D Chlamydomonas inverse/forward swimmer module
+├── cpc/                         # CPC Program Summary & 18+2 automated reviewer test suite
+├── validation/                  # External SBT/cantilever checks & operator/parfor/GPU benchmarks
+├── batch_sweep/                 # Multi-worker parfor & Linux HPC ensemble/sweep drivers
+├── post_processing/             # Offline flow-field/animation redraw, MSD/MSAD & optional plot_*.py
+├── docs/                        # Theory & numerical model documentation (EN & zh-CN)
+└── MATLAB Add-On/               # Bundled MIT-licensed S2 Sampling Toolbox (A. Semechko)
+```
+
 ## Requirements
 
-- MATLAB R2022a or later; developed and tested with R2026a on Windows 11 and R2023a on Linux HPC. Earlier releases are not supported because runs write `config.json` with `jsonencode(..., 'PrettyPrint', true)` (R2021a) and the default flow-field figure uses `clim` (R2022a). Flow-field colour scaling uses pure base-MATLAB percentile interpolation (no Statistics and Machine Learning Toolbox dependency).
-- PNG and PDF figures are exported with `exportgraphics`.
-- Optional interactive HTML figure export requires MATLAB R2026a or later.
-- Capsule body-surface generation requires the MATLAB Add-On / File Exchange **S2 Sampling Toolbox** by Anton Semechko. Install it so `ParticleSampleSphere`, `SpiralSampleSphere`, `IcosahedronMesh`, `QuadCubeMesh`, and `SubdivideSphericalMesh` are on the MATLAB path.
-- Python / Conda / pip are not required. See [`requirements.txt`](requirements.txt).
+- MATLAB R2022a or later (not compatible with GNU Octave); developed and tested with R2026a on Windows 11 and R2023a on Linux HPC. Earlier releases are not supported because runs write `config.json` with `jsonencode(..., 'PrettyPrint', true)` (R2021a) and the default flow-field figure uses `clim` (R2022a). Flow-field colour scaling uses pure base-MATLAB percentile interpolation (no Statistics and Machine Learning Toolbox dependency).
+- PNG and PDF figures are exported with `exportgraphics`; optional interactive HTML figure export requires MATLAB R2026a or later.
+- Capsule body-surface generation uses Anton Semechko's MIT-licensed **S2 Sampling Toolbox**, which is **bundled in this repository** under `MATLAB Add-On/Suite of functions to perform uniform sampling of a sphere/` (added to the path automatically by `cpc/run_cpc_tests.m` and validation scripts).
+- Core MATLAB simulations require no Python, Conda, or pip environment; optional publication re-plotting scripts (`post_processing/plot_*.py`) use standard Python plotting packages listed in [`requirements.txt`](requirements.txt).
 - **Parallel Computing Toolbox** (and an optional CUDA GPU) are optional: used automatically for parallel batch sweeps (`batch_sweep/`) and accelerated multi-frame flow-field animations (`use_gpu = 'auto'`, `use_parallel = 'auto'`), with seamless serial CPU fallback when unavailable.
 
 ## Quick Start
 
-Before running a new case, confirm that the project root is the current MATLAB folder or is on the MATLAB path. The main script adds the project root defensively, but starting from the repository root keeps relative JSON paths and local output folders predictable.
+Before running a new case, confirm that the project root is the current MATLAB folder or is on the MATLAB path.
+
+### Reviewer Verification & Benchmarks (CPC Test Run)
+
+```matlab
+addpath('cpc'); addpath('validation');
+run_cpc_tests('SkipExternal', true)      % 18 built-in checks (~22.5 s)
+run_cpc_tests                            % 18 built-in + 2 external checks (~1-2 min)
+cpc_performance_benchmark                % Block Schur & 3-colour Jacobian speedup (~17 s)
+cpc_parallel_and_flowfield_benchmark     % parfor strong scaling & GPU flow-field benchmark
+```
 
 ### Option A: Inline Parameters
 

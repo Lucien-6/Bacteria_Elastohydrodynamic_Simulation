@@ -2,9 +2,9 @@
 
 English | [中文](USER_GUIDE.zh-CN.md)
 
-> **Author:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **Version:** 10.2.1
-> **Updated:** 2026-11-24
+> **Author:** Shangping Lu (Lucien, [lucien-6@qq.com](mailto:lucien-6@qq.com))  
+> **Version:** 10.2.2
+> **Updated:** 2026-11-25
 
 This guide is for running simulations, choosing the right configuration path, finding outputs, and post-processing completed cases. For model equations and derivations, see [`docs/theory.md`](docs/theory.md). For release history, see [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -12,12 +12,12 @@ This guide is for running simulations, choosing the right configuration path, fi
 
 ### Requirements
 
-- MATLAB R2022a or later. The project is developed and tested with R2026a on Windows 11 and R2023a on Linux HPC. Earlier releases are not supported: every run writes `config.json` with `jsonencode(..., 'PrettyPrint', true)` (R2021a), and the flow-field figure, which is on by default, uses `clim` (R2022a). Flow-field percentile scaling uses pure base MATLAB (no Statistics Toolbox dependency).
+- MATLAB R2022a or later (not compatible with GNU Octave). Developed and tested with R2026a on Windows 11 and R2023a on Linux HPC. Earlier releases are not supported: every run writes `config.json` with `jsonencode(..., 'PrettyPrint', true)` (R2021a), and the flow-field figure, which is on by default, uses `clim` (R2022a). Flow-field percentile scaling uses pure base MATLAB (no Statistics Toolbox dependency).
 - PNG and PDF exports use `exportgraphics`; optional interactive HTML exports require MATLAB R2026a or later.
-- Capsule body surface generation requires Anton Semechko's **S2 Sampling Toolbox** from MATLAB Add-On Explorer / File Exchange.
-- No Python, Conda, or pip environment is required. [`requirements.txt`](requirements.txt) documents this explicitly.
-- **Parallel Computing Toolbox** is optional: needed for the default parallel branches of [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) and [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m) (`use_parallel = true`).
-- **Running on a Linux HPC cluster (since 7.10.0):** use [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) / [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m) instead of the originals — see §5.3.
+- Capsule body surface generation uses Anton Semechko's MIT-licensed **S2 Sampling Toolbox**, which is **bundled in this repository** under `MATLAB Add-On/Suite of functions to perform uniform sampling of a sphere/` (added automatically by `cpc/run_cpc_tests.m` and validation scripts).
+- Core MATLAB simulations require no Python, Conda, or pip environment; optional publication figure scripts (`post_processing/plot_*.py`) list their Python packages in [`requirements.txt`](requirements.txt).
+- **Parallel Computing Toolbox** (and an optional CUDA GPU) are optional: used automatically for parallel batch sweeps (`batch_sweep/`, `use_parallel = true`) and accelerated flow-field reconstruction (`use_gpu = 'auto'`, `use_parallel = 'auto'`), with serial CPU fallback when absent.
+- **Linux HPC cluster execution:** [`run_simulation.m`](run_simulation.m) natively supports headless Linux operation (platform-aware AVI video export, `cfg.silent`, and `DataQueue` heartbeats); use [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m) for Slurm/PBS multi-worker ensembles (with [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) retained as a thin compatibility alias) — see §5.3.
 
 ### Recommended Working Folder
 

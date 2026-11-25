@@ -2,9 +2,9 @@
 
 [English](USER_GUIDE.md) | 中文
 
-> **作者:** Lucien ([lucien-6@qq.com](mailto:lucien-6@qq.com))  
-> **版本:** 10.2.1
-> **更新日期:** 2026-11-24
+> **作者:** 陆尚平 (Lucien, [lucien-6@qq.com](mailto:lucien-6@qq.com))  
+> **版本:** 10.2.2
+> **更新日期:** 2026-11-25
 
 本文档面向实际使用：如何运行仿真、如何选择配置方式、输出文件在哪里、以及如何做批量后处理。模型公式与数值方法见 [`docs/theory.zh-CN.md`](docs/theory.zh-CN.md)，版本历史见 [`CHANGELOG.md`](CHANGELOG.md)。
 
@@ -12,12 +12,12 @@
 
 ### 运行需求
 
-- MATLAB R2022a 或更新版本。本项目在 Windows 11 R2026a 上开发和测试，并在 Linux 超算 R2023a 上运行验证。更早版本不支持：每次运行都用 `jsonencode(..., 'PrettyPrint', true)`（R2021a）写出 `config.json`；默认开启的流场图使用 `clim`（R2022a）。流场色标采用纯基础 MATLAB 分位数插值，不依赖 Statistics Toolbox。
+- MATLAB R2022a 或更新版本（不兼容 GNU Octave）。本项目在 Windows 11 R2026a 上开发和测试，并在 Linux 超算 R2023a 上运行验证。更早版本不支持：每次运行都用 `jsonencode(..., 'PrettyPrint', true)`（R2021a）写出 `config.json`；默认开启的流场图使用 `clim`（R2022a）。流场色标采用纯基础 MATLAB 分位数插值，不依赖 Statistics Toolbox。
 - PNG 和 PDF 图像导出依赖 `exportgraphics`；可选交互式 HTML 导出需要 MATLAB R2026a 或更新版本。
-- 胶囊胞体表面布点需要 Anton Semechko 的 **S2 Sampling Toolbox**，可通过 MATLAB Add-On Explorer / File Exchange 安装。
-- 运行仿真不需要 Python、Conda 或 pip 环境；[`requirements.txt`](requirements.txt) 已明确说明。
-- **Parallel Computing Toolbox** 为可选：在使用 [`batch_sweep/batch_repeat_brownian.m`](batch_sweep/batch_repeat_brownian.m) 与 [`batch_sweep/batch_run_from_json.m`](batch_sweep/batch_run_from_json.m) 默认并行分支时需要（`use_parallel = true`）。
-- **在 Linux 超算集群上运行（7.10.0 起）：** 请使用 [`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) / [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m) 而非原版脚本——详见 §5.3。
+- 胶囊胞体表面布点使用 Anton Semechko 的 MIT 许可 **S2 Sampling Toolbox**，已随本仓库直接打包在 `MATLAB Add-On/Suite of functions to perform uniform sampling of a sphere/` 中（`cpc/run_cpc_tests.m` 与验证脚本自动加入路径，无需额外下载）。
+- 运行核心 MATLAB 仿真不需要 Python、Conda 或 pip 环境；仅可选的论文重绘脚本（`post_processing/plot_*.py`）依赖 [`requirements.txt`](requirements.txt) 中列出的 Python 绘图包。
+- **Parallel Computing Toolbox**（及可选 CUDA GPU）为可选：用于批量并行扫描（`batch_sweep/`，`use_parallel = true`）及流场重建加速（`use_gpu = 'auto'`、`use_parallel = 'auto'`），缺失时自动回退至串行 CPU。
+- **Linux 超算集群运行：** [`run_simulation.m`](run_simulation.m) 已原生统一支持无界面 Linux 运行（平台自适应 AVI 视频导出、`cfg.silent` 与 `DataQueue` 心跳）；Slurm/PBS 多核系综请使用 [`batch_sweep/batch_repeat_brownian_HPC_Linux.m`](batch_sweep/batch_repeat_brownian_HPC_Linux.m)（[`run_simulation_HPC_Linux.m`](run_simulation_HPC_Linux.m) 作为薄转发别名向下兼容）——详见 §5.3。
 
 ### 推荐工作目录
 

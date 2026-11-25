@@ -1,6 +1,6 @@
 # BacEHD — CPC Reviewer Package
 
-Short, self-contained verification and benchmark suite for the *Computer Physics Communications* (CPC) deposit of **BacEHD** (`v10.2.1`). Long Brownian ensembles and publication sweeps are not repeated here; this package verifies every core physical law, v10.0.0+ numerical acceleration, thermal operator, and full end-to-end workflow in seconds to a couple of minutes.
+Short, self-contained verification and benchmark suite for the *Computer Physics Communications* (CPC) deposit of **BacEHD** (`v10.2.2`). Long Brownian ensembles and publication sweeps are not repeated here; this package verifies every core physical law, v10.0.0+ numerical acceleration, thermal operator, and full end-to-end workflow in seconds to a couple of minutes.
 
 See [`PROGRAM_SUMMARY.md`](PROGRAM_SUMMARY.md) for the formatted CPC Program Summary metadata.
 
@@ -19,11 +19,12 @@ To also run the two external literature checks (Johnson slender-body helix propu
 run_cpc_tests                         % 18 built-in + 2 external checks (~1-2 min)
 ```
 
-To run the v10.0.0 Block Schur / 3-colour Jacobian speedup & equivalence benchmark:
+To run the v10.0.0+ Block Schur / 3-colour Jacobian speedup & equivalence benchmark and the multi-worker `parfor` / GPU flow-field scaling benchmark:
 
 ```matlab
 addpath('validation')
-cpc_performance_benchmark             % writes output/cpc_checks/performance_benchmark_*.csv (~18 s)
+cpc_performance_benchmark               % writes output/cpc_checks/performance_benchmark_*.csv (~17 s)
+cpc_parallel_and_flowfield_benchmark    % writes output/cpc_checks/parallel_scaling_benchmark.csv & flowfield_gpu_benchmark.csv
 ```
 
 `run_cpc_tests` automatically adds `src/`, `validation/`, `chlamydomonas/`, and the bundled MIT-licensed S2 Sampling Toolbox (`MATLAB Add-On/Suite of functions to perform uniform sampling of a sphere`, Copyright (c) 2019 Anton Semechko) to the MATLAB path.
@@ -53,7 +54,7 @@ Reference output on MATLAB R2026a (Windows 11, PCWIN64) for `run_cpc_tests('Skip
 
 ```text
 ================================================================
-  BacEHD v10.2.1 — CPC Reviewer Verification Suite
+  BacEHD v10.2.2 — CPC Reviewer Verification Suite
   Platform: MATLAB 26.1.0.3346908 (R2026a) Update 5 on PCWIN64
 ================================================================
   sphere                 V / V_Stokes                 +0.998413  (expected +1 +/- 0.01)  PASS
@@ -74,7 +75,7 @@ Reference output on MATLAB R2026a (Windows 11, PCWIN64) for `run_cpc_tests('Skip
   pili_thermal_sampler   SPD & finite sampler flag    +1  (expected +1 +/- 0)  PASS
   end_to_end_pipeline    JSON->run_simulation flag    +1  (expected +1 +/- 0)  PASS
   chlamy_3d_dry_run      3-D Chlamydomonas dry_run    +1  (expected +1 +/- 0)  PASS
-BacEHD v10.2.1 CPC tests PASS in ~22 s.
+BacEHD v10.2.2 CPC tests PASS in ~22.5 s.
 ```
 
 ---

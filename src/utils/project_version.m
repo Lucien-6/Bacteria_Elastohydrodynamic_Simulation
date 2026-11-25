@@ -20,8 +20,8 @@ function v = project_version()
 %
 %  Author:  Lucien (lucien-6@qq.com)
 %  Created: 2026-07-03
-%  Updated: 2026-11-24
+%  Updated: 2026-11-25
 
-v = '10.2.1';
+v = '10.2.2';
 
 end

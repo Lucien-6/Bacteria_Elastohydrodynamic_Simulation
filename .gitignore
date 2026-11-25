@@ -9,8 +9,9 @@ batch_sweep/batch_repeat_summary_*.txt
 batch_sweep/batch_config_snapshot_*.json
 
 # ==============================================================================
-# Local development, publication-only sweeps & legacy archives
+# Local development, manuscript drafts, publication-only sweeps & legacy archives
 # ==============================================================================
+manuscript/
 test/
 paper_cases/
 _legacy/
@@ -30,6 +31,8 @@ MATLAB Add-On/**/resources/
 *.asv
 *.m~
 *.autosave
+*.bak
+*.bak_*
 *.slxc
 slprj/
 matlab_crash_dump.*
