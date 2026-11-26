@@ -4,7 +4,7 @@
 
 > **程序名称:** BacEHD（详见 [`cpc/PROGRAM_SUMMARY.md`](cpc/PROGRAM_SUMMARY.md) 与 [`CITATION.cff`](CITATION.cff)）  
 > **作者:** 陆尚平 (Lucien, [lucien-6@qq.com](mailto:lucien-6@qq.com)), 赵坤 ([kzhao@uestc.edu.cn](mailto:kzhao@uestc.edu.cn))  
-> **仓库 / 归档:** [GitHub](https://github.com/Lucien-6/Bacteria_Elastohydrodynamic_Simulation) | Zenodo DOI: [10.5281/zenodo.24531456](https://doi.org/10.5281/zenodo.24531456)  
+> **仓库:** [GitHub](https://github.com/Lucien-6/Bacteria_Elastohydrodynamic_Simulation)  
 > **创建日期:** 2026-02-06  
 > **更新日期:** 2026-11-25  
 > **版本:** 10.2.2  

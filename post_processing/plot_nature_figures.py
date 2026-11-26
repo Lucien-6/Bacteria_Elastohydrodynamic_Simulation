@@ -725,12 +725,12 @@ def fig_thermal() -> plt.Figure:
         squeeze_me=True, struct_as_record=False,
     )["R"]
     apply_style()
-    fig, axes = plt.subplots(2, 3, figsize=(W183, 128 * MM), layout="constrained")
+    fig, axes = plt.subplots(2, 3, figsize=(W183, 142 * MM), layout="constrained")
 
     time_panels = (
-        (axes[0, 0], "D1", "D1c", "1 filament, 293 K"),
+        (axes[0, 0], "D1", "D1c", "1 filament, 293.15 K"),
         (axes[0, 1], "C1", None, "1 filament, 2.93 K"),
-        (axes[0, 2], "D4", "D4c", "4 filaments, 293 K"),
+        (axes[0, 2], "D4", "D4c", "4 filaments, 293.15 K"),
     )
     styles = (
         (0, BLUE, "-", "order 1, pilus noise"),
@@ -838,6 +838,16 @@ def fig_thermal() -> plt.Figure:
     fig.legend(
         handles=handles, loc="outside upper center", ncol=3,
         borderaxespad=0.0, handlelength=2.8, columnspacing=0.9,
+    )
+    lag_handles = [
+        Line2D([0], [0], color=BLUE, lw=0, marker="o", ms=3.3, label="pilus thermalisation"),
+        Line2D([0], [0], color=ORANGE, lw=0, marker="s", ms=3.3, label="body-only noise"),
+        Line2D([0], [0], color=BLUE, lw=0.8, ls="--", label="mobility prediction"),
+        Line2D([0], [0], color=REF, lw=0.8, label="reference level"),
+    ]
+    fig.legend(
+        handles=lag_handles, loc="outside lower center", ncol=4,
+        borderaxespad=0.0, handlelength=2.2, columnspacing=0.9,
     )
     panel_letters(axes, "abcdef")
     return fig

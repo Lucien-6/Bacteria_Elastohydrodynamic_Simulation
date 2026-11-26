@@ -380,7 +380,8 @@ def fig_architecture() -> None:
         0.295,
         0.30,
         "Verification & Benchmarks (cpc/, validation/)",
-        "cpc/run_cpc_tests.m (18+2 automated checks, ~23 s)\n"
+        "cpc/run_cpc_tests.m\n"
+        "(18 built-in, ~23 s; 2 external, 1-2 min)\n"
         "cpc_helix_propulsive_matrix & cantilever_relaxation\n"
         "cpc_performance_benchmark (Schur + 3-colour Jac)\n"
         "cpc_parallel_and_flowfield_benchmark (parfor/GPU)",
@@ -662,8 +663,8 @@ def fig_app_ecoli() -> None:
     m_z = (t >= 0.40) & (t <= 0.46)
     ins.plot(t[m_z] * 1e3, (X[m_z, 1] - X[m_z, 1].mean()) * 1e3, color=VERMILION, lw=0.75, label="Y")
     ins.plot(t[m_z] * 1e3, (X[m_z, 2] - X[m_z, 2].mean()) * 1e3, color=GREEN, lw=0.75, ls="--", label="Z")
-    ins.set_xlabel("t (ms)", fontsize=5.5, labelpad=1)
-    ins.set_ylabel("ΔY, ΔZ (nm)", fontsize=5.5, labelpad=1)
+    ins.set_xlabel("t (ms)", fontsize=5.5, labelpad=3)
+    ins.set_ylabel("ΔY, ΔZ (nm)", fontsize=5.5, labelpad=8)
     ins.tick_params(direction="in", labelsize=5.3, length=1.8, width=0.4, top=True, right=True)
     ins.legend(loc="upper right", fontsize=5.0, handlelength=1.0, borderaxespad=0.1)
 
